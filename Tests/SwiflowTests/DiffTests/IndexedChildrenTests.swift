@@ -114,4 +114,63 @@ struct IndexedChildrenTests {
             .appendChild(parent: 0, child: 3),
         ])
     }
+
+    @Test("Cross-kind transition mid-list: text→element triggers destroy+create+insertBefore")
+    func crossKindMidList() {
+        // [text("a"), text("b")] → [element(span), text("b")]
+        // Old children: ul=0, "a"=1, "b"=2.
+        // Update on index 0: text→element triggers the default arm:
+        //   destroyNode(1), createElement(3, "span")
+        //   update returns the fresh MountNode → mounted.replaceChild(at:0)
+        //   then insertBefore(0, 3, beforeChild: 2) to position it before "b".
+        // Update on index 1: text("b")→text("b") is a no-op.
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let initial = VNode.element(ElementData(
+            tag: "ul",
+            children: [.text("a"), .text("b")]
+        ))
+        let next = VNode.element(ElementData(
+            tag: "ul",
+            children: [.element(ElementData(tag: "span")), .text("b")]
+        ))
+        let m = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: next, handles: handles, handlers: handlers)
+        #expect(u.patches == [
+            .destroyNode(handle: 1),
+            .createElement(handle: 3, tag: "span"),
+            .insertBefore(parent: 0, child: 3, beforeChild: 2),
+        ])
+        // Parent pointer wiring sanity: the new MountNode's parent is the ul.
+        #expect(u.newMountTree.children.count == 2)
+        #expect(u.newMountTree.children[0].handle == 3)
+        #expect(u.newMountTree.children[1].handle == 2)
+    }
+
+    @Test("Cross-kind transition at tail: text→element triggers destroy+create+appendChild")
+    func crossKindAtTail() {
+        // [text("a"), text("b")] → [text("a"), element(span)]
+        // Old children: ul=0, "a"=1, "b"=2.
+        // Index 0: text("a")→text("a") no-op.
+        // Index 1: text→element via default arm:
+        //   destroyNode(2), createElement(3, "span")
+        //   replaceChild(at:1); i+1==2 == oldCount → appendChild (no anchor).
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let initial = VNode.element(ElementData(
+            tag: "ul",
+            children: [.text("a"), .text("b")]
+        ))
+        let next = VNode.element(ElementData(
+            tag: "ul",
+            children: [.text("a"), .element(ElementData(tag: "span"))]
+        ))
+        let m = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: next, handles: handles, handlers: handlers)
+        #expect(u.patches == [
+            .destroyNode(handle: 2),
+            .createElement(handle: 3, tag: "span"),
+            .appendChild(parent: 0, child: 3),
+        ])
+    }
 }
