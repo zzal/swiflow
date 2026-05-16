@@ -23,7 +23,18 @@ public func diff(
     handlers: HandlerRegistry
 ) -> DiffResult {
     var patches: [Patch] = []
-    let root = mount(next, into: &patches, handles: handles, handlers: handlers)
+    let root: MountNode
+    if let mounted = mounted {
+        root = update(
+            mounted: mounted,
+            next: next,
+            into: &patches,
+            handles: handles,
+            handlers: handlers
+        )
+    } else {
+        root = mount(next, into: &patches, handles: handles, handlers: handlers)
+    }
     return DiffResult(patches: patches, newMountTree: root)
 }
 
@@ -95,5 +106,61 @@ func mount(
         }
 
         return mountNode
+    }
+}
+
+// MARK: - Update (subsequent renders)
+
+/// Reconciles `next` against `mounted`. The returned `MountNode` is the
+/// committed mount-tree node for that position (it may be the same object as
+/// `mounted` if the diff is in-place, or a fresh replacement if the tag
+/// changed — subsequent tasks add the replace path).
+func update(
+    mounted: MountNode,
+    next: VNode,
+    into patches: inout [Patch],
+    handles: HandleAllocator,
+    handlers: HandlerRegistry
+) -> MountNode {
+    // Task 10 scope: same-tag element with only `attributes` changes.
+    // Other bags + text + rawHTML + tag replace are added in Tasks 11–17.
+    guard
+        case .element(let oldData) = mounted.vnode,
+        case .element(let newData) = next,
+        oldData.tag == newData.tag
+    else {
+        // Placeholder: tag-replace and text/rawHTML paths land in Tasks 14–15.
+        // For now, fall back to remount (will be replaced).
+        fatalError("update path for non-attribute changes not yet implemented")
+    }
+
+    diffAttributes(
+        handle: mounted.handle,
+        old: oldData.attributes,
+        new: newData.attributes,
+        into: &patches
+    )
+
+    mounted.vnode = next
+    return mounted
+}
+
+/// Emits `setAttribute` / `removeAttribute` patches for the symmetric
+/// difference between two attribute dictionaries.
+func diffAttributes(
+    handle: Int,
+    old: [String: String],
+    new: [String: String],
+    into patches: inout [Patch]
+) {
+    // Sets and changes.
+    for (name, newValue) in new {
+        if old[name] != newValue {
+            patches.append(.setAttribute(handle: handle, name: name, value: newValue))
+        }
+    }
+    // Removals.
+    for name in old.keys where new[name] == nil {
+        patches.append(.removeAttribute(handle: handle, name: name))
     }
 }
