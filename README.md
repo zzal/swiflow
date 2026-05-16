@@ -37,8 +37,9 @@ end-to-end round-trip in a browser. CLI scaffolding (`swiflow init`, `build`,
 swift test
 ```
 
-All Phase 1 functionality is exercised by the `SwiflowTests` target — 103
-tests across 20 suites.
+All Phase 1 + Phase 2a Swift-side functionality is exercised by the
+`SwiflowTests` target — 123 tests across 22 suites. The WASM-side renderer
+(`SwiflowWeb`) is verified end-to-end by the `examples/HelloWorld/` demo.
 
 ## Architecture
 

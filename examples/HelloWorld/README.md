@@ -18,7 +18,7 @@ will automate this.
 ```bash
 cd examples/HelloWorld
 swift build --swift-sdk wasm32-unknown-wasi -c release
-cp .build/wasm32-unknown-wasi/release/App.wasm public/App.wasm
+cp .build/wasm32-unknown-wasip1/release/App.wasm public/App.wasm
 ```
 
 ## Serve
