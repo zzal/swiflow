@@ -235,3 +235,22 @@ struct ElementFactoryTests {
         #expect(node == expected)
     }
 }
+
+@Suite("DSL — rawHTML escape hatch")
+struct RawHTMLDSLTests {
+    @Test("rawHTML produces a VNode.rawHTML case")
+    func producesRawHTMLCase() {
+        let node = rawHTML("<svg/>")
+        #expect(node == .rawHTML("<svg/>"))
+    }
+
+    @Test("rawHTML can be embedded as a child")
+    func embedAsChild() {
+        let node = div { rawHTML("<b>x</b>") }
+        let expected = VNode.element(ElementData(
+            tag: "div",
+            children: [.rawHTML("<b>x</b>")]
+        ))
+        #expect(node == expected)
+    }
+}
