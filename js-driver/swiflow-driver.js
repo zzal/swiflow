@@ -137,11 +137,19 @@
       // Events
       case "addHandler": {
         const handlerId = p.handlerId;
+        const key = p.handle + ":" + p.event;
+        // Self-correcting: if a previous handler was never explicitly removed
+        // (would indicate a differ bug), detach it before binding the new
+        // one. Otherwise both wrappers fire on the next event.
+        const existing = listeners.get(key);
+        if (existing !== undefined) {
+          nodes.get(p.handle).removeEventListener(p.event, existing);
+        }
         const fn = function (evt) {
           window.__swiflowDispatch(handlerId, serializeEvent(evt));
         };
         nodes.get(p.handle).addEventListener(p.event, fn);
-        listeners.set(p.handle + ":" + p.event, fn);
+        listeners.set(key, fn);
         return;
       }
       case "removeHandler": {
