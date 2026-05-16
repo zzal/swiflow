@@ -34,6 +34,11 @@ public enum Attribute {
     public static func on(_ event: String, _ handler: EventHandler) -> Attribute {
         .handler(event: event, value: handler)
     }
+
+    // No explicit `static func key(_:)` is needed — `case key(String)`
+    // auto-synthesizes a constructor with the same call-site syntax
+    // (`Attribute.key("k1")`). Declaring one explicitly is a redeclaration
+    // error.
 }
 
 /// Folds a list of `Attribute`s into the four bags + key of an `ElementData`.

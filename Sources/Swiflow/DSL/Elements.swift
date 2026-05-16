@@ -1,25 +1,12 @@
 // Sources/Swiflow/DSL/Elements.swift
-
-// MARK: - Generic factory helpers
-
-/// Generic factory used by every element below. Variadic `Attribute`s and an
-/// optional trailing children block.
-public func element(
-    _ tag: String,
-    _ attributes: Attribute...,
-    @ChildrenBuilder children: () -> [VNode] = { [] }
-) -> VNode {
-    .element(applyAttributes(tag: tag, attributes, children: children()))
-}
-
-/// Text-only convenience: `h1("Hello")`.
-public func element(
-    _ tag: String,
-    _ text: String,
-    _ attributes: Attribute...
-) -> VNode {
-    .element(applyAttributes(tag: tag, attributes, children: [.text(text)]))
-}
+//
+// The 20 lowercase factories below are deliberately mechanical: each takes
+// variadic `Attribute...` plus an optional `@ChildrenBuilder` block, and
+// (for content-bearing tags) ships a text-only convenience overload. The
+// repetition is the API — a generic `element(_:_:children:)` was tried and
+// removed because variadic forwarding in Swift makes the wrappers no shorter
+// and obscures call-site discoverability. A macro could regenerate this file
+// from a tag list; deferred to Phase 4 polish.
 
 // MARK: - Concrete elements
 

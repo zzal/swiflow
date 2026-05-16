@@ -122,10 +122,11 @@ struct AttributeModifierTests {
         #expect(data.key == "k1")
     }
 
-    @Test(".on produces a handler entry (uses ambient registry)")
+    @Test(".on produces a handler entry that dispatches the registered closure")
     func onModifier() {
         var fired = false
-        let attr = Attribute.on("click", HandlerRegistry.testInstance.register { _ in fired = true })
+        let registry = HandlerRegistry()
+        let attr = Attribute.on("click", registry.register { _ in fired = true })
         let data = applyAttributes(tag: "button", [attr])
         #expect(data.handlers["click"] != nil)
         // Dispatch directly to assert wiring.
@@ -152,14 +153,6 @@ struct AttributeModifierTests {
         ])
         #expect(data.attributes == ["class": "b"])
     }
-}
-
-// HandlerRegistry.testInstance — a process-wide convenience for tests.
-// Production code uses an injected registry; this just keeps the DSL tests
-// readable. `nonisolated(unsafe)` is fine here: registry is non-Sendable in
-// Phase 1 (deferred to Phase 3) and the test suite is single-threaded.
-extension HandlerRegistry {
-    nonisolated(unsafe) static let testInstance = HandlerRegistry()
 }
 
 @Suite("DSL — element factories")
