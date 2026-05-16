@@ -161,3 +161,77 @@ struct AttributeModifierTests {
 extension HandlerRegistry {
     nonisolated(unsafe) static let testInstance = HandlerRegistry()
 }
+
+@Suite("DSL — element factories")
+struct ElementFactoryTests {
+
+    @Test("div with no attrs and no children")
+    func bareDiv() {
+        let node = div()
+        #expect(node == .element(ElementData(tag: "div")))
+    }
+
+    @Test("div with class and child text")
+    func divWithClassAndChild() {
+        let node = div(.class("row")) {
+            VNode.text("hi")
+        }
+        let expected = VNode.element(ElementData(
+            tag: "div",
+            attributes: ["class": "row"],
+            children: [.text("hi")]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("h1 with text-only convenience overload")
+    func h1Text() {
+        let node = h1("Hello")
+        let expected = VNode.element(ElementData(
+            tag: "h1",
+            children: [.text("Hello")]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("button with handler and text body")
+    func buttonWithHandler() {
+        let registry = HandlerRegistry()
+        let h = registry.register { _ in }
+        let node = button("Click", .on("click", h))
+        let expected = VNode.element(ElementData(
+            tag: "button",
+            handlers: ["click": h],
+            children: [.text("Click")]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("ul with mapped children")
+    func ulMappedChildren() {
+        let items = ["a", "b", "c"]
+        let node = ul {
+            for item in items {
+                li { VNode.text(item) }
+            }
+        }
+        let expected = VNode.element(ElementData(
+            tag: "ul",
+            children: items.map { i in
+                .element(ElementData(tag: "li", children: [.text(i)]))
+            }
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("input self-closing with property")
+    func inputWithProperty() {
+        let node = input(.prop("value", .string("x")), .attr("type", "text"))
+        let expected = VNode.element(ElementData(
+            tag: "input",
+            attributes: ["type": "text"],
+            properties: ["value": .string("x")]
+        ))
+        #expect(node == expected)
+    }
+}
