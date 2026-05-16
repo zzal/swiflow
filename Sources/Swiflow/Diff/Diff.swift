@@ -136,6 +136,7 @@ func update(
 
     diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
     diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
+    diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
 
     mounted.vnode = next
     return mounted
@@ -176,5 +177,23 @@ func diffProperties(
     }
     for name in old.keys where new[name] == nil {
         patches.append(.removeProperty(handle: handle, name: name))
+    }
+}
+
+/// Emits `setStyle` / `removeStyle` patches for the symmetric difference
+/// between two style dictionaries.
+func diffStyle(
+    handle: Int,
+    old: [String: String],
+    new: [String: String],
+    into patches: inout [Patch]
+) {
+    for (name, newValue) in new {
+        if old[name] != newValue {
+            patches.append(.setStyle(handle: handle, name: name, value: newValue))
+        }
+    }
+    for name in old.keys where new[name] == nil {
+        patches.append(.removeStyle(handle: handle, name: name))
     }
 }
