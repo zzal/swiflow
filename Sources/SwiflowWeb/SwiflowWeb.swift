@@ -22,10 +22,20 @@ public extension Swiflow {
     ///
     /// Subsequent calls to `Swiflow.rerender()` will re-evaluate the producer,
     /// diff against the committed tree, and ship the patches in one bridge
-    /// call. Phase 2a supports a single root per app; calling `render` twice
-    /// replaces the prior renderer (no cleanup — out of scope until Phase 3
-    /// adds component lifecycle).
+    /// call. **Phase 2a supports a single root per app.** Calling `render`
+    /// twice traps with a clear error — `DispatcherBridge` captures the
+    /// FIRST registry it sees, so a second `render` would silently break
+    /// event dispatch for all subsequently registered handlers (they would
+    /// land in a registry the bridge never reads). Phase 3's component
+    /// lifecycle will replace this limitation.
     static func render(_ viewProducer: @escaping () -> VNode, into selector: String) {
+        precondition(
+            ambientRenderer == nil,
+            "Swiflow.render(_:into:) was already called. Phase 2a supports a single root per app; " +
+            "a second render would silently drop event dispatch for new handlers because the JS " +
+            "dispatcher remains bound to the first registry. Multi-root support arrives with " +
+            "Phase 3's component lifecycle."
+        )
         let renderer = Renderer(viewProducer: viewProducer, selector: selector)
         ambientRenderer = renderer
         DispatcherBridge.installIfNeeded(registry: renderer.handlers)

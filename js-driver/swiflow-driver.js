@@ -120,7 +120,10 @@
         nodes.get(p.handle).style[p.name] = p.value;
         return;
       case "removeStyle":
-        nodes.get(p.handle).style[p.name] = "";
+        // Use removeProperty (not `style[name] = ""`) so CSS custom properties
+        // (`--foo`) and shorthands work correctly. Setting to "" leaves a
+        // dangling JS property on the inline style object for `--foo`.
+        nodes.get(p.handle).style.removeProperty(p.name);
         return;
       case "setText": {
         // Both Text nodes and Element nodes expose textContent; Text nodes

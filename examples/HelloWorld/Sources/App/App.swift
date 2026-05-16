@@ -18,6 +18,12 @@ func view() -> VNode {
         p("Count: \(count)")
         button(
             "Increment",
+            // `MainActor.assumeIsolated` is safe here: the JS driver invokes
+            // every event listener synchronously on the only thread the WASM
+            // runtime owns, which the Swift runtime treats as the main actor.
+            // Using `Task { @MainActor in ... }` would defer the increment to
+            // a later event-loop turn and break the synchronous `rerender()`
+            // expectation.
             .on("click", Swiflow.handlers.register { _ in
                 MainActor.assumeIsolated {
                     count += 1
