@@ -10,6 +10,14 @@
 /// - `text`: a text node. Always rendered via `textContent` for XSS safety.
 /// - `rawHTML`: an escape hatch that renders via `innerHTML`. The name is
 ///   loud on purpose — searching for `rawHTML(` enumerates every audit site.
+///
+/// **Sendable:** `VNode` and `ElementData` deliberately do *not* conform to
+/// `Sendable` in Phase 1. They transitively hold `EventHandler`, which wraps
+/// a non-`@Sendable` closure; deciding whether to require `@Sendable` on
+/// handler closures is a Phase 3 concern that depends on the final actor
+/// model for `HandlerRegistry`. `Event` is `Sendable` because it carries
+/// only value types and may be ferried across isolation boundaries when
+/// the dispatcher is wired in Phase 2.
 public indirect enum VNode: Equatable {
     case element(ElementData)
     case text(String)
@@ -57,6 +65,10 @@ public struct ElementData: Equatable {
 /// The closure itself is intentionally not part of equality (Swift closures
 /// are unequatable); two handlers with the same `id` are considered equal
 /// because the registry's monotonic ID is the identity.
+///
+/// **Sendable:** intentionally not `Sendable` in Phase 1. The closure type
+/// is `(Event) -> Void`, not `@Sendable (Event) -> Void`; tightening that
+/// is deferred to Phase 3 once the actor model for the dispatcher is fixed.
 public struct EventHandler: Equatable {
     public let id: Int
     public let invoke: (Event) -> Void
@@ -75,7 +87,7 @@ public struct EventHandler: Equatable {
 ///
 /// Phase 1 keeps `Event` deliberately minimal. Phase 3 will extend it with
 /// keyboard/pointer specifics as `Component` lifecycle wires up.
-public struct Event: Equatable {
+public struct Event: Equatable, Sendable {
     public let type: String
     public let targetValue: String?
 
