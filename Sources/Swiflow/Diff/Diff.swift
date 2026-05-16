@@ -112,9 +112,11 @@ func mount(
 // MARK: - Update (subsequent renders)
 
 /// Reconciles `next` against `mounted`. The returned `MountNode` is the
-/// committed mount-tree node for that position (it may be the same object as
-/// `mounted` if the diff is in-place, or a fresh replacement if the tag
-/// changed — subsequent tasks add the replace path).
+/// committed mount-tree node for that position. If the diff replaces the
+/// node (different case kind, or different element tag — see Task 15), the
+/// returned `MountNode` is a fresh object with a new handle and the caller
+/// is responsible for any parent-level `insertBefore` / `appendChild`
+/// rewiring (for the root, the renderer reattaches to the selector).
 func update(
     mounted: MountNode,
     next: VNode,
@@ -122,31 +124,57 @@ func update(
     handles: HandleAllocator,
     handlers: HandlerRegistry
 ) -> MountNode {
-    // Task 10 scope: same-tag element with only `attributes` changes.
-    // Other bags + text + rawHTML + tag replace are added in Tasks 11–17.
-    guard
-        case .element(let oldData) = mounted.vnode,
-        case .element(let newData) = next,
-        oldData.tag == newData.tag
-    else {
-        // Placeholder: tag-replace and text/rawHTML paths land in Tasks 14–15.
-        // For now, fall back to remount (will be replaced).
-        fatalError("update path for non-attribute changes not yet implemented")
+    switch (mounted.vnode, next) {
+    // Same-kind, same-content: nothing to do.
+    case (.text(let oldText), .text(let newText)) where oldText == newText:
+        return mounted
+    case (.rawHTML(let oldHTML), .rawHTML(let newHTML)) where oldHTML == newHTML:
+        return mounted
+
+    // Text → text value change.
+    case (.text, .text(let newText)):
+        patches.append(.setText(handle: mounted.handle, text: newText))
+        mounted.vnode = next
+        return mounted
+
+    // RawHTML → rawHTML value change.
+    case (.rawHTML, .rawHTML(let newHTML)):
+        patches.append(.setProperty(
+            handle: mounted.handle,
+            name: "innerHTML",
+            value: .string(newHTML)
+        ))
+        mounted.vnode = next
+        return mounted
+
+    // Element → element, same tag: per-bag diff (Tasks 10–13, 16–17).
+    case (.element(let oldData), .element(let newData)) where oldData.tag == newData.tag:
+        diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
+        diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
+        diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
+        mounted.handlerIds = diffHandlers(
+            handle: mounted.handle,
+            old: mounted.handlerIds,
+            new: newData.handlers,
+            handlers: handlers,
+            into: &patches
+        )
+        // Children diff lands in Tasks 16–17.
+        diffChildren(
+            mounted: mounted,
+            newChildren: newData.children,
+            handles: handles,
+            handlers: handlers,
+            into: &patches
+        )
+        mounted.vnode = next
+        return mounted
+
+    // Any other transition: destroy the old subtree and mount fresh.
+    default:
+        destroy(mounted, into: &patches, handlers: handlers)
+        return mount(next, into: &patches, handles: handles, handlers: handlers)
     }
-
-    diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
-    diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
-    diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
-    mounted.handlerIds = diffHandlers(
-        handle: mounted.handle,
-        old: mounted.handlerIds,
-        new: newData.handlers,
-        handlers: handlers,
-        into: &patches
-    )
-
-    mounted.vnode = next
-    return mounted
 }
 
 /// Emits `setAttribute` / `removeAttribute` patches for the symmetric
@@ -240,4 +268,31 @@ func diffHandlers(
     }
 
     return nextIDs
+}
+
+/// Emits `destroyNode` for `node` and recursively for every descendant.
+/// Also drops every handler ID from the registry.
+func destroy(
+    _ node: MountNode,
+    into patches: inout [Patch],
+    handlers: HandlerRegistry
+) {
+    for child in node.children {
+        destroy(child, into: &patches, handlers: handlers)
+    }
+    for (_, handlerID) in node.handlerIds {
+        handlers.remove(id: handlerID)
+    }
+    patches.append(.destroyNode(handle: node.handle))
+}
+
+/// Stub — replaced in Tasks 16 and 17.
+func diffChildren(
+    mounted: MountNode,
+    newChildren: [VNode],
+    handles: HandleAllocator,
+    handlers: HandlerRegistry,
+    into patches: inout [Patch]
+) {
+    // No-op for Task 14; children diffing arrives in Tasks 16–17.
 }
