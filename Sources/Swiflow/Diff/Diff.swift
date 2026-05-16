@@ -137,6 +137,13 @@ func update(
     diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
     diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
     diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
+    mounted.handlerIds = diffHandlers(
+        handle: mounted.handle,
+        old: mounted.handlerIds,
+        new: newData.handlers,
+        handlers: handlers,
+        into: &patches
+    )
 
     mounted.vnode = next
     return mounted
@@ -196,4 +203,41 @@ func diffStyle(
     for name in old.keys where new[name] == nil {
         patches.append(.removeStyle(handle: handle, name: name))
     }
+}
+
+/// Emits `addHandler` / `removeHandler` patches for the symmetric difference
+/// between two handler dictionaries. Removed handlers are dropped from the
+/// `HandlerRegistry` so their closures can be released. Returns the new
+/// `handlerIds` map to commit on the mount node.
+func diffHandlers(
+    handle: Int,
+    old: [String: Int],
+    new: [String: EventHandler],
+    handlers: HandlerRegistry,
+    into patches: inout [Patch]
+) -> [String: Int] {
+    var nextIDs: [String: Int] = [:]
+
+    // Additions and swaps.
+    for (event, newHandler) in new {
+        if let oldID = old[event], oldID == newHandler.id {
+            // Unchanged.
+            nextIDs[event] = oldID
+        } else {
+            if let oldID = old[event] {
+                patches.append(.removeHandler(handle: handle, event: event))
+                handlers.remove(id: oldID)
+            }
+            patches.append(.addHandler(handle: handle, event: event, handlerId: newHandler.id))
+            nextIDs[event] = newHandler.id
+        }
+    }
+
+    // Pure removals (event no longer present in new).
+    for (event, oldID) in old where new[event] == nil {
+        patches.append(.removeHandler(handle: handle, event: event))
+        handlers.remove(id: oldID)
+    }
+
+    return nextIDs
 }
