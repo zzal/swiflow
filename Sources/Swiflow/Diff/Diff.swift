@@ -134,12 +134,8 @@ func update(
         fatalError("update path for non-attribute changes not yet implemented")
     }
 
-    diffAttributes(
-        handle: mounted.handle,
-        old: oldData.attributes,
-        new: newData.attributes,
-        into: &patches
-    )
+    diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
+    diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
 
     mounted.vnode = next
     return mounted
@@ -162,5 +158,23 @@ func diffAttributes(
     // Removals.
     for name in old.keys where new[name] == nil {
         patches.append(.removeAttribute(handle: handle, name: name))
+    }
+}
+
+/// Emits `setProperty` / `removeProperty` patches for the symmetric
+/// difference between two property dictionaries.
+func diffProperties(
+    handle: Int,
+    old: [String: PropertyValue],
+    new: [String: PropertyValue],
+    into patches: inout [Patch]
+) {
+    for (name, newValue) in new {
+        if old[name] != newValue {
+            patches.append(.setProperty(handle: handle, name: name, value: newValue))
+        }
+    }
+    for name in old.keys where new[name] == nil {
+        patches.append(.removeProperty(handle: handle, name: name))
     }
 }
