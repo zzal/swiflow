@@ -110,8 +110,28 @@ func diffChildrenKeyed(
     var keyToOldIndex: [String: Int] = [:]
     for i in oldStart...oldEnd {
         let key = keyOf(mounted.children[i])
+        assert(
+            keyToOldIndex[key] == nil,
+            "Swiflow: duplicate key '\(key)' in keyed children list. " +
+            "Each child's `.key(_:)` must be unique within its parent — " +
+            "the diff will silently destroy one of the duplicates."
+        )
         keyToOldIndex[key] = i
     }
+
+    // Also catch duplicates on the *new* side, where the same destructive
+    // effect happens via the reuse loop's `removeValue(forKey:)`.
+    #if DEBUG
+    var seenNewKeys = Set<String>()
+    for i in 0..<newMiddleCount {
+        let key = keyOf(newChildren[newStart + i])
+        assert(
+            seenNewKeys.insert(key).inserted,
+            "Swiflow: duplicate key '\(key)' in new keyed children list. " +
+            "Each child's `.key(_:)` must be unique within its parent."
+        )
+    }
+    #endif
 
     // For each position in the new middle, record either the old index it
     // reuses (so LIS can decide whether it must move) or `-1` for a fresh
@@ -256,9 +276,22 @@ func longestIncreasingSubsequenceIndices(_ input: [Int]) -> [Int] {
     return result.reversed()
 }
 
-/// Returns the key of a `MountNode` (its committed element key) or a synthetic
-/// index key if the node has no key. Phase 4 will emit a diagnostic when
-/// keyed and unkeyed children are mixed.
+/// Returns the key of a `MountNode` for keyed-diff bucketing.
+///
+/// **Mixed keyed + unkeyed children re-mount on every render.** The two
+/// `keyOf` helpers use different synthetic keys for unkeyed nodes —
+/// `"__noKey_<handle>"` for mount nodes (per-instance unique) versus
+/// `"__noKey_unkeyed"` for VNodes (constant) — so an old unkeyed mount
+/// node can never match an incoming unkeyed VNode. The consequence is that
+/// **any unkeyed child sitting inside a list that contains at least one
+/// keyed sibling is destroyed and re-mounted on every diff pass**, even if
+/// its content is unchanged. This is a known Phase 1 limitation; Phase 4
+/// will add positional synthetic keys (`__index_<i>`) and a diagnostic that
+/// warns when keyed and unkeyed children are mixed.
+///
+/// **Workaround:** if you mix keyed and unkeyed children today, give every
+/// child a key — using `.key(String(i))` from the loop index is sufficient
+/// to opt every child into stable matching.
 func keyOf(_ node: MountNode) -> String {
     if case .element(let data) = node.vnode, let key = data.key {
         return key
@@ -266,7 +299,8 @@ func keyOf(_ node: MountNode) -> String {
     return "__noKey_\(node.handle)"
 }
 
-/// Returns the key of an incoming VNode, or a synthetic per-position key.
+/// Returns the key of an incoming VNode for keyed-diff bucketing. See the
+/// `keyOf(_: MountNode)` doc for the mixed-keyed/unkeyed re-mount caveat.
 func keyOf(_ vnode: VNode) -> String {
     if case .element(let data) = vnode, let key = data.key {
         return key

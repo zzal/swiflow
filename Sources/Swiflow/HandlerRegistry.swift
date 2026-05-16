@@ -19,8 +19,9 @@ public final class HandlerRegistry {
     public init() {}
 
     /// Registers a closure and returns the `EventHandler` value to embed in
-    /// an `ElementData.handlers` dictionary.
-    @discardableResult
+    /// an `ElementData.handlers` dictionary. The result is **not**
+    /// `@discardableResult` on purpose: dropping it means the closure is
+    /// stored in the registry forever with no way to reach `remove(id:)`.
     public func register(_ invoke: @escaping (Event) -> Void) -> EventHandler {
         let id = nextID
         nextID += 1
