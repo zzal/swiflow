@@ -6,9 +6,10 @@ Swiflow batches all DOM mutations from a Swift-WASM render cycle into a single
 patch list and ships them across the JS bridge in one leap — making
 Swift-on-the-web fast and frictionless.
 
-**Status:** Phase 1 (the VDOM "Brain") is complete. The `Swiflow` Swift
-package compiles and tests on macOS and Linux with no WASM toolchain required.
-Phase 2 (the `swiflow` CLI, dev server, and JS driver) is in progress.
+**Status:** Phase 2a in progress. Phase 1 (the VDOM "Brain") is complete and
+the renderer + JS driver now exist; `examples/HelloWorld/` proves the
+end-to-end round-trip in a browser. CLI scaffolding (`swiflow init`, `build`,
+`dev`) is the Phase 2b/2c scope.
 
 ## What's in Phase 1?
 

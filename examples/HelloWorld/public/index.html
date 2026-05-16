@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Swiflow Hello World</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 2rem; }
+      .container { max-width: 480px; }
+      button { padding: 0.4rem 0.9rem; font-size: 1rem; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- Load the driver BEFORE the WASM bootstrap. -->
+    <script src="swiflow-driver.js"></script>
+
+    <!--
+      JavaScriptKit's WASM bootstrap. The CDN URLs are pinned to specific
+      versions; Phase 2b's `swiflow init` will write a self-hosted
+      bootstrap.js so users aren't dependent on jsdelivr.
+    -->
+    <script type="module">
+      import { WASI } from "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.3.0/dist/index.js";
+      import { SwiftRuntime } from "https://cdn.jsdelivr.net/npm/javascript-kit-swift@0.21.0/Runtime/index.mjs";
+
+      const wasi = new WASI([], [], []);
+      const swift = new SwiftRuntime();
+
+      const module = await WebAssembly.compileStreaming(fetch("App.wasm"));
+      const instance = await WebAssembly.instantiate(module, {
+        wasi_snapshot_preview1: wasi.wasiImport,
+        javascript_kit: swift.importObjects(),
+      });
+      swift.setInstance(instance);
+      wasi.start(instance);
+    </script>
+  </body>
+</html>
