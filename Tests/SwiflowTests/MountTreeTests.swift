@@ -57,3 +57,80 @@ struct MountTreeTests {
         #expect(node.handlerIds.count == 2)
     }
 }
+
+@Suite("Mount-tree consistency after diff")
+struct MountTreeConsistencyTests {
+
+    /// Walk a `MountNode` and produce the VNode it represents (i.e., the
+    /// committed `vnode` recursively replaced by its children's committed
+    /// `vnode`s). For elements, the returned VNode preserves the latest
+    /// children structure but uses each child's stored `vnode`.
+    private func committedVNode(_ node: MountNode) -> VNode {
+        switch node.vnode {
+        case .text, .rawHTML:
+            return node.vnode
+        case .element(let data):
+            let kids = node.children.map(committedVNode)
+            return .element(ElementData(
+                tag: data.tag,
+                key: data.key,
+                attributes: data.attributes,
+                properties: data.properties,
+                style: data.style,
+                handlers: data.handlers,
+                children: kids
+            ))
+        }
+    }
+
+    private func roundTrip(_ a: VNode, _ b: VNode) {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let m = diff(mounted: nil, next: a, handles: handles, handlers: handlers)
+        #expect(committedVNode(m.newMountTree) == a, "first mount must reconstruct input")
+        let u = diff(mounted: m.newMountTree, next: b, handles: handles, handlers: handlers)
+        #expect(committedVNode(u.newMountTree) == b, "post-diff mount tree must reconstruct b")
+    }
+
+    @Test("Consistency: text → text")
+    func textToText() {
+        roundTrip(.text("a"), .text("b"))
+    }
+
+    @Test("Consistency: element with attribute change")
+    func attrChange() {
+        roundTrip(
+            .element(ElementData(tag: "div", attributes: ["class": "x"])),
+            .element(ElementData(tag: "div", attributes: ["class": "y"]))
+        )
+    }
+
+    @Test("Consistency: list of children (indexed)")
+    func childrenIndexed() {
+        roundTrip(
+            .element(ElementData(tag: "ul", children: [.text("a"), .text("b")])),
+            .element(ElementData(tag: "ul", children: [.text("a"), .text("B"), .text("c")]))
+        )
+    }
+
+    @Test("Consistency: list of children (keyed reorder)")
+    func childrenKeyedReorder() {
+        let withKeys: ([String]) -> VNode = { keys in
+            .element(ElementData(
+                tag: "ul",
+                children: keys.map {
+                    .element(ElementData(tag: "li", key: $0, children: [.text($0)]))
+                }
+            ))
+        }
+        roundTrip(withKeys(["a", "b", "c"]), withKeys(["c", "a", "b"]))
+    }
+
+    @Test("Consistency: tag replace")
+    func tagReplace() {
+        roundTrip(
+            .element(ElementData(tag: "div")),
+            .element(ElementData(tag: "span"))
+        )
+    }
+}
