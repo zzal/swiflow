@@ -6,25 +6,58 @@ will automate this.
 
 ## Prerequisites
 
-- Swift 6.0+ with the WebAssembly SDK installed:
+- Swift 6.0+ with the WebAssembly SDK installed. Pick the URL matching your
+  Swift version from <https://swift.org/install>:
   ```bash
-  swift sdk install <swift.org WASM SDK URL for your Swift version>
+  swift sdk install <SDK URL for your Swift version>
   ```
-  See <https://swift.org/install> for the current SDK URL.
-- Any static HTTP server: Python's `python3 -m http.server` works.
+- Any static HTTP server: `python3 -m http.server` is fine.
 
 ## Build
 
+The build is driven by JavaScriptKit 0.53's PackageToJS plugin, which
+compiles the WASM module **and** emits the JS bootstrap (WASI shim + Swift
+runtime + import object wiring) in one step.
+
+### macOS: pin the WASM-aware toolchain
+
+The Xcode-default `swift` invokes the system clang, which has no WASM
+backend and fails with `No available targets are compatible with triple
+'wasm32-unknown-wasip1'`. Point at the Swift.org toolchain instead:
+
+```bash
+# Find the bundle identifier of your installed swift.org toolchain.
+TOOLCHAIN_ID=$(plutil -extract CFBundleIdentifier raw \
+  ~/Library/Developer/Toolchains/swift-latest.xctoolchain/Info.plist)
+export TOOLCHAINS=$TOOLCHAIN_ID
+```
+
+Linux users skip this step — the distribution's `swift` already finds the
+right clang.
+
+### Build via PackageToJS
+
 ```bash
 cd examples/HelloWorld
-swift build --swift-sdk wasm32-unknown-wasi -c release
-cp .build/wasm32-unknown-wasip1/release/App.wasm public/App.wasm
+
+# Replace `swift-6.3-RELEASE_wasm` with whatever your `swift sdk list`
+# reports for the installed WASM SDK.
+swift package --swift-sdk swift-6.3-RELEASE_wasm js --product App -c release
 ```
+
+Output lands at `.build/plugins/PackageToJS/outputs/Package/index.js` and
+`.build/plugins/PackageToJS/outputs/Package/App.wasm`. `index.html`
+imports the bootstrap from that relative path — do not move either file.
+
+> **First build is slow** (~3–5 min). The transitive `swift-syntax`
+> dependency JavaScriptKit pulls in for its macros has to compile from
+> source. Incremental and debug builds (drop `-c release`) take seconds.
 
 ## Serve
 
+Serve from the example root (so the relative `.build/...` path resolves):
+
 ```bash
-cd public
 python3 -m http.server 3000
 ```
 
@@ -48,6 +81,9 @@ If it doesn't:
 - Errors mentioning `__swiflowDispatch is not a function` mean the WASM
   module hasn't initialized yet (or threw during startup). Look further up
   the console for the actual exception.
+- `Failed to fetch dynamically imported module: .../index.js` means the
+  PackageToJS plugin hasn't been run yet (or you're serving from the
+  wrong directory). Re-run the `swift package ... js` command above.
 
 ## What's next
 
