@@ -795,7 +795,10 @@ enum DispatcherBridge {
             return .undefined
         }
 
-        JSObject.global.__swiflowDispatch = .function(closure)
+        // JavaScriptKit 0.53+ deprecated `.function(closure)`; use `.object`.
+        // The JSClosure is implicitly convertible to a JSObject for this
+        // purpose since it's no longer a JSFunction subclass.
+        JSObject.global.__swiflowDispatch = .object(closure)
         installed = closure
     }
 }
