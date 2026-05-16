@@ -4,13 +4,13 @@
 /// the JS driver (in Phase 2). Patches reference DOM nodes by integer handles
 /// pre-allocated on the Swift side; the driver maintains a `Map<int, Node>`.
 ///
-/// The 14 opcodes are grouped:
+/// The 16 opcodes are grouped:
 /// - **Lifecycle**: create / destroy DOM nodes.
 /// - **Tree structure**: parent/child wiring.
 /// - **Per-bag mutations**: attribute / property / style / text.
 /// - **Events**: add / remove DOM event listeners (handlerId points into
 ///   `HandlerRegistry`).
-public enum Patch: Equatable {
+public enum Patch: Equatable, Sendable {
     // MARK: - Lifecycle
     case createElement(handle: Int, tag: String)
     case createText(handle: Int, text: String)
