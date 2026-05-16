@@ -7,6 +7,9 @@
 public final class HandleAllocator {
     private var counter: Int
 
+    /// Creates an allocator that starts handing out handles at `start`
+    /// (default `0`). Custom starts are useful in tests that need to assert
+    /// patches against known handle values.
     public init(start: Int = 0) {
         self.counter = start
     }

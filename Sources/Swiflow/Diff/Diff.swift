@@ -3,9 +3,12 @@
 /// The output of a single diff pass: the patches to apply, plus the new
 /// mount tree to commit as the next render's left-hand side.
 public struct DiffResult {
+    /// Patches to ship across the JS bridge, in apply order.
     public let patches: [Patch]
+    /// The mount tree the caller must commit as the next render's baseline.
     public let newMountTree: MountNode
 
+    /// Wraps the two outputs of a diff pass.
     public init(patches: [Patch], newMountTree: MountNode) {
         self.patches = patches
         self.newMountTree = newMountTree

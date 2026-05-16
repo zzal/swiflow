@@ -3,34 +3,46 @@
 /// A single modifier passed to an element factory (e.g. `div(.class("row"))`).
 /// Each case maps directly to one of `ElementData`'s bags.
 public enum Attribute {
+    /// An HTML attribute (`setAttribute`).
     case attribute(name: String, value: String)
+    /// A DOM property (typed; assigned directly on the node).
     case property(name: String, value: PropertyValue)
+    /// An inline-style declaration.
     case style(name: String, value: String)
+    /// An event-listener registration.
     case handler(event: String, value: EventHandler)
+    /// A stable identity used by the keyed children diff.
     case key(String)
 
     // Convenience factories.
 
+    /// Shorthand for `.attribute(name:value:)`.
     public static func attr(_ name: String, _ value: String) -> Attribute {
         .attribute(name: name, value: value)
     }
 
+    /// Sets the `class` attribute. Backticks because `class` is a Swift
+    /// keyword.
     public static func `class`(_ value: String) -> Attribute {
         .attribute(name: "class", value: value)
     }
 
+    /// Sets the `id` attribute.
     public static func id(_ value: String) -> Attribute {
         .attribute(name: "id", value: value)
     }
 
+    /// Shorthand for `.property(name:value:)`.
     public static func prop(_ name: String, _ value: PropertyValue) -> Attribute {
         .property(name: name, value: value)
     }
 
+    /// Shorthand for `.style(name:value:)`.
     public static func style(_ name: String, _ value: String) -> Attribute {
         .style(name: name, value: value)
     }
 
+    /// Shorthand for `.handler(event:value:)`.
     public static func on(_ event: String, _ handler: EventHandler) -> Attribute {
         .handler(event: event, value: handler)
     }

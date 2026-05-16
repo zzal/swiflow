@@ -8,8 +8,13 @@
 /// `MountNode` is a class (reference type) because the parent/child graph is
 /// mutated in place. The parent pointer is `weak` to avoid retain cycles.
 public final class MountNode {
+    /// The integer handle assigned at mount time, stable for this node's
+    /// lifetime. Matches the handle the JS driver knows it by.
     public let handle: Int
+    /// The currently-committed virtual node for this position. Mutated in
+    /// place by the diff engine after each successful update.
     public var vnode: VNode
+    /// Live mount-tree children, in document order.
     public private(set) var children: [MountNode]
 
     /// Maps event name (e.g. `"click"`) to the handler ID currently registered
@@ -17,8 +22,12 @@ public final class MountNode {
     /// `Patch.addHandler` / `.removeHandler`.
     public var handlerIds: [String: Int]
 
+    /// Weak back-pointer to the parent `MountNode`. `nil` for the root or
+    /// for detached subtrees.
     public private(set) weak var parent: MountNode?
 
+    /// Creates a `MountNode`. Wires `parent` pointers for any pre-supplied
+    /// children so callers don't need a separate pass.
     public init(
         handle: Int,
         vnode: VNode,

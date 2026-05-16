@@ -33,14 +33,24 @@ public indirect enum VNode: Equatable {
 /// - `style`: inline style declarations, set via `element.style[name] = …`.
 /// - `handlers`: event listeners. Keys are event names like `"click"`.
 public struct ElementData: Equatable {
+    /// HTML tag name (e.g. `"div"`, `"input"`). Lowercase by convention.
     public let tag: String
+    /// Optional stable identity used by the keyed children diff. When `nil`,
+    /// the indexed diff strategy is used instead.
     public let key: String?
+    /// HTML attributes (set via `Element.setAttribute`).
     public let attributes: [String: String]
+    /// DOM properties (set via direct property assignment, e.g. `input.value`).
     public let properties: [String: PropertyValue]
+    /// Inline style declarations (set via `element.style[name]`).
     public let style: [String: String]
+    /// Event listeners, keyed by event name (e.g. `"click"`).
     public let handlers: [String: EventHandler]
+    /// Child virtual nodes in document order.
     public let children: [VNode]
 
+    /// Creates an `ElementData` with the given bags. Every bag defaults to
+    /// empty so callers can pass only what they need.
     public init(
         tag: String,
         key: String? = nil,
@@ -70,14 +80,20 @@ public struct ElementData: Equatable {
 /// is `(Event) -> Void`, not `@Sendable (Event) -> Void`; tightening that
 /// is deferred to Phase 3 once the actor model for the dispatcher is fixed.
 public struct EventHandler: Equatable {
+    /// Monotonic identifier assigned by `HandlerRegistry`. Forms the basis of
+    /// equality and is the value sent across the JS bridge.
     public let id: Int
+    /// The Swift closure invoked when the corresponding DOM event fires.
     public let invoke: (Event) -> Void
 
+    /// Wraps a closure with its registry-assigned ID. Prefer
+    /// `HandlerRegistry.register(_:)` over calling this directly.
     public init(id: Int, invoke: @escaping (Event) -> Void) {
         self.id = id
         self.invoke = invoke
     }
 
+    /// Two handlers are equal iff their `id`s match. Closures are unequatable.
     public static func == (lhs: EventHandler, rhs: EventHandler) -> Bool {
         lhs.id == rhs.id
     }
@@ -88,9 +104,14 @@ public struct EventHandler: Equatable {
 /// Phase 1 keeps `Event` deliberately minimal. Phase 3 will extend it with
 /// keyboard/pointer specifics as `Component` lifecycle wires up.
 public struct Event: Equatable, Sendable {
+    /// DOM event name (e.g. `"click"`, `"input"`).
     public let type: String
+    /// Convenience snapshot of `event.target.value` for form inputs; `nil` for
+    /// events without a value-bearing target.
     public let targetValue: String?
 
+    /// Creates an `Event`. The JS driver populates these from the live DOM
+    /// event before invoking the dispatcher.
     public init(type: String, targetValue: String? = nil) {
         self.type = type
         self.targetValue = targetValue

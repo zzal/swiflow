@@ -14,6 +14,8 @@ public final class HandlerRegistry {
     private var nextID: Int = 0
     private var handlers: [Int: EventHandler] = [:]
 
+    /// Creates an empty registry. The renderer typically owns one instance
+    /// per app.
     public init() {}
 
     /// Registers a closure and returns the `EventHandler` value to embed in
