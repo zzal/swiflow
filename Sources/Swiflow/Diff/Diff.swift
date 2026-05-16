@@ -53,6 +53,11 @@ func mount(
         let h = handles.next()
         patches.append(.createElement(handle: h, tag: data.tag))
 
+        // Bag iteration order: attributes → properties → style → handlers
+        // (matches Snabbdom/Inferno). The driver applies patches in arrival
+        // order; properties intentionally come AFTER attributes so DOM-property
+        // semantics (e.g. `input.value` override) win when a name appears in
+        // both bags. Update paths in Tasks 10–13 preserve this same ordering.
         for (name, value) in data.attributes {
             patches.append(.setAttribute(handle: h, name: name, value: value))
         }
