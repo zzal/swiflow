@@ -286,7 +286,9 @@ func destroy(
     patches.append(.destroyNode(handle: node.handle))
 }
 
-/// Stub — replaced in Tasks 16 and 17.
+/// Dispatches between the indexed and keyed children-diff strategies. If
+/// **any** child in the old or new lists carries a key, the keyed path is
+/// used (Task 17); otherwise pair-by-index (Task 16).
 func diffChildren(
     mounted: MountNode,
     newChildren: [VNode],
@@ -294,5 +296,43 @@ func diffChildren(
     handlers: HandlerRegistry,
     into patches: inout [Patch]
 ) {
-    // No-op for Task 14; children diffing arrives in Tasks 16–17.
+    if hasAnyKey(mounted.children) || hasAnyKey(newChildren) {
+        // Keyed path lands in Task 17.
+        diffChildrenIndexed(
+            mounted: mounted,
+            newChildren: newChildren,
+            handles: handles,
+            handlers: handlers,
+            into: &patches
+        )
+    } else {
+        diffChildrenIndexed(
+            mounted: mounted,
+            newChildren: newChildren,
+            handles: handles,
+            handlers: handlers,
+            into: &patches
+        )
+    }
+}
+
+/// Returns true if any element in `vnodes` is an `.element` with a non-nil
+/// key.
+func hasAnyKey(_ vnodes: [VNode]) -> Bool {
+    for v in vnodes {
+        if case .element(let data) = v, data.key != nil {
+            return true
+        }
+    }
+    return false
+}
+
+/// Same predicate, for `MountNode` (whose `.vnode` carries the key).
+func hasAnyKey(_ nodes: [MountNode]) -> Bool {
+    for n in nodes {
+        if case .element(let data) = n.vnode, data.key != nil {
+            return true
+        }
+    }
+    return false
 }

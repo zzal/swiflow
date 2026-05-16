@@ -53,4 +53,14 @@ public final class MountNode {
         let child = children.remove(at: index)
         child.parent = nil
     }
+
+    /// Replaces the child at `index` with a fresh `MountNode`, clearing the
+    /// old child's parent pointer and wiring the new one. Caller is
+    /// responsible for any DOM-side `insertBefore` / `appendChild` /
+    /// `destroyNode` patches; this only updates the in-memory mount tree.
+    public func replaceChild(at index: Int, with child: MountNode) {
+        children[index].parent = nil
+        children[index] = child
+        child.parent = self
+    }
 }
