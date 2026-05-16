@@ -297,8 +297,7 @@ func diffChildren(
     into patches: inout [Patch]
 ) {
     if hasAnyKey(mounted.children) || hasAnyKey(newChildren) {
-        // Keyed path lands in Task 17.
-        diffChildrenIndexed(
+        diffChildrenKeyed(
             mounted: mounted,
             newChildren: newChildren,
             handles: handles,
