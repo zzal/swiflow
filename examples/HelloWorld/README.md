@@ -41,13 +41,24 @@ right clang.
 cd examples/HelloWorld
 
 # Replace `swift-6.3-RELEASE_wasm` with whatever your `swift sdk list`
-# reports for the installed WASM SDK.
-swift package --swift-sdk swift-6.3-RELEASE_wasm js --product App -c release
+# reports for the installed WASM SDK. `--use-cdn` is REQUIRED for a
+# bundler-free browser load (see "Why --use-cdn" below).
+swift package --swift-sdk swift-6.3-RELEASE_wasm js --use-cdn --product App -c release
 ```
 
 Output lands at `.build/plugins/PackageToJS/outputs/Package/index.js` and
 `.build/plugins/PackageToJS/outputs/Package/App.wasm`. `index.html`
 imports the bootstrap from that relative path — do not move either file.
+
+#### Why `--use-cdn`
+
+The PackageToJS bundle uses `@bjorn3/browser_wasi_shim` for the WASI shim.
+Without `--use-cdn`, that import lands in the generated `browser.js` as a
+bare-specifier `import ... from '@bjorn3/browser_wasi_shim'`, which the
+browser cannot resolve (it expects npm + a bundler). `--use-cdn` rewrites
+the import to a jsdelivr URL so the page loads with nothing more than a
+static file server. Phase 2b's `swiflow build` will replace the CDN with
+a vendored copy under `public/` for offline use.
 
 > **First build is slow** (~3–5 min). The transitive `swift-syntax`
 > dependency JavaScriptKit pulls in for its macros has to compile from
