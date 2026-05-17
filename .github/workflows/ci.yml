@@ -26,8 +26,11 @@ jobs:
       - name: Verify Swift version
         run: swift --version
 
-      - name: Build
+      - name: Build library + WebTarget
         run: swift build
+
+      - name: Build CLI
+        run: swift build --product swiflow
 
       - name: Test
         run: swift test --parallel

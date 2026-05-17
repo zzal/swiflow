@@ -5,12 +5,26 @@ Thank you for considering a contribution.
 ## Development
 
 ```bash
-swift build         # build the library
-swift test          # run all tests
+swift build                            # build all targets
+swift test                             # run all tests
+swift run swiflow --help               # try the CLI
 ```
 
 Tests use the Swift Testing framework (`import Testing`), available in Swift
 6.0 and later.
+
+## When you change the JS driver
+
+`js-driver/swiflow-driver.js` is the single source of truth. The CLI embeds
+its contents via codegen. After editing the driver, regenerate the embedded
+copy:
+
+```bash
+swift scripts/embed-driver.swift
+```
+
+(If you forget, the `DriverEmbedderTests` freshness check will fail in CI
+and tell you exactly this command to run.)
 
 ## Workflow
 
