@@ -1,11 +1,76 @@
 // Sources/SwiflowCLI/Commands/BuildCommand.swift
 //
-// `swiflow build` — compiles a Swiflow project to a browser-loadable
-// PackageToJS bundle. The action body lives in T9; this task only locks
-// the argument shape.
+// `swiflow build` — composes WasmSDKProbe + MacToolchainProbe +
+// ProcessRunner to invoke `swift package ... js --use-cdn --product App
+// -c release` against the user's project.
+//
+// BuildInvocation is the pure argv-composition + Process invocation step;
+// it's split from BuildCommand so unit tests can drive it without parsing
+// ArgumentParser's argv.
 
 import ArgumentParser
 import Foundation
+
+enum BuildCommandError: Error, Equatable, CustomStringConvertible {
+    case swiftNotOnPath
+    case noWasmSDKInstalled
+    case swiftPackageJSFailed(exitCode: Int32)
+
+    var description: String {
+        switch self {
+        case .swiftNotOnPath:
+            return "swift is not on PATH. Install Swift from https://swift.org/install and try again."
+        case .noWasmSDKInstalled:
+            return """
+                No WASM Swift SDK is installed. Run:
+                    swift sdk install <SDK URL for your Swift version>
+                with a URL from https://swift.org/install (look for the WebAssembly SDK).
+                """
+        case .swiftPackageJSFailed(let code):
+            return "swift package js failed with exit code \(code). See output above."
+        }
+    }
+}
+
+/// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
+struct BuildInvocation {
+    let swiftExecutable: URL
+    let projectPath: URL
+    let swiftSDK: String
+    let toolchainBundleID: String?
+
+    /// Runs `swift package --swift-sdk <id> js --use-cdn --product App -c release`
+    /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
+    @discardableResult
+    func run(using runner: ProcessRunner) throws -> ProcessResult {
+        let arguments = [
+            "package",
+            "--swift-sdk", swiftSDK,
+            "js",
+            "--use-cdn",
+            "--product", "App",
+            "-c", "release",
+        ]
+
+        let environment: [String: String]? = {
+            guard let bundleID = toolchainBundleID else { return nil }
+            return ["TOOLCHAINS": bundleID]
+        }()
+
+        let result = try runner.run(
+            executable: swiftExecutable,
+            arguments: arguments,
+            workingDirectory: projectPath,
+            environment: environment,
+            captureOutput: false
+        )
+
+        if result.exitCode != 0 {
+            throw BuildCommandError.swiftPackageJSFailed(exitCode: result.exitCode)
+        }
+        return result
+    }
+}
 
 struct BuildCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -32,7 +97,55 @@ struct BuildCommand: AsyncParsableCommand {
     var swiftSDK: String?
 
     func run() async throws {
-        // Filled in by T9.
-        throw ValidationError("BuildCommand.run() not yet implemented (T9).")
+        let runner = SystemProcessRunner()
+
+        // 1. Find swift on PATH.
+        guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
+            throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
+        }
+
+        // 2. Resolve the WASM SDK ID — either user-supplied or auto-picked.
+        let sdk: String
+        if let userSDK = swiftSDK {
+            sdk = userSDK
+        } else {
+            let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
+            let installed = try probe.list()
+            guard let firstInstalled = installed.first else {
+                throw ValidationError(String(describing: BuildCommandError.noWasmSDKInstalled))
+            }
+            sdk = firstInstalled
+        }
+
+        // 3. macOS: detect TOOLCHAINS bundle ID if not already set.
+        let toolchainBundleID: String?
+        if ProcessInfo.processInfo.environment["TOOLCHAINS"] != nil {
+            // Respect the user's pin.
+            toolchainBundleID = nil
+        } else {
+            toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
+        }
+
+        // 4. Run the build.
+        let projectURL = URL(fileURLWithPath: path).standardizedFileURL
+        let invocation = BuildInvocation(
+            swiftExecutable: swift,
+            projectPath: projectURL,
+            swiftSDK: sdk,
+            toolchainBundleID: toolchainBundleID
+        )
+
+        print("swiflow: building with swift-sdk=\(sdk)\(toolchainBundleID.map { " toolchain=\($0)" } ?? "")")
+        do {
+            _ = try invocation.run(using: runner)
+        } catch let error as BuildCommandError {
+            throw ValidationError(String(describing: error))
+        }
+
+        print("""
+            swiflow: build complete.
+              Output:  .build/plugins/PackageToJS/outputs/Package/
+              Serve:   python3 -m http.server 3000  (from \(projectURL.path))
+            """)
     }
 }
