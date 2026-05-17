@@ -81,3 +81,78 @@ struct BuildCommandArgvTests {
         #expect(desc.contains("/does/not/exist"))
     }
 }
+
+// MARK: - End-to-end (gated on WASM SDK presence)
+
+@Suite("BuildCommand end-to-end (requires WASM SDK)")
+struct BuildCommandIntegrationTests {
+
+    static var wasmSDKAvailable: Bool {
+        let runner = SystemProcessRunner()
+        let result = try? runner.run(
+            executable: URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["swift", "sdk", "list"],
+            workingDirectory: nil,
+            environment: nil,
+            captureOutput: true
+        )
+        guard let stdout = result?.standardOutput else { return false }
+        return !WasmSDKProbe.parseSDKList(stdout).isEmpty
+    }
+
+    static var swiflowRepoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // SwiflowCLITests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+    }
+
+    @Test(
+        "swiflow init + swiflow build produces a PackageToJS output bundle",
+        .enabled(if: wasmSDKAvailable)
+    )
+    func endToEnd() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiflow-e2e-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // 1. Init into the temp dir, pointing at this checkout.
+        try ProjectWriter.writeProject(
+            name: "Demo",
+            into: tmp,
+            swiflowSource: Self.swiflowRepoRoot.path,
+            jsDriverSource: EmbeddedDriver.javascriptSource
+        )
+
+        // 2. Probe the SDK from the same shell-out path the production code uses.
+        let runner = SystemProcessRunner()
+        guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
+            Issue.record("swift not on PATH; cannot run end-to-end test.")
+            return
+        }
+        let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
+        guard let sdk = try probe.list().first else {
+            Issue.record("WasmSDKProbe returned empty even though .enabled gated true; flaky CI?")
+            return
+        }
+        let toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
+
+        // 3. Build.
+        let invocation = BuildInvocation(
+            swiftExecutable: swift,
+            projectPath: tmp.appendingPathComponent("Demo"),
+            swiftSDK: sdk,
+            toolchainBundleID: toolchainBundleID
+        )
+        let result = try invocation.run(using: runner)
+        #expect(result.exitCode == 0)
+
+        // 4. Assert the PackageToJS output exists.
+        let outputDir = tmp.appendingPathComponent("Demo/.build/plugins/PackageToJS/outputs/Package")
+        let indexJS = outputDir.appendingPathComponent("index.js")
+        let appWASM = outputDir.appendingPathComponent("App.wasm")
+        #expect(FileManager.default.fileExists(atPath: indexJS.path), "missing \(indexJS.path)")
+        #expect(FileManager.default.fileExists(atPath: appWASM.path), "missing \(appWASM.path)")
+    }
+}
