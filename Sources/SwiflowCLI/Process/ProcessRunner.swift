@@ -14,6 +14,14 @@ struct ProcessResult: Equatable {
     let standardError: String?
 }
 
+// MARK: - Protocol
+//
+// ProcessRunner is NOT `Sendable`. SystemProcessRunner is stateless but
+// final-class identity matters for shared use; StubProcessRunner records
+// calls in mutable state. Hold one instance per call site / actor and do
+// not capture into `Task { }` closures crossing actor boundaries. If a
+// future caller needs to share across actors, mark the protocol Sendable
+// and gate StubProcessRunner.calls with a lock.
 protocol ProcessRunner: AnyObject {
     func run(
         executable: URL,
@@ -66,16 +74,26 @@ final class SystemProcessRunner: ProcessRunner {
         }
 
         try process.run()
+
+        // Drain pipes BEFORE waitUntilExit() to avoid deadlock: if the child
+        // writes more than the OS pipe buffer (~16-64 KiB on Darwin) without
+        // a reader, it will block on write() while we block on waitUntilExit().
+        // readDataToEndOfFile() blocks until the writer closes its end (on
+        // child exit), so it implicitly waits for the child to finish AND
+        // drains the pipe at the same time.
+        //
+        // Limitation: this reads stdout then stderr sequentially. A child
+        // that writes >64 KiB to BOTH streams could still block on the
+        // stderr write while we're still reading stdout. The fully-correct
+        // fix uses concurrent reads (one queue per pipe). The current call
+        // sites (T7 captures small `swift sdk list` output; T9 uses
+        // captureOutput: false for big build logs) don't hit this case.
+        let outData: Data? = outPipe?.fileHandleForReading.readDataToEndOfFile()
+        let errData: Data? = errPipe?.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
-        let stdout = outPipe.flatMap { pipe -> String? in
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
-        }
-        let stderr = errPipe.flatMap { pipe -> String? in
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
-        }
+        let stdout = outData.flatMap { String(data: $0, encoding: .utf8) }
+        let stderr = errData.flatMap { String(data: $0, encoding: .utf8) }
 
         return ProcessResult(
             exitCode: process.terminationStatus,
