@@ -45,6 +45,13 @@ enum Templates {
     // These are byte-identical to the current examples/HelloWorld/ files,
     // with `HelloWorld` replaced by `{{NAME}}` and `../..` by
     // `{{SWIFLOW_SOURCE}}`. The TemplatesTests assert the round-trip.
+    //
+    // LOAD-BEARING FORMATTING: each constant ends with a blank line before
+    // the closing `"""`. Swift strips ONE trailing newline from indented
+    // multi-line literals, but the on-disk example files end with `\n`, so
+    // the source needs an extra newline that Swift then strips — leaving
+    // one `\n` in the rendered string. Do NOT delete those blank lines.
+    // (See DriverEmbedder.swift for the same trick with more explanation.)
 
     private static let rawPackageSwift: String = """
         // swift-tools-version: 6.0
