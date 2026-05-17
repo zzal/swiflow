@@ -1,17 +1,19 @@
-// Sources/SwiflowCLI/main.swift
+// Sources/SwiflowCLI/Swiflow.swift
 //
 // Entry point for the `swiflow` CLI binary. The `Swiflow` async root
 // command holds the subcommand table; each subcommand lives in its own
 // file under Commands/.
 //
-// Note: this file is literally named `main.swift`, which SwiftPM treats
-// as script-style top-level code. That precludes using the `@main`
-// attribute on the struct (the two entry-point mechanisms conflict
-// under Swift 6.x). The canonical pattern in that case is the explicit
-// `await Swiflow.main()` call at the bottom of this file.
+// This file is named `Swiflow.swift` (not `main.swift`) because Swift 6
+// treats files named `main.swift` as script-style top-level code, which
+// conflicts with the `@main` attribute that an `AsyncParsableCommand`
+// root needs to be dispatched on its async `run()` overload. Renaming
+// the file lets `@main` work correctly and prevents the runtime error
+// "Asynchronous root command needs availability annotation".
 
 import ArgumentParser
 
+@main
 public struct Swiflow: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "swiflow",
@@ -23,5 +25,3 @@ public struct Swiflow: AsyncParsableCommand {
 
     public init() {}
 }
-
-await Swiflow.main()
