@@ -31,7 +31,25 @@ struct InitCommand: AsyncParsableCommand {
     var swiflowSource: String = "../.."
 
     func run() async throws {
-        // Filled in by T5.
-        throw ValidationError("InitCommand.run() not yet implemented (T5).")
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        do {
+            try ProjectWriter.writeProject(
+                name: name,
+                into: cwd,
+                swiflowSource: swiflowSource,
+                jsDriverSource: EmbeddedDriver.javascriptSource
+            )
+        } catch let error as ProjectWriterError {
+            throw ValidationError(String(describing: error))
+        }
+
+        print("""
+            Created \(name)/
+              Next steps:
+                cd \(name)
+                swiflow build
+                python3 -m http.server 3000
+                open http://localhost:3000
+            """)
     }
 }
