@@ -171,6 +171,8 @@ enum Templates {
 
     private static let rawGitignore: String = """
         .DS_Store
+        .build/
+        .swiftpm/
 
         """
 
