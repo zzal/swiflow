@@ -15,6 +15,7 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case swiftNotOnPath
     case noWasmSDKInstalled
     case swiftPackageJSFailed(exitCode: Int32)
+    case projectPathNotFound(URL)
 
     var description: String {
         switch self {
@@ -28,6 +29,8 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
                 """
         case .swiftPackageJSFailed(let code):
             return "swift package js failed with exit code \(code). See output above."
+        case .projectPathNotFound(let url):
+            return "project path does not exist or is not a directory: \(url.path)"
         }
     }
 }
@@ -99,6 +102,14 @@ struct BuildCommand: AsyncParsableCommand {
     func run() async throws {
         let runner = SystemProcessRunner()
 
+        // 0. Validate --path early so we emit a clean error instead of letting
+        //    Process.run() surface a raw Cocoa "file doesn't exist" error.
+        let projectURL = URL(fileURLWithPath: path).standardizedFileURL
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: projectURL.path, isDirectory: &isDir), isDir.boolValue else {
+            throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
+        }
+
         // 1. Find swift on PATH.
         guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
             throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
@@ -127,7 +138,6 @@ struct BuildCommand: AsyncParsableCommand {
         }
 
         // 4. Run the build.
-        let projectURL = URL(fileURLWithPath: path).standardizedFileURL
         let invocation = BuildInvocation(
             swiftExecutable: swift,
             projectPath: projectURL,

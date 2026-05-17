@@ -71,4 +71,13 @@ struct BuildCommandArgvTests {
             _ = try composer.run(using: stub)
         }
     }
+
+    @Test("BuildCommandError.projectPathNotFound has a useful description")
+    func projectPathNotFoundDescription() {
+        let url = URL(fileURLWithPath: "/does/not/exist")
+        let error = BuildCommandError.projectPathNotFound(url)
+        let desc = String(describing: error)
+        #expect(desc.contains("does not exist"))
+        #expect(desc.contains("/does/not/exist"))
+    }
 }

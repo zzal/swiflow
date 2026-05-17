@@ -21,11 +21,16 @@ enum SwiftExecutableLocator {
             environment: nil,
             captureOutput: true
         )
-        guard result.exitCode == 0,
-              let stdout = result.standardOutput?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !stdout.isEmpty else {
+        guard result.exitCode == 0, let stdout = result.standardOutput else {
             return nil
         }
-        return URL(fileURLWithPath: stdout)
+        // `which` typically prints one line, but on a misconfigured PATH or with
+        // wrapping aliases it can print multiple. Take the first non-empty line.
+        let firstLine = stdout
+            .split(separator: "\n")
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let path = firstLine, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
     }
 }
