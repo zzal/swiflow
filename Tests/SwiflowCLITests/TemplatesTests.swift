@@ -55,6 +55,13 @@ struct TemplatesTests {
         #expect(rendered == expected)
     }
 
+    @Test("README.md renders identically to examples/HelloWorld/README.md")
+    func readmeMatchesExample() throws {
+        let rendered = Templates.readme(name: "HelloWorld")
+        let expected = try Self.exampleFile("README.md")
+        #expect(rendered == expected)
+    }
+
     @Test("README is non-empty and mentions both swiflow build and the static server")
     func readmeMentionsKeyCommands() {
         let rendered = Templates.readme(name: "HelloWorld")
