@@ -6,6 +6,17 @@
 
 import Foundation
 
+/// Errors thrown by `WasmSDKProbe.list()`. A non-zero exit from
+/// `swift sdk list` is distinct from "list returned no WASM SDKs":
+/// the former indicates a broken toolchain (e.g., Swift too old to know
+/// the `sdk` subcommand); the latter is a legitimate state callers handle
+/// by prompting the user to `swift sdk install`. Carrying stderr lets
+/// callers surface the real diagnostic instead of the misleading
+/// "no WASM SDK installed".
+enum WasmSDKProbeError: Error, Equatable {
+    case sdkSubcommandFailed(exitCode: Int32, stderr: String?)
+}
+
 struct WasmSDKProbe {
     let runner: ProcessRunner
     let swiftExecutable: URL
@@ -16,6 +27,10 @@ struct WasmSDKProbe {
     }
 
     /// Runs `swift sdk list` and returns the parsed WASM SDK identifiers.
+    ///
+    /// Throws `WasmSDKProbeError.sdkSubcommandFailed` when the subprocess
+    /// exits non-zero. A successful run with no `_wasm` suffix in the
+    /// listing returns `[]` (the caller decides what that means).
     func list() throws -> [String] {
         let result = try runner.run(
             executable: swiftExecutable,
@@ -24,9 +39,13 @@ struct WasmSDKProbe {
             environment: nil,
             captureOutput: true
         )
-        guard result.exitCode == 0, let stdout = result.standardOutput else {
-            return []
+        guard result.exitCode == 0 else {
+            throw WasmSDKProbeError.sdkSubcommandFailed(
+                exitCode: result.exitCode,
+                stderr: result.standardError
+            )
         }
+        let stdout = result.standardOutput ?? ""
         return Self.parseSDKList(stdout)
     }
 

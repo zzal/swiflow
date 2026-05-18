@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum DriverEmbedder {
+enum DriverEmbedder {
     /// Produces the Swift source for `EmbeddedDriver.swift` that wraps the
     /// given JS driver source as a raw string literal.
     ///
@@ -16,7 +16,7 @@ public enum DriverEmbedder {
     /// source pass through untouched. The JS driver currently contains
     /// neither `"""#` nor `#"""`, but defensively bumping to `##"""..."""##`
     /// would be wise if a future JS edit ever introduced one.
-    public static func swiftSource(forJSSource js: String) -> String {
+    static func swiftSource(forJSSource js: String) -> String {
         // Swift multi-line strings strip ONE newline immediately after the
         // opening delimiter and ONE immediately before the closing delimiter.
         // So to round-trip a JS source `V` (which itself ends in `\n`)

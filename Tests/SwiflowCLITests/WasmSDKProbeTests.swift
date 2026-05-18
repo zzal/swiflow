@@ -74,4 +74,20 @@ struct WasmSDKProbeTests {
         #expect(result == ["swift-6.3-RELEASE_wasm"])
         #expect(stub.calls.first?.arguments == ["sdk", "list"])
     }
+
+    @Test("list() throws WasmSDKProbeError.sdkSubcommandFailed on non-zero exit, carrying stderr")
+    func listThrowsOnNonZeroExit() {
+        let stub = StubProcessRunner(
+            stubbedExitCode: 2,
+            stubbedStandardOutput: nil,
+            stubbedStandardError: "error: unknown subcommand 'sdk'\n"
+        )
+        let probe = WasmSDKProbe(runner: stub, swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"))
+        #expect(throws: WasmSDKProbeError.sdkSubcommandFailed(
+            exitCode: 2,
+            stderr: "error: unknown subcommand 'sdk'\n"
+        )) {
+            _ = try probe.list()
+        }
+    }
 }

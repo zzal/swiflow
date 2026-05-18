@@ -85,7 +85,7 @@ enum Templates {
         """
 
     private static let rawAppSwift: String = #"""
-        // examples/{{NAME}}/Sources/App/App.swift
+        // Sources/App/App.swift
         import SwiflowWeb
 
         // Mutable counter shared with the click handler. Phase 3 will replace this

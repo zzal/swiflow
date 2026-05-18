@@ -80,6 +80,27 @@ struct BuildCommandArgvTests {
         #expect(desc.contains("does not exist"))
         #expect(desc.contains("/does/not/exist"))
     }
+
+    @Test("BuildCommandError.wasmSDKListFailed surfaces exit code and stderr")
+    func wasmSDKListFailedDescription() {
+        let error = BuildCommandError.wasmSDKListFailed(
+            exitCode: 2,
+            stderr: "error: unknown subcommand 'sdk'\n"
+        )
+        let desc = String(describing: error)
+        #expect(desc.contains("exit code 2"))
+        #expect(desc.contains("unknown subcommand 'sdk'"))
+        #expect(desc.contains("`sdk` subcommand"))
+    }
+
+    @Test("BuildCommandError.wasmSDKListFailed renders cleanly when stderr is nil")
+    func wasmSDKListFailedNilStderr() {
+        let error = BuildCommandError.wasmSDKListFailed(exitCode: 1, stderr: nil)
+        let desc = String(describing: error)
+        #expect(desc.contains("exit code 1"))
+        // Should not contain the "Details from swift:" trailer when stderr is missing.
+        #expect(!desc.contains("Details from swift:"))
+    }
 }
 
 // MARK: - End-to-end (gated on WASM SDK presence)

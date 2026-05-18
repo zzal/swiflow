@@ -14,6 +14,7 @@ import Foundation
 enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case swiftNotOnPath
     case noWasmSDKInstalled
+    case wasmSDKListFailed(exitCode: Int32, stderr: String?)
     case swiftPackageJSFailed(exitCode: Int32)
     case projectPathNotFound(URL)
 
@@ -26,6 +27,14 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
                 No WASM Swift SDK is installed. Run:
                     swift sdk install <SDK URL for your Swift version>
                 with a URL from https://swift.org/install (look for the WebAssembly SDK).
+                """
+        case .wasmSDKListFailed(let code, let stderr):
+            let trimmed = stderr?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let trailer = trimmed.isEmpty ? "" : "\n\nDetails from swift:\n\(trimmed)"
+            return """
+                `swift sdk list` failed with exit code \(code). \
+                Your Swift toolchain may not support the `sdk` subcommand \
+                (it landed in Swift 5.9). Verify with `swift --version`.\(trailer)
                 """
         case .swiftPackageJSFailed(let code):
             return "swift package js failed with exit code \(code). See output above."
@@ -121,7 +130,15 @@ struct BuildCommand: AsyncParsableCommand {
             sdk = userSDK
         } else {
             let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
-            let installed = try probe.list()
+            let installed: [String]
+            do {
+                installed = try probe.list()
+            } catch let WasmSDKProbeError.sdkSubcommandFailed(exitCode, stderr) {
+                throw ValidationError(String(describing: BuildCommandError.wasmSDKListFailed(
+                    exitCode: exitCode,
+                    stderr: stderr
+                )))
+            }
             guard let firstInstalled = installed.first else {
                 throw ValidationError(String(describing: BuildCommandError.noWasmSDKInstalled))
             }
