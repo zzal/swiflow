@@ -46,6 +46,11 @@ struct KeyedMapMiddleCrossKindTests {
                 break
             }
         }
+        var destroyCount = 0
+        for patch in u.patches {
+            if case .destroyNode = patch { destroyCount += 1 }
+        }
+        #expect(destroyCount > 0, "expected at least one destroyNode for the replaced <span key=\"m\">")
 
         // Invariant 2: a createElement for the new tag exists AND has a
         // placement patch (appendChild or insertBefore) targeting the same

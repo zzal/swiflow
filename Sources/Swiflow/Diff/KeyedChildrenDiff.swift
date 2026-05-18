@@ -217,6 +217,7 @@ func diffChildrenKeyed(
                     at: updatePatchStart
                 )
                 newSlice[i] = updated
+                newToOldIndex[i] = -1   // explicit: treated as fresh mount by LIS/placement loop (see comment above)
                 // Critical: leave newToOldIndex[i] == -1 so the LIS /
                 // placement loop below treats this slot as a fresh mount.
                 // The new node's handle was never attached anywhere — it
