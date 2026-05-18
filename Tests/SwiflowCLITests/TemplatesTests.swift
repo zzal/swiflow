@@ -76,4 +76,12 @@ struct TemplatesTests {
         #expect(rendered.contains("/tmp/swiflow-checkout"))
         #expect(!rendered.contains("{{SWIFLOW_SOURCE}}"))
     }
+
+    @Test("index.html title substitutes {{NAME}}")
+    func indexHTMLTitleSubstitutesName() {
+        let rendered = Templates.indexHTML(name: "MyCoolApp")
+        #expect(rendered.contains("<title>MyCoolApp</title>"))
+        #expect(!rendered.contains("Swiflow Hello World"))
+        #expect(!rendered.contains("{{NAME}}"))
+    }
 }

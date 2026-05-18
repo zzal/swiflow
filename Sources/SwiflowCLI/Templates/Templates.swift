@@ -136,7 +136,7 @@ enum Templates {
         <html lang="en">
           <head>
             <meta charset="utf-8" />
-            <title>Swiflow Hello World</title>
+            <title>{{NAME}}</title>
             <style>
               body { font-family: -apple-system, system-ui, sans-serif; padding: 2rem; }
               .container { max-width: 480px; }
