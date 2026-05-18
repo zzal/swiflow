@@ -115,7 +115,7 @@ struct BuildCommandArgvTests {
         #expect(!desc.contains("Details from swift:"))
     }
 
-    @Test("Dev configuration drops -c release and adds -g for DWARF symbols")
+    @Test("Dev configuration drops -c release and adds --debug-info-format dwarf")
     func devConfigurationArgv() throws {
         let stub = StubProcessRunner(stubbedExitCode: 0)
         let composer = BuildInvocation(
@@ -132,7 +132,7 @@ struct BuildCommandArgvTests {
             "js",
             "--use-cdn",
             "--product", "App",
-            "-Xswiftc", "-g",
+            "--debug-info-format", "dwarf",
         ])
     }
 

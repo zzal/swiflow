@@ -79,7 +79,9 @@ struct BuildInvocation {
     /// Runs `swift package --swift-sdk <id> js --use-cdn --product App ...`
     /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
     /// The trailing flags vary by `configuration`: `.release` appends `-c release`;
-    /// `.dev` appends `-Xswiftc -g` so the WASM build carries DWARF debug symbols.
+    /// `.dev` appends `--debug-info-format dwarf` so the WASM build carries
+    /// DWARF debug symbols (the PackageToJS plugin doesn't pass through
+    /// `-Xswiftc -g`; it owns the debug-info plumbing via its own flag).
     @discardableResult
     func run(using runner: ProcessRunner) throws -> ProcessResult {
         var arguments = [
@@ -93,10 +95,14 @@ struct BuildInvocation {
         case .release:
             arguments.append(contentsOf: ["-c", "release"])
         case .dev:
-            // Dev mode: no -c release (default is debug), and ask swiftc
-            // to emit DWARF so trap stack frames carry Swift file:line
-            // info that Chrome's C/C++ DevTools extension can resolve.
-            arguments.append(contentsOf: ["-Xswiftc", "-g"])
+            // Dev mode: no -c release (default is debug). Ask the
+            // PackageToJS plugin to keep DWARF in the final wasm so trap
+            // stack frames carry Swift file:line info that Chrome's
+            // C/C++ DevTools extension can resolve. The plugin's own
+            // --debug-info-format option is the only path; -Xswiftc -g
+            // isn't forwarded by the plugin (it errors with
+            // "Unexpected arguments: -Xswiftc -g").
+            arguments.append(contentsOf: ["--debug-info-format", "dwarf"])
         }
 
         let environment: [String: String]? = {
