@@ -197,6 +197,7 @@ func diffChildrenKeyed(
         let key = keyOf(newChild)
         if let oldIndex = keyToOldIndex.removeValue(forKey: key) {
             let reused = mounted.children[oldIndex]
+            let updatePatchStart = patches.count
             let updated = update(
                 mounted: reused,
                 next: newChild,
@@ -204,9 +205,32 @@ func diffChildrenKeyed(
                 handles: handles,
                 handlers: handlers
             )
-            newSlice[i] = updated
-            newToOldIndex[i] = oldIndex
-            reusedOldIndices.insert(oldIndex)
+            if updated !== reused {
+                // Cross-kind replacement: same key but different tag/kind.
+                // update() destroyed the old subtree (destroyNode patches
+                // already in `patches`) but did NOT detach the old DOM node
+                // from its parent. Insert removeChild ahead of the destroy
+                // patches — same fix the prefix/suffix scans already got in
+                // Phase 2b.1.
+                patches.insert(
+                    .removeChild(parent: mounted.handle, child: reused.handle),
+                    at: updatePatchStart
+                )
+                newSlice[i] = updated
+                // Critical: leave newToOldIndex[i] == -1 so the LIS /
+                // placement loop below treats this slot as a fresh mount.
+                // The new node's handle was never attached anywhere — it
+                // MUST be placed via insertBefore/appendChild like any
+                // other fresh mount. Marking it as "reused"
+                // (newToOldIndex[i] = oldIndex) would let the LIS decide
+                // "in correct position, no patch" and the new node would
+                // never appear in the DOM.
+                reusedOldIndices.insert(oldIndex)
+            } else {
+                newSlice[i] = updated
+                newToOldIndex[i] = oldIndex
+                reusedOldIndices.insert(oldIndex)
+            }
         } else {
             let fresh = mount(
                 newChild,
