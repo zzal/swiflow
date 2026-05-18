@@ -4,7 +4,11 @@ import PackageDescription
 let package = Package(
     name: "Swiflow",
     platforms: [
-        .macOS(.v13),
+        // Bumped from .v13 → .v14 because Hummingbird 2.x requires macOS 14.
+        // SwiflowCLI is the only macOS-bound product (the WASM-side libs run
+        // in the browser via JavaScriptKit and aren't affected), so the
+        // floor only matters for the dev server's host.
+        .macOS(.v14),
     ],
     products: [
         .library(name: "Swiflow", targets: ["Swiflow"]),
@@ -20,6 +24,12 @@ let package = Package(
         // ArgumentParser drives the swiflow CLI. Use a major-bump range —
         // 1.x has been API-stable since 2021.
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        // Hummingbird is the HTTP+WebSocket server for `swiflow dev`. v2 is
+        // async/await native and Swift 6 strict-concurrency clean. We pin
+        // to upToNextMinor — 2.x has had API drift across minor releases
+        // (WebSocket router context refactor in 2.6, etc.).
+        .package(url: "https://github.com/hummingbird-project/hummingbird.git", .upToNextMinor(from: "2.6.0")),
+        .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", .upToNextMinor(from: "2.2.0")),
     ],
     targets: [
         .target(
@@ -40,6 +50,8 @@ let package = Package(
             name: "SwiflowCLI",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
             ],
             path: "Sources/SwiflowCLI",
             swiftSettings: [.swiftLanguageMode(.v6)]
@@ -52,7 +64,11 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowCLITests",
-            dependencies: ["SwiflowCLI"],
+            dependencies: [
+                "SwiflowCLI",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+                .product(name: "HummingbirdWSTesting", package: "hummingbird-websocket"),
+            ],
             path: "Tests/SwiflowCLITests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
