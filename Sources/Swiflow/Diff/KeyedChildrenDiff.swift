@@ -159,7 +159,12 @@ func diffChildrenKeyed(
     //    child's index so we can compute the longest-increasing-subsequence
     //    of *kept* nodes (those that stay in place need no insertBefore).
     let newMiddleCount = newEnd - newStart + 1
+    // Bucket old-side middle children by key (used by the reuse loop below).
+    // Detect duplicate keys defensively in debug builds — same gating as the
+    // new-side check at lines ~176-186 so both sites have identical behavior
+    // across configurations.
     var keyToOldIndex: [String: Int] = [:]
+    #if DEBUG
     for i in oldStart...oldEnd {
         let key = keyOf(mounted.children[i])
         assert(
@@ -170,6 +175,11 @@ func diffChildrenKeyed(
         )
         keyToOldIndex[key] = i
     }
+    #else
+    for i in oldStart...oldEnd {
+        keyToOldIndex[keyOf(mounted.children[i])] = i
+    }
+    #endif
 
     // Also catch duplicates on the *new* side, where the same destructive
     // effect happens via the reuse loop's `removeValue(forKey:)`.

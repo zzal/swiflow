@@ -46,6 +46,8 @@ struct PatchTests {
              == Patch.removeStyle(handle: 1, name: "color"))
         #expect(Patch.setText(handle: 1, text: "hi")
              == Patch.setText(handle: 1, text: "hi"))
+        #expect(Patch.setRawHTML(handle: 1, html: "<b/>")
+             == Patch.setRawHTML(handle: 1, html: "<b/>"))
     }
 
     @Test("Event opcodes equate by all fields")

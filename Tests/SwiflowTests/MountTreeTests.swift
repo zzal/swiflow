@@ -126,6 +126,40 @@ struct MountTreeConsistencyTests {
         roundTrip(withKeys(["a", "b", "c"]), withKeys(["c", "a", "b"]))
     }
 
+    @Test("Mount tree consistency: keyed empty → populated")
+    func keyedEmptyToPopulated() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let initial = VNode.element(ElementData(tag: "ul", children: []))
+        let next = VNode.element(ElementData(tag: "ul", children: [
+            .element(ElementData(tag: "li", key: "a")),
+            .element(ElementData(tag: "li", key: "b")),
+        ]))
+        let m = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: next, handles: handles, handlers: handlers)
+        // Mount tree structurally equals the new VNode (modulo handles).
+        let finalKeys: [String] = u.newMountTree.children.map { keyOf($0) }
+        #expect(finalKeys == ["a", "b"])
+        // Each child's parent pointer references the root.
+        for child in u.newMountTree.children {
+            #expect(child.parent === u.newMountTree)
+        }
+    }
+
+    @Test("Mount tree consistency: keyed populated → empty")
+    func keyedPopulatedToEmpty() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let initial = VNode.element(ElementData(tag: "ul", children: [
+            .element(ElementData(tag: "li", key: "a")),
+            .element(ElementData(tag: "li", key: "b")),
+        ]))
+        let next = VNode.element(ElementData(tag: "ul", children: []))
+        let m = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: next, handles: handles, handlers: handlers)
+        #expect(u.newMountTree.children.isEmpty)
+    }
+
     @Test("Consistency: tag replace")
     func tagReplace() {
         roundTrip(
