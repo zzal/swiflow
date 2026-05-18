@@ -18,6 +18,8 @@ func diffChildrenIndexed(
     // 1. Reconcile common prefix.
     for i in 0..<commonCount {
         let oldChild = mounted.children[i]
+        let oldHandle = oldChild.handle
+        let updatePatchStart = patches.count
         let newChild = update(
             mounted: oldChild,
             next: newChildren[i],
@@ -27,12 +29,17 @@ func diffChildrenIndexed(
         )
         if newChild !== oldChild {
             // The update returned a fresh node (cross-kind / tag replace).
-            // Replace in the parent's children array; for indexed (no keys),
-            // we treat this as "remove old, insert new at same index" — the
-            // patches emitted by update() already destroyed the old node.
+            // update() emitted destroyNode for the old subtree but did NOT
+            // detach the old node from the live DOM. Insert removeChild
+            // BEFORE the destroyNode patches so the driver detaches first,
+            // then drops the handle from its Map. Final patch order:
+            // removeChild → destroyNode(subtree) → createX(new) → placement.
+            patches.insert(
+                .removeChild(parent: mounted.handle, child: oldHandle),
+                at: updatePatchStart
+            )
             mounted.replaceChild(at: i, with: newChild)
-            // insertBefore is required for the new node. Since the old node
-            // was destroyed in-place, we insertBefore the next sibling
+            // Position the new node: insertBefore the next sibling
             // (if any) or appendChild.
             if i + 1 < oldCount {
                 let beforeSibling = mounted.children[i + 1]

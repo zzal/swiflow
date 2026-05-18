@@ -28,15 +28,44 @@ func diffChildrenKeyed(
     while oldStart <= oldEnd, newStart <= newEnd,
           keyOf(mounted.children[oldStart]) == keyOf(newChildren[newStart])
     {
+        let oldChild = mounted.children[oldStart]
+        let oldHandle = oldChild.handle
+        let updatePatchStart = patches.count
         let updated = update(
-            mounted: mounted.children[oldStart],
+            mounted: oldChild,
             next: newChildren[newStart],
             into: &patches,
             handles: handles,
             handlers: handlers
         )
-        if updated !== mounted.children[oldStart] {
+        if updated !== oldChild {
+            // Cross-kind replacement (same key, different tag/kind).
+            // update() emitted destroyNode for the old subtree but did NOT
+            // detach the old node from the live DOM. Insert removeChild
+            // BEFORE the destroyNode patches so the driver detaches first,
+            // then drops the handle from its Map. The replacement still
+            // sits at oldStart in mounted.children, so no insertBefore is
+            // needed here — but the node IS already detached on the JS
+            // side, so we re-attach via insertBefore against the next
+            // sibling (or appendChild if it's the tail).
+            patches.insert(
+                .removeChild(parent: mounted.handle, child: oldHandle),
+                at: updatePatchStart
+            )
             mounted.replaceChild(at: oldStart, with: updated)
+            if oldStart + 1 < mounted.children.count {
+                let beforeSibling = mounted.children[oldStart + 1]
+                patches.append(.insertBefore(
+                    parent: mounted.handle,
+                    child: updated.handle,
+                    beforeChild: beforeSibling.handle
+                ))
+            } else {
+                patches.append(.appendChild(
+                    parent: mounted.handle,
+                    child: updated.handle
+                ))
+            }
         }
         oldStart += 1
         newStart += 1
@@ -46,15 +75,38 @@ func diffChildrenKeyed(
     while oldStart <= oldEnd, newStart <= newEnd,
           keyOf(mounted.children[oldEnd]) == keyOf(newChildren[newEnd])
     {
+        let oldChild = mounted.children[oldEnd]
+        let oldHandle = oldChild.handle
+        let updatePatchStart = patches.count
         let updated = update(
-            mounted: mounted.children[oldEnd],
+            mounted: oldChild,
             next: newChildren[newEnd],
             into: &patches,
             handles: handles,
             handlers: handlers
         )
-        if updated !== mounted.children[oldEnd] {
+        if updated !== oldChild {
+            // Cross-kind replacement in the suffix scan. Same fix as the
+            // prefix scan: detach the old DOM node before its handle is
+            // forgotten, then re-attach the fresh one at the same slot.
+            patches.insert(
+                .removeChild(parent: mounted.handle, child: oldHandle),
+                at: updatePatchStart
+            )
             mounted.replaceChild(at: oldEnd, with: updated)
+            if oldEnd + 1 < mounted.children.count {
+                let beforeSibling = mounted.children[oldEnd + 1]
+                patches.append(.insertBefore(
+                    parent: mounted.handle,
+                    child: updated.handle,
+                    beforeChild: beforeSibling.handle
+                ))
+            } else {
+                patches.append(.appendChild(
+                    parent: mounted.handle,
+                    child: updated.handle
+                ))
+            }
         }
         oldEnd -= 1
         newEnd -= 1
