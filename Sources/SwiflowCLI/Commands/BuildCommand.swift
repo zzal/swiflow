@@ -44,25 +44,60 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+/// `swiflow build` and `swiflow dev` invoke the same SwiftPM plugin
+/// (`swift package js`) but with different shapes. Release flips on
+/// `-c release` for `wasm-opt`-friendly output; dev keeps optimisations
+/// off and asks the toolchain to embed DWARF debug symbols so a Chrome
+/// C/C++ DevTools extension can map traps back to Swift source lines.
+enum BuildConfiguration: Equatable {
+    case release
+    case dev
+}
+
 /// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
 struct BuildInvocation {
     let swiftExecutable: URL
     let projectPath: URL
     let swiftSDK: String
     let toolchainBundleID: String?
+    let configuration: BuildConfiguration
 
-    /// Runs `swift package --swift-sdk <id> js --use-cdn --product App -c release`
+    init(
+        swiftExecutable: URL,
+        projectPath: URL,
+        swiftSDK: String,
+        toolchainBundleID: String?,
+        configuration: BuildConfiguration = .release
+    ) {
+        self.swiftExecutable = swiftExecutable
+        self.projectPath = projectPath
+        self.swiftSDK = swiftSDK
+        self.toolchainBundleID = toolchainBundleID
+        self.configuration = configuration
+    }
+
+    /// Runs `swift package --swift-sdk <id> js --use-cdn --product App ...`
     /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
+    /// The trailing flags vary by `configuration`: `.release` appends `-c release`;
+    /// `.dev` appends `-Xswiftc -g` so the WASM build carries DWARF debug symbols.
     @discardableResult
     func run(using runner: ProcessRunner) throws -> ProcessResult {
-        let arguments = [
+        var arguments = [
             "package",
             "--swift-sdk", swiftSDK,
             "js",
             "--use-cdn",
             "--product", "App",
-            "-c", "release",
         ]
+        switch configuration {
+        case .release:
+            arguments.append(contentsOf: ["-c", "release"])
+        case .dev:
+            // Dev mode: no -c release (default is debug), and ask swiftc
+            // to emit DWARF so trap stack frames carry Swift file:line
+            // info that Chrome's C/C++ DevTools extension can resolve.
+            arguments.append(contentsOf: ["-Xswiftc", "-g"])
+        }
 
         let environment: [String: String]? = {
             guard let bundleID = toolchainBundleID else { return nil }

@@ -114,6 +114,42 @@ struct BuildCommandArgvTests {
         #expect(desc.contains("exit code 1"))
         #expect(!desc.contains("Details from swift:"))
     }
+
+    @Test("Dev configuration drops -c release and adds -g for DWARF symbols")
+    func devConfigurationArgv() throws {
+        let stub = StubProcessRunner(stubbedExitCode: 0)
+        let composer = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .dev
+        )
+        _ = try composer.run(using: stub)
+        #expect(stub.calls[0].arguments == [
+            "package",
+            "--swift-sdk", "swift-6.3-RELEASE_wasm",
+            "js",
+            "--use-cdn",
+            "--product", "App",
+            "-Xswiftc", "-g",
+        ])
+    }
+
+    @Test("Release configuration is the default and matches the existing argv")
+    func releaseConfigurationIsDefault() throws {
+        let stub = StubProcessRunner(stubbedExitCode: 0)
+        let composer = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil
+            // configuration omitted — must default to .release
+        )
+        _ = try composer.run(using: stub)
+        #expect(stub.calls[0].arguments.contains("release"))
+        #expect(!stub.calls[0].arguments.contains("-g"))
+    }
 }
 
 // MARK: - End-to-end (gated on WASM SDK presence)
