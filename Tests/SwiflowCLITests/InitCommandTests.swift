@@ -1,4 +1,5 @@
 // Tests/SwiflowCLITests/InitCommandTests.swift
+import ArgumentParser
 import Foundation
 import Testing
 @testable import SwiflowCLI
@@ -87,10 +88,85 @@ struct InitCommandTests {
 
     // MARK: - Helpers
 
-    private func makeTempDir() throws -> URL {
+    fileprivate static func makeTempDir() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiflow-init-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func makeTempDir() throws -> URL { try Self.makeTempDir() }
+}
+
+@Suite("InitCommand argv")
+struct InitCommandArgvTests {
+
+    @Test("Defaults: --path is .")
+    func defaults() throws {
+        let parsed = try InitCommand.parse(["demo"])
+        #expect(parsed.name == "demo")
+        #expect(parsed.path == ".")
+        #expect(parsed.swiflowSource == "../..")
+    }
+
+    @Test("Flags parse: --path, --swiflow-source")
+    func flags() throws {
+        let parsed = try InitCommand.parse([
+            "demo",
+            "--path", "/tmp/parent",
+            "--swiflow-source", "/abs/swiflow",
+        ])
+        #expect(parsed.name == "demo")
+        #expect(parsed.path == "/tmp/parent")
+        #expect(parsed.swiflowSource == "/abs/swiflow")
+    }
+
+    @Test("Appears in the root command's subcommand list")
+    func registeredInRoot() {
+        let names = Swiflow.configuration.subcommands.map { $0.configuration.commandName }
+        #expect(names.contains("init"))
+    }
+}
+
+@Suite("InitCommand run()")
+struct InitCommandRunTests {
+
+    @Test("--path routes the project to that directory")
+    func respectsPath() async throws {
+        let tmp = try InitCommandTests.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let cmd = try InitCommand.parse([
+            "Demo",
+            "--path", tmp.path,
+            "--swiflow-source", "/abs/path/to/swiflow",
+        ])
+        try await cmd.run()
+
+        let project = tmp.appendingPathComponent("Demo")
+        let fm = FileManager.default
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("Package.swift").path))
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("Sources/App/App.swift").path))
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-driver.js").path))
+    }
+
+    @Test("--path that doesn't exist surfaces a ValidationError")
+    func refusesMissingPath() async throws {
+        let cmd = try InitCommand.parse([
+            "Demo",
+            "--path", "/does/not/exist/swiflow-test-\(UUID().uuidString)",
+        ])
+        await #expect(throws: ValidationError.self) {
+            try await cmd.run()
+        }
+    }
+
+    @Test("InitCommandError.parentPathNotFound has a useful description")
+    func parentPathNotFoundDescription() {
+        let url = URL(fileURLWithPath: "/does/not/exist")
+        let error = InitCommandError.parentPathNotFound(url)
+        let desc = String(describing: error)
+        #expect(desc.contains("does not exist"))
+        #expect(desc.contains("/does/not/exist"))
     }
 }
