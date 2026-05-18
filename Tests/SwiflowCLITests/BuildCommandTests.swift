@@ -101,6 +101,19 @@ struct BuildCommandArgvTests {
         // Should not contain the "Details from swift:" trailer when stderr is missing.
         #expect(!desc.contains("Details from swift:"))
     }
+
+    @Test("BuildCommandError.wasmSDKListFailed suppresses trailer when stderr is whitespace-only")
+    func wasmSDKListFailedWhitespaceStderr() {
+        // The trim+isEmpty check at description time covers a third equivalence
+        // class beyond nil and non-empty: stderr that the child captured but
+        // that contains nothing actionable (newlines, spaces, tabs). Without
+        // trimming, the trailer would render an empty "Details from swift:"
+        // block — visual noise with no signal.
+        let error = BuildCommandError.wasmSDKListFailed(exitCode: 1, stderr: "   \n\n  \t  ")
+        let desc = String(describing: error)
+        #expect(desc.contains("exit code 1"))
+        #expect(!desc.contains("Details from swift:"))
+    }
 }
 
 // MARK: - End-to-end (gated on WASM SDK presence)

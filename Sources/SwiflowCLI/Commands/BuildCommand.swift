@@ -133,6 +133,11 @@ struct BuildCommand: AsyncParsableCommand {
             let installed: [String]
             do {
                 installed = try probe.list()
+            // Case-pattern catch (vs. `catch let error as WasmSDKProbeError`)
+            // because we destructure the payload to translate it into the
+            // BuildCommand-scoped error vocabulary. The `as`-cast form below
+            // (line ~168) is used when we re-wrap the same error type — pick
+            // the case-pattern when payload translation is the point.
             } catch let WasmSDKProbeError.sdkSubcommandFailed(exitCode, stderr) {
                 throw ValidationError(String(describing: BuildCommandError.wasmSDKListFailed(
                     exitCode: exitCode,
