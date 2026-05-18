@@ -26,6 +26,15 @@ jobs:
       - name: Verify Swift version
         run: swift --version
 
+      - name: Install WASM SDK
+        # Required for the end-to-end Test gated by wasmSDKAvailable in
+        # BuildCommandIntegrationTests. Without this step the integration
+        # test silently skips, leaving the swiflow build path untested in CI.
+        run: |
+          swift sdk install \
+            https://download.swift.org/swift-6.0.3-release/wasm32-unknown-wasi/swift-6.0.3-RELEASE/swift-6.0.3-RELEASE_wasm32-unknown-wasi.artifactbundle.zip
+          swift sdk list
+
       - name: Build library + WebTarget
         run: swift build
 
