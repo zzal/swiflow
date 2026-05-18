@@ -21,7 +21,7 @@ The driver exposes three operations under `window.swiflow`:
 Each patch is a plain JS object with an `op` string discriminator. Field names
 are case-sensitive and must match the Swift-side `PatchSerializer.encode`
 output exactly. See `Sources/Swiflow/PatchSerializer.swift` for the canonical
-list of opcodes (16 total) and per-opcode fields.
+list of opcodes (17 total) and per-opcode fields.
 
 ## Event flow
 
@@ -37,11 +37,15 @@ When a DOM event fires on a node with a registered handler:
 
 ## Security: the rawHTML escape hatch
 
-The `createRawHTML` opcode is the only path in the driver that uses
-`innerHTML`. The Swift side gates it via `VNode.rawHTML(_:)` — a loudly-named
-function so `git grep "rawHTML("` enumerates every site where unescaped HTML
-enters the DOM. XSS responsibility lies with the caller; the framework
-guarantees no other path produces unescaped HTML.
+The `parseRawHTML` helper is the single site in the driver that assigns
+`innerHTML`. It is called only from the `createRawHTML` and `setRawHTML`
+opcodes — `git grep "innerHTML" js-driver/` enumerates every match and
+they all live inside this helper (plus a defensive rejection in the
+generic `setProperty` case). The Swift side gates both opcodes via
+`VNode.rawHTML(_:)`, so `git grep "rawHTML("` enumerates every place
+where unescaped HTML can enter the DOM. XSS responsibility lies with
+the caller; the framework guarantees no other path produces unescaped
+HTML.
 
 ## Authoring
 
