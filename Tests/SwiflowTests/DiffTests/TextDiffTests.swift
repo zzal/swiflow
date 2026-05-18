@@ -27,11 +27,11 @@ struct TextDiffTests {
         #expect(u.newMountTree.vnode == .text("bye"))
     }
 
-    @Test("Different rawHTML emits setProperty(innerHTML), mount tree retains handle")
+    @Test("Different rawHTML emits setRawHTML, mount tree retains handle")
     func differentRawHTML() {
         let (m, u) = diffPair(.rawHTML("<b/>"), .rawHTML("<i/>"))
         #expect(u.patches == [
-            .setProperty(handle: m.newMountTree.handle, name: "innerHTML", value: .string("<i/>")),
+            .setRawHTML(handle: m.newMountTree.handle, html: "<i/>"),
         ])
     }
 

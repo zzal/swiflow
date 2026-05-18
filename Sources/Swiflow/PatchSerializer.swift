@@ -86,6 +86,11 @@ public enum PatchSerializer {
                 "handle": .int(handle),
                 "text": .string(text),
             ])
+        case .setRawHTML(let handle, let html):
+            return PatchPayload(op: "setRawHTML", fields: [
+                "handle": .int(handle),
+                "html": .string(html),
+            ])
 
         // MARK: Events
         case .addHandler(let handle, let event, let handlerId):

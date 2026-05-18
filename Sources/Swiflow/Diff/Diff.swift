@@ -142,11 +142,7 @@ func update(
 
     // RawHTML → rawHTML value change.
     case (.rawHTML, .rawHTML(let newHTML)):
-        patches.append(.setProperty(
-            handle: mounted.handle,
-            name: "innerHTML",
-            value: .string(newHTML)
-        ))
+        patches.append(.setRawHTML(handle: mounted.handle, html: newHTML))
         mounted.vnode = next
         return mounted
 

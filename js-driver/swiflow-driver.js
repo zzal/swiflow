@@ -25,6 +25,29 @@
   const listeners = new Map();
 
   /**
+   * Parse a raw HTML string into a single DOM node, mirroring the create-side
+   * `createRawHTML` logic exactly so that `setRawHTML` produces a node of the
+   * same shape (single child if the markup has one, `<span>` wrap otherwise).
+   *
+   * Centralised here so both `createRawHTML` and `setRawHTML` share the ONE
+   * intentional HTML-property write site — `git grep "innerHTML" js-driver/`
+   * enumerates every place unescaped HTML enters the DOM, and they all live
+   * inside this helper plus the defensive rejection in `setProperty`.
+   */
+  function parseRawHTML(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    if (tpl.content.childNodes.length === 1) {
+      return tpl.content.firstChild;
+    }
+    const wrap = document.createElement("span");
+    while (tpl.content.firstChild) {
+      wrap.appendChild(tpl.content.firstChild);
+    }
+    return wrap;
+  }
+
+  /**
    * Serialize a DOM event into the minimal shape Swift expects.
    * Phase 1's Event has type + optional targetValue; everything else is
    * deferred to Phase 3.
@@ -50,29 +73,12 @@
         nodes.set(p.handle, document.createTextNode(p.text));
         return;
       case "createRawHTML": {
-        // Use a template element so the raw HTML is parsed as document
-        // content. The first child of the template becomes the node;
-        // wrap-around to a `<span>` if the markup produced multiple nodes
-        // or none, so the handle always maps to exactly one node.
-        //
-        // This is the ONE intentional innerHTML assignment in the driver,
-        // gated on the Swift side by VNode.rawHTML(...) — a loudly-named
-        // function so `git grep "rawHTML("` enumerates every site where
-        // unescaped HTML enters the DOM. XSS responsibility lies with the
-        // caller; the framework guarantees no other path produces unescaped
-        // HTML.
-        const tpl = document.createElement("template");
-        tpl.innerHTML = p.html;
-        let node;
-        if (tpl.content.childNodes.length === 1) {
-          node = tpl.content.firstChild;
-        } else {
-          node = document.createElement("span");
-          while (tpl.content.firstChild) {
-            node.appendChild(tpl.content.firstChild);
-          }
-        }
-        nodes.set(p.handle, node);
+        // Raw HTML enters the DOM via parseRawHTML, gated on the Swift side
+        // by VNode.rawHTML(...) — a loudly-named function so
+        // `git grep "rawHTML("` enumerates every site where unescaped HTML
+        // enters the DOM. XSS responsibility lies with the caller; the
+        // framework guarantees no other path produces unescaped HTML.
+        nodes.set(p.handle, parseRawHTML(p.html));
         return;
       }
       case "destroyNode": {
@@ -109,6 +115,18 @@
         nodes.get(p.handle).removeAttribute(p.name);
         return;
       case "setProperty":
+        // Defence in depth: the runtime reaches the HTML property only via
+        // setRawHTML, which is the named-loud audit target. If a
+        // setProperty patch ever names the HTML property — whether from a
+        // differ regression or a user dropping it into
+        // ElementData.properties — refuse and surface the misuse loudly
+        // rather than silently injecting unescaped markup.
+        if (p.name === "innerHTML") {
+          throw new Error(
+            "swiflow: setProperty refuses to write the innerHTML property; " +
+              "use VNode.rawHTML(_:) instead"
+          );
+        }
         // value is already coerced to the right JS primitive by the Swift
         // adapter (string / number / boolean).
         nodes.get(p.handle)[p.name] = p.value;
@@ -134,6 +152,22 @@
         } else {
           node.textContent = p.text;
         }
+        return;
+      }
+      case "setRawHTML": {
+        // Re-parse and replace, mirroring the createRawHTML path through
+        // parseRawHTML. Works regardless of whether the previous node was
+        // an Element (HTML-property assignment would also have worked) or a
+        // Text node (the markup parsed to plain text on first mount and
+        // .innerHTML would have been a silent no-op). The ONLY runtime path
+        // that writes the HTML property — `git grep "setRawHTML"`
+        // enumerates every site.
+        const next = parseRawHTML(p.html);
+        const old = nodes.get(p.handle);
+        if (old && old.parentNode) {
+          old.parentNode.replaceChild(next, old);
+        }
+        nodes.set(p.handle, next);
         return;
       }
 

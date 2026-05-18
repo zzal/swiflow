@@ -152,6 +152,16 @@ struct PatchSerializerTests {
         ))
     }
 
+    @Test("setRawHTML encodes to op \"setRawHTML\" with handle and html fields")
+    func encodesSetRawHTML() {
+        let payload = PatchSerializer.encode(
+            .setRawHTML(handle: 7, html: "<b>hi</b>")
+        )
+        #expect(payload.op == "setRawHTML")
+        #expect(payload.fields["handle"] == .int(7))
+        #expect(payload.fields["html"] == .string("<b>hi</b>"))
+    }
+
     // MARK: - Events
 
     @Test("addHandler encodes op + handle + event + handlerId")

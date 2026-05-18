@@ -4,7 +4,7 @@
 /// the JS driver (in Phase 2). Patches reference DOM nodes by integer handles
 /// pre-allocated on the Swift side; the driver maintains a `Map<int, Node>`.
 ///
-/// The 16 opcodes are grouped:
+/// The 17 opcodes are grouped:
 /// - **Lifecycle**: create / destroy DOM nodes.
 /// - **Tree structure**: parent/child wiring.
 /// - **Per-bag mutations**: attribute / property / style / text.
@@ -48,6 +48,11 @@ public enum Patch: Equatable, Sendable {
     case removeStyle(handle: Int, name: String)
     /// Updates a text node's content via `textContent`.
     case setText(handle: Int, text: String)
+    /// Replaces a node's HTML content. The **only** opcode that writes to the
+    /// `innerHTML` property at the driver layer. Emitted exclusively by the
+    /// raw-HTML diff path (`git grep "setRawHTML("` enumerates every site).
+    /// XSS responsibility lies with the caller of `VNode.rawHTML(_:)`.
+    case setRawHTML(handle: Int, html: String)
 
     // MARK: - Events
 
