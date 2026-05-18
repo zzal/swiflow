@@ -244,4 +244,45 @@
      */
     registerDispatcher: function (_fn) {},
   };
+
+  // Dev-mode reload listener. Activates only when the dev server has
+  // injected `window.SWIFLOW_DEV=true` before this driver runs.
+  // Production builds leave the global undefined; this branch stays
+  // inert and does NOT attempt the WebSocket (no DevTools console
+  // noise from a failed `ws://localhost/reload` connection).
+  if (window.SWIFLOW_DEV) {
+    let reconnectDelay = 250;
+    const maxDelay = 5000;
+
+    function connect() {
+      const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/reload";
+      const ws = new WebSocket(url);
+      ws.onopen = function () {
+        reconnectDelay = 250;
+      };
+      ws.onmessage = function (m) {
+        let payload;
+        try {
+          payload = JSON.parse(m.data);
+        } catch (e) {
+          return;
+        }
+        if (payload && payload.type === "reload") {
+          location.reload();
+        }
+      };
+      ws.onclose = function () {
+        // Reconnect with exponential backoff so killing+restarting
+        // `swiflow dev` causes the page to silently reattach. No cap
+        // on attempts — dev mode, no users.
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+      };
+      ws.onerror = function () {
+        // The close handler does the retry; swallow the error to keep
+        // DevTools console clean during dev-server restarts.
+      };
+    }
+    connect();
+  }
 })();
