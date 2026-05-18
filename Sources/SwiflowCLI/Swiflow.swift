@@ -19,7 +19,7 @@ public struct Swiflow: AsyncParsableCommand {
         commandName: "swiflow",
         abstract: "Swift-WASM developer ecosystem — scaffold and build Swiflow projects.",
         version: "0.1.0",
-        subcommands: [InitCommand.self, BuildCommand.self],
+        subcommands: [InitCommand.self, BuildCommand.self, DevCommand.self],
         defaultSubcommand: nil
     )
 
