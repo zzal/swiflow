@@ -99,4 +99,91 @@ struct KeyedChildrenTests {
         // li-a=1, li-b=3. Move b before a → insertBefore(0, 3, 1).
         #expect(s == [.insertBefore(parent: 0, child: 3, beforeChild: 1)])
     }
+
+    @Test("Map-middle LIS: simultaneous insert + delete + stable + move")
+    func mapMiddleLISCoverage() {
+        // [a, b, c, d] → [d, e, b]
+        //   - a, c: removed (step 7 destroys non-reused leftovers)
+        //   - b: kept, in LIS (newToOldIndex sequence implies "in order")
+        //   - d: kept but out of LIS → must move (insertBefore)
+        //   - e: fresh mount (insertBefore against the next sibling)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let initial = VNode.element(ElementData(tag: "ul", children: [
+            .element(ElementData(tag: "li", key: "a")),
+            .element(ElementData(tag: "li", key: "b")),
+            .element(ElementData(tag: "li", key: "c")),
+            .element(ElementData(tag: "li", key: "d")),
+        ]))
+        let next = VNode.element(ElementData(tag: "ul", children: [
+            .element(ElementData(tag: "li", key: "d")),
+            .element(ElementData(tag: "li", key: "e")),
+            .element(ElementData(tag: "li", key: "b")),
+        ]))
+
+        let m = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: next, handles: handles, handlers: handlers)
+
+        // Structural invariants:
+        //   1. a and c are removed from the DOM (one removeChild + destroyNode each)
+        //   2. e (a fresh key) gets a createElement + a placement patch
+        //   3. d gets at most one move (the LIS will pick either b or d as the
+        //      stable point — the implementation may legitimately move either b
+        //      or d; we don't pin which).
+        //   4. Every destroyNode(h) is preceded by removeChild(_, child: h).
+        //   5. Mounted children after the diff: exactly 3, with keys d, e, b in
+        //      that order.
+
+        // (1) and (4): structural invariant walk.
+        var pendingDestroys: Set<Int> = []
+        var destroyedHandles: Set<Int> = []
+        for patch in u.patches {
+            switch patch {
+            case .removeChild(_, let child):
+                pendingDestroys.insert(child)
+            case .destroyNode(let handle):
+                #expect(pendingDestroys.contains(handle),
+                        "destroyNode(\(handle)) was not preceded by removeChild")
+                pendingDestroys.remove(handle)
+                destroyedHandles.insert(handle)
+            default:
+                break
+            }
+        }
+        // a (handle 1) and c (handle 3) were the destroyed keys; assert by
+        // exact handle set. (Initial allocation: 0=ul, 1=a, 2=b, 3=c, 4=d;
+        // e gets a fresh handle in the second diff pass.)
+        #expect(destroyedHandles == [1, 3], "expected exactly a (1) and c (3) destroyed")
+
+        // (2): fresh e creation + placement.
+        var freshElementCount = 0
+        var freshHandles: Set<Int> = []
+        for patch in u.patches {
+            if case .createElement(let h, let tag) = patch, tag == "li" {
+                // h > 4 means freshly allocated for e (initial used 0..4).
+                if h > 4 {
+                    freshElementCount += 1
+                    freshHandles.insert(h)
+                }
+            }
+        }
+        #expect(freshElementCount == 1, "expected exactly one fresh createElement for e")
+        var placedHandles: Set<Int> = []
+        for patch in u.patches {
+            switch patch {
+            case .appendChild(_, let child), .insertBefore(_, let child, _):
+                placedHandles.insert(child)
+            default:
+                break
+            }
+        }
+        for h in freshHandles {
+            #expect(placedHandles.contains(h), "fresh e (handle \(h)) not placed")
+        }
+
+        // (5): final mount tree shape.
+        let finalKeys: [String] = u.newMountTree.children.map { keyOf($0) }
+        #expect(finalKeys == ["d", "e", "b"])
+    }
 }
