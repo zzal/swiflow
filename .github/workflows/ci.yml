@@ -17,11 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Swift (Linux)
-        if: runner.os == 'Linux'
+      - name: Set up Swift 6.3
+        # Installed on both runners. The macos-14 image ships with Xcode 15.x
+        # by default, whose bundled Swift lacks the `swift sdk` subcommand
+        # (it landed in 5.9 but only became reliable in 6.0+). Pinning to
+        # 6.3 also matches what JavaScriptKit 0.53 requires (swift-tools 6.2+)
+        # and what `swift-6.3-RELEASE_wasm` was built against.
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "6.0"
+          swift-version: "6.3"
 
       - name: Verify Swift version
         run: swift --version
@@ -30,12 +34,16 @@ jobs:
         # Required for the end-to-end Test gated by wasmSDKAvailable in
         # BuildCommandIntegrationTests. Without this step the integration
         # test silently skips, leaving the swiflow build path untested in CI.
-        # The 6.0.x WASM SDK lives on swiftwasm's GitHub releases (canonical
-        # for 6.0.x — `download.swift.org` only hosts WASM SDKs from 6.3+).
+        # 6.3+ WASM SDKs live on download.swift.org (the swiftwasm/swift
+        # GitHub releases stopped at 6.0.x — see swift.org/install for the
+        # canonical link). The checksum was computed locally against the
+        # exact artifactbundle.tar.gz this URL serves; if you bump the
+        # version, recompute via:
+        #   curl -sLo /tmp/wasm.tgz <url> && shasum -a 256 /tmp/wasm.tgz
         run: |
           swift sdk install \
-            https://github.com/swiftwasm/swift/releases/download/swift-wasm-6.0.3-RELEASE/swift-wasm-6.0.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip \
-            --checksum 31d3585b06dd92de390bacc18527801480163188cd7473f492956b5e213a8618
+            https://download.swift.org/swift-6.3-release/wasm-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_wasm.artifactbundle.tar.gz \
+            --checksum 9fa4016ee632c7e9e906608ec3b55cf13dfc4dff44e47574c5af58064dc33fd9
           swift sdk list
 
       - name: Build library + WebTarget
