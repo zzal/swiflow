@@ -82,12 +82,25 @@
         return;
       }
       case "destroyNode": {
-        // Detach any listeners we tracked for this handle so JS GC can free
-        // the wrapper functions.
+        // Symmetric with removeHandler: detach every tracked listener for
+        // this handle from the DOM node AND drop the map entries.
+        // Previously this case only deleted from the map, leaving the DOM
+        // bindings until GC -- mostly harmless but inconsistent with
+        // removeHandler and falsified the comment that claimed "Detach any
+        // listeners". Also: parse the handle prefix numerically (was
+        // startsWith-based, which would match handle 1 against keys for
+        // 10/11/etc. once handles cross 10).
+        const node = nodes.get(p.handle);
         for (const key of Array.from(listeners.keys())) {
-          if (key.startsWith(p.handle + ":")) {
-            listeners.delete(key);
+          const sep = key.indexOf(":");
+          if (sep < 0) continue;
+          if (Number(key.slice(0, sep)) !== p.handle) continue;
+          const event = key.slice(sep + 1);
+          const fn = listeners.get(key);
+          if (node !== undefined && fn !== undefined) {
+            node.removeEventListener(event, fn);
           }
+          listeners.delete(key);
         }
         nodes.delete(p.handle);
         return;
