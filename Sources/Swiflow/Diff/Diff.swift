@@ -111,10 +111,14 @@ func mount(
         return mountNode
 
     case .component:
+        // TASK 4 IMPLEMENTER ACTION: Replace this entire case arm — do not
+        // convert the fatalError to a no-op. Task 4 owns instantiation, body
+        // mount, and AnyComponent storage on MountNode.
+        //
         // Phase 3 (Tasks 4–5) will instantiate the component, mount its body,
         // and store an AnyComponent on the MountNode. For now, reaching this
-        // path is a programming error — callers should not diff component trees
-        // before the reconciler is wired up.
+        // path is a programming error — callers should not diff component
+        // trees before the reconciler is wired up.
         fatalError("VNode.component mount not yet implemented (Task 4)")
     }
 }

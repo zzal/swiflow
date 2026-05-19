@@ -57,10 +57,10 @@ struct ComponentVNodeTests {
             Issue.record("Expected .element"); return
         }
         #expect(data.children.count == 3)
-        if case .component = data.children[1] {
-            // ok
-        } else {
+        guard case .component(let desc) = data.children[1] else {
             Issue.record("Expected children[1] to be .component, got \(data.children[1])")
+            return
         }
+        #expect(desc.typeID == ObjectIdentifier(Counter.self))
     }
 }
