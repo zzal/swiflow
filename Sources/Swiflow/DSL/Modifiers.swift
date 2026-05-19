@@ -70,7 +70,23 @@ public func applyAttributes(
     for attribute in attributes {
         switch attribute {
         case .attribute(let name, let value):
-            attrs[name] = value
+            // URL-bearing attributes (href, src, action, formaction) route
+            // through URLSanitizer before reaching the bag. The check is
+            // case-insensitive on the attribute name. Non-URL attributes
+            // pass through unchanged.
+            if URLSanitizer.urlAttributeNames.contains(name.lowercased()) {
+                if let sanitized = URLSanitizer.sanitize(value) {
+                    attrs[name] = sanitized
+                } else {
+                    // Drop the attribute entirely. Debug-mode notice; Task 2
+                    // will reword this comment but keep the print as-is.
+                    #if DEBUG
+                    print("[Swiflow] URLSanitizer rejected \(name)=\"\(value)\" — attribute dropped. Use VNode.rawHTML for the rare case where unsanitized URLs are intentional.")
+                    #endif
+                }
+            } else {
+                attrs[name] = value
+            }
         case .property(let name, let value):
             props[name] = value
         case .style(let name, let value):
