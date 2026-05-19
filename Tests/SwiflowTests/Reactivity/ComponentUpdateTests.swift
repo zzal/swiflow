@@ -85,8 +85,18 @@ struct ComponentUpdateTests {
         #expect(destroyed)
     }
 
-    @Test("Reuse path commits the new vnode description on the mount node")
+    @Test("Reuse path commits a .component vnode on the mount node (limited probe)")
     func reuseUpdatesMountVNode() {
+        // KNOWN LIMITATION: ComponentDescription.== compares only typeID +
+        // key, so v1's and v2's descriptions are == regardless of which one
+        // is stored. This test cannot falsify the production line
+        // `mounted.vnode = next` (Diff.swift's reuse arm) — it would pass
+        // even if that assignment were removed. We assert the weaker
+        // property that SOME .component vnode is stored, primarily to
+        // catch a regression where the slot is left as the old element
+        // case or set to .text/.rawHTML. Strengthening this to a true
+        // identity probe needs a production-API change (e.g. a `testTag`
+        // field on ComponentDescription), deferred until justified.
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
         let v1 = VNode.component(.init(Counter.self) { Counter() })
@@ -95,14 +105,60 @@ struct ComponentUpdateTests {
         let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
         let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
 
-        // After reuse, the mount node's vnode should equal the new description.
-        // (Same description by ==, but distinct VNode values since factory
-        // closures are different.)
         if case .component(let storedDesc) = second.newMountTree.vnode,
            case .component(let nextDesc) = v2 {
-            #expect(storedDesc == nextDesc, "Reuse must commit the new vnode/description to the mount node")
+            #expect(storedDesc == nextDesc, "Mount node's stored vnode should be a .component with the same typeID + key as the next render")
         } else {
             Issue.record("Expected .component case on both stored and next vnode")
         }
+    }
+
+    @Test("Reuse path correctly rewires componentBody when body root kind changes across renders")
+    func reuseBodyKindChange() {
+        // The recursive update() in the reuse arm returns a fresh MountNode
+        // ONLY when the body's root case kind changes (forcing destroy +
+        // mount of the body subtree). This test forces that branch by
+        // having Chameleon switch its body from .element to .text between
+        // renders. Without `mounted.componentBody = newBodyMount` in the
+        // reuse arm, the stale element body would remain in the slot.
+        final class Chameleon: Component {
+            var showText = false
+            var body: VNode { showText ? .text("hi") : p("hello") }
+        }
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v1 = VNode.component(.init(Chameleon.self) { Chameleon() })
+
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        let instance = first.newMountTree.component?.instance as? Chameleon
+        #expect(instance != nil)
+        instance?.showText = true  // next body() will now return .text, not .element
+
+        let v2 = VNode.component(.init(Chameleon.self) { Chameleon() })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+
+        // componentBody slot must now be a .text MountNode — proves the
+        // reuse arm wrote the recursive update()'s freshly-returned
+        // MountNode into the slot.
+        if case .text(let t) = second.newMountTree.componentBody?.vnode {
+            #expect(t == "hi")
+        } else {
+            Issue.record("componentBody should be a .text MountNode after kind change, got \(String(describing: second.newMountTree.componentBody?.vnode))")
+        }
+
+        // The old .element body must have produced a destroyNode patch.
+        let hasDestroyNode = second.patches.contains {
+            if case .destroyNode = $0 { return true }
+            return false
+        }
+        #expect(hasDestroyNode, "Old element body must be destroyed when body kind changes")
+
+        // And the new .text body must have produced a createText patch.
+        let createsText = second.patches.contains {
+            if case .createText(_, let text) = $0, text == "hi" { return true }
+            return false
+        }
+        #expect(createsText, "New .text body must be created with 'hi'")
     }
 }
