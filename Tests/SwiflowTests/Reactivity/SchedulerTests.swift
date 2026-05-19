@@ -93,4 +93,23 @@ struct SchedulerTests {
             ObjectIdentifier(a.instance),
         ], "Order should follow first-mark insertion, ignoring later re-marks")
     }
+
+    @Test("flush() called from within a callback is a no-op (isFlushing guard)")
+    func reentrantFlushIsNoop() {
+        // The `isFlushing` guard prevents a callback that itself calls
+        // flush() from triggering recursion. Without the guard, a
+        // callback that explicitly calls scheduler.flush() inside the
+        // rerender hook would re-enter the loop, double-fire the
+        // current batch, or stack-overflow on deferred marks.
+        var callCount = 0
+        var scheduler: InProcessScheduler!
+        let a = AnyComponent(StubComponent())
+        scheduler = InProcessScheduler { _ in
+            callCount += 1
+            scheduler.flush() // must be a no-op; the outer flush is in progress
+        }
+        scheduler.markDirty(a)
+        scheduler.flush()
+        #expect(callCount == 1, "Reentrant flush() must not re-invoke callbacks for the current batch")
+    }
 }

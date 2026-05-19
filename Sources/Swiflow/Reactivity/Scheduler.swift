@@ -20,8 +20,13 @@ public protocol Scheduler: AnyObject {
     func markDirty(_ component: AnyComponent)
 
     /// Synchronously rerender every dirty component, then clear the dirty
-    /// set. Tests call this directly; the WASM scheduler invokes it from
-    /// a `requestAnimationFrame` callback.
+    /// set. Marks accumulated during callback execution are deferred and
+    /// are NOT automatically flushed by this call — they form the next
+    /// batch. Callers (or the implementation's own scheduling trigger) are
+    /// responsible for invoking `flush()` again when the deferred batch
+    /// should be processed. Implementations may auto-trigger this (e.g.
+    /// `RAFScheduler` re-arms `requestAnimationFrame` after each flush);
+    /// `InProcessScheduler` does not.
     func flush()
 }
 
@@ -46,6 +51,14 @@ public final class InProcessScheduler: Scheduler {
     }
 
     public func markDirty(_ component: AnyComponent) {
+        // Key by component-instance identity (not the outer AnyComponent
+        // wrapper, and not the typeID used by the diff). Each live
+        // component object is uniquely 1:1 with one AnyComponent wrapper
+        // in the mount tree, but multiple call sites could theoretically
+        // produce different wrappers around the same instance — dedup
+        // by inner identity prevents double-scheduling in that case.
+        // This is distinct from `ObjectIdentifier(C.self)` (the type-level
+        // identity used by ComponentDescription for diff reuse).
         let id = ObjectIdentifier(component.instance)
         if dirty[id] == nil {
             insertionOrder.append(id)
