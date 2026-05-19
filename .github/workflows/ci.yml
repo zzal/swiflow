@@ -218,17 +218,19 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: Tests/playwright/package.json
+          cache-dependency-path: Tests/playwright/package-lock.json
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-v1.50
+          key: ${{ runner.os }}-playwright-${{ hashFiles('Tests/playwright/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright deps
         working-directory: Tests/playwright
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Install Playwright browsers
         working-directory: Tests/playwright

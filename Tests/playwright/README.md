@@ -6,7 +6,7 @@ patch + JS driver round-trip end-to-end.
 
 ## Running locally
 
-    cd tests/playwright
+    cd Tests/playwright
     npm install
     npx playwright install --with-deps chromium
     npm test
