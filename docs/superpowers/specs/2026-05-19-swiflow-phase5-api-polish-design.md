@@ -76,9 +76,13 @@ Consequences:
 - The 18-line doc comment on the current `onUpdate(prev:)` explaining the existential-dispatch trampoline is deleted.
 - `@State` mutations are already implicitly `@MainActor` once `Component` is — the `MainActor.assumeIsolated` in the Counter handler is unnecessary.
 
-### Foundation B — Typed `Event` enum
+### Foundation B — Rename existing `Event` struct → `EventInfo`; add new `Event` enum
 
-New file `Sources/Swiflow/DSL/Event.swift`:
+The framework already has `public struct Event` in `VNode.swift:114` carrying the runtime DOM event payload (`type: String`, `targetValue: String?`). That name needs to be freed so the user-facing event-name enum can claim `Event` and the dot-shorthand `.click` works.
+
+**Rename in `Sources/Swiflow/VNode.swift`:** `public struct Event` → `public struct EventInfo`. The `EventHandler.invoke` closure type becomes `(EventInfo) -> Void`. `HandlerRegistry.register/dispatch` follow.
+
+**Then add new file `Sources/Swiflow/DSL/Event.swift`:**
 
 ```swift
 public enum Event: Sendable, Hashable {
@@ -99,6 +103,13 @@ public enum Event: Sendable, Hashable {
 
 The `.custom(_:)` escape hatch keeps the door open for events the enum doesn't ship. Default `String(describing:)` on simple cases yields `"click"`, `"input"`, etc. — exact DOM names. (One spelling check at design time: ensure case spellings match DOM event names verbatim; `keypress` is canonical.)
 
+The two-arg `.on` overloads pass the `EventInfo` (runtime payload) to the handler closure, not the `Event` enum:
+
+```swift
+func on(_ event: Event, perform: @escaping @MainActor () -> Void) -> Attribute       // zero-arg
+func on(_ event: Event, perform: @escaping @MainActor (EventInfo) -> Void) -> Attribute  // payload
+```
+
 ### Priority #1 — Clean handler API
 
 **Change in `Sources/Swiflow/DSL/Modifiers.swift`**: replace the current `static func on(_ name: String, _ handlerID: ...)` API with:
@@ -106,7 +117,7 @@ The `.custom(_:)` escape hatch keeps the door open for events the enum doesn't s
 ```swift
 public extension Attribute {
     static func on(_ event: Event, perform: @escaping @MainActor () -> Void) -> Attribute
-    static func on(_ event: Event, perform: @escaping @MainActor (Event) -> Void) -> Attribute
+    static func on(_ event: Event, perform: @escaping @MainActor (EventInfo) -> Void) -> Attribute
 }
 ```
 
@@ -164,7 +175,7 @@ public extension VNode {
     func data(_ name: String, _ value: String) -> VNode
 
     func on(_ event: Event, perform: @escaping @MainActor () -> Void) -> VNode
-    func on(_ event: Event, perform: @escaping @MainActor (Event) -> Void) -> VNode
+    func on(_ event: Event, perform: @escaping @MainActor (EventInfo) -> Void) -> VNode
 }
 ```
 
@@ -239,15 +250,17 @@ Already shown in Foundation A. To restate:
 - `Tests/SwiflowTests/Reactivity/ComponentLifecycleTests.swift` (renamed; covers `onAppear`/`onChange`/`onDisappear`)
 
 ### Modified
+- `Sources/Swiflow/VNode.swift` — rename `public struct Event` → `EventInfo`; update `EventHandler.invoke` closure type
+- `Sources/Swiflow/HandlerRegistry.swift` — closure type `(Event)` → `(EventInfo)`; visibility to `internal`; per-Component scope
 - `Sources/Swiflow/Reactivity/Component.swift` — `@MainActor`, lifecycle rename, drop `prev:`
 - `Sources/Swiflow/DSL/Modifiers.swift` — new `.on(_:perform:)` overloads; `applyAttributes` → `internal`; `PropertyValue` literal conformances
 - `Sources/Swiflow/DSL/ComponentDSL.swift` — `component` → `embed`
 - `Sources/Swiflow/DSL/Elements.swift` — `a` → `link`, `main_` → `mainElement`
 - `Sources/Swiflow/DSL/ResultBuilder.swift` — `buildBlock` parameter rename
 - `Sources/Swiflow/Reactivity/Scheduler.swift` — `InProcessScheduler` → `SyncScheduler`
-- `Sources/Swiflow/Reactivity/HandlerRegistry.swift` — visibility to `internal`; per-Component scope
 - `Sources/SwiflowWeb/SwiflowWeb.swift` — new factory-taking `render`
 - `Sources/SwiflowWeb/Renderer.swift` — lifecycle hook call-site renames; per-Component handler scope hookup
+- `Sources/SwiflowWeb/DispatcherBridge.swift` — `Event` → `EventInfo` in dispatcher call path
 - `Sources/SwiflowCLI/Templates.swift` — Counter rewrite (no `@unchecked Sendable`, postfix chain, new render)
 - `README.md` — update "What's in the box" lifecycle names; update Counter snippet
 - `tests/playwright/counter.spec.ts` — should still pass against the new template (same DOM); no change expected but verify
