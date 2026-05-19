@@ -22,6 +22,27 @@ public final class MountNode {
     /// `Patch.addHandler` / `.removeHandler`.
     public var handlerIds: [String: Int]
 
+    /// For a component-anchor mount node, the live instance. `nil` for
+    /// every other node kind (text, rawHTML, element). Phase 3+.
+    public var component: AnyComponent?
+
+    /// For a component-anchor mount node, the mount-tree root of the
+    /// instance's `body`. `nil` for every other node kind. Phase 3+.
+    public var componentBody: MountNode?
+
+    /// The DOM-facing handle for this node — the one the JS driver knows.
+    ///
+    /// For ordinary nodes (text, rawHTML, element) it's `handle` itself.
+    /// For a component anchor it's the body's `domHandle` (walking through
+    /// nested anchors when a component's body is itself a `.component`).
+    ///
+    /// Use this whenever building a patch that references the DOM-side node
+    /// (`appendChild`, `insertBefore`, `removeChild`). The plain `handle`
+    /// is structural identity used by the diff; the DOM never sees it.
+    public var domHandle: Int {
+        componentBody?.domHandle ?? handle
+    }
+
     /// Weak back-pointer to the parent `MountNode`. `nil` for the root or
     /// for detached subtrees.
     public private(set) weak var parent: MountNode?
@@ -32,12 +53,16 @@ public final class MountNode {
         handle: Int,
         vnode: VNode,
         children: [MountNode] = [],
-        handlerIds: [String: Int] = [:]
+        handlerIds: [String: Int] = [:],
+        component: AnyComponent? = nil,
+        componentBody: MountNode? = nil
     ) {
         self.handle = handle
         self.vnode = vnode
         self.children = children
         self.handlerIds = handlerIds
+        self.component = component
+        self.componentBody = componentBody
         for child in children {
             child.parent = self
         }

@@ -104,22 +104,31 @@ func mount(
                 handles: handles,
                 handlers: handlers
             )
-            patches.append(.appendChild(parent: h, child: childMount.handle))
+            // domHandle (not handle): if the child is a component anchor,
+            // the anchor's own handle has no DOM counterpart — we need
+            // the body's handle instead. See MountNode.domHandle.
+            patches.append(.appendChild(parent: h, child: childMount.domHandle))
             mountNode.addChild(childMount)
         }
 
         return mountNode
 
-    case .component:
-        // TASK 4 IMPLEMENTER ACTION: Replace this entire case arm — do not
-        // convert the fatalError to a no-op. Task 4 owns instantiation, body
-        // mount, and AnyComponent storage on MountNode.
-        //
-        // Phase 3 (Tasks 4–5) will instantiate the component, mount its body,
-        // and store an AnyComponent on the MountNode. For now, reaching this
-        // path is a programming error — callers should not diff component
-        // trees before the reconciler is wired up.
-        fatalError("VNode.component mount not yet implemented (Task 4)")
+    case .component(let desc):
+        // Instantiate the live component, render its body, mount the body,
+        // and wrap it all under a component-anchor MountNode. The anchor's
+        // handle is structural-only (never reaches the DOM); the
+        // body's mount node carries the real domHandle. See domHandle
+        // on MountNode for the resolution rule.
+        let instance = desc.instantiate()
+        let bodyVNode = instance.instance.body
+        let bodyMount = mount(bodyVNode, into: &patches, handles: handles, handlers: handlers)
+        let anchorHandle = handles.next()
+        return MountNode(
+            handle: anchorHandle,
+            vnode: vnode,
+            component: instance,
+            componentBody: bodyMount
+        )
     }
 }
 
