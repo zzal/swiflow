@@ -17,6 +17,14 @@ on:
       - 'docs/**'
       - 'LICENSE'
 
+# Auto-cancel superseded runs on the same ref. A rapid sequence of
+# pushes to a feature branch (or sequential CI-fix pushes to main)
+# would otherwise burn minutes on commits nobody cares about anymore.
+# group: combines workflow + ref so unrelated branches don't fight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
