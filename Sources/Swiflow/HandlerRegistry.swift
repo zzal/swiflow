@@ -22,7 +22,7 @@ public final class HandlerRegistry {
     /// an `ElementData.handlers` dictionary. The result is **not**
     /// `@discardableResult` on purpose: dropping it means the closure is
     /// stored in the registry forever with no way to reach `remove(id:)`.
-    public func register(_ invoke: @escaping (Event) -> Void) -> EventHandler {
+    public func register(_ invoke: @escaping (EventInfo) -> Void) -> EventHandler {
         let id = nextID
         nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
@@ -43,7 +43,7 @@ public final class HandlerRegistry {
 
     /// Invokes the closure registered under `id` with the given event.
     /// A no-op for unknown IDs (e.g., a stale event fired after unmount).
-    public func dispatch(id: Int, event: Event) {
+    public func dispatch(id: Int, event: EventInfo) {
         handlers[id]?.invoke(event)
     }
 }

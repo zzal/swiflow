@@ -130,7 +130,7 @@ struct AttributeModifierTests {
         let data = applyAttributes(tag: "button", [attr])
         #expect(data.handlers["click"] != nil)
         // Dispatch directly to assert wiring.
-        data.handlers["click"]?.invoke(Event(type: "click"))
+        data.handlers["click"]?.invoke(EventInfo(type: "click"))
         #expect(fired)
     }
 

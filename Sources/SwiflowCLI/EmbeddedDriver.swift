@@ -58,7 +58,7 @@ enum EmbeddedDriver {
 
   /**
    * Serialize a DOM event into the minimal shape Swift expects.
-   * Phase 1's Event has type + optional targetValue; everything else is
+   * Phase 1's EventInfo has type + optional targetValue; everything else is
    * deferred to Phase 3.
    */
   function serializeEvent(event) {

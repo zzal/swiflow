@@ -18,7 +18,7 @@
 /// `Sendable` in Phase 1. They transitively hold `EventHandler`, which wraps
 /// a non-`@Sendable` closure; deciding whether to require `@Sendable` on
 /// handler closures is a Phase 3 concern that depends on the final actor
-/// model for `HandlerRegistry`. `Event` is `Sendable` because it carries
+/// model for `HandlerRegistry`. `EventInfo` is `Sendable` because it carries
 /// only value types and may be ferried across isolation boundaries when
 /// the dispatcher is wired in Phase 2.
 public indirect enum VNode: Equatable {
@@ -85,18 +85,18 @@ public struct ElementData: Equatable {
 /// because the registry's monotonic ID is the identity.
 ///
 /// **Sendable:** intentionally not `Sendable` in Phase 1. The closure type
-/// is `(Event) -> Void`, not `@Sendable (Event) -> Void`; tightening that
-/// is deferred to Phase 3 once the actor model for the dispatcher is fixed.
+/// is `(EventInfo) -> Void`, not `@Sendable (EventInfo) -> Void`; tightening
+/// that is deferred to Phase 3 once the actor model for the dispatcher is fixed.
 public struct EventHandler: Equatable {
     /// Monotonic identifier assigned by `HandlerRegistry`. Forms the basis of
     /// equality and is the value sent across the JS bridge.
     public let id: Int
     /// The Swift closure invoked when the corresponding DOM event fires.
-    public let invoke: (Event) -> Void
+    public let invoke: (EventInfo) -> Void
 
     /// Wraps a closure with its registry-assigned ID. Prefer
     /// `HandlerRegistry.register(_:)` over calling this directly.
-    public init(id: Int, invoke: @escaping (Event) -> Void) {
+    public init(id: Int, invoke: @escaping (EventInfo) -> Void) {
         self.id = id
         self.invoke = invoke
     }
@@ -107,19 +107,19 @@ public struct EventHandler: Equatable {
     }
 }
 
-/// A DOM event surfaced into Swift.
+/// Runtime DOM event payload surfaced into Swift handlers.
 ///
-/// Phase 1 keeps `Event` deliberately minimal. Phase 3 will extend it with
-/// keyboard/pointer specifics as `Component` lifecycle wires up.
-public struct Event: Equatable, Sendable {
+/// The two-argument `.on(_:perform:)` modifier passes one of these to the
+/// user closure. The event-name catalog (`Event` enum, added in a later task)
+/// selects WHICH event to listen for; `EventInfo` carries the runtime payload
+/// (type string, the target's value for form inputs).
+public struct EventInfo: Equatable, Sendable {
     /// DOM event name (e.g. `"click"`, `"input"`).
     public let type: String
     /// Convenience snapshot of `event.target.value` for form inputs; `nil` for
     /// events without a value-bearing target.
     public let targetValue: String?
 
-    /// Creates an `Event`. The JS driver populates these from the live DOM
-    /// event before invoking the dispatcher.
     public init(type: String, targetValue: String? = nil) {
         self.type = type
         self.targetValue = targetValue

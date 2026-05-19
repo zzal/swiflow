@@ -76,11 +76,11 @@ struct VNodeTests {
 
     @Test("Event preserves type and optional target value")
     func eventConstruction() {
-        let e = Event(type: "input", targetValue: "abc")
+        let e = EventInfo(type: "input", targetValue: "abc")
         #expect(e.type == "input")
         #expect(e.targetValue == "abc")
 
-        let e2 = Event(type: "click", targetValue: nil)
+        let e2 = EventInfo(type: "click", targetValue: nil)
         #expect(e2.targetValue == nil)
     }
 }

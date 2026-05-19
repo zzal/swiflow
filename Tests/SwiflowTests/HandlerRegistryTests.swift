@@ -47,13 +47,13 @@ struct HandlerRegistryTests {
         let r = HandlerRegistry()
         var observed: String?
         let h = r.register { event in observed = event.type }
-        r.dispatch(id: h.id, event: Event(type: "click"))
+        r.dispatch(id: h.id, event: EventInfo(type: "click"))
         #expect(observed == "click")
     }
 
     @Test("Dispatch to unknown ID is a no-op")
     func dispatchUnknownIsNoOp() {
         let r = HandlerRegistry()
-        r.dispatch(id: 999, event: Event(type: "click"))  // must not crash
+        r.dispatch(id: 999, event: EventInfo(type: "click"))  // must not crash
     }
 }

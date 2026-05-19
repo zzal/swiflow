@@ -37,7 +37,7 @@ enum DispatcherBridge {
 
             registry.dispatch(
                 id: handlerId,
-                event: Event(type: type, targetValue: targetValue)
+                event: EventInfo(type: type, targetValue: targetValue)
             )
 
             // Returning a JSValue from the closure is required by JSClosure's
