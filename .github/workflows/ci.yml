@@ -17,34 +17,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Swift 6.3 (Linux)
+      - name: Set up Swift 6.3.0 (Linux)
         # vapor/swiftly-action delegates to the official `swiftly`
         # toolchain manager, which tracks the canonical swift.org
         # index and supports every released toolchain (unlike
         # swift-actions/setup-swift@v2, whose hard-coded version list
         # tops out at 6.2.1).
+        #
+        # Pin to "6.3.0" specifically — the bare "6.3" resolves to the
+        # latest patch (currently 6.3.2), and Swift's swiftmodule ABI
+        # is strict between patch versions. The WASM SDK below is
+        # 6.3.0, so the host must be 6.3.0 too or `swift package js`
+        # bails with "module compiled with Swift 6.3 cannot be imported
+        # by the Swift 6.3.2 compiler".
         if: runner.os == 'Linux'
         uses: vapor/swiftly-action@v0.2.1
         with:
-          toolchain: "6.3"
+          toolchain: "6.3.0"
 
-      - name: Set up Swift 6.3 (macOS)
-        # vapor/swiftly-action's deps-install step assumes
-        # apt/dnf/yum and exits 1 on macOS ("Couldn't figure out how
-        # to run the system package manager."), so we install swiftly
-        # directly from swift.org. CurrentUserHomeDirectory targets
-        # the per-user install path (no sudo needed for the bin dir).
+      - name: Set up Swift 6.3.0 (macOS)
+        # vapor/swiftly-action's deps-install step exits 1 on macOS
+        # ("Couldn't figure out how to run the system package manager.").
+        # Install swiftly via Homebrew (preinstalled on every GHA
+        # macOS runner) — well-known PATH (/opt/homebrew/bin or
+        # /usr/local/bin), no path-detection guesswork.
+        #
+        # 6.3.0 pin: same reason as Linux. ABI strictness vs. WASM SDK.
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euxo pipefail
-          curl -fsSL -o /tmp/swiftly.pkg https://download.swift.org/swiftly/darwin/swiftly.pkg
-          installer -pkg /tmp/swiftly.pkg -target CurrentUserHomeDirectory
-          SWIFTLY_BIN="$HOME/Library/Application Support/swiftly/bin"
-          "$SWIFTLY_BIN/swiftly" init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
-          "$SWIFTLY_BIN/swiftly" install --use 6.3 --post-install-file=/dev/null
-          echo "$SWIFTLY_BIN" >> "$GITHUB_PATH"
-          TOOLCHAIN_BIN_DIR="$("$SWIFTLY_BIN/swiftly" use --print-location)/usr/bin"
+          brew install --quiet swiftly
+          swiftly init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
+          swiftly install --use 6.3.0 --post-install-file=/dev/null
+          # swiftly normally rewrites shell rc to add Swift to PATH, but
+          # GHA steps don't source shell rc. Locate the toolchain bin
+          # dir explicitly so subsequent steps see the right `swift`.
+          SWIFTLY_HOME="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}"
+          TOOLCHAIN_BIN_DIR="$(find "$SWIFTLY_HOME/toolchains" -name swift -type f -path "*/usr/bin/swift" 2>/dev/null | head -1 | xargs dirname)"
+          echo "Resolved Swift toolchain: $TOOLCHAIN_BIN_DIR"
+          [ -n "$TOOLCHAIN_BIN_DIR" ] || { echo "Could not locate Swift toolchain under $SWIFTLY_HOME/toolchains"; ls -la "$SWIFTLY_HOME/toolchains" 2>/dev/null || true; exit 1; }
           echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
