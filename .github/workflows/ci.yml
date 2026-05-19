@@ -83,10 +83,24 @@ jobs:
           # swiftly normally rewrites shell rc to add Swift to PATH, but
           # GHA steps don't source shell rc. Locate the toolchain bin
           # dir explicitly so subsequent steps see the right `swift`.
+          #
+          # On macOS, swiftly invokes the system `installer` and the
+          # toolchain lands under ~/Library/Developer/Toolchains/
+          # (the standard xctoolchain location), NOT under
+          # ~/.swiftly/toolchains/. Search both so this step works
+          # regardless of which layout the active swiftly version uses.
           SWIFTLY_HOME="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}"
-          TOOLCHAIN_BIN_DIR="$(find "$SWIFTLY_HOME/toolchains" -name swift -type f -path "*/usr/bin/swift" 2>/dev/null | head -1 | xargs dirname)"
+          SEARCH_ROOTS=("$SWIFTLY_HOME/toolchains" "$HOME/Library/Developer/Toolchains")
+          TOOLCHAIN_BIN_DIR="$(find "${SEARCH_ROOTS[@]}" -name swift -type f -path '*/usr/bin/swift' 2>/dev/null | head -1 | xargs dirname)"
           echo "Resolved Swift toolchain: $TOOLCHAIN_BIN_DIR"
-          [ -n "$TOOLCHAIN_BIN_DIR" ] || { echo "Could not locate Swift toolchain under $SWIFTLY_HOME/toolchains"; ls -la "$SWIFTLY_HOME/toolchains" 2>/dev/null || true; exit 1; }
+          if [ -z "$TOOLCHAIN_BIN_DIR" ]; then
+            echo "Could not locate Swift toolchain under any of: ${SEARCH_ROOTS[*]}"
+            for dir in "${SEARCH_ROOTS[@]}"; do
+              echo "--- $dir ---"
+              ls -la "$dir" 2>/dev/null || echo "(does not exist)"
+            done
+            exit 1
+          fi
           echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
