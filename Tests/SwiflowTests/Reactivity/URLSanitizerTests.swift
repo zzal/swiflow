@@ -106,12 +106,18 @@ struct URLSanitizerTests {
         #expect(element.attributes["class"] == "link", "Class should pass through unchanged")
     }
 
-    @Test("applyAttributes sanitizes case-variant attribute names")
+    @Test("applyAttributes sanitizes case-variant attribute names — blocks unsafe, keeps safe")
     func applyAttributesCaseInsensitive() {
-        let element = applyAttributes(tag: "a", [
+        let blocked = applyAttributes(tag: "a", [
             .attr("HREF", "javascript:alert(1)"),
         ])
-        #expect(element.attributes["HREF"] == nil)
+        #expect(blocked.attributes["HREF"] == nil)
+
+        let allowed = applyAttributes(tag: "a", [
+            .attr("HREF", "https://example.com"),
+        ])
+        #expect(allowed.attributes["HREF"] == "https://example.com",
+                "Case-variant attribute name must still pass benign URLs through")
     }
 
     @Test("applyAttributes keeps safe href + src + action + formaction")

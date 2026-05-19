@@ -23,6 +23,11 @@ public enum URLSanitizer {
         "http", "https", "mailto", "tel", "ftp",
     ]
 
+    /// Configure these three properties once at application startup,
+    /// before any render or concurrent `sanitize(_:)` call.
+    /// `nonisolated(unsafe)` suppresses Swift's concurrency checker but
+    /// does NOT add synchronisation — runtime mutation while a render is
+    /// in flight is a data race.
     nonisolated(unsafe) public static var allowedSchemes: Set<String> = defaultAllowedSchemes
 
     nonisolated(unsafe) public static var allowDataURLs: Bool = false
@@ -67,10 +72,16 @@ public enum URLSanitizer {
         return String(withoutControls.drop(while: { $0.isWhitespace }))
     }
 
+    /// Decodes the literal colon entities only (`&#58;` decimal,
+    /// `&#x3a;` / `&#x3A;` hex — the hex form is matched
+    /// case-insensitively). Other colon encodings (`&colon;`,
+    /// zero-padded `&#058;`, `&#x0003A;`) are intentionally left
+    /// literal — DSL callers pass Swift strings, not HTML text, so
+    /// only the exact obfuscations a hand-crafted attack would use
+    /// need to be normalised.
     private static func decodeHTMLColonEntities(_ s: String) -> String {
         s.replacingOccurrences(of: "&#58;", with: ":")
          .replacingOccurrences(of: "&#x3a;", with: ":", options: .caseInsensitive)
-         .replacingOccurrences(of: "&#x3A;", with: ":")
     }
 
     private static func extractScheme(_ s: String) -> String? {
