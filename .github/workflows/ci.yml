@@ -29,21 +29,33 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # Push events run Linux only; macOS only runs on PRs. macOS minutes
-    # bill at 10x the rate of Linux on the GHA free tier, so every push
-    # to main would otherwise eat ~50 billed minutes per run. Linux still
-    # catches the vast majority of regressions (compile, unit tests,
-    # init+build e2e). Full cross-OS validation lives at the PR gate.
+    # macOS matrix entry is intentionally disabled.
     #
-    # NB: A job-level `if:` referencing matrix.os doesn't work — `if:`
-    # evaluates before matrix expansion, so `matrix.os` is undefined and
-    # the whole job (every cell) gets skipped, leaving zero jobs running.
-    # The dynamic matrix below selects the OS list at workflow-load time
-    # from github.event_name, which IS available at that point.
+    # Apple's downloadable Swift 6.3 macOS toolchain pkg (what swiftly
+    # installs) ships only the dynamic stdlib — no lib/swift_static/ —
+    # so any package whose graph builds a CompilerPlugin executable
+    # fails the host-side link with "library 'swift_errno' not found"
+    # (here: JavaScriptKit's BridgeJSMacros-tool, which we don't use
+    # directly but which SwiftPM resolves and compiles eagerly).
+    #
+    # Apple bundles the full static stdlib inside Xcode's Swift, so a
+    # follow-up may either:
+    #   (a) replace the swiftly-managed toolchain with Xcode's bundled
+    #       Swift via `xcode-select` (needs Xcode 16.4+ to get Swift
+    #       6.3 to match the WASM SDK pin), or
+    #   (b) drop a static-stdlib overlay into the swiftly toolchain
+    #       from the canonical xtoolchain pkg if one exists upstream.
+    # Track as a Phase 5 hardening task; Linux gates the vast majority
+    # of regressions in the meantime (compile, unit tests, init+build
+    # e2e — and the new Playwright e2e on PRs).
+    #
+    # The dynamic matrix below is kept (rather than removing the
+    # strategy block entirely) so re-enabling macOS later is a
+    # one-line revert.
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04","macos-14"]' || '["ubuntu-22.04"]') }}
+        os: ["ubuntu-22.04"]
     steps:
       - uses: actions/checkout@v4
 
