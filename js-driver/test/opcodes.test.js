@@ -68,12 +68,21 @@ describe("driver opcodes", () => {
       { op: "createElement", handle: 2, tag: "li" },
       { op: "createElement", handle: 3, tag: "li" },
       { op: "createElement", handle: 4, tag: "li" },
+      { op: "setAttribute", handle: 2, name: "data-id", value: "a" },
+      { op: "setAttribute", handle: 3, name: "data-id", value: "b" },
+      { op: "setAttribute", handle: 4, name: "data-id", value: "c" },
       { op: "appendChild", parent: 1, child: 2 },
       { op: "appendChild", parent: 1, child: 3 },
+      // After: [a, b]. Now insert c before b.
       { op: "insertBefore", parent: 1, child: 4, beforeChild: 3 },
     ]);
     swiflow.mount(1, "#app");
-    assert.equal(document.querySelector("ul").children.length, 3);
+    const ul = document.querySelector("ul");
+    assert.equal(ul.children.length, 3);
+    // Order must be [a, c, b] — would fail if insertBefore silently
+    // fell through to appendChild (which would produce [a, b, c]).
+    const ids = Array.from(ul.children).map(li => li.getAttribute("data-id"));
+    assert.deepEqual(ids, ["a", "c", "b"]);
   });
 
   test("removeChild removes the node from its parent in the DOM", () => {

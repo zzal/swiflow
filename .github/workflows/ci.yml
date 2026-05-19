@@ -165,11 +165,11 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: js-driver/package.json
+          cache-dependency-path: js-driver/package-lock.json
 
       - name: Install JS deps
         working-directory: js-driver
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Run JS driver tests
         working-directory: js-driver

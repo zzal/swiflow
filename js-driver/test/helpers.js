@@ -19,19 +19,20 @@ const driverSource = readFileSync(DRIVER_PATH, "utf8");
  * Creates a fresh jsdom window, loads the driver into it via a
  * <script> tag append, and returns { window, document, swiflow }.
  *
- * @param {object} [opts]
- * @param {boolean} [opts.dev=false] — sets window.SWIFLOW_DEV before
- *   the driver loads, so the dev-mode reload listener installs.
+ * For dev-mode tests (those that need the WebSocket reload listener
+ * installed via `window.SWIFLOW_DEV = true`), build the JSDOM
+ * manually instead of using this helper — the fake WebSocket must
+ * be injected onto the window BEFORE the driver loads, which this
+ * helper's append-then-return ordering doesn't allow. See
+ * dev-reload.test.js for the pattern.
+ *
  * @returns {{ window: Window, document: Document, swiflow: any }}
  */
-export function setupDriver(opts = {}) {
+export function setupDriver() {
   const dom = new JSDOM(
     "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
     { url: "http://localhost:3000/", runScripts: "dangerously" }
   );
-  if (opts.dev) {
-    dom.window.SWIFLOW_DEV = true;
-  }
   const scriptEl = dom.window.document.createElement("script");
   scriptEl.textContent = driverSource;
   dom.window.document.head.appendChild(scriptEl);

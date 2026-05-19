@@ -30,6 +30,7 @@ describe("dev-mode WebSocket reload", () => {
       addEventListener() {}
       set onmessage(fn) { onMessage = fn; }
       get onmessage() { return onMessage; }
+      set onopen(fn) {}
       set onclose(fn) {}
       set onerror(fn) {}
     }
