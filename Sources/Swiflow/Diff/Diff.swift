@@ -342,12 +342,26 @@ func diffHandlers(
 }
 
 /// Emits `destroyNode` for `node` and recursively for every descendant.
-/// Also drops every handler ID from the registry.
+/// Also drops every handler ID from the registry and fires `onUnmount`
+/// on any Component instance encountered.
+///
+/// Lifecycle ordering: `onUnmount` is called on the component BEFORE
+/// recursing into its body subtree — symmetric with how mount-time hooks
+/// fire (parent component first, then children). This mirrors React's
+/// "parent unmount before child unmount" ordering, so the parent can
+/// still read state from children before they are torn down.
 func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
     handlers: HandlerRegistry
 ) {
+    // Fire onUnmount on the component instance at this anchor, if any.
+    // This is done BEFORE recursing so the parent component's onUnmount
+    // runs before any child component's onUnmount — parent-first ordering.
+    if let any = node.component {
+        callOnUnmount(any.instance)
+    }
+
     // Recurse into the parallel component-anchor body slot, if any.
     // componentBody is NOT in node.children — it hangs off its own slot,
     // and forgetting to walk it leaks body DOM nodes when a component
@@ -370,6 +384,15 @@ func destroy(
     if node.component == nil {
         patches.append(.destroyNode(handle: node.handle))
     }
+}
+
+/// Generic trampoline that opens the `any Component` existential so
+/// `onUnmount()` can be dispatched concretely. Defined at module level
+/// (not on `AnyComponent`) because it must be generic over `C: Component`;
+/// the same trampoline pattern is used for `onUpdate(prev: Self)` in
+/// `Renderer.swift`.
+private func callOnUnmount<C: Component>(_ c: C) {
+    c.onUnmount()
 }
 
 /// Dispatches between the indexed and keyed children-diff strategies. If

@@ -48,6 +48,34 @@ public extension Swiflow {
         ambientRenderer?.renderOnce()
     }
 
+    /// Phase 3 entry point: mounts a `Component` root into the DOM node
+    /// matched by `selector`.
+    ///
+    /// A `RAFScheduler` is created and wired into the diff so `@State`
+    /// mutations on any component in the tree automatically schedule
+    /// re-renders via `requestAnimationFrame`. No manual `rerender()` call
+    /// is required.
+    ///
+    /// **Single-root:** same restriction as the Phase 2a overload — calling
+    /// `render` twice traps. Multi-root support is a Phase 4 item.
+    ///
+    /// Usage:
+    /// ```swift
+    /// Swiflow.render(Counter(), into: "#app")
+    /// ```
+    static func render<C: Component>(_ root: C, into selector: String) {
+        precondition(
+            ambientRenderer == nil,
+            "Swiflow.render was already called. Phase 3 v1 supports a single root per app; " +
+            "a second render would silently drop event dispatch for new handlers because the JS " +
+            "dispatcher remains bound to the first registry."
+        )
+        let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
+        ambientRenderer = renderer
+        DispatcherBridge.installIfNeeded(registry: renderer.handlers)
+        renderer.renderOnce()
+    }
+
     /// The handler registry the active Renderer dispatches through.
     ///
     /// Use this inside `view()` to register `.on(...)` closures:
