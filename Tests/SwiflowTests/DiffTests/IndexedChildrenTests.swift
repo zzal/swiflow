@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — children (indexed)")
+@MainActor
 struct IndexedChildrenTests {
     private func ul(_ texts: [String]) -> VNode {
         .element(ElementData(tag: "ul", children: texts.map { .text($0) }))

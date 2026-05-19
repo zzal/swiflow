@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — first mount")
+@MainActor
 struct FirstMountTests {
     @Test("First mount of a text node emits createText only")
     func textFirstMount() {

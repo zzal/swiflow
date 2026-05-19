@@ -12,6 +12,7 @@
 /// For elements without keys mixed into a keyed list, fall through to indexed
 /// pairing in that slot. (Phase 1 emits a diagnostic in Phase 4; for now,
 /// treat unkeyed children as having key `"__index_<i>"`.)
+@MainActor
 func diffChildrenKeyed(
     mounted: MountNode,
     newChildren: [VNode],

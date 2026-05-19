@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — styles")
+@MainActor
 struct StyleDiffTests {
     private func patches(from initial: VNode, to next: VNode) -> [Patch] {
         let handles = HandleAllocator()

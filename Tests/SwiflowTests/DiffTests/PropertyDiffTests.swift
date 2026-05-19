@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — properties")
+@MainActor
 struct PropertyDiffTests {
     private func patches(from initial: VNode, to next: VNode) -> [Patch] {
         let handles = HandleAllocator()

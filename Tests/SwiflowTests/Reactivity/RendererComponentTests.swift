@@ -1,8 +1,8 @@
 // Tests/SwiflowTests/Reactivity/RendererComponentTests.swift
 //
 // These tests verify the pure-Swift (Swiflow-module) behaviors that Task 8
-// wires together in the Renderer: Component lifecycle hooks (onMount,
-// onUpdate, onUnmount) and the Scheduler coalescing contract.
+// wires together in the Renderer: Component lifecycle hooks (onAppear,
+// onChange, onDisappear) and the Scheduler coalescing contract.
 //
 // The Renderer itself (SwiflowWeb module) requires JavaScriptKit and can only
 // be exercised in a WASM/browser environment. These tests target the Swiflow
@@ -33,20 +33,21 @@ private final class RecordingScheduler: Scheduler {
     }
 }
 
-// MARK: - onUnmount tests
+// MARK: - onDisappear tests
 
-@Suite("Lifecycle: onUnmount fires via destroy()")
-struct OnUnmountTests {
+@Suite("Lifecycle: onDisappear fires via destroy()")
+@MainActor
+struct OnDisappearTests {
 
-    /// A component that records whether onUnmount was called.
+    /// A component that records whether onDisappear was called.
     final class Tracked: Component {
-        var unmountCalled = false
+        var disappearCalled = false
         var body: VNode { .text("tracked") }
-        func onUnmount() { unmountCalled = true }
+        func onDisappear() { disappearCalled = true }
     }
 
-    @Test("onUnmount fires when a component is replaced by a different type (diff default arm)")
-    func onUnmountFiresOnTypeReplacement() {
+    @Test("onDisappear fires when a component is replaced by a different type (diff default arm)")
+    func onDisappearFiresOnTypeReplacement() {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
@@ -57,26 +58,26 @@ struct OnUnmountTests {
         // Capture the instance so we can assert on it after the second diff.
         let instance = first.newMountTree.component?.instance as? Tracked
         #expect(instance != nil)
-        #expect(instance?.unmountCalled == false, "onUnmount must not fire during mount")
+        #expect(instance?.disappearCalled == false, "onDisappear must not fire during mount")
 
         // Second render: replace with a plain element — forces destroy(old) + mount(new).
         let v2 = VNode.element(ElementData(tag: "p"))
         _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
 
-        #expect(instance?.unmountCalled == true, "onUnmount must fire when the component is destroyed")
+        #expect(instance?.disappearCalled == true, "onDisappear must fire when the component is destroyed")
     }
 
-    @Test("onUnmount fires on nested component anchors when a parent is replaced")
-    func onUnmountFiresOnNestedComponent() {
+    @Test("onDisappear fires on nested component anchors when a parent is replaced")
+    func onDisappearFiresOnNestedComponent() {
         final class Inner: Component {
-            var unmountCalled = false
+            var disappearCalled = false
             var body: VNode { .text("inner") }
-            func onUnmount() { unmountCalled = true }
+            func onDisappear() { disappearCalled = true }
         }
         final class Outer: Component {
-            var unmountCalled = false
+            var disappearCalled = false
             var body: VNode { component({ Inner() }) }
-            func onUnmount() { unmountCalled = true }
+            func onDisappear() { disappearCalled = true }
         }
 
         let handles = HandleAllocator()
@@ -96,16 +97,16 @@ struct OnUnmountTests {
         #expect(innerInstance != nil)
 
         // Replace Outer with a plain element — destroy() should walk the
-        // entire subtree and fire onUnmount on both components.
+        // entire subtree and fire onDisappear on both components.
         let v2 = VNode.element(ElementData(tag: "section"))
         _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
 
-        #expect(outerInstance?.unmountCalled == true, "Outer's onUnmount must fire")
-        #expect(innerInstance?.unmountCalled == true, "Inner's onUnmount must fire (destroy walks componentBody)")
+        #expect(outerInstance?.disappearCalled == true, "Outer's onDisappear must fire")
+        #expect(innerInstance?.disappearCalled == true, "Inner's onDisappear must fire (destroy walks componentBody)")
     }
 
-    @Test("onUnmount does NOT fire when a component is updated (same type, same key)")
-    func onUnmountDoesNotFireOnUpdate() {
+    @Test("onDisappear does NOT fire when a component is updated (same type, same key)")
+    func onDisappearDoesNotFireOnUpdate() {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
@@ -118,13 +119,14 @@ struct OnUnmountTests {
         let v2 = VNode.component(.init(Tracked.self) { Tracked() })
         _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
 
-        #expect(instance?.unmountCalled == false, "onUnmount must NOT fire during a component update (reuse path)")
+        #expect(instance?.disappearCalled == false, "onDisappear must NOT fire during a component update (reuse path)")
     }
 }
 
 // MARK: - Scheduler coalescing contract
 
 @Suite("RAFScheduler contract (InProcessScheduler used as stand-in)")
+@MainActor
 struct SchedulerCoalescingTests {
     // RAFScheduler is JavaScriptKit-only and therefore not available in this
     // test target. The InProcessScheduler is used here to verify that the
@@ -197,46 +199,41 @@ struct SchedulerCoalescingTests {
     }
 }
 
-// MARK: - onMount / onUpdate via ComponentDescription factory
+// MARK: - onAppear / onChange via ComponentDescription factory
 
-@Suite("Lifecycle: onMount and onUpdate via standard diff")
-struct MountUpdateLifecycleTests {
-    // Note: onMount and onUpdate are RENDERER-level lifecycle hooks — they fire
-    // in Renderer.renderOnce() after patches are applied, not inside diff().
-    // These tests therefore verify only that the Component protocol methods
-    // are callable on a concrete instance (the existential dispatch pattern
-    // used by Renderer). Full integration (hooks fire at the right time with
-    // DOM live) is exercised by the WASM e2e harness.
+@Suite("Lifecycle: onAppear and onChange via standard diff")
+@MainActor
+struct AppearChangeLifecycleTests {
+    // Note: onAppear and onChange are RENDERER-level lifecycle hooks — they
+    // fire in Renderer.renderOnce() after patches are applied, not inside
+    // diff(). These tests verify that the Component protocol methods are
+    // callable directly on an `any Component` existential (no trampoline
+    // needed since neither hook has a Self-typed parameter). Full integration
+    // (hooks fire at the right time with DOM live) is exercised by the WASM
+    // e2e harness.
 
     final class LifecycleTracker: Component {
-        var mountCalled = false
-        var updateCallCount = 0
+        var appearCalled = false
+        var changeCallCount = 0
         var body: VNode { .text("tracker") }
 
-        func onMount() { mountCalled = true }
-        func onUpdate(prev: LifecycleTracker) { updateCallCount += 1 }
-        func onUnmount() {}
+        func onAppear() { appearCalled = true }
+        func onChange() { changeCallCount += 1 }
     }
 
-    @Test("onMount can be called directly on an existential component instance")
-    func onMountCallable() {
+    @Test("onAppear can be called directly on an existential component instance")
+    func onAppearCallable() {
         let tracker = LifecycleTracker()
         let any: any Component = tracker
-        any.onMount()
-        #expect(tracker.mountCalled)
+        any.onAppear()
+        #expect(tracker.appearCalled)
     }
 
-    @Test("onUpdate requires a generic trampoline — matches Renderer's callOnUpdate pattern")
-    func onUpdateViaTrampolineCallable() {
+    @Test("onChange can be called directly on an existential component instance (no trampoline needed)")
+    func onChangeCallable() {
         let tracker = LifecycleTracker()
-
-        // The trampoline that Renderer uses (reproduced here for verification).
-        func callOnUpdate<C: Component>(_ c: C) { c.onUpdate(prev: c) }
-
         let any: any Component = tracker
-        // Implicit existential opening (SE-0352): passing `any Component` to
-        // a generic `C: Component` parameter opens the existential.
-        callOnUpdate(any)
-        #expect(tracker.updateCallCount == 1)
+        any.onChange()
+        #expect(tracker.changeCallCount == 1)
     }
 }

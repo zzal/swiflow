@@ -26,6 +26,7 @@ public struct DiffResult {
 /// `scheduler.markDirty(owner)`. Existing callers that omit this parameter
 /// continue to work unchanged — the default `nil` preserves the previous
 /// silent-mutation behaviour.
+@MainActor
 public func diff(
     mounted: MountNode?,
     next: VNode,
@@ -69,6 +70,7 @@ func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
 /// Creates the DOM-side node and (recursively) all children, appending patches
 /// in document order. Returns the new `MountNode` describing the freshly
 /// mounted subtree.
+@MainActor
 func mount(
     _ vnode: VNode,
     into patches: inout [Patch],
@@ -210,6 +212,7 @@ func mount(
 /// returned `MountNode` is a fresh object with a new handle and the caller
 /// is responsible for any parent-level `insertBefore` / `appendChild`
 /// rewiring (for the root, the renderer reattaches to the selector).
+@MainActor
 func update(
     mounted: MountNode,
     next: VNode,
@@ -401,24 +404,25 @@ func diffHandlers(
 }
 
 /// Emits `destroyNode` for `node` and recursively for every descendant.
-/// Also drops every handler ID from the registry and fires `onUnmount`
+/// Also drops every handler ID from the registry and fires `onDisappear`
 /// on any Component instance encountered.
 ///
-/// Lifecycle ordering: `onUnmount` is called on the component BEFORE
+/// Lifecycle ordering: `onDisappear` is called on the component BEFORE
 /// recursing into its body subtree — symmetric with how mount-time hooks
 /// fire (parent component first, then children). This mirrors React's
 /// "parent unmount before child unmount" ordering, so the parent can
 /// still read state from children before they are torn down.
+@MainActor
 func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
     handlers: HandlerRegistry
 ) {
-    // Fire onUnmount on the component instance at this anchor, if any.
-    // This is done BEFORE recursing so the parent component's onUnmount
-    // runs before any child component's onUnmount — parent-first ordering.
+    // Fire onDisappear on the component instance at this anchor, if any.
+    // This is done BEFORE recursing so the parent component's onDisappear
+    // runs before any child component's onDisappear — parent-first ordering.
     if let any = node.component {
-        callOnUnmount(any.instance)
+        any.instance.onDisappear()
     }
 
     // Recurse into the parallel component-anchor body slot, if any.
@@ -445,18 +449,10 @@ func destroy(
     }
 }
 
-/// Generic trampoline that opens the `any Component` existential so
-/// `onUnmount()` can be dispatched concretely. Defined at module level
-/// (not on `AnyComponent`) because it must be generic over `C: Component`;
-/// the same trampoline pattern is used for `onUpdate(prev: Self)` in
-/// `Renderer.swift`.
-private func callOnUnmount<C: Component>(_ c: C) {
-    c.onUnmount()
-}
-
 /// Dispatches between the indexed and keyed children-diff strategies. If
 /// **any** child in the old or new lists carries a key, the keyed path is
 /// used (Task 17); otherwise pair-by-index (Task 16).
+@MainActor
 func diffChildren(
     mounted: MountNode,
     newChildren: [VNode],

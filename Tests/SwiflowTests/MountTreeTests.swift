@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("MountTree")
+@MainActor
 struct MountTreeTests {
     @Test("MountNode stores handle and last-committed VNode")
     func storesHandleAndVNode() {
@@ -59,6 +60,7 @@ struct MountTreeTests {
 }
 
 @Suite("Mount-tree consistency after diff")
+@MainActor
 struct MountTreeConsistencyTests {
 
     /// Walk a `MountNode` and produce the VNode it represents (i.e., the

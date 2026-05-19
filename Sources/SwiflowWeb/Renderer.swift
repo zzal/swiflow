@@ -20,6 +20,7 @@ import Swiflow
 ///   supplies an `AnyComponent` instance. A `RAFScheduler` is created and
 ///   wired into the diff so `@State` mutations automatically schedule re-renders
 ///   via `requestAnimationFrame`. Manual `rerender()` calls are not needed.
+@MainActor
 final class Renderer {
     // MARK: - Stored properties
 
@@ -164,33 +165,18 @@ final class Renderer {
                 JSValue.number(Double(mountHandle)),
                 JSValue.string(selector)
             )
-            // Lifecycle: fire onMount on the root component after patches
+            // Lifecycle: fire onAppear on the root component after patches
             // have been shipped to the driver (DOM is now live).
             if let root = rootComponent {
-                root.instance.onMount()
+                root.instance.onAppear()
             }
         } else {
-            // Lifecycle: fire onUpdate(prev: self) on the root component.
-            // `prev: Self` requires a generic trampoline because direct
-            // existential dispatch is rejected by the compiler — see
-            // `callOnUpdate` below.
+            // Lifecycle: fire onChange on the root component.
             if let root = rootComponent {
-                callOnUpdate(root.instance)
+                root.instance.onChange()
             }
         }
     }
-}
-
-// MARK: - Lifecycle trampolines
-
-/// Opens the `any Component` existential so `onUpdate(prev: Self)` can be
-/// dispatched concretely. A free function rather than a method because it
-/// must be generic over `C: Component`; Swift's implicit existential opening
-/// (SE-0352) calls this with the concrete type from `any.instance`.
-///
-/// Called from `Renderer.renderOnce()` on subsequent (non-first) renders.
-private func callOnUpdate<C: Component>(_ c: C) {
-    c.onUpdate(prev: c)
 }
 
 // MARK: - Mutable box for two-phase scheduler init

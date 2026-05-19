@@ -28,6 +28,7 @@ public extension Swiflow {
     /// event dispatch for all subsequently registered handlers (they would
     /// land in a registry the bridge never reads). Phase 3's component
     /// lifecycle will replace this limitation.
+    @MainActor
     static func render(_ viewProducer: @escaping () -> VNode, into selector: String) {
         precondition(
             ambientRenderer == nil,
@@ -44,6 +45,7 @@ public extension Swiflow {
 
     /// Re-evaluates the registered view producer and applies any resulting
     /// patches. A no-op if `render(_:into:)` has not been called.
+    @MainActor
     static func rerender() {
         ambientRenderer?.renderOnce()
     }
@@ -63,6 +65,7 @@ public extension Swiflow {
     /// ```swift
     /// Swiflow.render(Counter(), into: "#app")
     /// ```
+    @MainActor
     static func render<C: Component>(_ root: C, into selector: String) {
         precondition(
             ambientRenderer == nil,
@@ -94,6 +97,7 @@ public extension Swiflow {
     /// `Swiflow.render(_:into:)` must have been called before this property
     /// is accessed. Inside `view()` this is always safe — `render` constructs
     /// the Renderer and only THEN calls the producer.
+    @MainActor
     static var handlers: HandlerRegistry {
         guard let renderer = ambientRenderer else {
             fatalError("Swiflow.handlers accessed before Swiflow.render(_:into:) was called")

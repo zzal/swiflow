@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — tag replace")
+@MainActor
 struct TagReplaceTests {
     private func diffPair(_ a: VNode, _ b: VNode) -> (mount: DiffResult, update: DiffResult) {
         let handles = HandleAllocator()

@@ -11,9 +11,10 @@
 ///
 /// Conforming types should:
 /// 1. Implement `var body: VNode` — pure, synchronous, runs every render.
-/// 2. Optionally override `onMount`, `onUpdate(prev:)`, `onUnmount`.
+/// 2. Optionally override `onAppear`, `onChange`, `onDisappear`.
 /// 3. Declare reactive state with `@State` (Task 2) — direct stored
 ///    properties work but don't trigger re-renders.
+@MainActor
 public protocol Component: AnyObject {
     /// The view this component renders. Called by the diff on every render.
     /// Must be pure (no side effects) — the renderer doesn't memoize.
@@ -21,35 +22,25 @@ public protocol Component: AnyObject {
 
     /// Called once after the component's body has been mounted to the DOM.
     /// Defaulted to no-op.
-    func onMount()
+    func onAppear()
 
-    /// Called after every re-render's patches have been applied.
-    /// `prev` is the same instance (reference equality holds); the parameter
-    /// exists so implementations can compare current `@State` against any
-    /// snapshot they chose to save in `onMount`.
+    /// Called after every re-render's patches have been applied. Use this
+    /// hook to react to changes; the framework does NOT pass a snapshot of
+    /// the prior state. Authors who need the prior value must stash it
+    /// themselves before mutation (or via a side field).
     ///
     /// Defaulted to no-op.
-    ///
-    /// **Existential dispatch:** because `prev` is typed `Self`, this method
-    /// cannot be called directly on an `any Component` existential — the
-    /// compiler rejects "no exact matches in call to instance method
-    /// 'onUpdate'". The diff and renderer preserve the concrete type via a
-    /// generic trampoline:
-    ///
-    /// ```swift
-    /// func callOnUpdate<C: Component>(_ c: C) { c.onUpdate(prev: c) }
-    /// ```
-    func onUpdate(prev: Self)
+    func onChange()
 
     /// Called immediately before the component's subtree is destroyed.
     /// Defaulted to no-op.
-    func onUnmount()
+    func onDisappear()
 }
 
 public extension Component {
-    func onMount() {}
-    func onUpdate(prev: Self) {}
-    func onUnmount() {}
+    func onAppear() {}
+    func onChange() {}
+    func onDisappear() {}
 }
 
 /// Type-erased reference to a `Component`. Stored on `MountNode` so the

@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Component update path")
+@MainActor
 struct ComponentUpdateTests {
 
     final class Counter: Component {

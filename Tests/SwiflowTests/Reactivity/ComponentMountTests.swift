@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Component mount path")
+@MainActor
 struct ComponentMountTests {
 
     final class Hello: Component {

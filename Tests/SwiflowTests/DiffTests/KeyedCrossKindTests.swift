@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Keyed cross-kind replacement detaches the old DOM node")
+@MainActor
 struct KeyedCrossKindTests {
     /// Two keyed siblings; the prefix scan hits a key match but the tag
     /// changes (span -> b). Without removeChild, the old <span> would stay

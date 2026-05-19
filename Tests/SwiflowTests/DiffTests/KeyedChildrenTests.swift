@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — children (keyed)")
+@MainActor
 struct KeyedChildrenTests {
     /// Builds `<ul><li key=K>K</li>...</ul>` for the given keys.
     private func ul(_ keys: [String]) -> VNode {

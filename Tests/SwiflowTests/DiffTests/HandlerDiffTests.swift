@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — handlers")
+@MainActor
 struct HandlerDiffTests {
 
     @Test("Adding a handler emits addHandler and updates handlerIds")

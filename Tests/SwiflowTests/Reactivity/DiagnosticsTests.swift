@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diagnostics (debug-only)")
+@MainActor
 struct DiagnosticsTests {
 
     final class CounterStub: Component {
@@ -35,7 +36,9 @@ struct DiagnosticsTests {
                 span(.key("a"))
                 span(.key("a"))
             }
-            _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            await MainActor.run {
+                _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            }
         }
     }
 
@@ -51,7 +54,9 @@ struct DiagnosticsTests {
                 li(.key("a"))
                 li()
             }
-            _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            await MainActor.run {
+                _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            }
         }
     }
 
@@ -64,7 +69,9 @@ struct DiagnosticsTests {
             let handles = HandleAllocator()
             let handlers = HandlerRegistry()
             let v = VNode.component(.init(CycleComponent.self) { CycleComponent() })
-            _ = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+            await MainActor.run {
+                _ = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+            }
         }
     }
 
@@ -80,7 +87,9 @@ struct DiagnosticsTests {
                 component({ CounterStub() }, key: "a")
                 component({ CounterStub() }, key: "a")
             }
-            _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            await MainActor.run {
+                _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
+            }
         }
     }
 

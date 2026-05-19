@@ -4,6 +4,7 @@
 /// For length deltas, emits appends for surplus new children and
 /// `removeChild` + `destroyNode` for surplus old children. Mutates
 /// `mounted.children` in place.
+@MainActor
 func diffChildrenIndexed(
     mounted: MountNode,
     newChildren: [VNode],

@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — text and rawHTML")
+@MainActor
 struct TextDiffTests {
     private func diffPair(_ a: VNode, _ b: VNode) -> (mount: DiffResult, update: DiffResult) {
         let handles = HandleAllocator()

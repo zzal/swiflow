@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("@State owner wiring via Mirror")
+@MainActor
 struct StateWiringTests {
 
     final class Counter: Component {

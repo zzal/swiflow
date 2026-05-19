@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("rawHTML update emits setRawHTML (never setProperty(innerHTML))")
+@MainActor
 struct RawHTMLUpdateTests {
     @Test("rawHTML value change emits a single setRawHTML patch")
     func updatesViaSetRawHTML() {

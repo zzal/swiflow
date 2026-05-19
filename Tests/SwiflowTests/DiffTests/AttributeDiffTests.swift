@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Diff — attributes")
+@MainActor
 struct AttributeDiffTests {
 
     /// Convenience: mount `initial`, then diff `next` against the result.

@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Component")
+@MainActor
 struct ComponentTests {
 
     final class Counter: Component {
@@ -25,9 +26,9 @@ struct ComponentTests {
     @Test("Default lifecycle hooks are no-ops (Counter doesn't override)")
     func defaultLifecycleNoops() {
         let counter = Counter()
-        counter.onMount()
-        counter.onUpdate(prev: counter)
-        counter.onUnmount()
+        counter.onAppear()
+        counter.onChange()
+        counter.onDisappear()
         // No assertion needed — just verifying these compile and don't crash.
         #expect(counter.clickCount == 0)
     }

@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Keyed map-middle cross-kind replacement")
+@MainActor
 struct KeyedMapMiddleCrossKindTests {
     /// A keyed list where the prefix and suffix are stable, the middle has
     /// one position whose key matches but tag changes. The map-based reuse
