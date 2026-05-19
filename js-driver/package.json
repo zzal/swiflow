@@ -1,0 +1,13 @@
+{
+  "name": "@swiflow/driver-tests",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Internal node:test + jsdom unit tests for swiflow-driver.js. Not published.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}
