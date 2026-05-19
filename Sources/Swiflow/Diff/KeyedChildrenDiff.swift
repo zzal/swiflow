@@ -30,7 +30,7 @@ func diffChildrenKeyed(
           keyOf(mounted.children[oldStart]) == keyOf(newChildren[newStart])
     {
         let oldChild = mounted.children[oldStart]
-        let oldHandle = oldChild.handle
+        let oldHandle = oldChild.domHandle
         let updatePatchStart = patches.count
         let updated = update(
             mounted: oldChild,
@@ -59,13 +59,13 @@ func diffChildrenKeyed(
                 let beforeSibling = mounted.children[oldStart + 1]
                 patches.append(.insertBefore(
                     parent: mounted.handle,
-                    child: updated.handle,
-                    beforeChild: beforeSibling.handle
+                    child: updated.domHandle,
+                    beforeChild: beforeSibling.domHandle
                 ))
             } else {
                 patches.append(.appendChild(
                     parent: mounted.handle,
-                    child: updated.handle
+                    child: updated.domHandle
                 ))
             }
         }
@@ -78,7 +78,7 @@ func diffChildrenKeyed(
           keyOf(mounted.children[oldEnd]) == keyOf(newChildren[newEnd])
     {
         let oldChild = mounted.children[oldEnd]
-        let oldHandle = oldChild.handle
+        let oldHandle = oldChild.domHandle
         let updatePatchStart = patches.count
         let updated = update(
             mounted: oldChild,
@@ -101,13 +101,13 @@ func diffChildrenKeyed(
                 let beforeSibling = mounted.children[oldEnd + 1]
                 patches.append(.insertBefore(
                     parent: mounted.handle,
-                    child: updated.handle,
-                    beforeChild: beforeSibling.handle
+                    child: updated.domHandle,
+                    beforeChild: beforeSibling.domHandle
                 ))
             } else {
                 patches.append(.appendChild(
                     parent: mounted.handle,
-                    child: updated.handle
+                    child: updated.domHandle
                 ))
             }
         }
@@ -126,7 +126,7 @@ func diffChildrenKeyed(
         // mounted.children[oldStart], because the suffix scan didn't touch
         // the front and oldEnd has now slipped below oldStart).
         let beforeHandle: Int? = (oldStart < mounted.children.count)
-            ? mounted.children[oldStart].handle
+            ? mounted.children[oldStart].domHandle
             : nil
         var insertIndex = oldStart
         for i in newStart...newEnd {
@@ -138,9 +138,9 @@ func diffChildrenKeyed(
                 scheduler: scheduler
             )
             if let before = beforeHandle {
-                patches.append(.insertBefore(parent: mounted.handle, child: child.handle, beforeChild: before))
+                patches.append(.insertBefore(parent: mounted.handle, child: child.domHandle, beforeChild: before))
             } else {
-                patches.append(.appendChild(parent: mounted.handle, child: child.handle))
+                patches.append(.appendChild(parent: mounted.handle, child: child.domHandle))
             }
             mounted.insertChild(child, at: insertIndex)
             insertIndex += 1
@@ -152,7 +152,7 @@ func diffChildrenKeyed(
     if newStart > newEnd {
         for i in stride(from: oldEnd, through: oldStart, by: -1) {
             let removed = mounted.children[i]
-            patches.append(.removeChild(parent: mounted.handle, child: removed.handle))
+            patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
             destroy(removed, into: &patches, handlers: handlers)
             mounted.removeChild(at: i)
         }
@@ -228,7 +228,7 @@ func diffChildrenKeyed(
                 // patches — same fix the prefix/suffix scans already got in
                 // Phase 2b.1.
                 patches.insert(
-                    .removeChild(parent: mounted.handle, child: reused.handle),
+                    .removeChild(parent: mounted.handle, child: reused.domHandle),
                     at: updatePatchStart
                 )
                 newSlice[i] = updated
@@ -263,7 +263,7 @@ func diffChildrenKeyed(
     // 7. Destroy any old middle node that wasn't reused.
     for i in oldStart...oldEnd where !reusedOldIndices.contains(i) {
         let leftover = mounted.children[i]
-        patches.append(.removeChild(parent: mounted.handle, child: leftover.handle))
+        patches.append(.removeChild(parent: mounted.handle, child: leftover.domHandle))
         destroy(leftover, into: &patches, handlers: handlers)
     }
 
@@ -283,9 +283,9 @@ func diffChildrenKeyed(
         // the first node of the stable suffix, or nil → appendChild.
         let anchor: Int?
         if i + 1 < newMiddleCount {
-            anchor = newSlice[i + 1]!.handle
+            anchor = newSlice[i + 1]!.domHandle
         } else if oldEnd + 1 < mounted.children.count {
-            anchor = mounted.children[oldEnd + 1].handle
+            anchor = mounted.children[oldEnd + 1].domHandle
         } else {
             anchor = nil
         }
@@ -293,16 +293,16 @@ func diffChildrenKeyed(
         if newToOldIndex[i] == -1 {
             // Fresh mount: always insert.
             if let before = anchor {
-                patches.append(.insertBefore(parent: mounted.handle, child: node.handle, beforeChild: before))
+                patches.append(.insertBefore(parent: mounted.handle, child: node.domHandle, beforeChild: before))
             } else {
-                patches.append(.appendChild(parent: mounted.handle, child: node.handle))
+                patches.append(.appendChild(parent: mounted.handle, child: node.domHandle))
             }
         } else if !lisSet.contains(i) {
             // Reused but out of LIS → must move.
             if let before = anchor {
-                patches.append(.insertBefore(parent: mounted.handle, child: node.handle, beforeChild: before))
+                patches.append(.insertBefore(parent: mounted.handle, child: node.domHandle, beforeChild: before))
             } else {
-                patches.append(.appendChild(parent: mounted.handle, child: node.handle))
+                patches.append(.appendChild(parent: mounted.handle, child: node.domHandle))
             }
         }
         // else: in LIS → already in correct relative position, no patch.

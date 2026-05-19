@@ -19,7 +19,7 @@ func diffChildrenIndexed(
     // 1. Reconcile common prefix.
     for i in 0..<commonCount {
         let oldChild = mounted.children[i]
-        let oldHandle = oldChild.handle
+        let oldHandle = oldChild.domHandle
         let updatePatchStart = patches.count
         let newChild = update(
             mounted: oldChild,
@@ -47,13 +47,13 @@ func diffChildrenIndexed(
                 let beforeSibling = mounted.children[i + 1]
                 patches.append(.insertBefore(
                     parent: mounted.handle,
-                    child: newChild.handle,
-                    beforeChild: beforeSibling.handle
+                    child: newChild.domHandle,
+                    beforeChild: beforeSibling.domHandle
                 ))
             } else {
                 patches.append(.appendChild(
                     parent: mounted.handle,
-                    child: newChild.handle
+                    child: newChild.domHandle
                 ))
             }
         }
@@ -69,7 +69,7 @@ func diffChildrenIndexed(
                 handlers: handlers,
                 scheduler: scheduler
             )
-            patches.append(.appendChild(parent: mounted.handle, child: childMount.handle))
+            patches.append(.appendChild(parent: mounted.handle, child: childMount.domHandle))
             mounted.addChild(childMount)
         }
     }
@@ -81,7 +81,7 @@ func diffChildrenIndexed(
     if oldCount > newCount {
         for _ in newCount..<oldCount {
             let removed = mounted.children[newCount]
-            patches.append(.removeChild(parent: mounted.handle, child: removed.handle))
+            patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
             destroy(removed, into: &patches, handlers: handlers)
             mounted.removeChild(at: newCount)
         }

@@ -147,4 +147,40 @@ struct ComponentMountTests {
         #expect(outerAnchor.domHandle == leafBody?.handle, "Outer.domHandle must equal the leaf's handle, NOT the inner anchor's structural handle")
         #expect(outerAnchor.domHandle != innerAnchor?.handle, "Outer.domHandle must NOT be the inner anchor's handle (that would be a single-level deref bug)")
     }
+
+    @Test("Inserting a component child into a parent's children list uses the body's DOM handle")
+    func insertComponentChildUsesDOMHandle() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // First render: parent with one element child.
+        let v1 = div { p("first") }
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+
+        // Second render: SAME parent, but now with a component child appended.
+        // The indexed children-diff helper appends a new node — its appendChild
+        // patch must reference the body's DOM handle, not the anchor's
+        // structural handle.
+        let v2 = div {
+            p("first")
+            component({ Hello() })
+        }
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+
+        // Find the h1 createElement and confirm its handle appears in an
+        // appendChild patch on the div (parent).
+        guard
+            let createH1 = second.patches.first(where: { if case .createElement(_, let t) = $0, t == "h1" { return true }; return false }),
+            case .createElement(let h1Handle, _) = createH1
+        else {
+            Issue.record("Expected createElement for h1 in second render's patches: \(second.patches)"); return
+        }
+        let divHandle = first.newMountTree.handle
+
+        let appendsH1 = second.patches.contains {
+            if case .appendChild(let p, let c) = $0, p == divHandle, c == h1Handle { return true }
+            return false
+        }
+        #expect(appendsH1, "Append of component child must reference the body h1's handle (\(h1Handle)) on parent div (\(divHandle)), got patches: \(second.patches)")
+    }
 }
