@@ -18,14 +18,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Swift 6.3
-        # Installed on both runners. The macos-14 image ships with Xcode 15.x
-        # by default, whose bundled Swift lacks the `swift sdk` subcommand
-        # (it landed in 5.9 but only became reliable in 6.0+). Pinning to
-        # 6.3 also matches what JavaScriptKit 0.53 requires (swift-tools 6.2+)
-        # and what `swift-6.3-RELEASE_wasm` was built against.
-        uses: swift-actions/setup-swift@v2
+        # Use vapor/swiftly-action (delegates to the official `swiftly`
+        # toolchain manager) instead of swift-actions/setup-swift. The
+        # latter's v2 hard-codes a version list whose ceiling is 6.2.1,
+        # so it errors with `Version "6.3" is not available`. Swiftly
+        # tracks the canonical swift.org index and supports every
+        # released toolchain.
+        #
+        # macos-14 must still install Swift explicitly (its bundled
+        # Xcode 15.x ships a Swift that lacks the usable `swift sdk`
+        # subcommand the next step needs). Linux has no system Swift.
+        uses: vapor/swiftly-action@v0.2.1
         with:
-          swift-version: "6.3"
+          toolchain: "6.3"
 
       - name: Verify Swift version
         run: swift --version
