@@ -15,8 +15,16 @@ struct DiagnosticsTests {
         var body: VNode { component({ CycleComponent() }) }
     }
 
+    // Exit tests verify only that the subprocess exits non-zero — Swift
+    // Testing's `processExitsWith: .failure` API does NOT capture stderr.
+    // The crash MESSAGE substring is asserted by code reading only; if
+    // the diagnostic message text matters for a regression, add a
+    // separate test that calls the helper and matches the produced
+    // string against the source-of-truth (currently the only
+    // call sites in Diff.swift / KeyedChildrenDiff.swift).
+
     @Test(
-        "Duplicate keys among siblings crash with a clear message in DEBUG",
+        "Duplicate keys among siblings crash in DEBUG",
         .disabled(if: !isDebugBuild)
     )
     func duplicateKeysCrash() async {
@@ -32,7 +40,7 @@ struct DiagnosticsTests {
     }
 
     @Test(
-        "Mixed keyed/unkeyed siblings crash with a clear message in DEBUG",
+        "Mixed keyed/unkeyed siblings crash in DEBUG",
         .disabled(if: !isDebugBuild)
     )
     func mixedKeyedUnkeyedCrash() async {
@@ -48,7 +56,7 @@ struct DiagnosticsTests {
     }
 
     @Test(
-        "Component body cycle (depth > 32) crashes with a clear message in DEBUG",
+        "Component body cycle (depth >= 32) crashes in DEBUG",
         .disabled(if: !isDebugBuild)
     )
     func componentCycleCrash() async {
@@ -57,6 +65,22 @@ struct DiagnosticsTests {
             let handlers = HandlerRegistry()
             let v = VNode.component(.init(CycleComponent.self) { CycleComponent() })
             _ = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+        }
+    }
+
+    @Test(
+        "Duplicate keys on sibling component anchors crash in DEBUG",
+        .disabled(if: !isDebugBuild)
+    )
+    func duplicateKeysOnComponentSiblingsCrash() async {
+        await #expect(processExitsWith: .failure) {
+            let handles = HandleAllocator()
+            let handlers = HandlerRegistry()
+            let parent = div {
+                component({ CounterStub() }, key: "a")
+                component({ CounterStub() }, key: "a")
+            }
+            _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
         }
     }
 

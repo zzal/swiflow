@@ -23,22 +23,25 @@ func diffChildrenKeyed(
     // Diagnostic pre-pass: detect duplicate keys among the new children.
     // Keys MUST be unique within a parent — duplicates cause the keyed
     // diff to pick wrong moves (last-write-wins on the position map).
+    // Both .element and .component children can carry a key; .text and
+    // .rawHTML cannot. diagKeyAndIsKeyable() (Diff.swift, internal scope)
+    // handles the discrimination.
     #if DEBUG
     do {
         var seen: [String: Int] = [:]
         for (index, child) in newChildren.enumerated() {
-            if case .element(let data) = child, let key = data.key {
-                if let firstIndex = seen[key] {
-                    let parentTag: String
-                    if case .element(let parentData) = mounted.vnode {
-                        parentTag = parentData.tag
-                    } else {
-                        parentTag = "<root>"
-                    }
-                    swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(parentTag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
+            let (key, _) = diagKeyAndIsKeyable(child)
+            guard let key else { continue }
+            if let firstIndex = seen[key] {
+                let parentTag: String
+                if case .element(let parentData) = mounted.vnode {
+                    parentTag = parentData.tag
+                } else {
+                    parentTag = "<root>"
                 }
-                seen[key] = index
+                swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(parentTag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
             }
+            seen[key] = index
         }
     }
     #endif

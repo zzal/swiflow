@@ -50,6 +50,20 @@ public func diff(
     return DiffResult(patches: patches, newMountTree: root)
 }
 
+// MARK: - Diagnostic helpers (debug key-validation, shared across Diff.swift
+//         and KeyedChildrenDiff.swift)
+
+/// Returns the key and keyability of a VNode for sibling-key diagnostics.
+/// `.element` and `.component` children can carry a key; `.text` and `.rawHTML`
+/// cannot. The "isKeyable" flag lets callers skip non-keyable children cleanly.
+func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
+    switch child {
+    case .element(let data): return (data.key, true)
+    case .component(let desc): return (desc.key, true)
+    case .text, .rawHTML: return (nil, false)
+    }
+}
+
 // MARK: - Mount helpers (first render only — Task 9 scope)
 
 /// Creates the DOM-side node and (recursively) all children, appending patches
@@ -110,23 +124,25 @@ func mount(
 
         // Diagnostic: validate children key consistency on initial mount.
         // (On re-render, diffChildren/diffChildrenKeyed carry these checks.)
+        // Both .element and .component children can carry a key; .text and
+        // .rawHTML cannot. diagKeyAndIsKeyable() handles the discrimination.
         #if DEBUG
         do {
-            var keyedCount = 0
-            var unkeyedCount = 0
             var seenKeys: [String: Int] = [:]
             for (index, child) in data.children.enumerated() {
-                if case .element(let childData) = child {
-                    if let key = childData.key {
-                        keyedCount += 1
-                        if let firstIndex = seenKeys[key] {
-                            swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(data.tag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
-                        }
-                        seenKeys[key] = index
-                    } else {
-                        unkeyedCount += 1
-                    }
+                let (key, _) = diagKeyAndIsKeyable(child)
+                guard let key else { continue }
+                if let firstIndex = seenKeys[key] {
+                    swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(data.tag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
                 }
+                seenKeys[key] = index
+            }
+            var keyedCount = 0
+            var unkeyedCount = 0
+            for child in data.children {
+                let (key, isKeyable) = diagKeyAndIsKeyable(child)
+                guard isKeyable else { continue }
+                if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
             }
             if keyedCount > 0 && unkeyedCount > 0 {
                 swiflowDiagnostic("Children of <\(data.tag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none.")
@@ -157,7 +173,7 @@ func mount(
         // `component({ self })` or A.body → component(B); B.body → component(A).
         // 32 nested anchors is already absurd — cycles always exceed it.
         #if DEBUG
-        if depth > 32 {
+        if depth >= 32 {
             swiflowDiagnostic("Component anchor depth exceeded 32. This usually means a component's body returned a VNode.component anchor cycle (e.g. body returns `component({ self })`). Bodies must terminate at non-component VNodes.")
         }
         #endif
@@ -452,14 +468,16 @@ func diffChildren(
     // Diagnostic: detect mixed keyed/unkeyed siblings. Either every
     // sibling has a key, or none — partial keying gives unkeyed
     // children unstable identity and they re-render as recreated.
+    // Both .element and .component children can carry a key; .text and
+    // .rawHTML cannot. diagKeyAndIsKeyable() handles the discrimination.
     #if DEBUG
     do {
         var keyedCount = 0
         var unkeyedCount = 0
         for child in newChildren {
-            if case .element(let data) = child {
-                if data.key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
-            }
+            let (key, isKeyable) = diagKeyAndIsKeyable(child)
+            guard isKeyable else { continue }
+            if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
         }
         if keyedCount > 0 && unkeyedCount > 0 {
             let parentTag: String
