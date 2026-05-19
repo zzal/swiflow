@@ -34,11 +34,16 @@ jobs:
     # to main would otherwise eat ~50 billed minutes per run. Linux still
     # catches the vast majority of regressions (compile, unit tests,
     # init+build e2e). Full cross-OS validation lives at the PR gate.
-    if: ${{ matrix.os != 'macos-14' || github.event_name == 'pull_request' }}
+    #
+    # NB: A job-level `if:` referencing matrix.os doesn't work — `if:`
+    # evaluates before matrix expansion, so `matrix.os` is undefined and
+    # the whole job (every cell) gets skipped, leaving zero jobs running.
+    # The dynamic matrix below selects the OS list at workflow-load time
+    # from github.event_name, which IS available at that point.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-14]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04","macos-14"]' || '["ubuntu-22.04"]') }}
     steps:
       - uses: actions/checkout@v4
 
