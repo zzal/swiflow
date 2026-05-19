@@ -114,22 +114,3 @@ final class Box<Value> {
     var value: Value
     init(value: Value) { self.value = value }
 }
-
-// MARK: - Temporary Scheduler protocol stub
-//
-// The canonical definition lands in Task 6 at
-// `Sources/Swiflow/Reactivity/Scheduler.swift`. This stub keeps Task 2
-// self-contained: tests reference `Scheduler` (above), and the wrapper's
-// `_setOwner` signature uses it.
-//
-// **TASK 6 IMPLEMENTER ACTION:** Delete the block below (the `#if`,
-// the protocol declaration, and the `#endif`) when you land the
-// canonical Scheduler.swift. The guard flag is never defined; the
-// `#if !SWIFLOW_SCHEDULER_DEFINED_ELSEWHERE` is purely a grep-target
-// to make this block easy to locate.
-#if !SWIFLOW_SCHEDULER_DEFINED_ELSEWHERE
-public protocol Scheduler: AnyObject {
-    func markDirty(_ component: AnyComponent)
-    func flush()
-}
-#endif
