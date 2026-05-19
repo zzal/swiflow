@@ -188,6 +188,44 @@ func update(
         mounted.vnode = next
         return mounted
 
+    // Component → component, same description (same typeID + key):
+    // reuse the existing instance, re-render the body, and reconcile
+    // the body subtree.
+    //
+    // Why reconcile rather than always mount fresh? Instance state (and,
+    // later, @State) lives on the AnyComponent reference. Destroying and
+    // remounting would reset that state. The reuse path keeps the instance
+    // alive and lets the body subtree diff produce the minimal patch set.
+    case (.component(let oldDesc), .component(let newDesc)) where oldDesc == newDesc:
+        // Defensive: a component-anchor mount node should always have both
+        // component and componentBody (Task 4's mount() invariant). If
+        // either is nil — which shouldn't happen in normal operation —
+        // fall through to the destroy+remount safety net rather than crash.
+        guard let instance = mounted.component, let oldBody = mounted.componentBody else {
+            destroy(mounted, into: &patches, handlers: handlers)
+            return mount(next, into: &patches, handles: handles, handlers: handlers)
+        }
+        // Re-render: call body on the reused instance so any state
+        // mutations since the last render (e.g. n = 42 on a Counter)
+        // are reflected in the new body VNode.
+        let newBodyVNode = instance.instance.body
+        // Reconcile the new body VNode against the previously-mounted body
+        // subtree. The returned MountNode may be the same reference (if the
+        // body root type/tag matched) or a fresh one (if the body root
+        // itself was replaced wholesale). Either way it becomes the new body.
+        let newBodyMount = update(
+            mounted: oldBody,
+            next: newBodyVNode,
+            into: &patches,
+            handles: handles,
+            handlers: handlers
+        )
+        mounted.componentBody = newBodyMount
+        // Commit the new vnode description so the next render's left-hand
+        // side reflects the description that was actually diffed.
+        mounted.vnode = next
+        return mounted
+
     // Any other transition: destroy the old subtree and mount fresh.
     default:
         destroy(mounted, into: &patches, handlers: handlers)
