@@ -51,4 +51,15 @@ struct ComponentTests {
         #expect(any1.typeID == ObjectIdentifier(Counter.self))
         #expect(any1.instance !== any2.instance, "Each instantiate() must produce a fresh instance")
     }
+
+    @Test("ComponentDescription convenience init wraps the C-typed factory in AnyComponent with correct typeID")
+    func convenienceInit() {
+        let desc = ComponentDescription(Counter.self, key: "row-1") { Counter() }
+        #expect(desc.typeID == ObjectIdentifier(Counter.self))
+        #expect(desc.key == "row-1")
+
+        let any = desc.instantiate()
+        #expect(any.typeID == ObjectIdentifier(Counter.self))
+        #expect(any.instance is Counter)
+    }
 }

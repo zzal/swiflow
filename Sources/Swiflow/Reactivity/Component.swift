@@ -25,8 +25,20 @@ public protocol Component: AnyObject {
 
     /// Called after every re-render's patches have been applied.
     /// `prev` is the same instance (reference equality holds); the parameter
-    /// exists for symmetry with React's `prevProps` signature. Defaulted
-    /// to no-op.
+    /// exists so implementations can compare current `@State` against any
+    /// snapshot they chose to save in `onMount`.
+    ///
+    /// Defaulted to no-op.
+    ///
+    /// **Existential dispatch:** because `prev` is typed `Self`, this method
+    /// cannot be called directly on an `any Component` existential — the
+    /// compiler rejects "no exact matches in call to instance method
+    /// 'onUpdate'". The diff and renderer preserve the concrete type via a
+    /// generic trampoline:
+    ///
+    /// ```swift
+    /// func callOnUpdate<C: Component>(_ c: C) { c.onUpdate(prev: c) }
+    /// ```
     func onUpdate(prev: Self)
 
     /// Called immediately before the component's subtree is destroyed.
@@ -45,9 +57,17 @@ public extension Component {
 /// conditional-conformance gymnastics. `typeID` is the identity used by the
 /// diff to decide instance reuse.
 public final class AnyComponent {
+    /// `ObjectIdentifier(C.self)` for the concrete component type — not
+    /// `ObjectIdentifier(instance)`. The diff uses this to decide whether
+    /// the next render's component at the same position reuses this
+    /// instance or replaces it (see `ComponentDescription`'s `==`).
     public let typeID: ObjectIdentifier
+
+    /// The live component instance. Typed as the existential `any Component`
+    /// so a mount tree can hold heterogeneous components in the same field.
     public let instance: any Component
 
+    /// Wraps `instance` while capturing its concrete type as `typeID`.
     public init<C: Component>(_ instance: C) {
         self.typeID = ObjectIdentifier(C.self)
         self.instance = instance
@@ -62,6 +82,13 @@ public final class AnyComponent {
 /// The `factory` closure isn't part of equality — closures aren't
 /// equatable, and the factory is only consumed at first mount. Subsequent
 /// renders with the same typeID + key reuse the existing AnyComponent.
+///
+/// **Sendable:** `ComponentDescription` is intentionally not `Sendable` in
+/// Phase 3. It transitively holds a `() -> AnyComponent` factory whose
+/// closure captures are unaudited. Components themselves aren't Sendable
+/// either; the renderer/Scheduler are `@MainActor`-isolated, so factories
+/// are only invoked on the main actor. Tightening `factory` to `@Sendable`
+/// is deferred until cross-actor component usage becomes a real ask.
 public struct ComponentDescription: Equatable {
     public let typeID: ObjectIdentifier
     public let key: String?
@@ -80,6 +107,10 @@ public struct ComponentDescription: Equatable {
         self.factory = { AnyComponent(factory()) }
     }
 
+    /// Invokes the factory and returns a fresh `AnyComponent`. Each call
+    /// produces a new instance; the diff is responsible for deciding
+    /// when to call this (only at first mount, then never again for the
+    /// same description-position pair).
     public func instantiate() -> AnyComponent {
         factory()
     }
