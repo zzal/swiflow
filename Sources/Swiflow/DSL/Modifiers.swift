@@ -78,8 +78,11 @@ public func applyAttributes(
                 if let sanitized = URLSanitizer.sanitize(value) {
                     attrs[name] = sanitized
                 } else {
-                    // Drop the attribute entirely. Debug-mode notice; Task 2
-                    // will reword this comment but keep the print as-is.
+                    // URL sanitizer rejection is a LOG, not a crash —
+                    // an injected javascript: should drop the attribute
+                    // and let the page continue rendering. swiflowDiagnostic
+                    // crashes in DEBUG and is reserved for programmer-error
+                    // footguns (duplicate keys, component cycles, etc.).
                     #if DEBUG
                     print("[Swiflow] URLSanitizer rejected \(name)=\"\(value)\" — attribute dropped. Use VNode.rawHTML for the rare case where unsanitized URLs are intentional.")
                     #endif
