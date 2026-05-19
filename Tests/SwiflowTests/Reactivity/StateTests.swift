@@ -56,6 +56,26 @@ struct StateTests {
         state.wrappedValue = 1
         state.wrappedValue = 2
         #expect(scheduler.markCount == 2)
-        #expect(scheduler.lastMarked?.instance === owner.instance)
+        #expect(scheduler.lastMarked === owner, "markDirty should be called with the exact AnyComponent we wired, not a re-wrap")
+    }
+
+    @Test("Mutation via projectedValue Binding also routes through the scheduler")
+    func bindingMutationSchedules() {
+        final class StubComponent: Component { var body: VNode { .text("") } }
+        final class CountingScheduler: Scheduler {
+            var markCount = 0
+            func markDirty(_ component: AnyComponent) { markCount += 1 }
+            func flush() {}
+        }
+
+        let owner = AnyComponent(StubComponent())
+        let scheduler = CountingScheduler()
+        let state = State(wrappedValue: "a")
+        state._setOwner(owner, scheduler: scheduler)
+
+        // Binding.set goes through wrappedValue's setter, which schedules.
+        state.projectedValue.set("b")
+        #expect(state.wrappedValue == "b")
+        #expect(scheduler.markCount == 1, "Binding.set should route through the scheduler the same way direct assignment does")
     }
 }

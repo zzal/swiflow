@@ -28,7 +28,13 @@ public final class State<Value> {
     // Optional so the framework can attach the owner post-construction
     // without circularity headaches. Set exactly once per @State per
     // component instance (Task 7's Mirror walk handles this).
-    private var _owner: AnyComponent?
+    // Weak to break the retain cycle: Component owns @State (synthesized
+    // stored property), State._owner would otherwise own AnyComponent,
+    // and AnyComponent.instance owns the same Component back. Mirrors
+    // the MountNode.parent precedent. When the Component is released
+    // (Renderer drops the mount), _owner safely becomes nil and the
+    // setter's `if let owner = _owner` short-circuits.
+    private weak var _owner: AnyComponent?
     // Erased to `AnyObject` because storing a non-existential protocol
     // reference triggers Sendable diagnostics; we cast back to `Scheduler`
     // at use. The scheduler outlives any single @State by design (it's
@@ -57,16 +63,21 @@ public final class State<Value> {
     }
 
     /// Called by the framework at component-construction time (Task 7's
-    /// Mirror walk). Idempotent in shape; redundant calls overwrite the
-    /// previous owner — but in practice it's invoked exactly once per
-    /// `@State` per Component instance, immediately after the
-    /// component's `init` completes and before any render.
+    /// Mirror walk). Must be called exactly once per `@State` per
+    /// Component instance, immediately after the component's `init`
+    /// completes and before any render. A second call traps via a
+    /// `precondition` — it would indicate the wiring code re-ran when
+    /// it shouldn't have.
     ///
     /// Public-with-`_`-prefix so Mirror introspection (which can only
     /// reach `public` members from another module) can find and call
     /// it. The `_` flags it as framework-internal — user code should
     /// never invoke this directly.
     public func _setOwner(_ owner: AnyComponent, scheduler: Scheduler) {
+        precondition(
+            _owner == nil,
+            "_setOwner called twice on the same @State — Task 7's Mirror walk should invoke this exactly once per @State per Component instance. Investigate the call site (re-rendering shouldn't re-wire state)."
+        )
         self._owner = owner
         self._scheduler = scheduler as AnyObject
     }
