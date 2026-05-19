@@ -80,28 +80,21 @@ jobs:
           brew install --quiet swiftly
           swiftly init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
           swiftly install --use 6.3.0 --post-install-file=/dev/null
-          # swiftly normally rewrites shell rc to add Swift to PATH, but
-          # GHA steps don't source shell rc. Locate the toolchain bin
-          # dir explicitly so subsequent steps see the right `swift`.
-          #
-          # On macOS, swiftly invokes the system `installer` and the
-          # toolchain lands under ~/Library/Developer/Toolchains/
-          # (the standard xctoolchain location), NOT under
-          # ~/.swiftly/toolchains/. Search both so this step works
-          # regardless of which layout the active swiftly version uses.
-          SWIFTLY_HOME="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}"
-          SEARCH_ROOTS=("$SWIFTLY_HOME/toolchains" "$HOME/Library/Developer/Toolchains")
-          TOOLCHAIN_BIN_DIR="$(find "${SEARCH_ROOTS[@]}" -name swift -type f -path '*/usr/bin/swift' 2>/dev/null | head -1 | xargs dirname)"
-          echo "Resolved Swift toolchain: $TOOLCHAIN_BIN_DIR"
-          if [ -z "$TOOLCHAIN_BIN_DIR" ]; then
-            echo "Could not locate Swift toolchain under any of: ${SEARCH_ROOTS[*]}"
-            for dir in "${SEARCH_ROOTS[@]}"; do
-              echo "--- $dir ---"
-              ls -la "$dir" 2>/dev/null || echo "(does not exist)"
-            done
-            exit 1
-          fi
-          echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
+          # swiftly's macOS install layout has changed across versions
+          # (~/.swiftly/toolchains vs ~/Library/Developer/Toolchains vs
+          # neither), so hunting for the swift binary by `find` is
+          # brittle. Instead, drop a thin shim into ~/.local/bin that
+          # delegates every `swift` invocation to `swiftly run swift`.
+          # `swiftly run` honours the global default toolchain set by
+          # `swiftly install --use` above, no PATH detective work needed.
+          SHIM_DIR="$HOME/.local/bin"
+          mkdir -p "$SHIM_DIR"
+          cat > "$SHIM_DIR/swift" <<'SHIM'
+          #!/usr/bin/env bash
+          exec swiftly run swift "$@"
+          SHIM
+          chmod +x "$SHIM_DIR/swift"
+          echo "$SHIM_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
         run: swift --version
