@@ -82,19 +82,21 @@ jobs:
           swiftly install --use 6.3.0 --post-install-file=/dev/null
           # swiftly's macOS install layout has changed across versions
           # (~/.swiftly/toolchains vs ~/Library/Developer/Toolchains vs
-          # neither), so hunting for the swift binary by `find` is
-          # brittle. Instead, drop a thin shim into ~/.local/bin that
-          # delegates every `swift` invocation to `swiftly run swift`.
-          # `swiftly run` honours the global default toolchain set by
-          # `swiftly install --use` above, no PATH detective work needed.
-          SHIM_DIR="$HOME/.local/bin"
-          mkdir -p "$SHIM_DIR"
-          cat > "$SHIM_DIR/swift" <<'SHIM'
-          #!/usr/bin/env bash
-          exec swiftly run swift "$@"
-          SHIM
-          chmod +x "$SHIM_DIR/swift"
-          echo "$SHIM_DIR" >> "$GITHUB_PATH"
+          # neither), so don't hunt for the swift binary with `find` —
+          # ask swiftly itself where its active toolchain's swift lives,
+          # then prepend that directory to the GHA PATH.
+          #
+          # A shim like `exec swiftly run swift "$@"` won't work here:
+          # swift-driver computes its resource directory from argv[0]
+          # (../lib/swift/), so a shim at ~/.local/bin/swift sends the
+          # driver looking in the wrong place and macros fail to link
+          # with "library 'swift_errno' not found".
+          swiftly run swift --version  # sanity check
+          SWIFT_BIN="$(swiftly run bash -c 'command -v swift')"
+          TOOLCHAIN_BIN_DIR="$(dirname "$SWIFT_BIN")"
+          echo "Resolved Swift toolchain bin dir: $TOOLCHAIN_BIN_DIR"
+          [ -x "$TOOLCHAIN_BIN_DIR/swift" ] || { echo "swiftly returned a non-executable swift path: $SWIFT_BIN"; exit 1; }
+          echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
         run: swift --version
