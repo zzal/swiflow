@@ -23,11 +23,21 @@ public final class MountNode {
     public var handlerIds: [String: Int]
 
     /// For a component-anchor mount node, the live instance. `nil` for
-    /// every other node kind (text, rawHTML, element). Phase 3+.
+    /// every other node kind (text, rawHTML, element). Populated only
+    /// for component-anchor nodes; see `VNode.component`.
+    ///
+    /// `var` (not `let`) so Task 5's update path can swap the slot
+    /// when an instance is replaced. Currently set exactly once at
+    /// mount time; future tasks may mutate.
     public var component: AnyComponent?
 
     /// For a component-anchor mount node, the mount-tree root of the
-    /// instance's `body`. `nil` for every other node kind. Phase 3+.
+    /// instance's `body`. `nil` for every other node kind. Populated only
+    /// for component-anchor nodes; see `VNode.component`.
+    ///
+    /// `var` (not `let`) so Task 5's update path can replace the body
+    /// subtree when an existing instance re-renders. Currently set
+    /// exactly once at mount time.
     public var componentBody: MountNode?
 
     /// The DOM-facing handle for this node — the one the JS driver knows.

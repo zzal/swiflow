@@ -84,4 +84,67 @@ struct ComponentMountTests {
         #expect(anchor.domHandle != anchor.handle)
         #expect(anchor.domHandle == anchor.componentBody?.handle)
     }
+
+    @Test("Destroying a component anchor emits destroyNode for the body's DOM nodes")
+    func destroyAnchorEmitsBodyDestroys() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // Mount a component, then trigger destroy() via update()'s default
+        // arm: re-render the same tree position as a plain element. The
+        // diff falls through to destroy(old) + mount(new).
+        let v1 = VNode.component(.init(Hello.self) { Hello() })
+        let v2 = VNode.element(ElementData(tag: "p"))
+
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        // Capture the body's domHandle BEFORE update — it's what should
+        // appear in the destroyNode patch.
+        let bodyDOMHandle = first.newMountTree.domHandle
+
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+
+        let destroysBody = second.patches.contains {
+            if case .destroyNode(let h) = $0, h == bodyDOMHandle { return true }
+            return false
+        }
+        #expect(destroysBody, "destroy() must emit destroyNode for the body's DOM handle when an anchor is replaced")
+
+        // The anchor's own handle should NEVER be in a destroyNode patch
+        // (the driver never knew about it).
+        let anchorHandle = first.newMountTree.handle
+        let destroysAnchor = second.patches.contains {
+            if case .destroyNode(let h) = $0, h == anchorHandle { return true }
+            return false
+        }
+        #expect(!destroysAnchor, "Anchor's structural handle must not be destroyed — driver never saw it")
+    }
+
+    @Test("domHandle walks chains of nested component anchors (depth ≥ 2)")
+    func domHandleNestedAnchors() {
+        // A wrapper component whose body is another component — nested
+        // anchors. domHandle should walk through both to reach the leaf
+        // element. A single-level dereference (body?.handle instead of
+        // body?.domHandle) would silently return the inner anchor's
+        // structural handle here.
+        final class Wrapper: Component {
+            var body: VNode { component({ Hello() }) }
+        }
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(Wrapper.self) { Wrapper() })
+        let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+
+        let outerAnchor = result.newMountTree
+        let innerAnchor = outerAnchor.componentBody
+        let leafBody = innerAnchor?.componentBody
+
+        // Sanity: the structure should be outer anchor → inner anchor → h1
+        #expect(innerAnchor != nil, "Outer anchor should have an inner anchor as its body")
+        #expect(leafBody != nil, "Inner anchor should have the h1 mount as its body")
+
+        // The load-bearing assertion: domHandle resolves all the way down.
+        #expect(outerAnchor.domHandle == leafBody?.handle, "Outer.domHandle must equal the leaf's handle, NOT the inner anchor's structural handle")
+        #expect(outerAnchor.domHandle != innerAnchor?.handle, "Outer.domHandle must NOT be the inner anchor's handle (that would be a single-level deref bug)")
+    }
 }

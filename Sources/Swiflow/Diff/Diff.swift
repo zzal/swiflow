@@ -114,15 +114,14 @@ func mount(
         return mountNode
 
     case .component(let desc):
-        // Instantiate the live component, render its body, mount the body,
-        // and wrap it all under a component-anchor MountNode. The anchor's
-        // handle is structural-only (never reaches the DOM); the
-        // body's mount node carries the real domHandle. See domHandle
-        // on MountNode for the resolution rule.
+        // Anchor handle allocated FIRST (parent-before-child, matching the
+        // .element branch's allocation order). The anchor handle is
+        // structural-only — the JS driver never sees it; the body's
+        // domHandle is what propagates to parent appendChild patches.
         let instance = desc.instantiate()
+        let anchorHandle = handles.next()
         let bodyVNode = instance.instance.body
         let bodyMount = mount(bodyVNode, into: &patches, handles: handles, handlers: handlers)
-        let anchorHandle = handles.next()
         return MountNode(
             handle: anchorHandle,
             vnode: vnode,
@@ -296,13 +295,28 @@ func destroy(
     into patches: inout [Patch],
     handlers: HandlerRegistry
 ) {
+    // Recurse into the parallel component-anchor body slot, if any.
+    // componentBody is NOT in node.children — it hangs off its own slot,
+    // and forgetting to walk it leaks body DOM nodes when a component
+    // anchor is unmounted (e.g. via update()'s default arm on a type
+    // mismatch). The leaf body's destroy() invocation emits the actual
+    // destroyNode patches; this anchor-level traversal just routes.
+    if let body = node.componentBody {
+        destroy(body, into: &patches, handlers: handlers)
+    }
     for child in node.children {
         destroy(child, into: &patches, handlers: handlers)
     }
     for (_, handlerID) in node.handlerIds {
         handlers.remove(id: handlerID)
     }
-    patches.append(.destroyNode(handle: node.handle))
+    // A component anchor has component != nil and its handle is structural-
+    // only (never sent to the driver via a create* patch). Emit destroyNode
+    // ONLY for nodes the driver actually knows about (everything except
+    // anchors).
+    if node.component == nil {
+        patches.append(.destroyNode(handle: node.handle))
+    }
 }
 
 /// Dispatches between the indexed and keyed children-diff strategies. If
