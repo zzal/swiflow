@@ -67,7 +67,11 @@ struct MountTreeConsistencyTests {
     /// children structure but uses each child's stored `vnode`.
     private func committedVNode(_ node: MountNode) -> VNode {
         switch node.vnode {
-        case .text, .rawHTML:
+        case .text, .rawHTML, .component:
+            // .component is a Phase 3 anchor — the round-trip tests in
+            // this file don't exercise the .component case, so passing
+            // through the stored vnode is sufficient. Tasks 4–5 add their
+            // own mount/update tests for the component path.
             return node.vnode
         case .element(let data):
             let kids = node.children.map(committedVNode)

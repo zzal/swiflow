@@ -10,6 +10,9 @@
 /// - `text`: a text node. Always rendered via `textContent` for XSS safety.
 /// - `rawHTML`: an escape hatch that renders via `innerHTML`. The name is
 ///   loud on purpose — searching for `rawHTML(` enumerates every audit site.
+/// - `component`: a Component anchor — instantiates and renders a reactive
+///   `Component` whose `body` is diffed against the previously-mounted
+///   subtree. Phase 3+.
 ///
 /// **Sendable:** `VNode` and `ElementData` deliberately do *not* conform to
 /// `Sendable` in Phase 1. They transitively hold `EventHandler`, which wraps
@@ -22,6 +25,11 @@ public indirect enum VNode: Equatable {
     case element(ElementData)
     case text(String)
     case rawHTML(String)
+    /// A component anchor. Carries identity (`typeID` + `key`) and a factory
+    /// closure consumed at first mount. Subsequent renders with an equal
+    /// description at the same child position reuse the existing instance
+    /// (Phase 3+ — see `Component` and `ComponentDescription`).
+    case component(ComponentDescription)
 }
 
 /// The payload of an `.element` VNode. Four separate bags model the four
