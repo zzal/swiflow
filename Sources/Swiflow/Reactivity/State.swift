@@ -1,5 +1,15 @@
 // Sources/Swiflow/Reactivity/State.swift
 
+/// Internal protocol witness for Mirror-based @State discovery. Lets the
+/// framework cast `Mirror.children`'s `Any` values to a known shape with
+/// the wire-owner method. `State` conforms via the extension below.
+///
+/// Kept package-internal — the only caller is `wireState(on:scheduler:)`
+/// in `Component.swift`. User code should not see this protocol.
+protocol StateWireable: AnyObject {
+    func _setOwner(_ owner: AnyComponent, scheduler: Scheduler)
+}
+
 /// Reactive state for a Component. Mutating `wrappedValue` flags the
 /// owning component as dirty with the active Scheduler, which batches
 /// re-renders per `requestAnimationFrame`.
@@ -114,3 +124,5 @@ final class Box<Value> {
     var value: Value
     init(value: Value) { self.value = value }
 }
+
+extension State: StateWireable {}

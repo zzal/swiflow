@@ -9,7 +9,8 @@ func diffChildrenIndexed(
     newChildren: [VNode],
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    into patches: inout [Patch]
+    into patches: inout [Patch],
+    scheduler: Scheduler? = nil
 ) {
     let oldCount = mounted.children.count
     let newCount = newChildren.count
@@ -25,7 +26,8 @@ func diffChildrenIndexed(
             next: newChildren[i],
             into: &patches,
             handles: handles,
-            handlers: handlers
+            handlers: handlers,
+            scheduler: scheduler
         )
         if newChild !== oldChild {
             // The update returned a fresh node (cross-kind / tag replace).
@@ -64,7 +66,8 @@ func diffChildrenIndexed(
                 newChildren[i],
                 into: &patches,
                 handles: handles,
-                handlers: handlers
+                handlers: handlers,
+                scheduler: scheduler
             )
             patches.append(.appendChild(parent: mounted.handle, child: childMount.handle))
             mounted.addChild(childMount)

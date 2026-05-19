@@ -119,3 +119,32 @@ public struct ComponentDescription: Equatable {
         lhs.typeID == rhs.typeID && lhs.key == rhs.key
     }
 }
+
+/// Walks the instance's stored properties via Mirror and wires every
+/// `@State` wrapper to `(owner, scheduler)` so its mutations call
+/// `scheduler.markDirty(owner)`.
+///
+/// Called by the diff at first mount of each component anchor (Task 7).
+/// No-op when `scheduler` is nil (used by tests and headless diffing).
+///
+/// **Why Mirror?** Swift doesn't let a property wrapper observe its
+/// enclosing instance directly without an `_enclosingInstance` static
+/// subscript (which is class-only and significantly more boilerplate).
+/// A one-shot Mirror walk at instance-construction time is simpler and
+/// sufficient: components are reference types, so each State<T> wrapper
+/// has a stable address for the lifetime of its owner. The `_setOwner`
+/// method is invoked exactly once per @State per component instance
+/// (guarded by a precondition in State.swift).
+func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
+    guard let scheduler else { return }
+    let mirror = Mirror(reflecting: owner.instance)
+    for child in mirror.children {
+        // Property-wrapper-backed properties surface as `_propertyName`
+        // children whose values are the wrapper class instance itself.
+        // The `as? StateWireable` cast filters out everything that
+        // isn't a @State wrapper.
+        if let wireable = child.value as? StateWireable {
+            wireable._setOwner(owner, scheduler: scheduler)
+        }
+    }
+}

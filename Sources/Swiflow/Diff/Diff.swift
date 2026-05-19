@@ -19,11 +19,19 @@ public struct DiffResult {
 /// apply and the new mount tree to commit. When `mounted` is `nil`, the
 /// function treats every node as fresh and emits `create…` patches for the
 /// entire tree.
+///
+/// The optional `scheduler` parameter is threaded through the entire diff
+/// tree. When non-nil, it is wired into every `@State` property on newly
+/// mounted `Component` instances so that state mutations automatically call
+/// `scheduler.markDirty(owner)`. Existing callers that omit this parameter
+/// continue to work unchanged — the default `nil` preserves the previous
+/// silent-mutation behaviour.
 public func diff(
     mounted: MountNode?,
     next: VNode,
     handles: HandleAllocator,
-    handlers: HandlerRegistry
+    handlers: HandlerRegistry,
+    scheduler: Scheduler? = nil
 ) -> DiffResult {
     var patches: [Patch] = []
     let root: MountNode
@@ -33,10 +41,11 @@ public func diff(
             next: next,
             into: &patches,
             handles: handles,
-            handlers: handlers
+            handlers: handlers,
+            scheduler: scheduler
         )
     } else {
-        root = mount(next, into: &patches, handles: handles, handlers: handlers)
+        root = mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
     }
     return DiffResult(patches: patches, newMountTree: root)
 }
@@ -50,7 +59,8 @@ func mount(
     _ vnode: VNode,
     into patches: inout [Patch],
     handles: HandleAllocator,
-    handlers: HandlerRegistry
+    handlers: HandlerRegistry,
+    scheduler: Scheduler? = nil
 ) -> MountNode {
     switch vnode {
     case .text(let value):
@@ -102,7 +112,8 @@ func mount(
                 childVNode,
                 into: &patches,
                 handles: handles,
-                handlers: handlers
+                handlers: handlers,
+                scheduler: scheduler
             )
             // domHandle (not handle): if the child is a component anchor,
             // the anchor's own handle has no DOM counterpart — we need
@@ -119,9 +130,10 @@ func mount(
         // structural-only — the JS driver never sees it; the body's
         // domHandle is what propagates to parent appendChild patches.
         let instance = desc.instantiate()
+        wireState(on: instance, scheduler: scheduler)
         let anchorHandle = handles.next()
         let bodyVNode = instance.instance.body
-        let bodyMount = mount(bodyVNode, into: &patches, handles: handles, handlers: handlers)
+        let bodyMount = mount(bodyVNode, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
         return MountNode(
             handle: anchorHandle,
             vnode: vnode,
@@ -144,7 +156,8 @@ func update(
     next: VNode,
     into patches: inout [Patch],
     handles: HandleAllocator,
-    handlers: HandlerRegistry
+    handlers: HandlerRegistry,
+    scheduler: Scheduler? = nil
 ) -> MountNode {
     switch (mounted.vnode, next) {
     // Same-kind, same-content: nothing to do.
@@ -183,7 +196,8 @@ func update(
             newChildren: newData.children,
             handles: handles,
             handlers: handlers,
-            into: &patches
+            into: &patches,
+            scheduler: scheduler
         )
         mounted.vnode = next
         return mounted
@@ -203,7 +217,7 @@ func update(
         // fall through to the destroy+remount safety net rather than crash.
         guard let instance = mounted.component, let oldBody = mounted.componentBody else {
             destroy(mounted, into: &patches, handlers: handlers)
-            return mount(next, into: &patches, handles: handles, handlers: handlers)
+            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
         }
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
@@ -218,7 +232,8 @@ func update(
             next: newBodyVNode,
             into: &patches,
             handles: handles,
-            handlers: handlers
+            handlers: handlers,
+            scheduler: scheduler
         )
         mounted.componentBody = newBodyMount
         // Commit the new vnode description so the next render's left-hand
@@ -229,7 +244,7 @@ func update(
     // Any other transition: destroy the old subtree and mount fresh.
     default:
         destroy(mounted, into: &patches, handlers: handlers)
-        return mount(next, into: &patches, handles: handles, handlers: handlers)
+        return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
     }
 }
 
@@ -365,7 +380,8 @@ func diffChildren(
     newChildren: [VNode],
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    into patches: inout [Patch]
+    into patches: inout [Patch],
+    scheduler: Scheduler? = nil
 ) {
     if hasAnyKey(mounted.children) || hasAnyKey(newChildren) {
         diffChildrenKeyed(
@@ -373,7 +389,8 @@ func diffChildren(
             newChildren: newChildren,
             handles: handles,
             handlers: handlers,
-            into: &patches
+            into: &patches,
+            scheduler: scheduler
         )
     } else {
         diffChildrenIndexed(
@@ -381,7 +398,8 @@ func diffChildren(
             newChildren: newChildren,
             handles: handles,
             handlers: handlers,
-            into: &patches
+            into: &patches,
+            scheduler: scheduler
         )
     }
 }

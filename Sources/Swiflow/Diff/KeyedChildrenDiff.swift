@@ -17,7 +17,8 @@ func diffChildrenKeyed(
     newChildren: [VNode],
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    into patches: inout [Patch]
+    into patches: inout [Patch],
+    scheduler: Scheduler? = nil
 ) {
     var oldStart = 0
     var newStart = 0
@@ -36,7 +37,8 @@ func diffChildrenKeyed(
             next: newChildren[newStart],
             into: &patches,
             handles: handles,
-            handlers: handlers
+            handlers: handlers,
+            scheduler: scheduler
         )
         if updated !== oldChild {
             // Cross-kind replacement (same key, different tag/kind).
@@ -83,7 +85,8 @@ func diffChildrenKeyed(
             next: newChildren[newEnd],
             into: &patches,
             handles: handles,
-            handlers: handlers
+            handlers: handlers,
+            scheduler: scheduler
         )
         if updated !== oldChild {
             // Cross-kind replacement in the suffix scan. Same fix as the
@@ -131,7 +134,8 @@ func diffChildrenKeyed(
                 newChildren[i],
                 into: &patches,
                 handles: handles,
-                handlers: handlers
+                handlers: handlers,
+                scheduler: scheduler
             )
             if let before = beforeHandle {
                 patches.append(.insertBefore(parent: mounted.handle, child: child.handle, beforeChild: before))
@@ -213,7 +217,8 @@ func diffChildrenKeyed(
                 next: newChild,
                 into: &patches,
                 handles: handles,
-                handlers: handlers
+                handlers: handlers,
+                scheduler: scheduler
             )
             if updated !== reused {
                 // Cross-kind replacement: same key but different tag/kind.
@@ -247,7 +252,8 @@ func diffChildrenKeyed(
                 newChild,
                 into: &patches,
                 handles: handles,
-                handlers: handlers
+                handlers: handlers,
+                scheduler: scheduler
             )
             newSlice[i] = fresh
             // newToOldIndex[i] stays -1 to mark "fresh mount, must insert".
