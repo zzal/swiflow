@@ -86,6 +86,35 @@ struct InitCommandTests {
         #expect(pkg.contains(#".package(path: "/abs/path/to/swiflow")"#))
     }
 
+    @Test("Generated App.swift uses Counter: Component with @State (Phase 3)")
+    func appSwiftIsCounterComponent() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try ProjectWriter.writeProject(
+            name: "Demo",
+            into: tmp,
+            swiflowSource: "../..",
+            jsDriverSource: "// driver\n"
+        )
+
+        let app = try String(
+            contentsOf: tmp.appendingPathComponent("Demo/Sources/App/App.swift"),
+            encoding: .utf8
+        )
+        #expect(app.contains("final class Counter: Component"))
+        #expect(app.contains("@State var count: Int = 0"))
+        #expect(app.contains("Swiflow.render(Counter()"))
+        // The comment in the template mentions "Swiflow.rerender()" to explain it
+        // is absent as a call; check that there is no actual call-site (i.e. the
+        // pattern followed by a newline or preceded by whitespace as a statement).
+        let hasRerenderCall = app.contains("Swiflow.rerender()\n") || app.contains("            Swiflow.rerender()")
+        #expect(!hasRerenderCall,
+                "Phase 3 Counter shouldn't need explicit rerender — @State handles it")
+        #expect(!app.contains("var count = 0\n") && !app.contains("var count: Int = 0\n@"),
+                "Phase 2a global `var count` should be gone")
+    }
+
     // MARK: - Helpers
 
     fileprivate static func makeTempDir() throws -> URL {

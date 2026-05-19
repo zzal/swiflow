@@ -86,38 +86,39 @@ enum Templates {
 
     private static let rawAppSwift: String = #"""
         // Sources/App/App.swift
+        import Swiflow
         import SwiflowWeb
 
-        // Mutable counter shared with the click handler. Phase 3 will replace this
-        // with `@State`; for Phase 2a the spec's Hello World uses an explicit
-        // `Swiflow.rerender()` call so the bridge path is exercised end-to-end.
-        //
-        // `@MainActor` keeps Swift 6's strict-concurrency check happy: the browser
-        // runs everything on a single thread, so pinning this to MainActor reflects
-        // reality and silences `#MutableGlobalVariable`.
-        @MainActor
-        var count = 0
+        /// Phase 3 Hello World — a Component with @State.
+        ///
+        /// Compared to Phase 2a:
+        /// - State lives on the Component (was a global `var`).
+        /// - No explicit Swiflow.rerender() call — mutating `@State count`
+        ///   schedules a re-render automatically via the RAFScheduler.
+        // @unchecked Sendable: WASM runs on a single thread; there are no real
+        // concurrent accesses. This annotation silences Swift 6's transfer
+        // checker so the `[weak self]` capture inside `MainActor.assumeIsolated`
+        // is accepted without unsafe workarounds.
+        final class Counter: Component, @unchecked Sendable {
+            @State var count: Int = 0
 
-        @MainActor
-        func view() -> VNode {
-            div(.class("container")) {
-                h1("Hello, Swiflow!")
-                p("Count: \(count)")
-                button(
-                    "Increment",
-                    // `MainActor.assumeIsolated` is safe here: the JS driver invokes
-                    // every event listener synchronously on the only thread the WASM
-                    // runtime owns, which the Swift runtime treats as the main actor.
-                    // Using `Task { @MainActor in ... }` would defer the increment to
-                    // a later event-loop turn and break the synchronous `rerender()`
-                    // expectation.
-                    .on("click", Swiflow.handlers.register { _ in
-                        MainActor.assumeIsolated {
-                            count += 1
-                            Swiflow.rerender()
-                        }
-                    })
-                )
+            var body: VNode {
+                div(.class("container")) {
+                    h1("Hello, Swiflow!")
+                    p("Count: \(count)")
+                    button(
+                        "Increment",
+                        // `MainActor.assumeIsolated` is safe here: the JS driver
+                        // invokes every event listener synchronously on the only
+                        // thread the WASM runtime owns, which the Swift runtime
+                        // treats as the main actor.
+                        .on("click", Swiflow.handlers.register { [weak self] _ in
+                            MainActor.assumeIsolated {
+                                self?.count += 1
+                            }
+                        })
+                    )
+                }
             }
         }
 
@@ -125,7 +126,7 @@ enum Templates {
         struct App {
             @MainActor
             static func main() {
-                Swiflow.render(view, into: "#app")
+                Swiflow.render(Counter(), into: "#app")
             }
         }
 
