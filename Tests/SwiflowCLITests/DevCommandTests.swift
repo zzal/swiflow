@@ -1,6 +1,14 @@
 // Tests/SwiflowCLITests/DevCommandTests.swift
 import ArgumentParser
 import Foundation
+// Linux splits URLSession out of Foundation into swift-corelibs-foundation's
+// FoundationNetworking. Without this import, `URLSession.shared` resolves
+// to `AnyObject.shared` (i.e. nothing) and the test target fails to compile.
+// Darwin's Foundation already bundles URLSession so the import doesn't exist
+// there — hence the canImport guard.
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import SwiflowCLI
 
@@ -35,6 +43,18 @@ struct DevCommandTests {
 }
 
 // MARK: - End-to-end (requires WASM SDK)
+
+// The e2e test is Apple-only because URLSession.webSocketTask(with:) on
+// swift-corelibs-foundation (Linux) is either unimplemented or stubs out
+// — runtime hangs and "unimplemented" exceptions, depending on Swift
+// version. Rather than pull in AsyncHTTPClient + a WS client just for
+// this one test, scope the suite to Darwin. Linux CI still gets:
+//   - all unit tests in this file (argv parsing)
+//   - BuildCommandIntegrationTests (the init+build e2e, no WS needed)
+//   - all DevServer component tests (FileWatcher, HTTPRouter, hub, etc.)
+// If a Linux user breaks the dev server, BuildCommandIntegrationTests
+// + the component tests still catch the structural regressions.
+#if canImport(Darwin)
 
 @Suite("DevCommand end-to-end (requires WASM SDK)")
 struct DevCommandIntegrationTests {
@@ -154,3 +174,5 @@ struct DevCommandIntegrationTests {
         }
     }
 }
+
+#endif // canImport(Darwin)

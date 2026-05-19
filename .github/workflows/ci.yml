@@ -17,20 +17,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Swift 6.3
-        # Use vapor/swiftly-action (delegates to the official `swiftly`
-        # toolchain manager) instead of swift-actions/setup-swift. The
-        # latter's v2 hard-codes a version list whose ceiling is 6.2.1,
-        # so it errors with `Version "6.3" is not available`. Swiftly
-        # tracks the canonical swift.org index and supports every
-        # released toolchain.
-        #
-        # macos-14 must still install Swift explicitly (its bundled
-        # Xcode 15.x ships a Swift that lacks the usable `swift sdk`
-        # subcommand the next step needs). Linux has no system Swift.
+      - name: Set up Swift 6.3 (Linux)
+        # vapor/swiftly-action delegates to the official `swiftly`
+        # toolchain manager, which tracks the canonical swift.org
+        # index and supports every released toolchain (unlike
+        # swift-actions/setup-swift@v2, whose hard-coded version list
+        # tops out at 6.2.1).
+        if: runner.os == 'Linux'
         uses: vapor/swiftly-action@v0.2.1
         with:
           toolchain: "6.3"
+
+      - name: Set up Swift 6.3 (macOS)
+        # vapor/swiftly-action's deps-install step assumes
+        # apt/dnf/yum and exits 1 on macOS ("Couldn't figure out how
+        # to run the system package manager."), so we install swiftly
+        # directly from swift.org. CurrentUserHomeDirectory targets
+        # the per-user install path (no sudo needed for the bin dir).
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fsSL -o /tmp/swiftly.pkg https://download.swift.org/swiftly/darwin/swiftly.pkg
+          installer -pkg /tmp/swiftly.pkg -target CurrentUserHomeDirectory
+          SWIFTLY_BIN="$HOME/Library/Application Support/swiftly/bin"
+          "$SWIFTLY_BIN/swiftly" init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
+          "$SWIFTLY_BIN/swiftly" install --use 6.3 --post-install-file=/dev/null
+          echo "$SWIFTLY_BIN" >> "$GITHUB_PATH"
+          TOOLCHAIN_BIN_DIR="$("$SWIFTLY_BIN/swiftly" use --print-location)/usr/bin"
+          echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
         run: swift --version
