@@ -174,3 +174,74 @@ jobs:
       - name: Run JS driver tests
         working-directory: js-driver
         run: npm test
+
+  playwright-e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-22.04
+    # PR-only: Playwright + Chromium binaries + a full WASM build is
+    # expensive; gate behind the merge boundary.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Swift 6.3.0
+        uses: vapor/swiftly-action@v0.2.1
+        with:
+          toolchain: "6.3.0"
+
+      - name: Cache SwiftPM build + WASM SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.cache/org.swift.swiftpm
+            ~/.config/swiftpm/swift-sdks
+          key: ${{ runner.os }}-swift6.3.0-wasm6.3.0-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift6.3.0-wasm6.3.0-
+
+      - name: Install WASM SDK (if not cached)
+        run: |
+          if swift sdk list 2>/dev/null | grep -q "swift-6.3-RELEASE_wasm$"; then
+            echo "WASM SDK already installed (cache hit)."
+          else
+            swift sdk install \
+              https://download.swift.org/swift-6.3-release/wasm-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_wasm.artifactbundle.tar.gz \
+              --checksum 9fa4016ee632c7e9e906608ec3b55cf13dfc4dff44e47574c5af58064dc33fd9
+          fi
+
+      - name: Build swiflow CLI
+        run: swift build -c release --product swiflow
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Tests/playwright/package.json
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-v1.50
+
+      - name: Install Playwright deps
+        working-directory: Tests/playwright
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright browsers
+        working-directory: Tests/playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright e2e
+        working-directory: Tests/playwright
+        run: npm test
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: Tests/playwright/test-results/
+          retention-days: 14
