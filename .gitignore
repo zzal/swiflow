@@ -5,3 +5,5 @@
 Package.resolved
 .idea/
 .vscode/
+node_modules/
+Tests/playwright/test-results/

@@ -20,6 +20,32 @@ func diffChildrenKeyed(
     into patches: inout [Patch],
     scheduler: Scheduler? = nil
 ) {
+    // Diagnostic pre-pass: detect duplicate keys among the new children.
+    // Keys MUST be unique within a parent — duplicates cause the keyed
+    // diff to pick wrong moves (last-write-wins on the position map).
+    // Both .element and .component children can carry a key; .text and
+    // .rawHTML cannot. diagKeyAndIsKeyable() (Diff.swift, internal scope)
+    // handles the discrimination.
+    #if DEBUG
+    do {
+        var seen: [String: Int] = [:]
+        for (index, child) in newChildren.enumerated() {
+            let (key, _) = diagKeyAndIsKeyable(child)
+            guard let key else { continue }
+            if let firstIndex = seen[key] {
+                let parentTag: String
+                if case .element(let parentData) = mounted.vnode {
+                    parentTag = parentData.tag
+                } else {
+                    parentTag = "<root>"
+                }
+                swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(parentTag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
+            }
+            seen[key] = index
+        }
+    }
+    #endif
+
     var oldStart = 0
     var newStart = 0
     var oldEnd = mounted.children.count - 1
@@ -168,36 +194,9 @@ func diffChildrenKeyed(
     // new-side check at lines ~176-186 so both sites have identical behavior
     // across configurations.
     var keyToOldIndex: [String: Int] = [:]
-    #if DEBUG
-    for i in oldStart...oldEnd {
-        let key = keyOf(mounted.children[i])
-        assert(
-            keyToOldIndex[key] == nil,
-            "Swiflow: duplicate key '\(key)' in keyed children list. " +
-            "Each child's `.key(_:)` must be unique within its parent — " +
-            "the diff will silently destroy one of the duplicates."
-        )
-        keyToOldIndex[key] = i
-    }
-    #else
     for i in oldStart...oldEnd {
         keyToOldIndex[keyOf(mounted.children[i])] = i
     }
-    #endif
-
-    // Also catch duplicates on the *new* side, where the same destructive
-    // effect happens via the reuse loop's `removeValue(forKey:)`.
-    #if DEBUG
-    var seenNewKeys = Set<String>()
-    for i in 0..<newMiddleCount {
-        let key = keyOf(newChildren[newStart + i])
-        assert(
-            seenNewKeys.insert(key).inserted,
-            "Swiflow: duplicate key '\(key)' in new keyed children list. " +
-            "Each child's `.key(_:)` must be unique within its parent."
-        )
-    }
-    #endif
 
     // For each position in the new middle, record either the old index it
     // reuses (so LIS can decide whether it must move) or `-1` for a fresh

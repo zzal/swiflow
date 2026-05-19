@@ -50,6 +50,20 @@ public func diff(
     return DiffResult(patches: patches, newMountTree: root)
 }
 
+// MARK: - Diagnostic helpers (debug key-validation, shared across Diff.swift
+//         and KeyedChildrenDiff.swift)
+
+/// Returns the key and keyability of a VNode for sibling-key diagnostics.
+/// `.element` and `.component` children can carry a key; `.text` and `.rawHTML`
+/// cannot. The "isKeyable" flag lets callers skip non-keyable children cleanly.
+func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
+    switch child {
+    case .element(let data): return (data.key, true)
+    case .component(let desc): return (desc.key, true)
+    case .text, .rawHTML: return (nil, false)
+    }
+}
+
 // MARK: - Mount helpers (first render only — Task 9 scope)
 
 /// Creates the DOM-side node and (recursively) all children, appending patches
@@ -60,7 +74,8 @@ func mount(
     into patches: inout [Patch],
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    scheduler: Scheduler? = nil
+    scheduler: Scheduler? = nil,
+    depth: Int = 0
 ) -> MountNode {
     switch vnode {
     case .text(let value):
@@ -107,13 +122,42 @@ func mount(
             handlerIds: handlerIds
         )
 
+        // Diagnostic: validate children key consistency on initial mount.
+        // (On re-render, diffChildren/diffChildrenKeyed carry these checks.)
+        // Both .element and .component children can carry a key; .text and
+        // .rawHTML cannot. diagKeyAndIsKeyable() handles the discrimination.
+        #if DEBUG
+        do {
+            var seenKeys: [String: Int] = [:]
+            for (index, child) in data.children.enumerated() {
+                let (key, _) = diagKeyAndIsKeyable(child)
+                guard let key else { continue }
+                if let firstIndex = seenKeys[key] {
+                    swiflowDiagnostic("Duplicate key '\(key)' among siblings of <\(data.tag)>. Keys must be unique within a parent. Offending positions: \(firstIndex) and \(index).")
+                }
+                seenKeys[key] = index
+            }
+            var keyedCount = 0
+            var unkeyedCount = 0
+            for child in data.children {
+                let (key, isKeyable) = diagKeyAndIsKeyable(child)
+                guard isKeyable else { continue }
+                if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
+            }
+            if keyedCount > 0 && unkeyedCount > 0 {
+                swiflowDiagnostic("Children of <\(data.tag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none.")
+            }
+        }
+        #endif
+
         for childVNode in data.children {
             let childMount = mount(
                 childVNode,
                 into: &patches,
                 handles: handles,
                 handlers: handlers,
-                scheduler: scheduler
+                scheduler: scheduler,
+                depth: depth
             )
             // domHandle (not handle): if the child is a component anchor,
             // the anchor's own handle has no DOM counterpart — we need
@@ -125,6 +169,14 @@ func mount(
         return mountNode
 
     case .component(let desc):
+        // Diagnostic: depth guard catches `body` cycles like
+        // `component({ self })` or A.body → component(B); B.body → component(A).
+        // 32 nested anchors is already absurd — cycles always exceed it.
+        #if DEBUG
+        if depth >= 32 {
+            swiflowDiagnostic("Component anchor depth exceeded 32. This usually means a component's body returned a VNode.component anchor cycle (e.g. body returns `component({ self })`). Bodies must terminate at non-component VNodes.")
+        }
+        #endif
         // Anchor handle allocated FIRST (parent-before-child, matching the
         // .element branch's allocation order). The anchor handle is
         // structural-only — the JS driver never sees it; the body's
@@ -133,7 +185,14 @@ func mount(
         wireState(on: instance, scheduler: scheduler)
         let anchorHandle = handles.next()
         let bodyVNode = instance.instance.body
-        let bodyMount = mount(bodyVNode, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
+        let bodyMount = mount(
+            bodyVNode,
+            into: &patches,
+            handles: handles,
+            handlers: handlers,
+            scheduler: scheduler,
+            depth: depth + 1
+        )
         return MountNode(
             handle: anchorHandle,
             vnode: vnode,
@@ -406,6 +465,32 @@ func diffChildren(
     into patches: inout [Patch],
     scheduler: Scheduler? = nil
 ) {
+    // Diagnostic: detect mixed keyed/unkeyed siblings. Either every
+    // sibling has a key, or none — partial keying gives unkeyed
+    // children unstable identity and they re-render as recreated.
+    // Both .element and .component children can carry a key; .text and
+    // .rawHTML cannot. diagKeyAndIsKeyable() handles the discrimination.
+    #if DEBUG
+    do {
+        var keyedCount = 0
+        var unkeyedCount = 0
+        for child in newChildren {
+            let (key, isKeyable) = diagKeyAndIsKeyable(child)
+            guard isKeyable else { continue }
+            if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
+        }
+        if keyedCount > 0 && unkeyedCount > 0 {
+            let parentTag: String
+            if case .element(let parentData) = mounted.vnode {
+                parentTag = parentData.tag
+            } else {
+                parentTag = "<root>"
+            }
+            swiflowDiagnostic("Children of <\(parentTag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none.")
+        }
+    }
+    #endif
+
     if hasAnyKey(mounted.children) || hasAnyKey(newChildren) {
         diffChildrenKeyed(
             mounted: mounted,

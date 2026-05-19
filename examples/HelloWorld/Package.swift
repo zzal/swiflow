@@ -3,6 +3,11 @@ import PackageDescription
 
 let package = Package(
     name: "HelloWorld",
+    // Required because this app links SwiflowWeb, which transitively pulls
+    // Hummingbird 2.x (macOS 14+). Without this floor, `swift build` fails
+    // with "executable 'App' requires macos 10.13, but depends on the
+    // product 'SwiflowWeb' which requires macos 14.0".
+    platforms: [.macOS(.v14)],
     products: [
         .executable(name: "App", targets: ["App"]),
     ],

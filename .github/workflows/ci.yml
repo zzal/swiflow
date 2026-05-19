@@ -29,21 +29,33 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # Push events run Linux only; macOS only runs on PRs. macOS minutes
-    # bill at 10x the rate of Linux on the GHA free tier, so every push
-    # to main would otherwise eat ~50 billed minutes per run. Linux still
-    # catches the vast majority of regressions (compile, unit tests,
-    # init+build e2e). Full cross-OS validation lives at the PR gate.
+    # macOS matrix entry is intentionally disabled.
     #
-    # NB: A job-level `if:` referencing matrix.os doesn't work — `if:`
-    # evaluates before matrix expansion, so `matrix.os` is undefined and
-    # the whole job (every cell) gets skipped, leaving zero jobs running.
-    # The dynamic matrix below selects the OS list at workflow-load time
-    # from github.event_name, which IS available at that point.
+    # Apple's downloadable Swift 6.3 macOS toolchain pkg (what swiftly
+    # installs) ships only the dynamic stdlib — no lib/swift_static/ —
+    # so any package whose graph builds a CompilerPlugin executable
+    # fails the host-side link with "library 'swift_errno' not found"
+    # (here: JavaScriptKit's BridgeJSMacros-tool, which we don't use
+    # directly but which SwiftPM resolves and compiles eagerly).
+    #
+    # Apple bundles the full static stdlib inside Xcode's Swift, so a
+    # follow-up may either:
+    #   (a) replace the swiftly-managed toolchain with Xcode's bundled
+    #       Swift via `xcode-select` (needs Xcode 16.4+ to get Swift
+    #       6.3 to match the WASM SDK pin), or
+    #   (b) drop a static-stdlib overlay into the swiftly toolchain
+    #       from the canonical xtoolchain pkg if one exists upstream.
+    # Track as a Phase 5 hardening task; Linux gates the vast majority
+    # of regressions in the meantime (compile, unit tests, init+build
+    # e2e — and the new Playwright e2e on PRs).
+    #
+    # The dynamic matrix below is kept (rather than removing the
+    # strategy block entirely) so re-enabling macOS later is a
+    # one-line revert.
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04","macos-14"]' || '["ubuntu-22.04"]') }}
+        os: ["ubuntu-22.04"]
     steps:
       - uses: actions/checkout@v4
 
@@ -80,13 +92,22 @@ jobs:
           brew install --quiet swiftly
           swiftly init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
           swiftly install --use 6.3.0 --post-install-file=/dev/null
-          # swiftly normally rewrites shell rc to add Swift to PATH, but
-          # GHA steps don't source shell rc. Locate the toolchain bin
-          # dir explicitly so subsequent steps see the right `swift`.
-          SWIFTLY_HOME="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}"
-          TOOLCHAIN_BIN_DIR="$(find "$SWIFTLY_HOME/toolchains" -name swift -type f -path "*/usr/bin/swift" 2>/dev/null | head -1 | xargs dirname)"
-          echo "Resolved Swift toolchain: $TOOLCHAIN_BIN_DIR"
-          [ -n "$TOOLCHAIN_BIN_DIR" ] || { echo "Could not locate Swift toolchain under $SWIFTLY_HOME/toolchains"; ls -la "$SWIFTLY_HOME/toolchains" 2>/dev/null || true; exit 1; }
+          # swiftly's macOS install layout has changed across versions
+          # (~/.swiftly/toolchains vs ~/Library/Developer/Toolchains vs
+          # neither), so don't hunt for the swift binary with `find` —
+          # ask swiftly itself where its active toolchain's swift lives,
+          # then prepend that directory to the GHA PATH.
+          #
+          # A shim like `exec swiftly run swift "$@"` won't work here:
+          # swift-driver computes its resource directory from argv[0]
+          # (../lib/swift/), so a shim at ~/.local/bin/swift sends the
+          # driver looking in the wrong place and macros fail to link
+          # with "library 'swift_errno' not found".
+          swiftly run swift --version  # sanity check
+          SWIFT_BIN="$(swiftly run bash -c 'command -v swift')"
+          TOOLCHAIN_BIN_DIR="$(dirname "$SWIFT_BIN")"
+          echo "Resolved Swift toolchain bin dir: $TOOLCHAIN_BIN_DIR"
+          [ -x "$TOOLCHAIN_BIN_DIR/swift" ] || { echo "swiftly returned a non-executable swift path: $SWIFT_BIN"; exit 1; }
           echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
@@ -153,3 +174,97 @@ jobs:
 
       - name: Test
         run: swift test --parallel
+
+  js-driver-tests:
+    name: JS Driver Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: js-driver/package-lock.json
+
+      - name: Install JS deps
+        working-directory: js-driver
+        run: npm ci --no-audit --no-fund
+
+      - name: Run JS driver tests
+        working-directory: js-driver
+        run: npm test
+
+  playwright-e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-22.04
+    # PR-only: Playwright + Chromium binaries + a full WASM build is
+    # expensive; gate behind the merge boundary.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Swift 6.3.0
+        uses: vapor/swiftly-action@v0.2.1
+        with:
+          toolchain: "6.3.0"
+
+      - name: Cache SwiftPM build + WASM SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.cache/org.swift.swiftpm
+            ~/.config/swiftpm/swift-sdks
+          key: ${{ runner.os }}-swift6.3.0-wasm6.3.0-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift6.3.0-wasm6.3.0-
+
+      - name: Install WASM SDK (if not cached)
+        run: |
+          if swift sdk list 2>/dev/null | grep -q "swift-6.3-RELEASE_wasm$"; then
+            echo "WASM SDK already installed (cache hit)."
+          else
+            swift sdk install \
+              https://download.swift.org/swift-6.3-release/wasm-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_wasm.artifactbundle.tar.gz \
+              --checksum 9fa4016ee632c7e9e906608ec3b55cf13dfc4dff44e47574c5af58064dc33fd9
+          fi
+
+      - name: Build swiflow CLI
+        run: swift build -c release --product swiflow
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Tests/playwright/package-lock.json
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('Tests/playwright/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright deps
+        working-directory: Tests/playwright
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: Tests/playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright e2e
+        working-directory: Tests/playwright
+        run: npm test
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: Tests/playwright/test-results/
+          retention-days: 14
