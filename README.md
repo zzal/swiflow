@@ -47,12 +47,13 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 5 (API Polish) complete. The framework is feature-complete
-through Phase 3 (Component + `@State` reactivity + RAFScheduler), hardened
-in Phase 4 (URL sanitizer, debug diagnostics, DWARF guide, JS-driver units,
-Playwright e2e), and polished in Phase 5 — `@MainActor` Component, typed
-`Event` enum, `.on(.click) { … }` handler API, `embed { … }`, factory-based
-`Swiflow.render(into:) { Counter() }`, postfix VNode modifiers.
+**Status:** Phase 6 (Trust & Polish) complete. Phase 5's API surface is
+intact; Phase 6 closed the credibility-erosion punch list — `attr(_:_:Bool)`
+now omits the attribute on `false`, `Binding<Value>` is hidden from
+autocomplete until Phase 7 ships its consumer, the `final class` template
+carries a one-line rationale, the `embed { }` factory contract is loud
+(with a DEBUG diagnostic), and the README carries an honest Current State
+section.
 
 ## Quick start
 
