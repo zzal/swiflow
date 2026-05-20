@@ -13,6 +13,11 @@ public enum Attribute {
     case handler(event: String, value: EventHandler)
     /// A stable identity used by the keyed children diff.
     case key(String)
+    /// Internal sentinel produced by overloads that need to *omit* an
+    /// attribute given a runtime condition (e.g. `attr(_:_:Bool)` with
+    /// `false`). `applyAttributes` drops these during the fold; they
+    /// never reach `ElementData`. Not for general use.
+    case skip
 
     // Convenience factories.
 
@@ -32,14 +37,12 @@ public enum Attribute {
     }
 
     /// Sets an HTML boolean attribute. HTML boolean attributes are
-    /// presence-or-absent (`disabled`, `checked`, `readonly` — `disabled="false"`
-    /// is wrong DOM semantics). This overload writes an empty string when
-    /// `value` is `true`. **When `value` is `false`, the caller should gate
-    /// the modifier at the call site (`if isDisabled { .attr("disabled", true) }`)**
-    /// rather than passing `false` here — `false` still emits the attribute
-    /// with an empty string, which the browser treats as truthy.
+    /// presence-or-absent (`disabled`, `checked`, `readonly`). Emits a
+    /// presence-only attribute (empty-string value) when `value` is
+    /// `true`; omits the attribute entirely when `value` is `false`.
+    /// Matches HTML semantics — no call-site gating required.
     public static func attr(_ name: String, _ value: Bool) -> Attribute {
-        .attribute(name: name, value: value ? "" : "")
+        value ? .attribute(name: name, value: "") : .skip
     }
 
     /// Convenience for `data-*` attributes. `.data("user-id", "42")` emits
@@ -120,6 +123,8 @@ func applyAttributes(
             handlers[event] = value
         case .key(let value):
             key = value
+        case .skip:
+            continue
         }
     }
 

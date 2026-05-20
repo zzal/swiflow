@@ -38,9 +38,11 @@ public extension VNode {
         mergeAttribute(self) { $0.attributes[name] = String(value) }
     }
 
-    /// Adds (or overwrites) an HTML attribute (boolean: empty string written when true).
+    /// Adds (or overwrites) a presence-only HTML boolean attribute when
+    /// `value` is `true`; omits the attribute entirely when `false`.
     func attr(_ name: String, _ value: Bool) -> VNode {
-        mergeAttribute(self) { $0.attributes[name] = value ? "" : "" }
+        guard value else { return self }
+        return mergeAttribute(self) { $0.attributes[name] = "" }
     }
 
     /// Adds (or overwrites) an HTML attribute (double value, stringified).
