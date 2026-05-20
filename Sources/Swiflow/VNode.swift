@@ -110,18 +110,37 @@ public struct EventHandler: Equatable {
 /// Runtime DOM event payload surfaced into Swift handlers.
 ///
 /// The two-argument `.on(_:perform:)` modifier passes one of these to the
-/// user closure. The event-name catalog (`Event` enum, added in a later task)
-/// selects WHICH event to listen for; `EventInfo` carries the runtime payload
-/// (type string, the target's value for form inputs).
+/// user closure. `EventInfo` is the runtime payload (type + value/checked
+/// snapshots); the `Event` enum selects which event to listen for.
 public struct EventInfo: Equatable, Sendable {
-    /// DOM event name (e.g. `"click"`, `"input"`).
+    /// DOM event name (e.g. `"click"`, `"input"`, `"change"`).
     public let type: String
-    /// Convenience snapshot of `event.target.value` for form inputs; `nil` for
-    /// events without a value-bearing target.
+
+    /// Snapshot of `event.target.value` for form inputs; `nil` for events
+    /// without a value-bearing target.
     public let targetValue: String?
 
-    public init(type: String, targetValue: String? = nil) {
+    /// Snapshot of `event.target.checked` for checkbox/radio inputs;
+    /// `nil` for events without a `checked` property on the target.
+    public let targetChecked: Bool?
+
+    public init(
+        type: String,
+        targetValue: String? = nil,
+        targetChecked: Bool? = nil
+    ) {
         self.type = type
         self.targetValue = targetValue
+        self.targetChecked = targetChecked
+    }
+
+    /// `targetValue` parsed as an `Int`; `nil` if absent or unparseable.
+    public var targetIntValue: Int? {
+        targetValue.flatMap(Int.init)
+    }
+
+    /// `targetValue` parsed as a `Double`; `nil` if absent or unparseable.
+    public var targetDoubleValue: Double? {
+        targetValue.flatMap(Double.init)
     }
 }

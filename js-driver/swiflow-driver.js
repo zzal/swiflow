@@ -48,15 +48,21 @@
   }
 
   /**
-   * Serialize a DOM event into the minimal shape Swift expects.
-   * Phase 1's EventInfo has type + optional targetValue; everything else is
-   * deferred to Phase 3.
+   * Serialize a DOM event into the shape Swift expects.
+   * EventInfo carries: type, optional targetValue (for value-bearing
+   * inputs), and optional targetChecked (for checkbox/radio inputs).
    */
   function serializeEvent(event) {
     const target = event.target;
     const targetValue =
       target && "value" in target ? String(target.value) : null;
-    return { type: event.type, targetValue: targetValue };
+    const targetChecked =
+      target && "checked" in target ? Boolean(target.checked) : null;
+    return {
+      type: event.type,
+      targetValue: targetValue,
+      targetChecked: targetChecked,
+    };
   }
 
   /**

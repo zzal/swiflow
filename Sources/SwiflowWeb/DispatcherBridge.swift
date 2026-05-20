@@ -22,8 +22,8 @@ enum DispatcherBridge {
         guard installed == nil else { return }
 
         let closure = JSClosure { args -> JSValue in
-            // Defensive: silently no-op on malformed payloads. The driver
-            // (Task 7) is the only caller and always provides both args.
+            // Defensive: silently no-op on malformed payloads. The driver is
+            // the only caller and always provides both args.
             guard
                 args.count >= 2,
                 let handlerId = args[0].number.map({ Int($0) }),
@@ -34,10 +34,15 @@ enum DispatcherBridge {
 
             let type = payload.type.string ?? ""
             let targetValue = payload.targetValue.string
+            let targetChecked = payload.targetChecked.boolean
 
             registry.dispatch(
                 id: handlerId,
-                event: EventInfo(type: type, targetValue: targetValue)
+                event: EventInfo(
+                    type: type,
+                    targetValue: targetValue,
+                    targetChecked: targetChecked
+                )
             )
 
             // Returning a JSValue from the closure is required by JSClosure's
