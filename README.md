@@ -7,6 +7,46 @@ Swiflow batches all DOM mutations from a Swift-WASM render cycle into a single
 patch list and ships them across the JS bridge in one leap — making
 Swift-on-the-web fast and frictionless.
 
+## Current State
+
+Swiflow is **pre-1.0**. The DX uplift plan
+([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
+drives the roadmap to 1.0 across phases 6 through 13.
+
+**What works today (Phase 6):**
+- Reactive Components with `@State` and the typed `Event` DSL —
+  `.on(.click) { self.count += 1 }`.
+- `URLSanitizer`-protected DSL fold (XSS-safe by default).
+- `swiflow init` scaffold + `swiflow build` (WASM SDK auto-probe) +
+  `swiflow dev` (file-watch + full-page reload).
+- 286+ tests, Playwright e2e, DWARF debugging guide.
+
+**What's not in the box yet:**
+- **HMR** (instant save→pixels) — Phase 8. Today's dev loop is a full
+  page reload on every save; component state is lost.
+- **Two-way input binding** `input(.value($text))` — Phase 7.
+- **Refs** `Ref<Element>` — Phase 7.
+- **Component inspector / devtools** — Phase 9.
+- **`@Environment` / context DI** — Phase 10.
+- **Router** (`SwiflowRouter`) — Phase 11.
+- **Scoped CSS, animation primitives, form validation** — Phase 12.
+- **Multi-root rendering, lazy components, component testing harness,
+  macro diagnostics** — Phase 13.
+
+**Costs you should know:**
+- **WASM bundle (Counter example, release):** ~59 MB (`.wasm` only);
+  ~59 MB total payload with the JS runtime. Order-of-magnitude
+  larger than a Vite-built JS app — that's the Swift-on-WASM tax.
+- **Cold build:** ~80s (`swift package clean` then
+  `swift package --swift-sdk <wasm-sdk> js -c release` from the
+  example project).
+- **Hot rebuild (single source touched):** ~8s. Phase 8's HMR
+  will replace the full reload with a hot module swap that preserves
+  `@State`.
+
+Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
+Run the same commands locally to calibrate for your hardware.
+
 **Status:** Phase 5 (API Polish) complete. The framework is feature-complete
 through Phase 3 (Component + `@State` reactivity + RAFScheduler), hardened
 in Phase 4 (URL sanitizer, debug diagnostics, DWARF guide, JS-driver units,
