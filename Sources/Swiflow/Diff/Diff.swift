@@ -184,6 +184,17 @@ func mount(
         // structural-only — the JS driver never sees it; the body's
         // domHandle is what propagates to parent appendChild patches.
         let instance = desc.instantiate()
+        // Diagnostic: detect `embed { self.existingCounter }` — a factory
+        // that returns an already-mounted instance. The Mirror-based
+        // @State owner wiring is keyed by the component the framework
+        // believes lives at this slot, so reusing a mounted instance
+        // silently corrupts state lifecycle. See ComponentDSL.swift for
+        // the factory contract.
+        #if DEBUG
+        if !MountedInstances.register(instance.instance) {
+            swiflowDiagnostic("embed { } factory returned an already-mounted Component instance. Factories must allocate a fresh instance per call — `{ Counter() }`, not `{ self.existingCounter }`. See Sources/Swiflow/DSL/ComponentDSL.swift for the factory contract.")
+        }
+        #endif
         wireState(on: instance, scheduler: scheduler)
         let anchorHandle = handles.next()
         // Open a handler scope so every `.on(_:perform:)` call inside this
@@ -432,6 +443,11 @@ func destroy(
         // This evicts every handler registered during the component's `body`
         // evaluation, preventing closures from outliving their Component instance.
         handlers.closeScope()
+        // Symmetric with the register call in mount(): drop this instance
+        // from the reused-instance diagnostic tracker.
+        #if DEBUG
+        MountedInstances.unregister(any.instance)
+        #endif
     }
 
     // Recurse into the parallel component-anchor body slot, if any.
