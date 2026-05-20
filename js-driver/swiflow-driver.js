@@ -27,6 +27,9 @@
   /** `${handle}:${event}` → bound listener function (for removal). */
   const listeners = new Map();
 
+  /** Currently mounted CSS selector — set by `mount`, used by HMR. */
+  let mountSelector = null;
+
   /**
    * Parse a raw HTML string into a single DOM node, mirroring the create-side
    * `createRawHTML` logic exactly so that `setRawHTML` produces a node of the
@@ -243,6 +246,7 @@
           "swiflow-driver: mount target '" + selector + "' not found"
         );
       }
+      mountSelector = selector;
       target.appendChild(nodes.get(rootHandle));
     },
 
@@ -291,8 +295,14 @@
         } catch (e) {
           return;
         }
-        if (payload && payload.type === "reload") {
+        if (!payload) return;
+        if (payload.type === "reload") {
           location.reload();
+          return;
+        }
+        if (payload.type === "hmr-swap") {
+          hmrSwap(payload);
+          return;
         }
       };
       ws.onclose = function () {
@@ -307,6 +317,44 @@
         // DevTools console clean during dev-server restarts.
       };
     }
+
+    async function hmrSwap(payload) {
+      const t0 = performance.now();
+      try {
+        const snapshot =
+          window.__swiflow && window.__swiflow.hmrSnapshot
+            ? window.__swiflow.hmrSnapshot()
+            : null;
+        window.__swiflowPendingSnapshot = snapshot;
+
+        // Drop maps + clear DOM mount target via replaceChildren()
+        // (no HTML-property writes — matches the driver's XSS-safe
+        // contract: setRawHTML is the only intentional HTML-writing
+        // site).
+        nodes.clear();
+        listeners.clear();
+        if (mountSelector) {
+          const t = document.querySelector(mountSelector);
+          if (t) t.replaceChildren();
+        }
+
+        // Re-import the new entry. Browsers cache ES-module imports
+        // by URL, so the cache-busting query is what makes the new
+        // module load fresh. Await it so failures fall through to
+        // catch and trigger the reload fallback.
+        await import(payload.jsURL);
+
+        const dt = (performance.now() - t0).toFixed(1);
+        console.log("[swiflow] hmr-swap took " + dt + "ms");
+      } catch (e) {
+        console.warn(
+          "[swiflow] HMR swap failed, falling back to full reload:",
+          e
+        );
+        location.reload();
+      }
+    }
+
     connect();
   }
 })();
