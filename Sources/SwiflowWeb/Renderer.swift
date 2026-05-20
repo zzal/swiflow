@@ -44,6 +44,19 @@ final class Renderer {
     /// the first render.
     var mountTree: MountNode?
 
+    /// Cumulative count of `renderOnce()` calls since this Renderer was created.
+    /// Read by `DevAPI` to populate `__swiflow.perf().renders`.
+    private(set) var renderCount: Int = 0
+
+    /// Count of patches emitted by the most recent `renderOnce()` call.
+    /// Read by `DevAPI` to populate `__swiflow.perf().lastPatchCount`.
+    private(set) var lastPatchCount: Int = 0
+
+    /// Wall-clock duration of the most recent `renderOnce()` call, in milliseconds.
+    /// Measured via `window.performance.now()`. Read by `DevAPI` to populate
+    /// `__swiflow.perf().lastRenderMs`.
+    private(set) var lastRenderMs: Double = 0
+
     /// Heap-allocated cell that allows the Phase 3 init to assign the
     /// `RAFScheduler` after `self` is fully initialised — required because
     /// the scheduler closure needs a weak reference to `self`, which can only
@@ -132,6 +145,7 @@ final class Renderer {
             )
         }
 
+        let renderStartMs = JSObject.global.performance.now().number ?? 0
         let result = diff(
             mounted: mountTree,
             next: nextVNode,
@@ -139,6 +153,9 @@ final class Renderer {
             handlers: handlers,
             scheduler: _schedulerBox.value
         )
+        lastPatchCount = result.patches.count
+        renderCount += 1
+        lastRenderMs = (JSObject.global.performance.now().number ?? 0) - renderStartMs
 
         // Encode patches to a JSArray and ship across the bridge.
         let jsArray = JSObject.global.Array.function!.new()
