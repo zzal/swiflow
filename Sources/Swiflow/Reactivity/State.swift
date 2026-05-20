@@ -21,6 +21,13 @@ protocol StateWireable: AnyObject {
     /// instantiation but before the first `body` evaluation, so no
     /// scheduler notification is needed.
     func _hmrRestore(_ newValue: Any) -> Bool
+
+    /// HMR nil restore: sets the storage to `Optional.none`. Only
+    /// meaningful for `@State var foo: T?`; returns false immediately
+    /// for non-Optional `Value`. Called by `HMRWalker.applyRestore`
+    /// when the decoded state map contains an `HMRNilSentinel` — the
+    /// signal that this field was `nil` at snapshot time.
+    func _hmrRestoreNil() -> Bool
 }
 
 /// Reactive state for a Component. Mutating `wrappedValue` flags the
@@ -164,16 +171,71 @@ extension State {
     public func _hmrSnapshotValueImpl() -> Any { storage.value }
 
     /// HMR restore. See `StateWireable._hmrRestore(_:)`. Returns false
-    /// when `newValue` cannot be cast to `Value`; the caller falls
-    /// back to the declared initial value for that field.
+    /// when `newValue` cannot be reconciled to `Value`.
+    ///
+    /// Numeric coercions handle the JS bridge round-trip: `decodeStateMap`
+    /// stores every integral JS number as `Int` (so `@State var count: Int`
+    /// round-trips without loss), but that means an `@State var price: Double`
+    /// whose current value is `42.0` arrives here as `Int(42)`. Two coercion
+    /// branches cover both directions:
+    ///   - `Int → Double` (and `Int → Double?`): most common.
+    ///   - `Double → Int` (and `Double → Int?`): defensive; shouldn't arise
+    ///     from `encodeStateMap` today, but guards future changes.
     public func _hmrRestoreImpl(_ newValue: Any) -> Bool {
-        guard let typed = newValue as? Value else { return false }
-        storage.value = typed
-        return true
+        // Fast path: exact type match (handles Bool, String, non-coerced
+        // Int/Double, all Optional<T> where T matches exactly, and the
+        // Swift-only nil-Optional sentinel `Optional<T>.none as Any`).
+        if let typed = newValue as? Value {
+            storage.value = typed
+            return true
+        }
+        // Int → Double coercion. `Double(i) as? Value` covers both
+        // `Value = Double` and `Value = Double?` in one branch: Swift's
+        // runtime promotes `Double` to `Optional<Double>.some(_)` on
+        // a conditional cast to an Optional destination.
+        if let i = newValue as? Int, let typed = Double(i) as? Value {
+            storage.value = typed
+            return true
+        }
+        // Double → Int coercion. Only integral doubles qualify.
+        if let d = newValue as? Double,
+           d.truncatingRemainder(dividingBy: 1) == 0,
+           let i = Int(exactly: d),
+           let typed = i as? Value {
+            storage.value = typed
+            return true
+        }
+        return false
     }
+
 }
 
 extension State: StateWireable {
     public func _hmrSnapshotValue() -> Any { _hmrSnapshotValueImpl() }
     public func _hmrRestore(_ newValue: Any) -> Bool { _hmrRestoreImpl(newValue) }
+
+    /// Restores this state cell to `Optional.none`. Uses existential
+    /// metatype opening to detect and construct the nil value without
+    /// conditional extensions — critical because protocol witness dispatch
+    /// for class types resolves at a single generic `State<Value>` level
+    /// and would silently select a conditional extension's base (false)
+    /// for every `Value`, including Optional ones.
+    ///
+    /// Steps:
+    ///  1. Cast `Value.self` to `any ExpressibleByNilLiteral.Type` — only
+    ///     succeeds when `Value` is `Optional<T>` (or another nil-literal
+    ///     type, which is exotic and safe to handle identically).
+    ///  2. Call `.init(nilLiteral: ())` on the opened metatype to get the
+    ///     concrete nil value (type-erased as `any ExpressibleByNilLiteral`).
+    ///  3. Cast back to `Value` — always succeeds because the metatype's
+    ///     dynamic type IS `Value.self`.
+    public func _hmrRestoreNil() -> Bool {
+        guard let nilLiteralType = Value.self as? any ExpressibleByNilLiteral.Type else {
+            return false
+        }
+        let nilValue = nilLiteralType.init(nilLiteral: ())
+        guard let typed = nilValue as? Value else { return false }
+        storage.value = typed
+        return true
+    }
 }

@@ -27,7 +27,7 @@ struct HMRShapeChangeTests {
         let index = HMRWalker.indexSnapshots([snap])
 
         let fresh = Bar()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "")
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.x == 0)  // declared initial, not 99
     }
@@ -43,7 +43,7 @@ struct HMRShapeChangeTests {
         let index = HMRWalker.indexSnapshots([snap])
 
         let fresh = Foo()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "")
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.x == 0)  // declared initial, not 17
     }

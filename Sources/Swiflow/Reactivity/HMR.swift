@@ -9,6 +9,20 @@
 
 import Foundation
 
+/// Sentinel placed in a decoded state map when the corresponding JS value
+/// was `null`. Signals that the `@State` field was `Optional.none` at
+/// snapshot time and should be restored to nil rather than left at the
+/// declared initial value.
+///
+/// Produced by `HMRBridge.decodeStateMap` (JS null → `HMRNilSentinel`);
+/// consumed by `HMRWalker.applyRestore` (routes to `_hmrRestoreNil()`
+/// instead of `_hmrRestore(_:)`). The pure-Swift path (no JS bridge)
+/// never produces this sentinel — Swift's own `Optional<T>.none as Any`
+/// round-trips correctly through `as? Value` without needing it.
+public struct HMRNilSentinel: Sendable {
+    public init() {}
+}
+
 /// One row in an HMR snapshot — captures the identifying triple and
 /// the per-`@State` value map for a single Component in the mount
 /// tree. Snapshot arrays are produced by `HMRWalker.snapshot(from:)`
@@ -54,11 +68,17 @@ public struct SnapshotKey: Hashable {
 /// mount-wire site; when no swap is pending, the slot is nil and
 /// the call is a single nil-check.
 ///
+/// The third parameter is the component's `.key` from its
+/// `ComponentDescription` (nil for unkeyed components). Threading the
+/// key ensures that keyed siblings (e.g. list items with `.key("a")`,
+/// `.key("b")`) look up the correct snapshot entry rather than all
+/// resolving against the `key: nil` bucket.
+///
 /// `nonisolated(unsafe)`: closures are not Sendable; the slot is
 /// only read/written from `@MainActor` contexts. Mirrors
 /// `RefResolverInstall` from Phase 7.
 public enum HMRRestoreInstall {
-    public nonisolated(unsafe) static var restore: (@MainActor (AnyComponent, String) -> Void)?
+    public nonisolated(unsafe) static var restore: (@MainActor (AnyComponent, String, String?) -> Void)?
 }
 
 /// Mount-tree HMR helpers. The walker traverses a `MountNode` tree
@@ -149,23 +169,27 @@ public enum HMRWalker {
     }
 
     /// Look up a matching snapshot and apply it to a freshly-instantiated
-    /// Component. Match is by (path, typeName) with key=nil as a fallback.
-    /// Per-field type mismatches are skipped (the field keeps its
-    /// declared initial value) and reported via `swiflowDiagnostic`.
+    /// Component. Match is by (path, typeName, key). Per-field type
+    /// mismatches are skipped (the field keeps its declared initial value)
+    /// and reported via `swiflowDiagnostic`.
     ///
     /// `path` is the same dot-joined child-index format produced by
-    /// `snapshot(from:)`. The caller (SwiflowWeb's diff integration)
-    /// is responsible for tracking the mounting Component's path.
+    /// `snapshot(from:)`. `key` is the component's `.key` from its
+    /// `ComponentDescription` (nil for unkeyed components). The caller
+    /// (Diff's mount path) is responsible for supplying both.
+    ///
+    /// State fields whose decoded value is `HMRNilSentinel` are routed to
+    /// `_hmrRestoreNil()` instead of `_hmrRestore(_:)` — this covers the
+    /// JS-bridge path where `Optional.none` becomes JS `null` then back.
     public static func applyRestore(
         index: [SnapshotKey: [String: Any]],
         to component: AnyComponent,
-        at path: String
+        at path: String,
+        key: String?
     ) {
         let instance = component.instance
         let typeName = String(reflecting: type(of: instance))
-        // v1 matches on (path, typeName) with key=nil (the diff doesn't
-        // have the ComponentDescription's key at this site).
-        let lookupKey = SnapshotKey(path: path, typeName: typeName, key: nil)
+        let lookupKey = SnapshotKey(path: path, typeName: typeName, key: key)
         guard let stateMap = index[lookupKey] else { return }
 
         let mirror = Mirror(reflecting: instance)
@@ -174,7 +198,13 @@ public enum HMRWalker {
             guard let wireable = child.value as? StateWireable else { continue }
             let fieldName = label.hasPrefix("_") ? String(label.dropFirst()) : label
             guard let newValue = stateMap[fieldName] else { continue }
-            let ok = wireable._hmrRestore(newValue)
+            let ok: Bool
+            if newValue is HMRNilSentinel {
+                // JS `null` decoded as sentinel — restore Optional to .none.
+                ok = wireable._hmrRestoreNil()
+            } else {
+                ok = wireable._hmrRestore(newValue)
+            }
             if !ok {
                 swiflowDiagnostic(
                     "HMR restore: type mismatch on \(typeName).\(fieldName) at path '\(path)'. Field reset to its declared initial value."

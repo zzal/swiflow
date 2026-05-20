@@ -198,16 +198,27 @@ package enum HMRBridge {
                 // `_hmrRestore` on `@State var count: Int` accepts the
                 // value. The restore-side `as? Int` cast won't match a
                 // Double, so we synthesize.
+                // Note: `_hmrRestoreImpl` adds a Double↔Int coercion layer
+                // for `@State var price: Double = 0` whose current value
+                // happens to be integral (arrives here as Int). The two
+                // layers are complementary — this side biases toward Int
+                // for the common counter case; restore-side corrects for
+                // Double fields.
                 if n.truncatingRemainder(dividingBy: 1) == 0 && n.isFinite
                     && n >= Double(Int.min) && n <= Double(Int.max) {
                     out[k] = Int(n)
                 } else {
                     out[k] = n
                 }
+            } else if case .null = v {
+                // JS null → sentinel. `_hmrRestoreNil()` on the target
+                // @State field will write `Optional.none` if `Value` is
+                // Optional; non-Optional fields return false and emit a
+                // diagnostic (shouldn't happen unless the snapshot is
+                // from a mismatched build).
+                out[k] = HMRNilSentinel()
             }
-            // JS null / non-primitive — skip (Optional restore falls
-            // back to declared initial, which for String? is nil; that
-            // matches the Counter template's needs in v1).
+            // Other JS values (objects, functions, undefined) — skip.
         }
         return out
     }

@@ -32,13 +32,70 @@ struct HMRRoundTripTests {
         let index = HMRWalker.indexSnapshots(snaps)
 
         let fresh = Demo()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "")
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.s == "hello")
         #expect(fresh.i == 42)
         #expect(fresh.d == 3.14)
         #expect(fresh.b == true)
         #expect(fresh.os == "optional")
+    }
+
+    @Test("_hmrRestore coerces Int → Double for integral values from JS bridge")
+    func intToDoubleCoercion() {
+        // Simulates the JS bridge path: decodeStateMap stores `42.0` as
+        // `Int(42)` (all integral JS numbers are Int-biased). Without the
+        // coercion added in the Blocker 2 fix, `Int(42) as? Double` is nil
+        // and the field silently reverts to its declared initial (0.0).
+        final class Prices: Component {
+            @State var price: Double = 0.0
+            @State var optPrice: Double? = nil
+            var body: VNode { .text("") }
+        }
+        let snap = ComponentSnapshot(
+            path: "",
+            typeName: String(reflecting: Prices.self),
+            key: nil,
+            state: [
+                "price": Int(42),       // would arrive as Int from decodeStateMap
+                "optPrice": Int(7),     // Double? receiving Int
+            ]
+        )
+        let index = HMRWalker.indexSnapshots([snap])
+        let fresh = Prices()
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+
+        #expect(fresh.price == 42.0)
+        #expect(fresh.optPrice == 7.0)
+    }
+
+    @Test("applyRestore restores nil Optional via HMRNilSentinel (JS bridge path)")
+    func nilSentinelRestoresOptionalToNone() {
+        // Simulates the JS bridge path: decodeStateMap decodes JS `null` as
+        // HMRNilSentinel. Without the Blocker 3 fix, the sentinel is routed
+        // through _hmrRestore which can't match it to String?, so the field
+        // is silently left at the declared initial ("before-restore").
+        final class Nullable: Component {
+            @State var label: String? = nil
+            @State var name: String = "keep"
+            var body: VNode { .text("") }
+        }
+        let snap = ComponentSnapshot(
+            path: "",
+            typeName: String(reflecting: Nullable.self),
+            key: nil,
+            state: [
+                "label": HMRNilSentinel(),  // JS null → sentinel
+                "name": "restored",
+            ]
+        )
+        let index = HMRWalker.indexSnapshots([snap])
+        let fresh = Nullable()
+        fresh.label = "before-restore"
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+
+        #expect(fresh.label == nil)      // sentinel correctly restored to .none
+        #expect(fresh.name == "restored")
     }
 
     @Test("round-trip preserves nil Optional<String>")
@@ -57,7 +114,7 @@ struct HMRRoundTripTests {
 
         let fresh = Demo()
         fresh.os = "before-restore"
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "")
+        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.s == "x")
         #expect(fresh.os == nil)

@@ -54,8 +54,8 @@ public extension Swiflow {
         // to restore.
         let pendingIndex = HMRBridge.takePendingSnapshot()
         if let index = pendingIndex {
-            HMRRestoreInstall.restore = { component, path in
-                HMRWalker.applyRestore(index: index, to: component, at: path)
+            HMRRestoreInstall.restore = { component, path, key in
+                HMRWalker.applyRestore(index: index, to: component, at: path, key: key)
             }
         }
 
