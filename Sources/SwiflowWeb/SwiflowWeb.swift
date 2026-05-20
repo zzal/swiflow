@@ -99,6 +99,9 @@ public extension Swiflow {
         if pendingIndex != nil {
             HMRRestoreInstall.stateFor = nil
         }
+
+        // Phase 9: install devtools API (no-op in production).
+        DevAPI.install(renderer: renderer)
     }
 
     /// Re-evaluates the registered view producer and applies any resulting
