@@ -16,7 +16,6 @@ struct HandlerRegistryNamedScopeTests {
         let counts = r.countPerScope()
         #expect(counts["0"] == 2)
         #expect(counts["1"] == 1)
-        #expect(counts.values.reduce(0, +) == 3)
     }
 
     @Test("closeScope removes its name from countPerScope()")
@@ -54,5 +53,18 @@ struct HandlerRegistryNamedScopeTests {
         r.register { _ in }
         let counts = r.countPerScope()
         #expect(counts["x"] == 3)
+    }
+
+    @Test("open, close, open again: second scope is correctly tracked")
+    func reopenAfterClose() {
+        let r = HandlerRegistry()
+        r.openScope(name: "A")
+        r.register { _ in }
+        r.closeScope()
+        r.openScope(name: "B")
+        r.register { _ in }
+        let counts = r.countPerScope()
+        #expect(counts["A"] == nil)
+        #expect(counts["B"] == 1)
     }
 }

@@ -39,24 +39,17 @@ package final class HandlerRegistry {
     package func remove(id: Int) { handlers.removeValue(forKey: id) }
     package func dispatch(id: Int, event: EventInfo) { handlers[id]?.invoke(event) }
 
-    /// Opens a new handler scope. All `register(_:)` calls until the
-    /// matching `closeScope()` are tracked against this scope.
     package func openScope(name: String = "") {
         scopeStack.append([])
         scopeNames.append(name)
     }
 
-    /// Closes the innermost scope, evicting every handler ID registered
-    /// inside it. A no-op if no scope is open.
     package func closeScope() {
         guard let ids = scopeStack.popLast() else { return }
-        if !scopeNames.isEmpty { scopeNames.removeLast() }
+        scopeNames.removeLast()
         for id in ids { handlers.removeValue(forKey: id) }
     }
 
-    /// Returns a dictionary mapping scope names to the count of handlers
-    /// registered in each open scope. Scopes with the same name accumulate
-    /// counts. Returns an empty dictionary if no scopes are open.
     package func countPerScope() -> [String: Int] {
         var result: [String: Int] = [:]
         for (name, ids) in zip(scopeNames, scopeStack) {
