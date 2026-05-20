@@ -114,6 +114,39 @@ public func input(_ attributes: Attribute...) -> VNode {
     .element(applyAttributes(tag: "input", attributes))
 }
 
+/// HTML `<textarea>` — text content goes between the tags. Pass an empty
+/// string to leave the textarea uncontrolled by initial content; pair
+/// with `.value($binding)` for two-way binding (Phase 7).
+public func textarea(_ text: String = "", _ attributes: Attribute...) -> VNode {
+    let children: [VNode] = text.isEmpty ? [] : [.text(text)]
+    return .element(applyAttributes(tag: "textarea", attributes, children: children))
+}
+
+/// HTML `<textarea>` with block-form children — rare; the string overload
+/// above covers almost every use.
+public func textarea(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode]
+) -> VNode {
+    .element(applyAttributes(tag: "textarea", attributes, children: children()))
+}
+
+/// HTML `<select>` — children are `option(...)` nodes. Pair with
+/// `.selection($binding)` for two-way binding (Phase 7).
+public func select(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "select", attributes, children: children()))
+}
+
+/// HTML `<option>` — text label as content; `.attr("value", ...)` sets the
+/// underlying form value selected when this option is chosen.
+public func option(_ label: String, _ attributes: Attribute...) -> VNode {
+    let children: [VNode] = label.isEmpty ? [] : [.text(label)]
+    return .element(applyAttributes(tag: "option", attributes, children: children))
+}
+
 /// HTML `<img>` — a void element. No children block: images cannot contain
 /// content.
 public func img(_ attributes: Attribute...) -> VNode {
