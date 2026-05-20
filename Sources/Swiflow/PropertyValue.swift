@@ -12,3 +12,27 @@ public enum PropertyValue: Equatable, Sendable {
     /// A boolean property (e.g. `input.checked`, `input.disabled`).
     case bool(Bool)
 }
+
+extension PropertyValue: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+}
+
+extension PropertyValue: ExpressibleByBooleanLiteral {
+    public init(booleanLiteral value: Bool) {
+        self = .bool(value)
+    }
+}
+
+extension PropertyValue: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) {
+        self = .int(value)
+    }
+}
+
+extension PropertyValue: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .double(value)
+    }
+}

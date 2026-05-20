@@ -21,6 +21,33 @@ public enum Attribute {
         .attribute(name: name, value: value)
     }
 
+    /// Sets an HTML attribute with an `Int` value (stringified).
+    public static func attr(_ name: String, _ value: Int) -> Attribute {
+        .attribute(name: name, value: String(value))
+    }
+
+    /// Sets an HTML attribute with a `Double` value (stringified).
+    public static func attr(_ name: String, _ value: Double) -> Attribute {
+        .attribute(name: name, value: String(value))
+    }
+
+    /// Sets an HTML boolean attribute. HTML boolean attributes are
+    /// presence-or-absent (`disabled`, `checked`, `readonly` — `disabled="false"`
+    /// is wrong DOM semantics). This overload writes an empty string when
+    /// `value` is `true`. **When `value` is `false`, the caller should gate
+    /// the modifier at the call site (`if isDisabled { .attr("disabled", true) }`)**
+    /// rather than passing `false` here — `false` still emits the attribute
+    /// with an empty string, which the browser treats as truthy.
+    public static func attr(_ name: String, _ value: Bool) -> Attribute {
+        .attribute(name: name, value: value ? "" : "")
+    }
+
+    /// Convenience for `data-*` attributes. `.data("user-id", "42")` emits
+    /// `data-user-id="42"`.
+    public static func data(_ name: String, _ value: String) -> Attribute {
+        .attribute(name: "data-\(name)", value: value)
+    }
+
     /// Sets the `class` attribute. Backticks because `class` is a Swift
     /// keyword.
     public static func `class`(_ value: String) -> Attribute {

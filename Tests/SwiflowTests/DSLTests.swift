@@ -154,6 +154,28 @@ struct AttributeModifierTests {
         ])
         #expect(data.attributes == ["class": "b"])
     }
+
+    @Test("Attribute.attr typed overloads stringify values")
+    func attrTypedOverloads() {
+        if case let .attribute(name, value) = Attribute.attr("rows", 5) {
+            #expect(name == "rows" && value == "5")
+        } else { Issue.record("expected .attribute case") }
+
+        if case let .attribute(name, value) = Attribute.attr("step", 0.5) {
+            #expect(name == "step" && value == "0.5")
+        } else { Issue.record("expected .attribute case") }
+
+        if case let .attribute(name, value) = Attribute.attr("disabled", true) {
+            #expect(name == "disabled" && value == "")
+        } else { Issue.record("expected .attribute case") }
+    }
+
+    @Test("Attribute.data prefixes name with `data-`")
+    func attrDataPrefixes() {
+        if case let .attribute(name, value) = Attribute.data("user-id", "42") {
+            #expect(name == "data-user-id" && value == "42")
+        } else { Issue.record("expected .attribute case") }
+    }
 }
 
 @Suite("DSL — element factories")
