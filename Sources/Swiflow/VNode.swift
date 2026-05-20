@@ -45,15 +45,15 @@ public struct ElementData: Equatable {
     public let tag: String
     /// Optional stable identity used by the keyed children diff. When `nil`,
     /// the indexed diff strategy is used instead.
-    public let key: String?
+    public var key: String?
     /// HTML attributes (set via `Element.setAttribute`).
-    public let attributes: [String: String]
+    public var attributes: [String: String]
     /// DOM properties (set via direct property assignment, e.g. `input.value`).
-    public let properties: [String: PropertyValue]
+    public var properties: [String: PropertyValue]
     /// Inline style declarations (set via `element.style[name]`).
-    public let style: [String: String]
+    public var style: [String: String]
     /// Event listeners, keyed by event name (e.g. `"click"`).
-    public let handlers: [String: EventHandler]
+    public var handlers: [String: EventHandler]
     /// Child virtual nodes in document order.
     public let children: [VNode]
 

@@ -22,6 +22,42 @@ func _registerAmbientHandler(
     }
 }
 
+public extension VNode {
+    /// Attaches an event listener for `event` to this VNode. The closure runs
+    /// on the main actor when the DOM event fires.
+    /// Non-element VNodes trigger a diagnostic in DEBUG and pass through unchanged.
+    @MainActor
+    func on(
+        _ event: Event,
+        perform action: @escaping @MainActor () -> Void
+    ) -> VNode {
+        if case .element(var data) = self {
+            let handler = _registerAmbientHandler { _ in action() }
+            data.handlers[event.domName] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .on(_:perform:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Attaches an event listener for `event` that receives the runtime DOM
+    /// event payload (`EventInfo`).
+    /// Non-element VNodes trigger a diagnostic in DEBUG and pass through unchanged.
+    @MainActor
+    func on(
+        _ event: Event,
+        perform action: @escaping @MainActor (EventInfo) -> Void
+    ) -> VNode {
+        if case .element(var data) = self {
+            let handler = _registerAmbientHandler(action)
+            data.handlers[event.domName] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .on(_:perform:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+}
+
 public extension Attribute {
     /// Attaches an event listener for `event`. The closure runs on the main
     /// actor when the DOM event fires. Handler lifetime is tied to the
