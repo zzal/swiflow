@@ -121,8 +121,12 @@ struct DevCommand: AsyncParsableCommand {
                     print("swiflow: rebuilding (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
                     do {
                         _ = try invocation.run(using: rebuildRunner)
-                        await server.hub.broadcastReload()
-                        print("swiflow: reload broadcast")
+                        let bust = Self.wasmCacheBusterSuffix(projectURL: projectURL)
+                        await server.hub.broadcastHMRSwap(
+                            wasmURL: "/\(Self.packageToJSOutputRelativePath)/App.wasm?h=\(bust)",
+                            jsURL: "/\(Self.packageToJSOutputRelativePath)/index.js?h=\(bust)"
+                        )
+                        print("swiflow: HMR broadcast")
                     } catch {
                         print("swiflow: rebuild failed — \(error). Browser unchanged; fix and save to retry.")
                     }
@@ -131,5 +135,29 @@ struct DevCommand: AsyncParsableCommand {
             try await group.next()
             group.cancelAll()
         }
+    }
+
+    /// PackageToJS plugin output directory, relative to the project
+    /// root. Mirrors the path the `swift package js` plugin writes to;
+    /// kept in one place so the cache-buster URL composition and the
+    /// mtime stat both use the same source of truth.
+    static let packageToJSOutputRelativePath = ".build/plugins/PackageToJS/outputs/Package"
+
+    /// Returns a cache-busting suffix derived from the mtime of the
+    /// built `App.wasm` in milliseconds. Falls back to a `Date()`-based
+    /// suffix when the file can't be stat'd (e.g. very first dev-loop
+    /// rebuild raced ahead of the FS flush). The exact suffix doesn't
+    /// matter as long as it changes between rebuilds — the browser
+    /// just needs a URL that bypasses any cached response from a
+    /// previous build.
+    static func wasmCacheBusterSuffix(projectURL: URL) -> String {
+        let wasmPath = projectURL
+            .appendingPathComponent(packageToJSOutputRelativePath)
+            .appendingPathComponent("App.wasm")
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: wasmPath.path),
+           let mtime = attrs[.modificationDate] as? Date {
+            return String(Int(mtime.timeIntervalSince1970 * 1000))
+        }
+        return String(Int(Date().timeIntervalSince1970 * 1000))
     }
 }

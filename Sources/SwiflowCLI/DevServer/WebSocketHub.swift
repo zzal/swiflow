@@ -50,6 +50,37 @@ actor WebSocketHub {
         }
     }
 
+    /// Send `{"type":"hmr-swap","wasmURL":..,"jsURL":..}` to every
+    /// connected client. Used by `DevCommand`'s rebuild loop in place
+    /// of `broadcastReload()`. Same drop-on-write-failure semantics:
+    /// a single stale client must not block the broadcast from
+    /// reaching the rest.
+    ///
+    /// `wasmURL` is informational for v1 — the new entry point
+    /// (`index.js`) loads the WASM itself. We still ship it so the
+    /// driver can log "fetching <wasmURL>" and so a future
+    /// preflight-fetch optimization has it available.
+    func broadcastHMRSwap(wasmURL: String, jsURL: String) async {
+        // Escape any quote / backslash in URLs defensively. The
+        // mtime-suffixed URLs we generate today contain neither, but
+        // a future hash scheme might include base64-style characters
+        // and the encoder must not produce invalid JSON.
+        let escapedWasm = wasmURL
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedJS = jsURL
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let payload = #"{"type":"hmr-swap","wasmURL":"\#(escapedWasm)","jsURL":"\#(escapedJS)"}"#
+        for (id, writer) in clients {
+            do {
+                try await writer.write(.text(payload))
+            } catch {
+                clients.removeValue(forKey: id)
+            }
+        }
+    }
+
     /// Test-only: number of currently registered clients. Useful as a
     /// barrier in tests that need to wait until N concurrent connections
     /// have completed their register() call before broadcasting.
