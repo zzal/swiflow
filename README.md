@@ -49,7 +49,7 @@ the right WASM SDK and toolchain auto-detection.
   hybrid keyed (LIS-based) + indexed children diff, `@resultBuilder` DSL.
 - **`Component` + `@State`** — reactive class-bound components with a Mirror-wired
   `@State` property wrapper that calls into the per-frame `RAFScheduler` on
-  mutation. Lifecycle hooks: `onMount`, `onUpdate(prev:)`, `onUnmount`.
+  mutation. Lifecycle hooks: `onAppear`, `onChange()`, `onDisappear`.
 - **Security** — `URLSanitizer` scrubs `javascript:` / `vbscript:` / `data:` /
   `blob:` from `href`, `src`, `action`, `formaction` at the DSL fold step.
   `VNode.rawHTML(_:)` is the named-loud escape hatch.
@@ -76,7 +76,7 @@ design exploration.
 swift test
 ```
 
-269 tests across 56 suites. Tests that require the WASM SDK end-to-end are
+281 tests across 59 suites. Tests that require the WASM SDK end-to-end are
 gated and skip cleanly when it's absent.
 
 ## License

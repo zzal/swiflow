@@ -79,7 +79,7 @@ public func h3(_ text: String, _ attributes: Attribute...) -> VNode {
 }
 
 /// HTML `<button>` with attributes and a children block. Attach a click
-/// handler via `.on("click", registry.register { … })`.
+/// handler via `.on(.click) { … }`.
 public func button(
     _ attributes: Attribute...,
     @ChildrenBuilder children: () -> [VNode] = { [] }
@@ -144,7 +144,7 @@ public func li(_ text: String, _ attributes: Attribute...) -> VNode {
 }
 
 /// HTML `<form>` with attributes and a children block. Attach a submit
-/// handler via `.on("submit", …)`.
+/// handler via `.on(.submit) { … }`.
 public func form(
     _ attributes: Attribute...,
     @ChildrenBuilder children: () -> [VNode] = { [] }
