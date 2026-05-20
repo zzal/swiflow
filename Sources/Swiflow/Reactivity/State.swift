@@ -8,6 +8,19 @@
 /// in `Component.swift`. User code should not see this protocol.
 protocol StateWireable: AnyObject {
     func _setOwner(_ owner: AnyComponent, scheduler: Scheduler)
+
+    /// HMR snapshot: returns the current `wrappedValue` typed as `Any`.
+    /// The HMRWalker inspects the runtime type to decide whether the
+    /// value belongs in the snapshot's supported-primitive set
+    /// (String/Int/Double/Bool + Optionals).
+    func _hmrSnapshotValue() -> Any
+
+    /// HMR restore: if `newValue` is type-compatible with `Value`,
+    /// overwrites the storage. Returns true on success, false on
+    /// type mismatch. Called at most once per @State, after Component
+    /// instantiation but before the first `body` evaluation, so no
+    /// scheduler notification is needed.
+    func _hmrRestore(_ newValue: Any) -> Bool
 }
 
 /// Reactive state for a Component. Mutating `wrappedValue` flags the
@@ -141,4 +154,22 @@ final class Box<Value> {
     init(value: Value) { self.value = value }
 }
 
-extension State: StateWireable {}
+extension State {
+    /// HMR snapshot extraction. See `StateWireable._hmrSnapshotValue()`.
+    /// Package-internal in spirit — used only by `HMRWalker` and tests.
+    func _hmrSnapshotValueImpl() -> Any { storage.value }
+
+    /// HMR restore. See `StateWireable._hmrRestore(_:)`. Returns false
+    /// when `newValue` cannot be cast to `Value`; the caller falls
+    /// back to the declared initial value for that field.
+    func _hmrRestoreImpl(_ newValue: Any) -> Bool {
+        guard let typed = newValue as? Value else { return false }
+        storage.value = typed
+        return true
+    }
+}
+
+extension State: StateWireable {
+    func _hmrSnapshotValue() -> Any { _hmrSnapshotValueImpl() }
+    func _hmrRestore(_ newValue: Any) -> Bool { _hmrRestoreImpl(newValue) }
+}
