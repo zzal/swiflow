@@ -65,12 +65,18 @@ public final class State<Value> {
         }
     }
 
-    /// The two-way binding for this state cell, accessed via `$count`.
-    /// **Reserved for Phase 7** — Phase 6 ships the symbol for ABI
-    /// stability but no DSL modifiers consume `Binding<Value>` yet.
-    /// Use `wrappedValue` (`count = 5`) for now; `input(.value($text))`
-    /// starts working when Phase 7's `.value(_:)` modifier ships.
-    @_documentation(visibility: internal)
+    /// The two-way binding for this state cell, accessed via the `$`
+    /// sigil:
+    ///
+    /// ```swift
+    /// @State var text = ""
+    /// // ...
+    /// input(.value($text))   // round-trips through `.input` events
+    /// ```
+    ///
+    /// Consumers ship in `SwiflowWeb.AttributeModifiers`: `.value(_:)`
+    /// for text inputs and textareas, `.checked(_:)` for checkboxes, and
+    /// `.selection(_:)` for selects.
     public var projectedValue: Binding<Value> {
         Binding(
             get: { self.storage.value },
@@ -99,16 +105,22 @@ public final class State<Value> {
     }
 }
 
-/// Two-way binding shaped like SwiftUI's. **Reserved for Phase 7** —
-/// Phase 6 hides it from autocomplete and DocC via
-/// `@_documentation(visibility: internal)` because no DSL modifier in
-/// Phase 6 consumes a `Binding<Value>`. The type stays `public` for
-/// ABI stability; Phase 7 will surface it again when `.value($text)`,
-/// `.checked($flag)`, and `.selection($choice)` ship.
+/// Two-way binding shaped like SwiftUI's. The projected value of
+/// `@State`, accessed via the `$`-prefix sigil:
 ///
-/// See `docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md`
-/// (Phase 7 — Bindings, Refs & Form Foundations) for the consumer plan.
-@_documentation(visibility: internal)
+/// ```swift
+/// @State var text = ""
+/// @State var agreed = false
+/// @State var choice = "A"
+/// // ...
+/// input(.value($text))         // .input event, text round-trip
+/// input(.attr("type", "checkbox"), .checked($agreed))   // .change event
+/// select(.selection($choice)) { option("A"); option("B") }
+/// ```
+///
+/// Consumers ship in `SwiflowWeb.AttributeModifiers`: `.value(_:)`,
+/// `.checked(_:)`, and `.selection(_:)` — all in both prefix
+/// (`Attribute` static) and postfix (`VNode` method) shapes.
 public struct Binding<Value> {
     public let get: () -> Value
     public let set: (Value) -> Void
