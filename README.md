@@ -13,7 +13,11 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**What works today (Phase 7):**
+**What works today (Phase 8):**
+- **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
+  every save. `@State` survives, the page doesn't reload, and
+  the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
+  centerpiece of Phase 8.
 - Reactive Components with `@State` and the typed `Event` DSL —
   `.on(.click) { self.count += 1 }`.
 - Two-way bindings — `.value($text)` (String/Int/Double), `.checked($flag)`,
@@ -21,12 +25,10 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - `Ref<Element>` for first-party DOM access (focus, scroll, etc.).
 - `URLSanitizer`-protected DSL fold (XSS-safe by default).
 - `swiflow init` scaffold + `swiflow build` (WASM SDK auto-probe) +
-  `swiflow dev` (file-watch + full-page reload).
+  `swiflow dev` (file-watch + state-preserving HMR).
 - 327+ tests, Playwright e2e, DWARF debugging guide, `docs/guides/forms.md`.
 
 **What's not in the box yet:**
-- **HMR** (instant save→pixels) — Phase 8. Today's dev loop is a full
-  page reload on every save; component state is lost.
 - **Component inspector / devtools** — Phase 9.
 - **`@Environment` / context DI** — Phase 10.
 - **Router** (`SwiflowRouter`) — Phase 11.
@@ -41,23 +43,24 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - **Cold build:** ~80s (`swift package clean` then
   `swift package --swift-sdk <wasm-sdk> js -c release` from the
   example project).
-- **Hot rebuild (single source touched):** ~8s. Phase 8's HMR
-  will replace the full reload with a hot module swap that preserves
-  `@State`.
+- **Hot rebuild (single source touched):** ~8s WASM rebuild → HMR swap
+  (state preserved). Pre-Phase-8 this was a ~8s rebuild → full page
+  reload, with `@State` lost. The 8s rebuild is the same; what changed
+  is what happens *after* the rebuild lands. Specific HMR swap times
+  recorded in `docs/perf/2026-05-20-hmr-baseline.md`.
 
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 7 (Bindings, Refs & Form Foundations) complete. Two-way
-bindings ship as `.value($text)` / `.checked($flag)` / `.selection($choice)`
-on input, textarea, and select (with new `textarea` / `select` / `option`
-element factories). `Ref<Element>` gives first-party DOM access for
-focus, scroll, and other imperative needs — populated on mount, cleared
-on unmount. `EventInfo` gained `targetChecked` plus typed `targetIntValue`
-/ `targetDoubleValue` accessors. The HelloWorld template demos a
-controlled text input, a `.ref(...)`-autofocus, and a `.checked` toggle;
-`docs/guides/forms.md` ships the recipe for controlled inputs + manual
-validation.
+**Status:** Phase 8 (HMR & The Instant Dev Loop) complete. `swiflow dev`
+now broadcasts a hot module swap on every save: the browser fetches
+the new WASM, the runtime captures the live `@State` snapshot from
+the running module, restores it into a fresh tree, and repaints — all
+without a full page reload. `@State` survives across saves. The
+Counter template's `count` stays at whatever you clicked it to; the
+greeting input keeps whatever you typed. Phase 7 (Bindings, Refs &
+Form Foundations) is the layer this builds on. Measurement protocol
+in `docs/perf/2026-05-20-hmr-baseline.md`.
 
 ## Quick start
 

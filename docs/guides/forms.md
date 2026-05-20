@@ -13,6 +13,8 @@ This guide is a recipe collection, not a framework. A higher-level
 now, controlled inputs plus a few `@State` fields and a handler is the
 recommended path.
 
+> **HMR preserves form state.** When you save a Swift source file while `swiflow dev` is running, the runtime captures the current `@State` values (including everything bound to a `.value($text)` or `.checked($flag)`) before re-importing the new module, then restores them into the freshly-mounted tree. Typing in a form, saving a render tweak, and watching the field's value survive is the centerpiece demo of Phase 8.
+
 All examples assume:
 
 ```swift

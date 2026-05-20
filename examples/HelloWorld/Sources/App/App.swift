@@ -3,13 +3,23 @@ import Swiflow
 import SwiflowWeb
 import JavaScriptKit
 
-/// Hello World — a Component with @State, two-way bindings, and a Ref.
+/// Counter — the Phase 7 demo component.
 ///
 /// `final class` (not `struct`) is required: @State reactivity wires the
 /// owner via Mirror after init, which needs reference semantics. See
 /// Sources/Swiflow/Reactivity/Component.swift for the rationale. The
 /// `final` keyword is optional but matches the framework's expectation
 /// that Components aren't subclassed.
+///
+/// **Hot reload preserves `@State`.** When you save this file while
+/// `swiflow dev` is running, the runtime captures the current values
+/// of `count`, `greeting`, and `celebrate`, re-imports the rebuilt
+/// WASM, and restores them into the new module — so editing a
+/// rendering tweak (e.g. changing the button label) does NOT reset
+/// the counter back to zero. State preservation matches by
+/// (component type name, @State field name); rename `Counter` and
+/// the subtree starts fresh, which is the expected escape hatch
+/// when you want a clean slate.
 final class Counter: Component {
     @State var count: Int = 0
     @State var greeting: String = "Swiflow"
