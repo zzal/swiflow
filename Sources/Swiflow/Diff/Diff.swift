@@ -218,7 +218,7 @@ func mount(
         // component's body is tracked against this component anchor. The scope
         // is closed in `destroy()` when the component unmounts, ensuring
         // handler closures cannot outlive their owning Component instance.
-        handlers.openScope()
+        handlers.openScope(name: path)
         let bodyVNode = instance.instance.body
         let bodyMount = mount(
             bodyVNode,
