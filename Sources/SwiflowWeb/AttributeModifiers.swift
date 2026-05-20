@@ -79,5 +79,104 @@ public extension Attribute {
     ) -> Attribute {
         .handler(event: event.domName, value: _registerAmbientHandler(action))
     }
+
+    /// Two-way binding for `<input>` or `<textarea>` text content.
+    /// Reads `binding.get()` into the element's `value` property on
+    /// every render and registers an `.input` handler that writes
+    /// `eventInfo.targetValue ?? ""` back into `binding.set(...)`.
+    ///
+    /// Emits `Attribute.compound([…])` so a single modifier produces
+    /// both bag effects in one go; `applyAttributes` flattens the
+    /// composite during the fold.
+    @MainActor
+    static func value(_ binding: Binding<String>) -> Attribute {
+        let handler = _registerAmbientHandler { info in
+            binding.set(info.targetValue ?? "")
+        }
+        return .compound([
+            .property(name: "value", value: .string(binding.get())),
+            .handler(event: "input", value: handler),
+        ])
+    }
+
+    /// Two-way binding for an `Int`-valued input (typically
+    /// `<input type="number">`). Parse failure leaves the binding
+    /// unchanged; the user's malformed text stays in the DOM until
+    /// they fix it.
+    @MainActor
+    static func value(_ binding: Binding<Int>) -> Attribute {
+        let handler = _registerAmbientHandler { info in
+            if let parsed = info.targetIntValue { binding.set(parsed) }
+        }
+        return .compound([
+            .property(name: "value", value: .string(String(binding.get()))),
+            .handler(event: "input", value: handler),
+        ])
+    }
+
+    /// Two-way binding for a `Double`-valued input. Parse failure
+    /// leaves the binding unchanged.
+    @MainActor
+    static func value(_ binding: Binding<Double>) -> Attribute {
+        let handler = _registerAmbientHandler { info in
+            if let parsed = info.targetDoubleValue { binding.set(parsed) }
+        }
+        return .compound([
+            .property(name: "value", value: .string(String(binding.get()))),
+            .handler(event: "input", value: handler),
+        ])
+    }
+}
+
+public extension VNode {
+    /// Postfix variant of `.value(_:Binding<String>)`. Writes both the
+    /// `value` property and the `.input` handler directly into the
+    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
+    /// and pass through unchanged.
+    @MainActor
+    func value(_ binding: Binding<String>) -> VNode {
+        if case .element(var data) = self {
+            data.properties["value"] = .string(binding.get())
+            let handler = _registerAmbientHandler { info in
+                binding.set(info.targetValue ?? "")
+            }
+            data.handlers["input"] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Postfix variant of `.value(_:Binding<Int>)`. Parse failure on
+    /// `.input` events leaves the binding unchanged.
+    @MainActor
+    func value(_ binding: Binding<Int>) -> VNode {
+        if case .element(var data) = self {
+            data.properties["value"] = .string(String(binding.get()))
+            let handler = _registerAmbientHandler { info in
+                if let parsed = info.targetIntValue { binding.set(parsed) }
+            }
+            data.handlers["input"] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Postfix variant of `.value(_:Binding<Double>)`. Parse failure on
+    /// `.input` events leaves the binding unchanged.
+    @MainActor
+    func value(_ binding: Binding<Double>) -> VNode {
+        if case .element(var data) = self {
+            data.properties["value"] = .string(String(binding.get()))
+            let handler = _registerAmbientHandler { info in
+                if let parsed = info.targetDoubleValue { binding.set(parsed) }
+            }
+            data.handlers["input"] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
 }
 #endif

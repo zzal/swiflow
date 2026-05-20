@@ -18,6 +18,11 @@ public enum Attribute {
     /// `false`). `applyAttributes` drops these during the fold; they
     /// never reach `ElementData`. Not for general use.
     case skip
+    /// Composite of multiple attribute effects produced by a single modifier
+    /// (e.g. `.value($text)` writes both a `value` property AND an `.input`
+    /// handler). `applyAttributes` recursively flattens these during the
+    /// fold; composites never reach `ElementData`.
+    case compound([Attribute])
 
     // Convenience factories.
 
@@ -92,7 +97,10 @@ func applyAttributes(
     var handlers: [String: EventHandler] = [:]
     var key: String? = nil
 
-    for attribute in attributes {
+    // Nested helper so `.compound` can recurse naturally. The closure
+    // captures the local bags by reference (`inout` semantics via the
+    // enclosing-scope vars) and mutates them in place.
+    func process(_ attribute: Attribute) {
         switch attribute {
         case .attribute(let name, let value):
             // URL-bearing attributes (href, src, action, formaction) route
@@ -124,8 +132,14 @@ func applyAttributes(
         case .key(let value):
             key = value
         case .skip:
-            continue
+            return
+        case .compound(let inner):
+            for child in inner { process(child) }
         }
+    }
+
+    for attribute in attributes {
+        process(attribute)
     }
 
     return ElementData(
