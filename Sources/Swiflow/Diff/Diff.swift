@@ -2,14 +2,14 @@
 
 /// The output of a single diff pass: the patches to apply, plus the new
 /// mount tree to commit as the next render's left-hand side.
-public struct DiffResult {
+package struct DiffResult {
     /// Patches to ship across the JS bridge, in apply order.
-    public let patches: [Patch]
+    package let patches: [Patch]
     /// The mount tree the caller must commit as the next render's baseline.
-    public let newMountTree: MountNode
+    package let newMountTree: MountNode
 
     /// Wraps the two outputs of a diff pass.
-    public init(patches: [Patch], newMountTree: MountNode) {
+    package init(patches: [Patch], newMountTree: MountNode) {
         self.patches = patches
         self.newMountTree = newMountTree
     }
@@ -27,7 +27,7 @@ public struct DiffResult {
 /// continue to work unchanged — the default `nil` preserves the previous
 /// silent-mutation behaviour.
 @MainActor
-public func diff(
+package func diff(
     mounted: MountNode?,
     next: VNode,
     handles: HandleAllocator,
@@ -186,6 +186,11 @@ func mount(
         let instance = desc.instantiate()
         wireState(on: instance, scheduler: scheduler)
         let anchorHandle = handles.next()
+        // Open a handler scope so every `.on(_:perform:)` call inside this
+        // component's body is tracked against this component anchor. The scope
+        // is closed in `destroy()` when the component unmounts, ensuring
+        // handler closures cannot outlive their owning Component instance.
+        handlers.openScope()
         let bodyVNode = instance.instance.body
         let bodyMount = mount(
             bodyVNode,
@@ -423,6 +428,10 @@ func destroy(
     // runs before any child component's onDisappear — parent-first ordering.
     if let any = node.component {
         any.instance.onDisappear()
+        // Close the handler scope that was opened when this component mounted.
+        // This evicts every handler registered during the component's `body`
+        // evaluation, preventing closures from outliving their Component instance.
+        handlers.closeScope()
     }
 
     // Recurse into the parallel component-anchor body slot, if any.

@@ -122,11 +122,12 @@ struct AttributeModifierTests {
         #expect(data.key == "k1")
     }
 
-    @Test(".on produces a handler entry that dispatches the registered closure")
+    @Test(".handler produces a handler entry that dispatches the registered closure")
     func onModifier() {
         var fired = false
         let registry = HandlerRegistry()
-        let attr = Attribute.on("click", registry.register { _ in fired = true })
+        let h = registry.register { _ in fired = true }
+        let attr = Attribute.handler(event: "click", value: h)
         let data = applyAttributes(tag: "button", [attr])
         #expect(data.handlers["click"] != nil)
         // Dispatch directly to assert wiring.
@@ -191,7 +192,7 @@ struct ElementFactoryTests {
     func buttonWithHandler() {
         let registry = HandlerRegistry()
         let h = registry.register { _ in }
-        let node = button("Click", .on("click", h))
+        let node = button("Click", .handler(event: "click", value: h))
         let expected = VNode.element(ElementData(
             tag: "button",
             handlers: ["click": h],

@@ -14,8 +14,10 @@ import JavaScriptKit
 // The extension below hangs the renderer API off this enum.
 public enum Swiflow {}
 
-// Module-private ambient renderer — single root per app in Phase 2a.
-nonisolated(unsafe) private var ambientRenderer: Renderer?
+// Module-internal ambient renderer — single root per app in Phase 2a.
+// `internal` (not `private`) so AttributeModifiers.swift can reach it
+// when registering handlers during a render cycle.
+nonisolated(unsafe) var ambientRenderer: Renderer?
 
 public extension Swiflow {
     /// Mounts `viewProducer()` into the DOM node matched by `selector`.
@@ -79,31 +81,6 @@ public extension Swiflow {
         renderer.renderOnce()
     }
 
-    /// The handler registry the active Renderer dispatches through.
-    ///
-    /// Use this inside `view()` to register `.on(...)` closures:
-    ///
-    /// ```swift
-    /// button("Click", .on("click", Swiflow.handlers.register { _ in ... }))
-    /// ```
-    ///
-    /// **Critical:** user closures MUST be registered via this property
-    /// (not a private `HandlerRegistry` the user constructs themselves).
-    /// `DispatcherBridge` routes every JS event to the Renderer's registry;
-    /// handlers registered elsewhere will silently no-op when their event
-    /// fires, AND will leak their closures because `diffHandlers`'s
-    /// `handlers.remove(id:)` only affects the Renderer's registry.
-    ///
-    /// `Swiflow.render(_:into:)` must have been called before this property
-    /// is accessed. Inside `view()` this is always safe — `render` constructs
-    /// the Renderer and only THEN calls the producer.
-    @MainActor
-    static var handlers: HandlerRegistry {
-        guard let renderer = ambientRenderer else {
-            fatalError("Swiflow.handlers accessed before Swiflow.render(_:into:) was called")
-        }
-        return renderer.handlers
-    }
 }
 
 #else

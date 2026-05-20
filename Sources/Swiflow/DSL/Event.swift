@@ -24,7 +24,7 @@ public enum Event: Sendable, Hashable {
 
     /// The raw DOM event name (`"click"`, `"input"`, etc.). Read by the
     /// renderer when registering the listener on the host element.
-    internal var domName: String {
+    package var domName: String {
         switch self {
         case .custom(let name): return name
         default: return String(describing: self)
