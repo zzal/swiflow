@@ -156,13 +156,17 @@ final class Box<Value> {
 
 extension State {
     /// HMR snapshot extraction. See `StateWireable._hmrSnapshotValue()`.
-    /// Package-internal in spirit — used only by `HMRWalker` and tests.
-    func _hmrSnapshotValueImpl() -> Any { storage.value }
+    /// Public-with-`_`-prefix so Mirror introspection (which can only
+    /// reach `public` members from another module) can find and call
+    /// it. The `_` flags it as framework-internal — user code should
+    /// never invoke this directly. Matches the `_setOwner` precedent
+    /// above.
+    public func _hmrSnapshotValueImpl() -> Any { storage.value }
 
     /// HMR restore. See `StateWireable._hmrRestore(_:)`. Returns false
     /// when `newValue` cannot be cast to `Value`; the caller falls
     /// back to the declared initial value for that field.
-    func _hmrRestoreImpl(_ newValue: Any) -> Bool {
+    public func _hmrRestoreImpl(_ newValue: Any) -> Bool {
         guard let typed = newValue as? Value else { return false }
         storage.value = typed
         return true
@@ -170,6 +174,6 @@ extension State {
 }
 
 extension State: StateWireable {
-    func _hmrSnapshotValue() -> Any { _hmrSnapshotValueImpl() }
-    func _hmrRestore(_ newValue: Any) -> Bool { _hmrRestoreImpl(newValue) }
+    public func _hmrSnapshotValue() -> Any { _hmrSnapshotValueImpl() }
+    public func _hmrRestore(_ newValue: Any) -> Bool { _hmrRestoreImpl(newValue) }
 }
