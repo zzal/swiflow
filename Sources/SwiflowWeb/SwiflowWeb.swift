@@ -50,6 +50,24 @@ public extension Swiflow {
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         ambientRenderer = renderer
         DispatcherBridge.installIfNeeded(registry: renderer.handlers)
+        // Install the Ref resolver so `ref.wrappedValue` can map a Swiflow
+        // handle to the live JS DOM node via `window.swiflow.nodeForHandle`.
+        // Closure-installs into the non-generic `RefResolverInstall.resolver`
+        // shim (not a static on `Ref<Element>` — generic-statics are
+        // per-specialization and would force a separate install per `E`).
+        RefResolverInstall.resolver = { handle in
+            guard let swiflowGlobal = JSObject.global.swiflow.object else {
+                return nil
+            }
+            // Mirror the Renderer's call pattern (`swiflowGlobal.mount!(…)`):
+            // member-access on `JSObject` produces a bound function, the
+            // `!` unwraps it, and calling it with `JSValue`s returns a
+            // `JSValue`. `nodeForHandle` returns the DOM node (a JSObject)
+            // or `null` for an unknown handle — `.object` is nil in the
+            // null case, which propagates out as `nil` here.
+            let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
+            return result.object
+        }
         renderer.renderOnce()
     }
 

@@ -56,6 +56,11 @@ public struct ElementData: Equatable {
     public var handlers: [String: EventHandler]
     /// Child virtual nodes in document order.
     public let children: [VNode]
+    /// `Ref<Element>` bindings consumed by Diff at mount/destroy time.
+    /// Stored out-of-band — these never participate in the four bag
+    /// dictionaries and never become patches. See `Attribute.refBinding`
+    /// and the `.ref(_:)` modifier in SwiflowWeb.
+    public var refBindings: [AnyRefBinding]
 
     /// Creates an `ElementData` with the given bags. Every bag defaults to
     /// empty so callers can pass only what they need.
@@ -66,7 +71,8 @@ public struct ElementData: Equatable {
         properties: [String: PropertyValue] = [:],
         style: [String: String] = [:],
         handlers: [String: EventHandler] = [:],
-        children: [VNode] = []
+        children: [VNode] = [],
+        refBindings: [AnyRefBinding] = []
     ) {
         self.tag = tag
         self.key = key
@@ -75,6 +81,22 @@ public struct ElementData: Equatable {
         self.style = style
         self.handlers = handlers
         self.children = children
+        self.refBindings = refBindings
+    }
+
+    /// Manual equality: every field participates EXCEPT `refBindings`. The
+    /// binding closures aren't `Equatable` (closures never are), and two
+    /// ElementData values describing the same DOM element should compare
+    /// equal regardless of whether either side carried a Ref binding.
+    /// Refs are out-of-band metadata, not part of the rendered shape.
+    public static func == (lhs: ElementData, rhs: ElementData) -> Bool {
+        lhs.tag == rhs.tag
+            && lhs.key == rhs.key
+            && lhs.attributes == rhs.attributes
+            && lhs.properties == rhs.properties
+            && lhs.style == rhs.style
+            && lhs.handlers == rhs.handlers
+            && lhs.children == rhs.children
     }
 }
 

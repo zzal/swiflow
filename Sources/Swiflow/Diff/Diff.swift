@@ -94,6 +94,15 @@ func mount(
         let h = handles.next()
         patches.append(.createElement(handle: h, tag: data.tag))
 
+        // Ref bindings fire BEFORE child mounts so a parent Component's
+        // `onAppear` — which runs after the whole tree's first commit —
+        // sees populated refs even on transitively nested elements. The
+        // bindings produce no patches; they only write into the user's
+        // `Ref<E>.handle` slot. Symmetric clear lives in `destroy()`.
+        for binding in data.refBindings {
+            binding.setHandle(h)
+        }
+
         // Bag iteration order: attributes → properties → style → handlers
         // (matches Snabbdom/Inferno). The driver applies patches in arrival
         // order; properties intentionally come AFTER attributes so DOM-property
@@ -258,6 +267,18 @@ func update(
 
     // Element → element, same tag: per-bag diff (Tasks 10–13, 16–17).
     case (.element(let oldData), .element(let newData)) where oldData.tag == newData.tag:
+        // Refs: clear old bindings, then re-bind new bindings to the
+        // surviving handle. The DOM node didn't move (same-tag in-place
+        // update), so each binding gets the existing `mounted.handle`.
+        // Old bindings whose underlying `Ref<E>` instance is also in
+        // newData will be cleared and immediately re-set with the same
+        // handle — a no-op net effect, which is correct.
+        for binding in oldData.refBindings {
+            binding.clearHandle()
+        }
+        for binding in newData.refBindings {
+            binding.setHandle(mounted.handle)
+        }
         diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
         diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
         diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
@@ -448,6 +469,17 @@ func destroy(
         #if DEBUG
         MountedInstances.unregister(any.instance)
         #endif
+    }
+
+    // Symmetric with mount: clear every Ref binding so post-unmount
+    // `wrappedValue` reads return nil. Done BEFORE recursing into
+    // children so a parent component's `onDisappear` sees consistent
+    // already-cleared refs on its descendants (parent-first teardown
+    // mirrors parent-first mount).
+    if case .element(let data) = node.vnode {
+        for binding in data.refBindings {
+            binding.clearHandle()
+        }
     }
 
     // Recurse into the parallel component-anchor body slot, if any.

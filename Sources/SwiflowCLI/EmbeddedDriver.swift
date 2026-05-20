@@ -12,13 +12,16 @@ enum EmbeddedDriver {
 // Swiflow JS driver — vanilla JavaScript, no build step.
 //
 // The driver owns the canonical Map<int, Node> that the Swift side references
-// by integer handle. It exposes three operations to Swift through the
+// by integer handle. It exposes four operations to Swift through the
 // `window.swiflow` global:
 //
 //   - applyPatches(patches): a JSArray of patch objects; the driver iterates
 //                            and executes each in arrival order.
 //   - mount(rootHandle, selector): attach a previously-created node into
 //                                  the DOM under querySelector(selector).
+//   - nodeForHandle(handle): return the DOM node for a Swift handle (used
+//                            by Ref<Element>.wrappedValue), or null if
+//                            unknown.
 //   - registerDispatcher(fn): legacy hook reserved for future use.
 //
 // Per-listener wrappers call window.__swiflowDispatch(handlerId, event)
@@ -250,6 +253,21 @@ enum EmbeddedDriver {
         );
       }
       target.appendChild(nodes.get(rootHandle));
+    },
+
+    /**
+     * Resolve a Swiflow handle to the live DOM node.
+     *
+     * Powers `Ref<Element>.wrappedValue` — Swift calls this once per
+     * dereference (no caching) so the framework always sees the current
+     * node, even after a node swap (e.g. setRawHTML).
+     *
+     * Returns `null` for unknown handles (anchor handles, post-destroy
+     * handles). Callers in Swift treat null as "ref not currently bound".
+     */
+    nodeForHandle: function (h) {
+      const n = nodes.get(h);
+      return n === undefined ? null : n;
     },
 
     /**

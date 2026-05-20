@@ -23,6 +23,12 @@ public enum Attribute {
     /// handler). `applyAttributes` recursively flattens these during the
     /// fold; composites never reach `ElementData`.
     case compound([Attribute])
+    /// Binds the host element's DOM-side handle into a `Ref<Element>` at
+    /// mount time and clears it at destroy. Stored on
+    /// `ElementData.refBindings` and consumed out-of-band by Diff; never
+    /// folded into the four normal bags. Produced by the `.ref(_:)`
+    /// modifier in SwiflowWeb.
+    case refBinding(AnyRefBinding)
 
     // Convenience factories.
 
@@ -96,6 +102,7 @@ func applyAttributes(
     var styles: [String: String] = [:]
     var handlers: [String: EventHandler] = [:]
     var key: String? = nil
+    var refBindings: [AnyRefBinding] = []
 
     // Nested helper so `.compound` can recurse naturally. The closure
     // captures the local bags by reference (`inout` semantics via the
@@ -135,6 +142,12 @@ func applyAttributes(
             return
         case .compound(let inner):
             for child in inner { process(child) }
+        case .refBinding(let binding):
+            // Refs are stashed on ElementData out-of-band — they don't
+            // belong in any of the four bags and never become patches.
+            // Diff.mount/destroy consume them directly via
+            // `data.refBindings`.
+            refBindings.append(binding)
         }
     }
 
@@ -149,6 +162,7 @@ func applyAttributes(
         properties: props,
         style: styles,
         handlers: handlers,
-        children: children
+        children: children,
+        refBindings: refBindings
     )
 }

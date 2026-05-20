@@ -157,6 +157,23 @@ public extension Attribute {
             .handler(event: "change", value: handler),
         ])
     }
+
+    /// Binds this element's DOM node to `ref`. After mount,
+    /// `ref.wrappedValue` returns the live `JSObject`; after unmount, it
+    /// returns `nil`.
+    ///
+    /// Use this when you need to call an imperative DOM API from Swift —
+    /// `focus()`, `scrollIntoView()`, reading uncontrolled `value`, etc.
+    /// For controlled inputs, prefer `.value(_:Binding<...>)` instead.
+    ///
+    /// ```swift
+    /// let nameInput = Ref<JSObject>()
+    /// input(.value($name), .ref(nameInput))
+    /// // …in onAppear: _ = nameInput.wrappedValue?.focus.function?()
+    /// ```
+    static func ref<E>(_ ref: Ref<E>) -> Attribute {
+        .refBinding(AnyRefBinding(ref))
+    }
 }
 
 public extension VNode {
@@ -243,6 +260,19 @@ public extension VNode {
             return .element(data)
         }
         swiflowDiagnostic("Postfix .selection(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Postfix variant of `.ref(_:)`. Appends a `Ref<E>` binding to the
+    /// element's out-of-band `refBindings` slot; consumed by Diff at
+    /// mount and destroy. Non-element VNodes trigger a DEBUG diagnostic
+    /// and pass through unchanged.
+    func ref<E>(_ ref: Ref<E>) -> VNode {
+        if case .element(var data) = self {
+            data.refBindings.append(AnyRefBinding(ref))
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .ref(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
         return self
     }
 }
