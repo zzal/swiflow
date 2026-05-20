@@ -94,14 +94,13 @@ enum Templates {
         import Swiflow
         import SwiflowWeb
 
-        /// Phase 3 Hello World — a Component with @State.
+        /// Hello World — a Component with @State.
         ///
-        /// Compared to Phase 2a:
-        /// - State lives on the Component (was a global `var`).
-        /// - No explicit Swiflow.rerender() call — mutating `@State count`
-        ///   schedules a re-render automatically via the RAFScheduler.
-        /// - No [weak self] or MainActor.assumeIsolated needed — the framework
-        ///   handles all of that inside `.on(_:perform:)`.
+        /// `final class` (not `struct`) is required: @State reactivity wires the
+        /// owner via Mirror after init, which needs reference semantics. See
+        /// Sources/Swiflow/Reactivity/Component.swift for the rationale. The
+        /// `final` keyword is optional but matches the framework's expectation
+        /// that Components aren't subclassed.
         final class Counter: Component {
             @State var count: Int = 0
 
