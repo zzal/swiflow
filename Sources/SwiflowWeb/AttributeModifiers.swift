@@ -126,6 +126,37 @@ public extension Attribute {
             .handler(event: "input", value: handler),
         ])
     }
+
+    /// Two-way binding for `<input type="checkbox">`. The element's
+    /// `checked` property is written to `binding.get()` on every render;
+    /// a `.change` event handler reads `eventInfo.targetChecked` and
+    /// writes it back through `binding.set(...)`.
+    @MainActor
+    static func checked(_ binding: Binding<Bool>) -> Attribute {
+        let handler = _registerAmbientHandler { info in
+            if let c = info.targetChecked { binding.set(c) }
+        }
+        return .compound([
+            .property(name: "checked", value: .bool(binding.get())),
+            .handler(event: "change", value: handler),
+        ])
+    }
+
+    /// Two-way binding for `<select>`. The element's `value` property is
+    /// written to `binding.get()` on every render (so the matching
+    /// `<option>` is selected); a `.change` handler reads
+    /// `eventInfo.targetValue` and writes it back through `binding.set(...)`.
+    /// Multi-select (`<select multiple>`) lands in Phase 12.
+    @MainActor
+    static func selection(_ binding: Binding<String>) -> Attribute {
+        let handler = _registerAmbientHandler { info in
+            binding.set(info.targetValue ?? "")
+        }
+        return .compound([
+            .property(name: "value", value: .string(binding.get())),
+            .handler(event: "change", value: handler),
+        ])
+    }
 }
 
 public extension VNode {
@@ -176,6 +207,42 @@ public extension VNode {
             return .element(data)
         }
         swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Postfix variant of `.checked(_:Binding<Bool>)`. Writes both the
+    /// `checked` property and the `.change` handler directly into the
+    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
+    /// and pass through unchanged.
+    @MainActor
+    func checked(_ binding: Binding<Bool>) -> VNode {
+        if case .element(var data) = self {
+            data.properties["checked"] = .bool(binding.get())
+            let handler = _registerAmbientHandler { info in
+                if let c = info.targetChecked { binding.set(c) }
+            }
+            data.handlers["change"] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .checked(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
+        return self
+    }
+
+    /// Postfix variant of `.selection(_:Binding<String>)`. Writes both
+    /// the `value` property and the `.change` handler directly into the
+    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
+    /// and pass through unchanged.
+    @MainActor
+    func selection(_ binding: Binding<String>) -> VNode {
+        if case .element(var data) = self {
+            data.properties["value"] = .string(binding.get())
+            let handler = _registerAmbientHandler { info in
+                binding.set(info.targetValue ?? "")
+            }
+            data.handlers["change"] = handler
+            return .element(data)
+        }
+        swiflowDiagnostic("Postfix .selection(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
         return self
     }
 }
