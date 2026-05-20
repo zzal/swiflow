@@ -13,23 +13,24 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**What works today (Phase 6):**
+**What works today (Phase 7):**
 - Reactive Components with `@State` and the typed `Event` DSL —
   `.on(.click) { self.count += 1 }`.
+- Two-way bindings — `.value($text)` (String/Int/Double), `.checked($flag)`,
+  `.selection($choice)` — on input, textarea, and select.
+- `Ref<Element>` for first-party DOM access (focus, scroll, etc.).
 - `URLSanitizer`-protected DSL fold (XSS-safe by default).
 - `swiflow init` scaffold + `swiflow build` (WASM SDK auto-probe) +
   `swiflow dev` (file-watch + full-page reload).
-- 286+ tests, Playwright e2e, DWARF debugging guide.
+- 327+ tests, Playwright e2e, DWARF debugging guide, `docs/guides/forms.md`.
 
 **What's not in the box yet:**
 - **HMR** (instant save→pixels) — Phase 8. Today's dev loop is a full
   page reload on every save; component state is lost.
-- **Two-way input binding** `input(.value($text))` — Phase 7.
-- **Refs** `Ref<Element>` — Phase 7.
 - **Component inspector / devtools** — Phase 9.
 - **`@Environment` / context DI** — Phase 10.
 - **Router** (`SwiflowRouter`) — Phase 11.
-- **Scoped CSS, animation primitives, form validation** — Phase 12.
+- **Scoped CSS, animation primitives, form validation framework** — Phase 12.
 - **Multi-root rendering, lazy components, component testing harness,
   macro diagnostics** — Phase 13.
 
@@ -47,13 +48,16 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 6 (Trust & Polish) complete. Phase 5's API surface is
-intact; Phase 6 closed the credibility-erosion punch list — `attr(_:_:Bool)`
-now omits the attribute on `false`, `Binding<Value>` is hidden from
-autocomplete until Phase 7 ships its consumer, the `final class` template
-carries a one-line rationale, the `embed { }` factory contract is loud
-(with a DEBUG diagnostic), and the README carries an honest Current State
-section.
+**Status:** Phase 7 (Bindings, Refs & Form Foundations) complete. Two-way
+bindings ship as `.value($text)` / `.checked($flag)` / `.selection($choice)`
+on input, textarea, and select (with new `textarea` / `select` / `option`
+element factories). `Ref<Element>` gives first-party DOM access for
+focus, scroll, and other imperative needs — populated on mount, cleared
+on unmount. `EventInfo` gained `targetChecked` plus typed `targetIntValue`
+/ `targetDoubleValue` accessors. The HelloWorld template demos a
+controlled text input, a `.ref(...)`-autofocus, and a `.checked` toggle;
+`docs/guides/forms.md` ships the recipe for controlled inputs + manual
+validation.
 
 ## Quick start
 
