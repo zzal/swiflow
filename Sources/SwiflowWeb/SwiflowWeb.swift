@@ -46,6 +46,19 @@ public extension Swiflow {
             "a second render would silently drop event dispatch for new handlers because the JS " +
             "dispatcher remains bound to the first registry."
         )
+
+        // Phase 8: if the dev server staged a pending HMR snapshot in
+        // window.__swiflowPendingSnapshot, decode it now. We install
+        // the diff's restore hook BEFORE constructing the root
+        // component so the very first wireState call gets the chance
+        // to restore.
+        let pendingIndex = HMRBridge.takePendingSnapshot()
+        if let index = pendingIndex {
+            HMRRestoreInstall.restore = { component, path in
+                HMRWalker.applyRestore(index: index, to: component, at: path)
+            }
+        }
+
         let root = factory()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         ambientRenderer = renderer
@@ -68,7 +81,23 @@ public extension Swiflow {
             let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
             return result.object
         }
+
+        // Phase 8: install the snapshot exporter so the JS driver can
+        // call window.__swiflow.hmrSnapshot() before the next swap.
+        // The exporter walks `renderer.mountTree` at call time, so it
+        // always reports the current tree even after many re-renders.
+        HMRBridge.installSnapshotExporter { [weak renderer] in
+            renderer?.mountTree
+        }
+
         renderer.renderOnce()
+
+        // Phase 8: clear the install slot after the first render
+        // completes. Subsequent reactivity-driven renders should
+        // not re-restore.
+        if pendingIndex != nil {
+            HMRRestoreInstall.restore = nil
+        }
     }
 
     /// Re-evaluates the registered view producer and applies any resulting
