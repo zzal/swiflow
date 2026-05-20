@@ -104,7 +104,7 @@ struct InitCommandTests {
         )
         #expect(app.contains("final class Counter: Component"))
         #expect(app.contains("@State var count: Int = 0"))
-        #expect(app.contains("Swiflow.render(Counter()"))
+        #expect(app.contains("Swiflow.render(into: \"#app\") { Counter() }"))
         // The comment in the template mentions "Swiflow.rerender()" to explain it
         // is absent as a call; check that there is no actual call-site (i.e. the
         // pattern followed by a newline or preceded by whitespace as a statement).

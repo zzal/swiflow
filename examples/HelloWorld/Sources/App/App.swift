@@ -26,6 +26,6 @@ final class Counter: Component {
 struct App {
     @MainActor
     static func main() {
-        Swiflow.render(Counter(), into: "#app")
+        Swiflow.render(into: "#app") { Counter() }
     }
 }
