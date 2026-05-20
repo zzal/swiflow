@@ -65,6 +65,12 @@ public final class State<Value> {
         }
     }
 
+    /// The two-way binding for this state cell, accessed via `$count`.
+    /// **Reserved for Phase 7** — Phase 6 ships the symbol for ABI
+    /// stability but no DSL modifiers consume `Binding<Value>` yet.
+    /// Use `wrappedValue` (`count = 5`) for now; `input(.value($text))`
+    /// starts working when Phase 7's `.value(_:)` modifier ships.
+    @_documentation(visibility: internal)
     public var projectedValue: Binding<Value> {
         Binding(
             get: { self.storage.value },
@@ -93,18 +99,16 @@ public final class State<Value> {
     }
 }
 
-/// Two-way binding shaped like SwiftUI's. Used as the `projectedValue` of
-/// `@State`, accessed via the `$`-prefix sigil:
+/// Two-way binding shaped like SwiftUI's. **Reserved for Phase 7** —
+/// Phase 6 hides it from autocomplete and DocC via
+/// `@_documentation(visibility: internal)` because no DSL modifier in
+/// Phase 6 consumes a `Binding<Value>`. The type stays `public` for
+/// ABI stability; Phase 7 will surface it again when `.value($text)`,
+/// `.checked($flag)`, and `.selection($choice)` ship.
 ///
-/// ```swift
-/// @State var text = ""
-/// // ...
-/// input(.value($text))   // pass the binding
-/// ```
-///
-/// Phase 3 v1 doesn't yet have any DSL bindings that consume `Binding`;
-/// it's surfaced now so the API is set in stone before Phase 4's form
-/// helpers land. Until then, callers can use it manually via `get`/`set`.
+/// See `docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md`
+/// (Phase 7 — Bindings, Refs & Form Foundations) for the consumer plan.
+@_documentation(visibility: internal)
 public struct Binding<Value> {
     public let get: () -> Value
     public let set: (Value) -> Void
