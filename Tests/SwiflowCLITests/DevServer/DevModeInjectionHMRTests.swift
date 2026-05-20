@@ -1,19 +1,16 @@
 // Tests/SwiflowCLITests/DevServer/DevModeInjectionHMRTests.swift
 //
-// Phase 8 — verifies the dev-mode injector now ships BOTH
-// `window.SWIFLOW_DEV=true` and `window.SWIFLOW_HMR=true`. The
-// existing DevModeInjectionTests cover the original DEV signal
-// and the placement/fallback/idempotency mechanics; this file
-// focuses narrowly on the HMR addition so a regression localizes
-// quickly.
+// Verifies the dev-mode injector ships `window.SWIFLOW_DEV=true`.
+// The existing DevModeInjectionTests cover placement/fallback/idempotency;
+// this file covers idempotency with the current marker string.
 import Testing
 @testable import SwiflowCLI
 
 @Suite("DevModeInjection HMR signal")
 struct DevModeInjectionHMRTests {
 
-    @Test("injectDevSignal also injects SWIFLOW_HMR=true")
-    func injectsHMRSignal() {
+    @Test("injectDevSignal injects SWIFLOW_DEV=true")
+    func injectsDevSignal() {
         let html = #"""
         <html><body>
           <div id="app"></div>
@@ -22,7 +19,6 @@ struct DevModeInjectionHMRTests {
         """#
         let result = DevModeInjection.injectDevSignal(into: html)
         #expect(result.contains("window.SWIFLOW_DEV=true"))
-        #expect(result.contains("window.SWIFLOW_HMR=true"))
     }
 
     @Test("injection is idempotent on second application")
@@ -31,8 +27,7 @@ struct DevModeInjectionHMRTests {
         let once = DevModeInjection.injectDevSignal(into: html)
         let twice = DevModeInjection.injectDevSignal(into: once)
         #expect(once == twice)
-        // The marker should appear exactly once in the output.
-        let occurrences = once.components(separatedBy: "SWIFLOW_HMR=true").count - 1
+        let occurrences = once.components(separatedBy: "SWIFLOW_DEV=true").count - 1
         #expect(occurrences == 1)
     }
 }

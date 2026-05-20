@@ -343,6 +343,10 @@
         // module load fresh. Await it so failures fall through to
         // catch and trigger the reload fallback.
         await import(payload.jsURL);
+        // NOTE: The previous WASM module's heap (old ambientRenderer,
+        // old JSClosures) is not explicitly freed — the browser GC
+        // reclaims it eventually. This is acceptable for a dev-only
+        // code path. A page reload always clears everything cleanly.
 
         const dt = (performance.now() - t0).toFixed(1);
         console.log("[swiflow] hmr-swap took " + dt + "ms");

@@ -257,7 +257,8 @@ func update(
     into patches: inout [Patch],
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    scheduler: Scheduler? = nil
+    scheduler: Scheduler? = nil,
+    path: String = ""
 ) -> MountNode {
     switch (mounted.vnode, next) {
     // Same-kind, same-content: nothing to do.
@@ -309,7 +310,8 @@ func update(
             handles: handles,
             handlers: handlers,
             into: &patches,
-            scheduler: scheduler
+            scheduler: scheduler,
+            parentPath: path
         )
         mounted.vnode = next
         return mounted
@@ -329,7 +331,7 @@ func update(
         // fall through to the destroy+remount safety net rather than crash.
         guard let instance = mounted.component, let oldBody = mounted.componentBody else {
             destroy(mounted, into: &patches, handlers: handlers)
-            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
+            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path)
         }
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
@@ -345,7 +347,8 @@ func update(
             into: &patches,
             handles: handles,
             handlers: handlers,
-            scheduler: scheduler
+            scheduler: scheduler,
+            path: path
         )
         mounted.componentBody = newBodyMount
         // Commit the new vnode description so the next render's left-hand
@@ -356,7 +359,7 @@ func update(
     // Any other transition: destroy the old subtree and mount fresh.
     default:
         destroy(mounted, into: &patches, handlers: handlers)
-        return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
+        return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path)
     }
 }
 
@@ -529,7 +532,8 @@ func diffChildren(
     handles: HandleAllocator,
     handlers: HandlerRegistry,
     into patches: inout [Patch],
-    scheduler: Scheduler? = nil
+    scheduler: Scheduler? = nil,
+    parentPath: String = ""
 ) {
     // Diagnostic: detect mixed keyed/unkeyed siblings. Either every
     // sibling has a key, or none — partial keying gives unkeyed
@@ -564,7 +568,8 @@ func diffChildren(
             handles: handles,
             handlers: handlers,
             into: &patches,
-            scheduler: scheduler
+            scheduler: scheduler,
+            parentPath: parentPath
         )
     } else {
         diffChildrenIndexed(
@@ -573,7 +578,8 @@ func diffChildren(
             handles: handles,
             handlers: handlers,
             into: &patches,
-            scheduler: scheduler
+            scheduler: scheduler,
+            parentPath: parentPath
         )
     }
 }

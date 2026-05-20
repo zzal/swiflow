@@ -61,20 +61,20 @@ actor WebSocketHub {
     /// driver can log "fetching <wasmURL>" and so a future
     /// preflight-fetch optimization has it available.
     func broadcastHMRSwap(wasmURL: String, jsURL: String) async {
-        // Escape any quote / backslash in URLs defensively. The
-        // mtime-suffixed URLs we generate today contain neither, but
-        // a future hash scheme might include base64-style characters
-        // and the encoder must not produce invalid JSON.
-        let escapedWasm = wasmURL
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let escapedJS = jsURL
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let payload = #"{"type":"hmr-swap","wasmURL":"\#(escapedWasm)","jsURL":"\#(escapedJS)"}"#
+        struct HMRSwapPayload: Encodable {
+            let type = "hmr-swap"
+            let wasmURL: String
+            let jsURL: String
+        }
+        // JSONEncoder escapes "/" as "\/" (valid but unnecessary here).
+        // Strip those escapes so the output matches what the driver expects.
+        let encoded = (try? JSONEncoder().encode(HMRSwapPayload(wasmURL: wasmURL, jsURL: jsURL)))
+            .flatMap { String(bytes: $0, encoding: .utf8) }
+            .map { $0.replacingOccurrences(of: "\\/", with: "/") }
+            ?? #"{"type":"hmr-swap","wasmURL":"","jsURL":""}"#
         for (id, writer) in clients {
             do {
-                try await writer.write(.text(payload))
+                try await writer.write(.text(encoded))
             } catch {
                 clients.removeValue(forKey: id)
             }

@@ -19,7 +19,8 @@ func diffChildrenKeyed(
     handles: HandleAllocator,
     handlers: HandlerRegistry,
     into patches: inout [Patch],
-    scheduler: Scheduler? = nil
+    scheduler: Scheduler? = nil,
+    parentPath: String = ""
 ) {
     // Diagnostic pre-pass: detect duplicate keys among the new children.
     // Keys MUST be unique within a parent — duplicates cause the keyed
@@ -59,13 +60,15 @@ func diffChildrenKeyed(
         let oldChild = mounted.children[oldStart]
         let oldHandle = oldChild.domHandle
         let updatePatchStart = patches.count
+        let childPath = parentPath.isEmpty ? String(newStart) : "\(parentPath).\(newStart)"
         let updated = update(
             mounted: oldChild,
             next: newChildren[newStart],
             into: &patches,
             handles: handles,
             handlers: handlers,
-            scheduler: scheduler
+            scheduler: scheduler,
+            path: childPath
         )
         if updated !== oldChild {
             // Cross-kind replacement (same key, different tag/kind).
@@ -107,13 +110,15 @@ func diffChildrenKeyed(
         let oldChild = mounted.children[oldEnd]
         let oldHandle = oldChild.domHandle
         let updatePatchStart = patches.count
+        let childPath = parentPath.isEmpty ? String(newEnd) : "\(parentPath).\(newEnd)"
         let updated = update(
             mounted: oldChild,
             next: newChildren[newEnd],
             into: &patches,
             handles: handles,
             handlers: handlers,
-            scheduler: scheduler
+            scheduler: scheduler,
+            path: childPath
         )
         if updated !== oldChild {
             // Cross-kind replacement in the suffix scan. Same fix as the
@@ -157,12 +162,14 @@ func diffChildrenKeyed(
             : nil
         var insertIndex = oldStart
         for i in newStart...newEnd {
+            let childPath = parentPath.isEmpty ? String(insertIndex) : "\(parentPath).\(insertIndex)"
             let child = mount(
                 newChildren[i],
                 into: &patches,
                 handles: handles,
                 handlers: handlers,
-                scheduler: scheduler
+                scheduler: scheduler,
+                path: childPath
             )
             if let before = beforeHandle {
                 patches.append(.insertBefore(parent: mounted.handle, child: child.domHandle, beforeChild: before))
@@ -209,6 +216,7 @@ func diffChildrenKeyed(
     for i in 0..<newMiddleCount {
         let newChild = newChildren[newStart + i]
         let key = keyOf(newChild)
+        let childPath = parentPath.isEmpty ? String(newStart + i) : "\(parentPath).\(newStart + i)"
         if let oldIndex = keyToOldIndex.removeValue(forKey: key) {
             let reused = mounted.children[oldIndex]
             let updatePatchStart = patches.count
@@ -218,7 +226,8 @@ func diffChildrenKeyed(
                 into: &patches,
                 handles: handles,
                 handlers: handlers,
-                scheduler: scheduler
+                scheduler: scheduler,
+                path: childPath
             )
             if updated !== reused {
                 // Cross-kind replacement: same key but different tag/kind.
@@ -253,7 +262,8 @@ func diffChildrenKeyed(
                 into: &patches,
                 handles: handles,
                 handlers: handlers,
-                scheduler: scheduler
+                scheduler: scheduler,
+                path: childPath
             )
             newSlice[i] = fresh
             // newToOldIndex[i] stays -1 to mark "fresh mount, must insert".
