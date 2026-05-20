@@ -13,7 +13,7 @@ struct DiagnosticsTests {
     /// Component whose body returns another component anchor — infinite
     /// anchor cycle. Exists only to exercise the depth-guard diagnostic.
     final class CycleComponent: Component {
-        var body: VNode { component({ CycleComponent() }) }
+        var body: VNode { embed { CycleComponent() } }
     }
 
     // Exit tests verify only that the subprocess exits non-zero — Swift
@@ -84,8 +84,8 @@ struct DiagnosticsTests {
             let handles = HandleAllocator()
             let handlers = HandlerRegistry()
             let parent = div {
-                component({ CounterStub() }, key: "a")
-                component({ CounterStub() }, key: "a")
+                embed("a") { CounterStub() }
+                embed("a") { CounterStub() }
             }
             await MainActor.run {
                 _ = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)

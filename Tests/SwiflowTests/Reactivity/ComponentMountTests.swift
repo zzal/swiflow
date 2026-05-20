@@ -47,7 +47,7 @@ struct ComponentMountTests {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
         let parent = div {
-            component({ Hello() })
+            embed { Hello() }
         }
         let result = diff(mounted: nil, next: parent, handles: handles, handlers: handlers)
 
@@ -128,7 +128,7 @@ struct ComponentMountTests {
         // body?.domHandle) would silently return the inner anchor's
         // structural handle here.
         final class Wrapper: Component {
-            var body: VNode { component({ Hello() }) }
+            var body: VNode { embed { Hello() } }
         }
 
         let handles = HandleAllocator()
@@ -164,7 +164,7 @@ struct ComponentMountTests {
         // structural handle.
         let v2 = div {
             p("first")
-            component({ Hello() })
+            embed { Hello() }
         }
         let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
 

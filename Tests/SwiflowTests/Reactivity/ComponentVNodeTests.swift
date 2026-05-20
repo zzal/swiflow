@@ -25,9 +25,9 @@ struct ComponentVNodeTests {
         #expect(a != d)
     }
 
-    @Test("DSL `component(_:key:)` produces a VNode.component case")
-    func dslComponentFreeFunction() {
-        let v = component({ Counter() })
+    @Test("DSL `embed { }` produces a VNode.component case")
+    func dslEmbedFreeFunction() {
+        let v = embed { Counter() }
         guard case .component(let desc) = v else {
             Issue.record("Expected .component case, got \(v)")
             return
@@ -36,9 +36,9 @@ struct ComponentVNodeTests {
         #expect(desc.key == nil)
     }
 
-    @Test("DSL accepts key argument")
-    func dslComponentWithKey() {
-        let v = component({ Counter() }, key: "row-7")
+    @Test("DSL accepts keyed embed variant")
+    func dslEmbedWithKey() {
+        let v = embed("row-7") { Counter() }
         guard case .component(let desc) = v else {
             Issue.record("Expected .component case")
             return
@@ -50,7 +50,7 @@ struct ComponentVNodeTests {
     func builderMixesElementsAndComponents() {
         let parent = div {
             h1("Heading")
-            component({ Counter() })
+            embed { Counter() }
             p("Footer")
         }
         guard case .element(let data) = parent else {

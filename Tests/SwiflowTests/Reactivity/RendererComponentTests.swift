@@ -76,7 +76,7 @@ struct OnDisappearTests {
         }
         final class Outer: Component {
             var disappearCalled = false
-            var body: VNode { component({ Inner() }) }
+            var body: VNode { embed { Inner() } }
             func onDisappear() { disappearCalled = true }
         }
 
