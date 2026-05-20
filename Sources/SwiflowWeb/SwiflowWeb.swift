@@ -54,8 +54,9 @@ public extension Swiflow {
         // to restore.
         let pendingIndex = HMRBridge.takePendingSnapshot()
         if let index = pendingIndex {
-            HMRRestoreInstall.restore = { component, path, key in
-                HMRWalker.applyRestore(index: index, to: component, at: path, key: key)
+            HMRRestoreInstall.stateFor = { path, typeName, key in
+                let lookupKey = SnapshotKey(path: path, typeName: typeName, key: key)
+                return index[lookupKey]
             }
         }
 
@@ -96,7 +97,7 @@ public extension Swiflow {
         // completes. Subsequent reactivity-driven renders should
         // not re-restore.
         if pendingIndex != nil {
-            HMRRestoreInstall.restore = nil
+            HMRRestoreInstall.stateFor = nil
         }
     }
 

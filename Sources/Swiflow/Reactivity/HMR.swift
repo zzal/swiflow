@@ -35,6 +35,12 @@ public struct HMRNilSentinel: Sendable {
 /// falls back to the declared initial value, with a debug log).
 public struct ComponentSnapshot {
     public let path: String
+    /// Fully-qualified type name produced by `String(reflecting:)`,
+    /// e.g. `"MyApp.Counter"`. Because it includes the Swift module
+    /// name, **renaming the module invalidates all HMR snapshots for
+    /// its components** — they will fall back to declared initial
+    /// values on the next hot-swap. This is intentional for v1:
+    /// a mismatched name likely means an incompatible state shape.
     public let typeName: String
     public let key: String?
     public let state: [String: Any]
@@ -63,22 +69,27 @@ public struct SnapshotKey: Hashable {
 }
 
 /// Phase 7-style install slot. SwiflowWeb installs a closure at
-/// `Swiflow.render(into:_:)` entry time that delegates to
-/// `HMRWalker.applyRestore(...)`. Diff calls this closure at the
-/// mount-wire site; when no swap is pending, the slot is nil and
-/// the call is a single nil-check.
+/// `Swiflow.render(into:_:)` entry time. Diff calls this at the
+/// mount-wire site to look up snapshot data; when no swap is pending,
+/// the slot is nil and the call is a single nil-check.
 ///
-/// The third parameter is the component's `.key` from its
-/// `ComponentDescription` (nil for unkeyed components). Threading the
-/// key ensures that keyed siblings (e.g. list items with `.key("a")`,
-/// `.key("b")`) look up the correct snapshot entry rather than all
-/// resolving against the `key: nil` bucket.
+/// Parameters: (path, typeName, key) → optional state map.
+/// - `path`: dot-joined child-index path in the new mount tree (same
+///   format produced by `HMRWalker.snapshot(from:)`).
+/// - `typeName`: `String(reflecting: type(of: instance))` for the
+///   component. Must match what the snapshot recorded — module-qualified,
+///   so a module rename invalidates all snapshots for its components.
+/// - `key`: the component's `.key` from its `ComponentDescription`
+///   (nil for unkeyed components).
+///
+/// Returning the state map (rather than applying it) lets the diff fuse
+/// the owner-wiring Mirror walk and the restore walk into one pass.
 ///
 /// `nonisolated(unsafe)`: closures are not Sendable; the slot is
 /// only read/written from `@MainActor` contexts. Mirrors
 /// `RefResolverInstall` from Phase 7.
 public enum HMRRestoreInstall {
-    public nonisolated(unsafe) static var restore: (@MainActor (AnyComponent, String, String?) -> Void)?
+    public nonisolated(unsafe) static var stateFor: (@MainActor (String, String, String?) -> [String: Any]?)?
 }
 
 /// Mount-tree HMR helpers. The walker traverses a `MountNode` tree
@@ -133,6 +144,10 @@ public enum HMRWalker {
         vnode: VNode
     ) -> ComponentSnapshot {
         let instance = anyC.instance
+        // String(reflecting:) produces a module-qualified name such as
+        // "MyApp.Counter". A module rename will break HMR state matching
+        // for all components in that module (they fall back to initial
+        // values). See ComponentSnapshot.typeName for the design rationale.
         let typeName = String(reflecting: type(of: instance))
         let key: String?
         if case .component(let desc) = vnode {

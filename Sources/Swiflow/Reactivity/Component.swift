@@ -127,15 +127,47 @@ public struct ComponentDescription: Equatable {
 /// method is invoked exactly once per @State per component instance
 /// (guarded by a precondition in State.swift).
 func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
-    guard let scheduler else { return }
+    wireStateAndRestore(on: owner, scheduler: scheduler, stateMap: nil)
+}
+
+/// Fused owner-wiring + HMR restore. Does ONE Mirror walk to both
+/// wire `@State` scheduler ownership and apply any pending snapshot
+/// values — eliminating the double walk that separate `wireState` +
+/// `applyRestore` calls would require.
+///
+/// Called from the diff at component mount time (replaces the old
+/// `wireState(on:scheduler:)` + `HMRRestoreInstall.restore?` pair).
+/// `stateMap` is nil when no HMR swap is pending; wiring still
+/// happens, restore is skipped.
+func wireStateAndRestore(
+    on owner: AnyComponent,
+    scheduler: Scheduler?,
+    stateMap: [String: Any]?,
+    path: String = ""
+) {
+    guard scheduler != nil || stateMap != nil else { return }
     let mirror = Mirror(reflecting: owner.instance)
     for child in mirror.children {
         // Property-wrapper-backed properties surface as `_propertyName`
         // children whose values are the wrapper class instance itself.
-        // The `as? StateWireable` cast filters out everything that
-        // isn't a @State wrapper.
-        if let wireable = child.value as? StateWireable {
+        guard let wireable = child.value as? StateWireable else { continue }
+        if let scheduler {
             wireable._setOwner(owner, scheduler: scheduler)
+        }
+        guard let stateMap, let label = child.label else { continue }
+        let fieldName = label.hasPrefix("_") ? String(label.dropFirst()) : label
+        guard let newValue = stateMap[fieldName] else { continue }
+        let ok: Bool
+        if newValue is HMRNilSentinel {
+            ok = wireable._hmrRestoreNil()
+        } else {
+            ok = wireable._hmrRestore(newValue)
+        }
+        if !ok {
+            let typeName = String(reflecting: type(of: owner.instance))
+            swiflowDiagnostic(
+                "HMR restore: type mismatch on \(typeName).\(fieldName) at path '\(path)'. Field reset to its declared initial value."
+            )
         }
     }
 }

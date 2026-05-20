@@ -207,16 +207,12 @@ func mount(
             swiflowDiagnostic("embed { } factory returned an already-mounted Component instance. Factories must allocate a fresh instance per call — `{ Counter() }`, not `{ self.existingCounter }`. See Sources/Swiflow/DSL/ComponentDSL.swift for the factory contract.")
         }
         #endif
-        wireState(on: instance, scheduler: scheduler)
-        // Phase 8: HMR state restore. The install slot is nil unless a
-        // hot module swap is pending (SwiflowWeb's render entry seeds
-        // it from window.__swiflowPendingSnapshot). When the slot is
-        // populated, look up matching snapshot data by (path, typeName, key)
-        // and overwrite this component's @State boxes before its first
-        // body() evaluation. `path` is the dot-joined child-index path
-        // of this component in the mount tree being built; the top
-        // level is "". `desc.key` is nil for unkeyed components.
-        HMRRestoreInstall.restore?(instance, path, desc.key)
+        // Fused owner-wiring + HMR restore in one Mirror walk.
+        // `stateFor` returns the snapshot state map for this component
+        // when an HMR swap is pending; nil otherwise (scheduler-only wiring).
+        let typeName = String(reflecting: type(of: instance.instance))
+        let stateMap = HMRRestoreInstall.stateFor?(path, typeName, desc.key)
+        wireStateAndRestore(on: instance, scheduler: scheduler, stateMap: stateMap, path: path)
         let anchorHandle = handles.next()
         // Open a handler scope so every `.on(_:perform:)` call inside this
         // component's body is tracked against this component anchor. The scope
