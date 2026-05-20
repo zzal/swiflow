@@ -78,7 +78,7 @@ public enum Attribute {
 /// Folds a list of `Attribute`s into the four bags + key of an `ElementData`.
 /// Later attributes of the same key override earlier ones — this matches the
 /// "last write wins" intuition of standard DOM property assignment.
-public func applyAttributes(
+func applyAttributes(
     tag: String,
     _ attributes: [Attribute],
     children: [VNode] = []

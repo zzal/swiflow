@@ -7,7 +7,7 @@ import Swiflow
 /// A `Scheduler` implementation that batches dirty-component notifications
 /// per `requestAnimationFrame` tick.
 ///
-/// Unlike `InProcessScheduler` (which fires a callback once per dirty
+/// Unlike `SyncScheduler` (which fires a callback once per dirty
 /// component on `flush()`), `RAFScheduler` fires a SINGLE `onFlushBatch`
 /// callback per rAF tick regardless of how many components were marked dirty.
 /// This is intentional for Phase 3 v1: the Renderer always rerenders the

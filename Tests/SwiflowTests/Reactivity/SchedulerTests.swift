@@ -12,7 +12,7 @@ struct SchedulerTests {
     @Test("markDirty + flush calls rerender callback once per component")
     func basicFlush() {
         var called: [ObjectIdentifier] = []
-        let scheduler = InProcessScheduler { any in
+        let scheduler = SyncScheduler { any in
             called.append(ObjectIdentifier(any.instance))
         }
         let a = AnyComponent(StubComponent())
@@ -29,7 +29,7 @@ struct SchedulerTests {
     @Test("Duplicate markDirty calls deduplicate within a single batch")
     func deduplication() {
         var callCount = 0
-        let scheduler = InProcessScheduler { _ in callCount += 1 }
+        let scheduler = SyncScheduler { _ in callCount += 1 }
         let a = AnyComponent(StubComponent())
         scheduler.markDirty(a)
         scheduler.markDirty(a)
@@ -41,7 +41,7 @@ struct SchedulerTests {
     @Test("Flush clears the dirty set; subsequent markDirty starts a fresh batch")
     func flushClears() {
         var callCount = 0
-        let scheduler = InProcessScheduler { _ in callCount += 1 }
+        let scheduler = SyncScheduler { _ in callCount += 1 }
         let a = AnyComponent(StubComponent())
         scheduler.markDirty(a)
         scheduler.flush()
@@ -58,8 +58,8 @@ struct SchedulerTests {
         var callsThisBatch: [ObjectIdentifier] = []
         let a = AnyComponent(StubComponent())
         let b = AnyComponent(StubComponent())
-        var scheduler: InProcessScheduler!
-        scheduler = InProcessScheduler { any in
+        var scheduler: SyncScheduler!
+        scheduler = SyncScheduler { any in
             callsThisBatch.append(ObjectIdentifier(any.instance))
             // Re-mark b while flushing a.
             if any.instance === a.instance && callsThisBatch.count == 1 {
@@ -76,7 +76,7 @@ struct SchedulerTests {
     @Test("Insertion order is preserved across the batch")
     func insertionOrder() {
         var calledOrder: [ObjectIdentifier] = []
-        let scheduler = InProcessScheduler { any in
+        let scheduler = SyncScheduler { any in
             calledOrder.append(ObjectIdentifier(any.instance))
         }
         let a = AnyComponent(StubComponent())
@@ -102,9 +102,9 @@ struct SchedulerTests {
         // rerender hook would re-enter the loop, double-fire the
         // current batch, or stack-overflow on deferred marks.
         var callCount = 0
-        var scheduler: InProcessScheduler!
+        var scheduler: SyncScheduler!
         let a = AnyComponent(StubComponent())
-        scheduler = InProcessScheduler { _ in
+        scheduler = SyncScheduler { _ in
             callCount += 1
             scheduler.flush() // must be a no-op; the outer flush is in progress
         }

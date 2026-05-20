@@ -9,8 +9,8 @@ public enum ChildrenBuilder {
     public static func buildBlock() -> [VNode] { [] }
 
     /// Concatenates per-statement child arrays in source order.
-    public static func buildBlock(_ components: [VNode]...) -> [VNode] {
-        components.flatMap { $0 }
+    public static func buildBlock(_ children: [VNode]...) -> [VNode] {
+        children.flatMap { $0 }
     }
 
     /// Lifts a single `VNode` expression into a one-element array.
@@ -40,7 +40,7 @@ public enum ChildrenBuilder {
     }
 
     /// Flattens children produced by a `for` loop into a single array.
-    public static func buildArray(_ components: [[VNode]]) -> [VNode] {
-        components.flatMap { $0 }
+    public static func buildArray(_ children: [[VNode]]) -> [VNode] {
+        children.flatMap { $0 }
     }
 }

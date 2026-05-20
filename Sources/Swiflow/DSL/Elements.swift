@@ -93,16 +93,18 @@ public func button(_ text: String, _ attributes: Attribute...) -> VNode {
 }
 
 /// HTML `<a>` anchor with attributes and a children block. Use
-/// `.attr("href", "…")` to set the target.
-public func a(
+/// `.attr("href", "…")` to set the target. Named `link` to avoid the
+/// one-letter free function `a` in the public namespace.
+public func link(
     _ attributes: Attribute...,
     @ChildrenBuilder children: () -> [VNode] = { [] }
 ) -> VNode {
     .element(applyAttributes(tag: "a", attributes, children: children()))
 }
 
-/// Text-only convenience for `<a>`: a single text node child.
-public func a(_ text: String, _ attributes: Attribute...) -> VNode {
+/// Text-only convenience for `<a>`: a single text node child. Named `link`
+/// to avoid the one-letter free function `a` in the public namespace.
+public func link(_ text: String, _ attributes: Attribute...) -> VNode {
     .element(applyAttributes(tag: "a", attributes, children: [.text(text)]))
 }
 
@@ -218,9 +220,8 @@ public func nav(
 
 /// HTML `<main>` landmark with attributes and a children block.
 ///
-/// `main` is a Swift keyword in some attribute contexts; spell the factory
-/// `main_` to avoid surprising users.
-public func main_(
+/// Named `mainElement` because `main` is a reserved word in many contexts.
+public func mainElement(
     _ attributes: Attribute...,
     @ChildrenBuilder children: () -> [VNode] = { [] }
 ) -> VNode {

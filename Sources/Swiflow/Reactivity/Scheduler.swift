@@ -5,7 +5,7 @@
 /// the per-component rerender callback.
 ///
 /// Two conformances ship with Swiflow:
-/// - `InProcessScheduler` (this file): synchronous flush, used by tests
+/// - `SyncScheduler` (this file): synchronous flush, used by tests
 ///   and any headless render path.
 /// - `RAFScheduler` (`SwiflowWeb/RAFScheduler.swift`, Task 8): batches per
 ///   `requestAnimationFrame` for the browser Renderer.
@@ -26,7 +26,7 @@ public protocol Scheduler: AnyObject {
     /// responsible for invoking `flush()` again when the deferred batch
     /// should be processed. Implementations may auto-trigger this (e.g.
     /// `RAFScheduler` re-arms `requestAnimationFrame` after each flush);
-    /// `InProcessScheduler` does not.
+    /// `SyncScheduler` does not.
     func flush()
 }
 
@@ -40,7 +40,7 @@ public protocol Scheduler: AnyObject {
 /// callback execution populates a fresh dirty set for the next batch.
 /// A reentrant `flush()` is a no-op (guard at the start) so callbacks
 /// can safely chain into other code that might itself flush.
-public final class InProcessScheduler: Scheduler {
+public final class SyncScheduler: Scheduler {
     private var dirty: [ObjectIdentifier: AnyComponent] = [:]
     private var insertionOrder: [ObjectIdentifier] = []
     private let rerenderCallback: (AnyComponent) -> Void

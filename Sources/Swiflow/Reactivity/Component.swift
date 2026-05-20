@@ -52,11 +52,11 @@ public final class AnyComponent {
     /// `ObjectIdentifier(instance)`. The diff uses this to decide whether
     /// the next render's component at the same position reuses this
     /// instance or replaces it (see `ComponentDescription`'s `==`).
-    public let typeID: ObjectIdentifier
+    package let typeID: ObjectIdentifier
 
     /// The live component instance. Typed as the existential `any Component`
     /// so a mount tree can hold heterogeneous components in the same field.
-    public let instance: any Component
+    package let instance: any Component
 
     /// Wraps `instance` while capturing its concrete type as `typeID`.
     public init<C: Component>(_ instance: C) {
@@ -81,11 +81,11 @@ public final class AnyComponent {
 /// are only invoked on the main actor. Tightening `factory` to `@Sendable`
 /// is deferred until cross-actor component usage becomes a real ask.
 public struct ComponentDescription: Equatable {
-    public let typeID: ObjectIdentifier
+    let typeID: ObjectIdentifier
     public let key: String?
-    public let factory: () -> AnyComponent
+    let factory: () -> AnyComponent
 
-    public init(typeID: ObjectIdentifier, key: String?, factory: @escaping () -> AnyComponent) {
+    package init(typeID: ObjectIdentifier, key: String?, factory: @escaping () -> AnyComponent) {
         self.typeID = typeID
         self.key = key
         self.factory = factory

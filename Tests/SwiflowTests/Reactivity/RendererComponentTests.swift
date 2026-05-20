@@ -125,11 +125,11 @@ struct OnDisappearTests {
 
 // MARK: - Scheduler coalescing contract
 
-@Suite("RAFScheduler contract (InProcessScheduler used as stand-in)")
+@Suite("RAFScheduler contract (SyncScheduler used as stand-in)")
 @MainActor
 struct SchedulerCoalescingTests {
     // RAFScheduler is JavaScriptKit-only and therefore not available in this
-    // test target. The InProcessScheduler is used here to verify that the
+    // test target. The SyncScheduler is used here to verify that the
     // Scheduler protocol contract — as used by the Renderer — correctly
     // marks dirty components and integrates with the diff.
     //
@@ -141,10 +141,10 @@ struct SchedulerCoalescingTests {
         var body: VNode { .text("n=\(n)") }
     }
 
-    @Test("InProcessScheduler marks dirty exactly once per unique component regardless of mutation count")
+    @Test("SyncScheduler marks dirty exactly once per unique component regardless of mutation count")
     func deduplicatesMarksForSameComponent() {
         var renderCount = 0
-        let scheduler = InProcessScheduler { _ in renderCount += 1 }
+        let scheduler = SyncScheduler { _ in renderCount += 1 }
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
