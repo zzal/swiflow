@@ -93,8 +93,9 @@ enum Templates {
         // Sources/App/App.swift
         import Swiflow
         import SwiflowWeb
+        import JavaScriptKit
 
-        /// Hello World — a Component with @State.
+        /// Hello World — a Component with @State, two-way bindings, and a Ref.
         ///
         /// `final class` (not `struct`) is required: @State reactivity wires the
         /// owner via Mirror after init, which needs reference semantics. See
@@ -103,13 +104,30 @@ enum Templates {
         /// that Components aren't subclassed.
         final class Counter: Component {
             @State var count: Int = 0
+            @State var greeting: String = "Swiflow"
+            @State var celebrate: Bool = false
+            let greetingInput = Ref<JSObject>()
 
             var body: VNode {
                 div(.class("container")) {
-                    h1("Hello, Swiflow!")
+                    h1("Hello, \(greeting)!\(celebrate ? " \u{1F389}" : "")")
                     p("Count: \(count)")
                     button("Increment", .on(.click) { self.count += 1 })
+
+                    div(.class("greeting-row")) {
+                        label("Greeting", .attr("for", "g"))
+                        input(.id("g"), .value($greeting), .ref(greetingInput))
+                    }
+
+                    label(.class("checkbox-row")) {
+                        input(.attr("type", "checkbox"), .checked($celebrate))
+                        VNode.text(" Celebrate")
+                    }
                 }
+            }
+
+            func onAppear() {
+                _ = greetingInput.wrappedValue?.focus.function?()
             }
         }
 
@@ -133,6 +151,9 @@ enum Templates {
               body { font-family: -apple-system, system-ui, sans-serif; padding: 2rem; }
               .container { max-width: 480px; }
               button { padding: 0.4rem 0.9rem; font-size: 1rem; cursor: pointer; }
+              .greeting-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; }
+              .greeting-row input { flex: 1; padding: 0.3rem 0.5rem; }
+              .checkbox-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
             </style>
           </head>
           <body>
