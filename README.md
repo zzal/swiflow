@@ -7,10 +7,12 @@ Swiflow batches all DOM mutations from a Swift-WASM render cycle into a single
 patch list and ships them across the JS bridge in one leap — making
 Swift-on-the-web fast and frictionless.
 
-**Status:** Phase 4 (Hardening) complete. The framework is feature-complete
-through Phase 3 (Component + `@State` reactivity + RAFScheduler) and hardened
-in Phase 4 with the URL sanitizer, debug-only diagnostics, DWARF debugging
-guide, JS-driver unit tests, and a Playwright happy-path e2e.
+**Status:** Phase 5 (API Polish) complete. The framework is feature-complete
+through Phase 3 (Component + `@State` reactivity + RAFScheduler), hardened
+in Phase 4 (URL sanitizer, debug diagnostics, DWARF guide, JS-driver units,
+Playwright e2e), and polished in Phase 5 — `@MainActor` Component, typed
+`Event` enum, `.on(.click) { … }` handler API, `embed { … }`, factory-based
+`Swiflow.render(into:) { Counter() }`, postfix VNode modifiers.
 
 ## Quick start
 
