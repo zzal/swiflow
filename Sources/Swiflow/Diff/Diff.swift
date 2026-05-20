@@ -46,7 +46,7 @@ package func diff(
             scheduler: scheduler
         )
     } else {
-        root = mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler)
+        root = mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: "")
     }
     return DiffResult(patches: patches, newMountTree: root)
 }
@@ -77,7 +77,8 @@ func mount(
     handles: HandleAllocator,
     handlers: HandlerRegistry,
     scheduler: Scheduler? = nil,
-    depth: Int = 0
+    depth: Int = 0,
+    path: String = ""
 ) -> MountNode {
     switch vnode {
     case .text(let value):
@@ -161,14 +162,16 @@ func mount(
         }
         #endif
 
-        for childVNode in data.children {
+        for (i, childVNode) in data.children.enumerated() {
+            let childPath = path.isEmpty ? String(i) : "\(path).\(i)"
             let childMount = mount(
                 childVNode,
                 into: &patches,
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler,
-                depth: depth
+                depth: depth,
+                path: childPath
             )
             // domHandle (not handle): if the child is a component anchor,
             // the anchor's own handle has no DOM counterpart — we need
@@ -205,6 +208,15 @@ func mount(
         }
         #endif
         wireState(on: instance, scheduler: scheduler)
+        // Phase 8: HMR state restore. The install slot is nil unless a
+        // hot module swap is pending (SwiflowWeb's render entry seeds
+        // it from window.__swiflowPendingSnapshot). When the slot is
+        // populated, look up matching snapshot data by (path, typeName)
+        // and overwrite this component's @State boxes before its first
+        // body() evaluation. `path` is the dot-joined child-index path
+        // of this component in the mount tree being built; the top
+        // level is "".
+        HMRRestoreInstall.restore?(instance, path)
         let anchorHandle = handles.next()
         // Open a handler scope so every `.on(_:perform:)` call inside this
         // component's body is tracked against this component anchor. The scope
@@ -218,7 +230,8 @@ func mount(
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
-            depth: depth + 1
+            depth: depth + 1,
+            path: path
         )
         return MountNode(
             handle: anchorHandle,
