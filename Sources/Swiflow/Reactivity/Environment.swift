@@ -6,7 +6,7 @@ public protocol EnvironmentKey {
 }
 
 public struct EnvironmentValues {
-    var storage: [ObjectIdentifier: Any] = [:]
+    private var storage: [ObjectIdentifier: Any] = [:]
 
     public subscript<K: EnvironmentKey>(_ key: K.Type) -> K.Value {
         get { storage[ObjectIdentifier(K.self)] as? K.Value ?? K.defaultValue }
@@ -17,13 +17,6 @@ public struct EnvironmentValues {
         var result = self
         for (id, val) in overrides.storage { result.storage[id] = val }
         return result
-    }
-}
-
-extension EnvironmentValues: Equatable {
-    public static func == (lhs: EnvironmentValues, rhs: EnvironmentValues) -> Bool {
-        guard lhs.storage.count == rhs.storage.count else { return false }
-        return lhs.storage.keys.allSatisfy { rhs.storage[$0] != nil }
     }
 }
 
