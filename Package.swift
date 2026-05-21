@@ -13,6 +13,7 @@ let package = Package(
     products: [
         .library(name: "Swiflow", targets: ["Swiflow"]),
         .library(name: "SwiflowWeb", targets: ["SwiflowWeb"]),
+        .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
     dependencies: [
@@ -56,6 +57,15 @@ let package = Package(
             path: "Sources/SwiflowCLI",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "SwiflowRouter",
+            dependencies: [
+                "Swiflow",
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            ],
+            path: "Sources/SwiflowRouter",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "SwiflowTests",
             dependencies: ["Swiflow"],
@@ -70,6 +80,12 @@ let package = Package(
                 .product(name: "HummingbirdWSTesting", package: "hummingbird-websocket"),
             ],
             path: "Tests/SwiflowCLITests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SwiflowRouterTests",
+            dependencies: ["SwiflowRouter"],
+            path: "Tests/SwiflowRouterTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]
