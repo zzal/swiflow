@@ -86,6 +86,10 @@ struct MountTreeConsistencyTests {
                 handlers: data.handlers,
                 children: kids
             ))
+        case .environmentOverride(_, _):
+            // .environmentOverride is transparent — recurse into the child.
+            // The child's stored vnode is what lives in the mount tree.
+            return node.vnode
         }
     }
 

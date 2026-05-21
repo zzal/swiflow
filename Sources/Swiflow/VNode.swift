@@ -13,6 +13,8 @@
 /// - `component`: a Component anchor — instantiates and renders a reactive
 ///   `Component` whose `body` is diffed against the previously-mounted
 ///   subtree. Phase 3+.
+/// - `environmentOverride`: overrides one or more environment values for a
+///   subtree. Created by `withEnvironment(_:_:content:)`. Phase 10+.
 ///
 /// **Sendable:** `VNode` and `ElementData` deliberately do *not* conform to
 /// `Sendable` in Phase 1. They transitively hold `EventHandler`, which wraps
@@ -21,7 +23,7 @@
 /// model for `HandlerRegistry`. `EventInfo` is `Sendable` because it carries
 /// only value types and may be ferried across isolation boundaries when
 /// the dispatcher is wired in Phase 2.
-public indirect enum VNode: Equatable {
+public indirect enum VNode {
     case element(ElementData)
     case text(String)
     case rawHTML(String)
@@ -30,6 +32,10 @@ public indirect enum VNode: Equatable {
     /// description at the same child position reuse the existing instance
     /// (Phase 3+ — see `Component` and `ComponentDescription`).
     case component(ComponentDescription)
+    /// An environment override wrapping a subtree. Equality compares only the
+    /// child node; environment values themselves are not compared (they are
+    /// not Equatable). The diff always re-merges overrides on every update.
+    case environmentOverride(EnvironmentValues, VNode)
 }
 
 /// The payload of an `.element` VNode. Four separate bags model the four
@@ -164,5 +170,19 @@ public struct EventInfo: Equatable, Sendable {
     /// `targetValue` parsed as a `Double`; `nil` if absent or unparseable.
     public var targetDoubleValue: Double? {
         targetValue.flatMap(Double.init)
+    }
+}
+
+extension VNode: Equatable {
+    public static func == (lhs: VNode, rhs: VNode) -> Bool {
+        switch (lhs, rhs) {
+        case (.text(let a), .text(let b)): return a == b
+        case (.rawHTML(let a), .rawHTML(let b)): return a == b
+        case (.element(let a), .element(let b)): return a == b
+        case (.component(let a), .component(let b)): return a == b
+        case (.environmentOverride(_, let a), .environmentOverride(_, let b)):
+            return a == b   // compare only the child, not the env values
+        default: return false
+        }
     }
 }

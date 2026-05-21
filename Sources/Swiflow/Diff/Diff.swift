@@ -57,11 +57,13 @@ package func diff(
 /// Returns the key and keyability of a VNode for sibling-key diagnostics.
 /// `.element` and `.component` children can carry a key; `.text` and `.rawHTML`
 /// cannot. The "isKeyable" flag lets callers skip non-keyable children cleanly.
+/// `.environmentOverride` is transparent: recurse into the child.
 func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
     switch child {
     case .element(let data): return (data.key, true)
     case .component(let desc): return (desc.key, true)
     case .text, .rawHTML: return (nil, false)
+    case .environmentOverride(_, let child): return diagKeyAndIsKeyable(child)
     }
 }
 
@@ -234,6 +236,19 @@ func mount(
             vnode: vnode,
             component: instance,
             componentBody: bodyMount
+        )
+
+    case .environmentOverride(_, let child):
+        // Environment overrides are transparent in mount: unwrap and mount the child.
+        // Full environment threading is deferred to Task 4 (diff update arm).
+        return mount(
+            child,
+            into: &patches,
+            handles: handles,
+            handlers: handlers,
+            scheduler: scheduler,
+            depth: depth,
+            path: path
         )
     }
 }
