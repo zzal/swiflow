@@ -225,8 +225,10 @@ func mount(
         // is closed in `destroy()` when the component unmounts, ensuring
         // handler closures cannot outlive their owning Component instance.
         handlers.openScope(name: path)
+        let previousEnv = AmbientEnvironment.current
         AmbientEnvironment.current = environment
         let bodyVNode = instance.instance.body
+        AmbientEnvironment.current = previousEnv
         let bodyMount = mount(
             bodyVNode,
             into: &patches,
@@ -357,8 +359,10 @@ func update(
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
+        let previousEnv = AmbientEnvironment.current
         AmbientEnvironment.current = environment
         let newBodyVNode = instance.instance.body
+        AmbientEnvironment.current = previousEnv
         // Reconcile the new body VNode against the previously-mounted body
         // subtree. The returned MountNode may be the same reference (if the
         // body root type/tag matched) or a fresh one (if the body root
@@ -383,9 +387,13 @@ func update(
     // the ambient environment and recurse into the child. The structural handle
     // allocated at mount time is preserved; only the child subtree is updated.
     case (.environmentOverride(_, _), .environmentOverride(let nextOverrides, let nextChild)):
+        guard let oldBody = mounted.componentBody else {
+            destroy(mounted, into: &patches, handlers: handlers)
+            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
+        }
         let merged = environment.merging(nextOverrides)
         let updatedBody = update(
-            mounted: mounted.componentBody!,
+            mounted: oldBody,
             next: nextChild,
             into: &patches,
             handles: handles,
