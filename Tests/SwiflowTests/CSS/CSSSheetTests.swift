@@ -91,15 +91,15 @@ struct CSSSheetTests {
     }
 
     @Test("multiple rules serialized in order")
-    func multipleRulesOrdered() {
+    func multipleRulesOrdered() throws {
         let sheet = css {
             rule(".a") { color("red") }
             rule(".b") { color("blue") }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
-        let aIndex = result.range(of: ".swiflow-T .a {")!.lowerBound
-        let bIndex = result.range(of: ".swiflow-T .b {")!.lowerBound
-        #expect(aIndex < bIndex)
+        let aRange = try #require(result.range(of: ".swiflow-T .a {"))
+        let bRange = try #require(result.range(of: ".swiflow-T .b {"))
+        #expect(aRange.lowerBound < bRange.lowerBound)
     }
 
     @Test("empty sheet produces empty string")

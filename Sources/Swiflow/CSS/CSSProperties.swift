@@ -1,5 +1,3 @@
-// All functions are free functions for use inside @CSSRuleBuilder contexts.
-
 public func backgroundColor(_ value: String) -> CSSDeclaration { .init("background-color", value) }
 public func color(_ value: String) -> CSSDeclaration { .init("color", value) }
 public func border(_ value: String) -> CSSDeclaration { .init("border", value) }
