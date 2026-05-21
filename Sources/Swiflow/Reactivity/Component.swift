@@ -45,9 +45,9 @@ public extension Component {
     func onAppear() {}
     func onChange() {}
     func onDisappear() {}
-    public static var scopedStyles: CSSSheet? { nil }
-    public static var exitAnimation: String? { nil }
-    public static var exitDuration: Double? { nil }
+    static var scopedStyles: CSSSheet? { nil }
+    static var exitAnimation: String? { nil }
+    static var exitDuration: Double? { nil }
 }
 
 /// Type-erased reference to a `Component`. Stored on `MountNode` so the
