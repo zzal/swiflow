@@ -1,0 +1,53 @@
+public struct CSSSheet: Sendable {
+    package let entries: [CSSEntry]
+
+    package init(entries: [CSSEntry]) {
+        self.entries = entries
+    }
+
+    public func cssString(scopeClass: String) -> String {
+        entries.map { $0.cssString(scopeClass: scopeClass) }.joined(separator: "\n")
+    }
+}
+
+public enum CSSEntry: Sendable {
+    case rule(selector: String, declarations: [CSSDeclaration])
+    case keyframes(name: String, stops: [KeyframeStop])
+
+    package func cssString(scopeClass: String) -> String {
+        switch self {
+        case .rule(let selector, let declarations):
+            let effectiveSelector = shouldScope(selector)
+                ? ".\(scopeClass) \(selector)"
+                : selector
+            let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
+            return "\(effectiveSelector) {\n\(decls)\n}"
+        case .keyframes(let name, let stops):
+            let stopsStr = stops.map { stop -> String in
+                let decls = stop.declarations.map { "    \($0.name): \($0.value);" }.joined(separator: "\n")
+                return "  \(stop.position) {\n\(decls)\n  }"
+            }.joined(separator: "\n")
+            return "@keyframes \(name) {\n\(stopsStr)\n}"
+        }
+    }
+
+    private func shouldScope(_ selector: String) -> Bool {
+        let lower = selector.lowercased()
+        return !(lower.hasPrefix(":root") || lower.hasPrefix("html") || lower.hasPrefix("body"))
+    }
+}
+
+public struct CSSDeclaration: Sendable {
+    package let name: String
+    package let value: String
+
+    package init(_ name: String, _ value: String) {
+        self.name = name
+        self.value = value
+    }
+}
+
+public struct KeyframeStop: Sendable {
+    package let position: String  // "from", "to", or "50%"
+    package let declarations: [CSSDeclaration]
+}
