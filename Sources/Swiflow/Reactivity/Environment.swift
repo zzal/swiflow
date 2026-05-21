@@ -8,6 +8,8 @@ public protocol EnvironmentKey {
 public struct EnvironmentValues {
     private var storage: [ObjectIdentifier: Any] = [:]
 
+    public init() {}
+
     public subscript<K: EnvironmentKey>(_ key: K.Type) -> K.Value {
         get { storage[ObjectIdentifier(K.self)] as? K.Value ?? K.defaultValue }
         set { storage[ObjectIdentifier(K.self)] = newValue }

@@ -25,6 +25,8 @@ package enum DevAPIFormatter {
             if let body = node.componentBody {
                 walkTree(body, path: path, depth: depth + 1, into: &lines)
             }
+        } else if case .environmentOverride = node.vnode, let body = node.componentBody {
+            walkTree(body, path: path, depth: depth, into: &lines)
         } else {
             for (i, child) in node.children.enumerated() {
                 let childPath = path.isEmpty ? String(i) : "\(path).\(i)"

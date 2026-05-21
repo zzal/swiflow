@@ -32,7 +32,8 @@ package func diff(
     next: VNode,
     handles: HandleAllocator,
     handlers: HandlerRegistry,
-    scheduler: Scheduler? = nil
+    scheduler: Scheduler? = nil,
+    environment: EnvironmentValues = .init()
 ) -> DiffResult {
     var patches: [Patch] = []
     let root: MountNode
@@ -43,10 +44,11 @@ package func diff(
             into: &patches,
             handles: handles,
             handlers: handlers,
-            scheduler: scheduler
+            scheduler: scheduler,
+            environment: environment
         )
     } else {
-        root = mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: "")
+        root = mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: "", environment: environment)
     }
     return DiffResult(patches: patches, newMountTree: root)
 }
@@ -80,7 +82,8 @@ func mount(
     handlers: HandlerRegistry,
     scheduler: Scheduler? = nil,
     depth: Int = 0,
-    path: String = ""
+    path: String = "",
+    environment: EnvironmentValues = .init()
 ) -> MountNode {
     switch vnode {
     case .text(let value):
@@ -173,7 +176,8 @@ func mount(
                 handlers: handlers,
                 scheduler: scheduler,
                 depth: depth,
-                path: childPath
+                path: childPath,
+                environment: environment
             )
             // domHandle (not handle): if the child is a component anchor,
             // the anchor's own handle has no DOM counterpart — we need
@@ -221,6 +225,7 @@ func mount(
         // is closed in `destroy()` when the component unmounts, ensuring
         // handler closures cannot outlive their owning Component instance.
         handlers.openScope(name: path)
+        AmbientEnvironment.current = environment
         let bodyVNode = instance.instance.body
         let bodyMount = mount(
             bodyVNode,
@@ -229,7 +234,8 @@ func mount(
             handlers: handlers,
             scheduler: scheduler,
             depth: depth + 1,
-            path: path
+            path: path,
+            environment: environment
         )
         return MountNode(
             handle: anchorHandle,
@@ -238,18 +244,20 @@ func mount(
             componentBody: bodyMount
         )
 
-    case .environmentOverride(_, let child):
-        // Environment overrides are transparent in mount: unwrap and mount the child.
-        // Full environment threading is deferred to Task 4 (diff update arm).
-        return mount(
+    case .environmentOverride(let overrides, let child):
+        let h = handles.next()
+        let merged = environment.merging(overrides)
+        let childMount = mount(
             child,
             into: &patches,
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
             depth: depth,
-            path: path
+            path: path,
+            environment: merged
         )
+        return MountNode(handle: h, vnode: vnode, componentBody: childMount)
     }
 }
 
@@ -269,7 +277,8 @@ func update(
     handles: HandleAllocator,
     handlers: HandlerRegistry,
     scheduler: Scheduler? = nil,
-    path: String = ""
+    path: String = "",
+    environment: EnvironmentValues = .init()
 ) -> MountNode {
     switch (mounted.vnode, next) {
     // Same-kind, same-content: nothing to do.
@@ -322,7 +331,8 @@ func update(
             handlers: handlers,
             into: &patches,
             scheduler: scheduler,
-            parentPath: path
+            parentPath: path,
+            environment: environment
         )
         mounted.vnode = next
         return mounted
@@ -342,11 +352,12 @@ func update(
         // fall through to the destroy+remount safety net rather than crash.
         guard let instance = mounted.component, let oldBody = mounted.componentBody else {
             destroy(mounted, into: &patches, handlers: handlers)
-            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path)
+            return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
+        AmbientEnvironment.current = environment
         let newBodyVNode = instance.instance.body
         // Reconcile the new body VNode against the previously-mounted body
         // subtree. The returned MountNode may be the same reference (if the
@@ -359,7 +370,8 @@ func update(
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
-            path: path
+            path: path,
+            environment: environment
         )
         mounted.componentBody = newBodyMount
         // Commit the new vnode description so the next render's left-hand
@@ -367,11 +379,29 @@ func update(
         mounted.vnode = next
         return mounted
 
+    // EnvironmentOverride → EnvironmentOverride: merge the new overrides into
+    // the ambient environment and recurse into the child. The structural handle
+    // allocated at mount time is preserved; only the child subtree is updated.
+    case (.environmentOverride(_, _), .environmentOverride(let nextOverrides, let nextChild)):
+        let merged = environment.merging(nextOverrides)
+        let updatedBody = update(
+            mounted: mounted.componentBody!,
+            next: nextChild,
+            into: &patches,
+            handles: handles,
+            handlers: handlers,
+            scheduler: scheduler,
+            path: path,
+            environment: merged
+        )
+        mounted.componentBody = updatedBody
+        mounted.vnode = next
+        return mounted
+
     // Any other transition: destroy the old subtree and mount fresh.
     default:
-        // Includes .environmentOverride until Task 4 threads environment through update().
         destroy(mounted, into: &patches, handlers: handlers)
-        return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path)
+        return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
     }
 }
 
@@ -492,6 +522,7 @@ func destroy(
         // This evicts every handler registered during the component's `body`
         // evaluation, preventing closures from outliving their Component instance.
         handlers.closeScope()
+        OnChangeStorage.remove(for: ObjectIdentifier(any.instance))
         // Symmetric with the register call in mount(): drop this instance
         // from the reused-instance diagnostic tracker.
         #if DEBUG
@@ -526,11 +557,16 @@ func destroy(
         handlers.remove(id: handlerID)
     }
     // A component anchor has component != nil and its handle is structural-
-    // only (never sent to the driver via a create* patch). Emit destroyNode
-    // ONLY for nodes the driver actually knows about (everything except
-    // anchors).
+    // only (never sent to the driver via a create* patch). An environmentOverride
+    // node also has a structural-only handle (never sent to the driver via a
+    // create* patch). Emit destroyNode ONLY for nodes the driver actually knows
+    // about (everything except anchors and environment-override nodes).
     if node.component == nil {
-        patches.append(.destroyNode(handle: node.handle))
+        if case .environmentOverride = node.vnode {
+            // Structural handle — no destroyNode patch.
+        } else {
+            patches.append(.destroyNode(handle: node.handle))
+        }
     }
 }
 
@@ -545,7 +581,8 @@ func diffChildren(
     handlers: HandlerRegistry,
     into patches: inout [Patch],
     scheduler: Scheduler? = nil,
-    parentPath: String = ""
+    parentPath: String = "",
+    environment: EnvironmentValues = .init()
 ) {
     // Diagnostic: detect mixed keyed/unkeyed siblings. Either every
     // sibling has a key, or none — partial keying gives unkeyed
@@ -581,7 +618,8 @@ func diffChildren(
             handlers: handlers,
             into: &patches,
             scheduler: scheduler,
-            parentPath: parentPath
+            parentPath: parentPath,
+            environment: environment
         )
     } else {
         diffChildrenIndexed(
@@ -591,7 +629,8 @@ func diffChildren(
             handlers: handlers,
             into: &patches,
             scheduler: scheduler,
-            parentPath: parentPath
+            parentPath: parentPath,
+            environment: environment
         )
     }
 }

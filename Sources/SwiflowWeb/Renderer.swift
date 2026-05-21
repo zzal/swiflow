@@ -151,7 +151,8 @@ final class Renderer {
             next: nextVNode,
             handles: handles,
             handlers: handlers,
-            scheduler: _schedulerBox.value
+            scheduler: _schedulerBox.value,
+            environment: .init()
         )
         lastPatchCount = result.patches.count
         renderCount += 1

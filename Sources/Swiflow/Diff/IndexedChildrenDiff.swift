@@ -12,7 +12,8 @@ func diffChildrenIndexed(
     handlers: HandlerRegistry,
     into patches: inout [Patch],
     scheduler: Scheduler? = nil,
-    parentPath: String = ""
+    parentPath: String = "",
+    environment: EnvironmentValues = .init()
 ) {
     let oldCount = mounted.children.count
     let newCount = newChildren.count
@@ -31,7 +32,8 @@ func diffChildrenIndexed(
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
-            path: childPath
+            path: childPath,
+            environment: environment
         )
         if newChild !== oldChild {
             // The update returned a fresh node (cross-kind / tag replace).
@@ -73,7 +75,8 @@ func diffChildrenIndexed(
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler,
-                path: childPath
+                path: childPath,
+                environment: environment
             )
             patches.append(.appendChild(parent: mounted.handle, child: childMount.domHandle))
             mounted.addChild(childMount)

@@ -20,7 +20,8 @@ func diffChildrenKeyed(
     handlers: HandlerRegistry,
     into patches: inout [Patch],
     scheduler: Scheduler? = nil,
-    parentPath: String = ""
+    parentPath: String = "",
+    environment: EnvironmentValues = .init()
 ) {
     // Diagnostic pre-pass: detect duplicate keys among the new children.
     // Keys MUST be unique within a parent — duplicates cause the keyed
@@ -68,7 +69,8 @@ func diffChildrenKeyed(
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
-            path: childPath
+            path: childPath,
+            environment: environment
         )
         if updated !== oldChild {
             // Cross-kind replacement (same key, different tag/kind).
@@ -118,7 +120,8 @@ func diffChildrenKeyed(
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
-            path: childPath
+            path: childPath,
+            environment: environment
         )
         if updated !== oldChild {
             // Cross-kind replacement in the suffix scan. Same fix as the
@@ -169,7 +172,8 @@ func diffChildrenKeyed(
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler,
-                path: childPath
+                path: childPath,
+                environment: environment
             )
             if let before = beforeHandle {
                 patches.append(.insertBefore(parent: mounted.handle, child: child.domHandle, beforeChild: before))
@@ -227,7 +231,8 @@ func diffChildrenKeyed(
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler,
-                path: childPath
+                path: childPath,
+                environment: environment
             )
             if updated !== reused {
                 // Cross-kind replacement: same key but different tag/kind.
@@ -263,7 +268,8 @@ func diffChildrenKeyed(
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler,
-                path: childPath
+                path: childPath,
+                environment: environment
             )
             newSlice[i] = fresh
             // newToOldIndex[i] stays -1 to mark "fresh mount, must insert".
