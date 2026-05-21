@@ -3,7 +3,7 @@ import Swiflow
 
 /// Internal unit of the route tree. Callers build these through the
 /// `Route(...)` DSL free functions — never directly.
-package struct RouteDefinition {
+public struct RouteDefinition {
     package let pattern: RoutePattern
     /// Called by `matchRoutes` when this route's pattern matches the
     /// current path. Returns the VNode to render. Non-`@MainActor`

@@ -5,23 +5,23 @@ import Swiflow
 /// Mirrors `ChildrenBuilder` from `Swiflow` but produces
 /// `[RouteDefinition]` instead of `[VNode]`.
 @resultBuilder
-package enum RouteBuilder {
-    package static func buildBlock(_ components: [RouteDefinition]...) -> [RouteDefinition] {
+public enum RouteBuilder {
+    public static func buildBlock(_ components: [RouteDefinition]...) -> [RouteDefinition] {
         components.flatMap { $0 }
     }
-    package static func buildExpression(_ expression: RouteDefinition) -> [RouteDefinition] {
+    public static func buildExpression(_ expression: RouteDefinition) -> [RouteDefinition] {
         [expression]
     }
-    package static func buildOptional(_ component: [RouteDefinition]?) -> [RouteDefinition] {
+    public static func buildOptional(_ component: [RouteDefinition]?) -> [RouteDefinition] {
         component ?? []
     }
-    package static func buildEither(first component: [RouteDefinition]) -> [RouteDefinition] {
+    public static func buildEither(first component: [RouteDefinition]) -> [RouteDefinition] {
         component
     }
-    package static func buildEither(second component: [RouteDefinition]) -> [RouteDefinition] {
+    public static func buildEither(second component: [RouteDefinition]) -> [RouteDefinition] {
         component
     }
-    package static func buildArray(_ components: [[RouteDefinition]]) -> [RouteDefinition] {
+    public static func buildArray(_ components: [[RouteDefinition]]) -> [RouteDefinition] {
         components.flatMap { $0 }
     }
 }
@@ -33,7 +33,7 @@ package enum RouteBuilder {
 /// ```swift
 /// Route("/about") { AboutPage() }
 /// ```
-package func Route<C: Component>(
+public func Route<C: Component>(
     _ path: String,
     _ factory: @escaping () -> C
 ) -> RouteDefinition {
@@ -48,7 +48,7 @@ package func Route<C: Component>(
 /// ```swift
 /// Route("/users/:id") { ctx in UserPage(id: ctx.params["id"] ?? "") }
 /// ```
-package func Route<C: Component>(
+public func Route<C: Component>(
     _ path: String,
     _ factory: @escaping (RouterContext) -> C
 ) -> RouteDefinition {
@@ -65,7 +65,7 @@ package func Route<C: Component>(
 ///     Route("/:id") { ctx in UserDetailPage(id: ctx.params["id"] ?? "") }
 /// }
 /// ```
-package func Route(
+public func Route(
     _ path: String,
     @RouteBuilder _ children: () -> [RouteDefinition]
 ) -> RouteDefinition {
