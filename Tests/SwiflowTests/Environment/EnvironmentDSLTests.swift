@@ -20,7 +20,7 @@ struct EnvironmentDSLTests {
         }
     }
 
-    @Test("nested withEnvironment merges overrides")
+    @Test("nested withEnvironment produces two-level override chain")
     func nestedWithEnvironment() {
         let inner = withEnvironment(\.colorScheme, .dark) { VNode.text("x") }
         let outer = withEnvironment(\.locale, "ja") { inner }

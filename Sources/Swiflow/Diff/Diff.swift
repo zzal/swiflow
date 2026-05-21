@@ -369,6 +369,7 @@ func update(
 
     // Any other transition: destroy the old subtree and mount fresh.
     default:
+        // Includes .environmentOverride until Task 4 threads environment through update().
         destroy(mounted, into: &patches, handlers: handlers)
         return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path)
     }

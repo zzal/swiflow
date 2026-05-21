@@ -87,9 +87,11 @@ struct MountTreeConsistencyTests {
                 children: kids
             ))
         case .environmentOverride(_, _):
-            // .environmentOverride is transparent — recurse into the child.
-            // The child's stored vnode is what lives in the mount tree.
-            return node.vnode
+            // .environmentOverride is transparent in mount — mount() unwraps
+            // and mounts the child, returning the child's MountNode directly.
+            // This case should never appear in a committed mount tree until
+            // Task 4 adds environment threading to the update() arm.
+            fatalError("committedVNode encountered .environmentOverride; this should not happen in mount-only scenarios")
         }
     }
 
