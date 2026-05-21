@@ -54,4 +54,16 @@ public extension VNode {
     func data(_ name: String, _ value: String) -> VNode {
         mergeAttribute(self) { $0.attributes["data-\(name)"] = value }
     }
+
+    func transition(_ value: String) -> VNode {
+        mergeAttribute(self) { $0.style["transition"] = value }
+    }
+
+    func animation(_ value: String) -> VNode {
+        mergeAttribute(self) { $0.style["animation"] = value }
+    }
+
+    func cssVar(_ name: String, _ value: String) -> VNode {
+        mergeAttribute(self) { $0.style[name] = value }
+    }
 }

@@ -83,6 +83,18 @@ public enum Attribute {
         .style(name: name, value: value)
     }
 
+    public static func transition(_ value: String) -> Attribute {
+        .style(name: "transition", value: value)
+    }
+
+    public static func animation(_ value: String) -> Attribute {
+        .style(name: "animation", value: value)
+    }
+
+    public static func cssVar(_ name: String, _ value: String) -> Attribute {
+        .style(name: name, value: value)
+    }
+
     // No explicit `static func key(_:)` is needed — `case key(String)`
     // auto-synthesizes a constructor with the same call-site syntax
     // (`Attribute.key("k1")`). Declaring one explicitly is a redeclaration

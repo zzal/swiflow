@@ -35,12 +35,19 @@ public protocol Component: AnyObject {
     /// Called immediately before the component's subtree is destroyed.
     /// Defaulted to no-op.
     func onDisappear()
+
+    static var scopedStyles: CSSSheet? { get }
+    static var exitAnimation: String? { get }
+    static var exitDuration: Double? { get }
 }
 
 public extension Component {
     func onAppear() {}
     func onChange() {}
     func onDisappear() {}
+    public static var scopedStyles: CSSSheet? { nil }
+    public static var exitAnimation: String? { nil }
+    public static var exitDuration: Double? { nil }
 }
 
 /// Type-erased reference to a `Component`. Stored on `MountNode` so the
