@@ -20,10 +20,11 @@ enum OnChangeStorage {
 
 public extension Component {
     /// Fires `perform(newValue)` only when `value` has changed since the last
-    /// call with the same `key`. Call this from `onChange()`. Supply an
-    /// explicit `key:` string when making multiple `onChange(of:)` calls in
-    /// the same `onChange()` override — the default `#function` is identical
-    /// for every call site in the same method.
+    /// call with the same `key`. The first call always seeds the stored value
+    /// without firing. Call this from `onChange()`. Supply an explicit `key:`
+    /// string when making multiple `onChange(of:)` calls in the same
+    /// `onChange()` override — the default `#function` is identical for every
+    /// call site in the same method.
     func onChange<T: Equatable>(
         of value: T,
         key: String = #function,

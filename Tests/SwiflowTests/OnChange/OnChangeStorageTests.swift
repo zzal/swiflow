@@ -15,35 +15,36 @@ struct OnChangeStorageTests {
     @Test("first call does not fire perform")
     func firstCallDoesNotFire() {
         let c = Holder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
         var fired = false
         c.onChange(of: 1, key: "k") { _ in fired = true }
         #expect(!fired)
-        OnChangeStorage.remove(for: ObjectIdentifier(c))
     }
 
     @Test("same value does not fire perform")
     func sameValueDoesNotFire() {
         let c = Holder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
         c.onChange(of: 5, key: "k") { _ in }  // seed
         var fired = false
         c.onChange(of: 5, key: "k") { _ in fired = true }
         #expect(!fired)
-        OnChangeStorage.remove(for: ObjectIdentifier(c))
     }
 
     @Test("changed value fires with new value")
     func changedValueFires() {
         let c = Holder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
         c.onChange(of: 5, key: "k") { _ in }  // seed
         var received: Int? = nil
         c.onChange(of: 10, key: "k") { received = $0 }
         #expect(received == 10)
-        OnChangeStorage.remove(for: ObjectIdentifier(c))
     }
 
     @Test("multiple keys tracked independently")
     func multipleKeysTrackedIndependently() {
         let c = Holder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
         c.onChange(of: 1, key: "count") { _ in }   // seed count
         c.onChange(of: "x", key: "label") { _ in } // seed label
         var countFired = false
@@ -52,7 +53,6 @@ struct OnChangeStorageTests {
         c.onChange(of: "x", key: "label") { _ in labelFired = true }
         #expect(countFired == true)
         #expect(labelFired == false)
-        OnChangeStorage.remove(for: ObjectIdentifier(c))
     }
 
     @Test("remove clears all entries for component")
