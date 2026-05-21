@@ -44,16 +44,16 @@ Sources/SwiflowRouter/
     RouterContext.swift     — RouterContext, RouterInterface, RouterMode
     RouteDefinition.swift   — RouteDefinition struct
     RouteBuilder.swift      — @resultBuilder + Route/Routes DSL functions
-    RouterKey.swift         — EnvironmentValues.router extension
+    RouterKey.swift         — EnvironmentValues.router extension (Router type)
   Web/
     RouterRoot.swift        — Component; event wiring (#if canImport(JavaScriptKit))
-    Link.swift              — VNode factory (#if canImport(JavaScriptKit))
+    Link.swift              — Component; label + children variants (#if canImport(JavaScriptKit))
 
 Tests/SwiflowRouterTests/
   RoutePatternTests.swift
   RouterContextTests.swift
   RouteMatchingTests.swift
-  RouterInterfaceTests.swift
+  RouterTests.swift
 
 examples/MiniRouter/
   Package.swift
@@ -128,13 +128,13 @@ public struct RouterContext: Sendable {
 
 Query string is parsed from the real path at match time (stripped before pattern matching).
 
-### RouterInterface
+### Router
 
 The value injected into `@Environment(\.router)`.
 
 ```swift
-public struct RouterInterface: Sendable {
-    public let currentPath: String
+public struct Router: Sendable {
+    public let path: String
     public let navigate: @Sendable (String) -> Void   // pushState + re-render
     public let replace:  @Sendable (String) -> Void   // replaceState + re-render
     public let back:     @Sendable () -> Void          // history.back()
@@ -145,8 +145,8 @@ public struct RouterInterface: Sendable {
 
 ```swift
 private enum RouterKey: EnvironmentKey {
-    static let defaultValue = RouterInterface(
-        currentPath: "/",
+    static let defaultValue = Router(
+        path: "/",
         navigate: { _ in },
         replace:  { _ in },
         back:     {}
@@ -154,7 +154,7 @@ private enum RouterKey: EnvironmentKey {
 }
 
 public extension EnvironmentValues {
-    var router: RouterInterface {
+    var router: Router {
         get { self[RouterKey.self] }
         set { self[RouterKey.self] = newValue }
     }
@@ -165,8 +165,10 @@ public extension EnvironmentValues {
 
 ### RouteDefinition
 
+Internal to `SwiflowRouter` — callers never create or inspect `RouteDefinition` directly; they only build them through the `Route` DSL functions.
+
 ```swift
-public struct RouteDefinition {
+package struct RouteDefinition {
     let pattern: RoutePattern
     let factory: (RouterContext) -> VNode
     let children: [RouteDefinition]
@@ -193,10 +195,9 @@ public func Route<C: Component>(_ path: String, _ factory: @escaping (RouterCont
 
 // Namespace route — groups children under a common prefix
 public func Route(_ path: String, @RouteBuilder _ children: () -> [RouteDefinition]) -> RouteDefinition
-
-// Convenience: no Route wrapper needed when only one level
-public func Routes(@RouteBuilder _ children: () -> [RouteDefinition]) -> [RouteDefinition]
 ```
+
+`Routes` is intentionally omitted — `RouterRoot` already accepts a `@RouteBuilder` closure directly, making a `Routes { }` wrapper redundant.
 
 ---
 
@@ -225,14 +226,14 @@ public final class RouterRoot: Component {
     }
 
     public var body: VNode {
-        let interface = RouterInterface(
-            currentPath: currentPath,
+        let router = Router(
+            path: currentPath,
             navigate: { [weak self] path in self?.push(path) },
             replace:  { [weak self] path in self?.replacePath(path) },
             back:     { JSObject.global.history.back!() }
         )
         let matched = matchRoutes(routes, path: currentPath)
-        return withEnvironment(\.router, interface) {
+        return withEnvironment(\.router, router) {
             matched ?? VNode.text("404 — no route matched \(currentPath)")
         }
     }
@@ -304,54 +305,43 @@ First match wins. Order in the `RouteBuilder` closure is the priority order.
 
 `Link` is a `Component` (not a free function) because it needs to call `event.preventDefault()` on the raw DOM event, which is not available through the `EventInfo` value type. Using `Ref<JSObject>` + `onAppear()` lets it install a `JSClosure` directly on the element.
 
+A single `Link` class exposes two initializers — Swift resolves the overload at the call site. No `LinkContainer` type.
+
 ```swift
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 import Swiflow
 
-// Label variant
 public final class Link: Component {
+    private enum Content {
+        case label(String)
+        case children([VNode])
+    }
+
     private let path: String
-    private let label: String
+    private let content: Content
     private let linkRef = Ref<JSObject>()
     private var clickClosure: JSClosure?
 
+    // Label variant: Link("/about", "About")
     public init(_ path: String, _ label: String) {
         self.path = path
-        self.label = label
+        self.content = .label(label)
     }
 
-    public var body: VNode {
-        a(.attr("href", path), .ref(linkRef)) { VNode.text(label) }
-    }
-
-    public func onAppear() {
-        let navigate = AmbientEnvironment.current[keyPath: \.router].navigate
-        let targetPath = path
-        let closure = JSClosure { args -> JSValue in
-            args.first?.object?.preventDefault.function?()
-            navigate(targetPath)
-            return .undefined
-        }
-        linkRef.wrappedValue?.addEventListener.function?("click", closure)
-        clickClosure = closure
-    }
-}
-
-// Children variant (convenience wrapper)
-public final class LinkContainer: Component {
-    private let path: String
-    private let children: [VNode]
-    private let linkRef = Ref<JSObject>()
-    private var clickClosure: JSClosure?
-
-    public init(_ path: String, @ChildrenBuilder _ content: () -> [VNode]) {
+    // Children variant: Link("/about") { img(...) }
+    public init(_ path: String, @ChildrenBuilder _ children: () -> [VNode]) {
         self.path = path
-        self.children = content()
+        self.content = .children(children())
     }
 
     public var body: VNode {
-        a(.attr("href", path), .ref(linkRef)) { children }
+        switch content {
+        case .label(let text):
+            return a(.attr("href", path), .ref(linkRef)) { VNode.text(text) }
+        case .children(let nodes):
+            return a(.attr("href", path), .ref(linkRef)) { nodes }
+        }
     }
 
     public func onAppear() {
@@ -455,7 +445,7 @@ final class UsersPage: Component {
 | `RoutePatternTests.swift` | Static match, `:param` capture, `*` wildcard, no-match, trailing-slash normalization |
 | `RouterContextTests.swift` | Query string parsing (`?k=v&k2=v2`), param passthrough, empty query |
 | `RouteMatchingTests.swift` | Flat route match, nested route match, param merging, first-match-wins, 404 nil return |
-| `RouterInterfaceTests.swift` | Default no-op interface compiles + runs without crash, env key lookup |
+| `RouterTests.swift` | Default no-op `Router` compiles + runs without crash, env key lookup, `.path` default is "/" |
 
 **Covered by existing WASM E2E (SwiflowCLITests):**
 
@@ -476,22 +466,24 @@ The existing `swiflow init + swiflow dev` and `swiflow build` E2E tests cover th
 ```swift
 // Types
 public struct RouterContext: Sendable { path, params, query }
-public struct RouterInterface: Sendable { currentPath, navigate, replace, back }
-public struct RouteDefinition                           // opaque to callers
+public struct Router: Sendable { path, navigate, replace, back }
+// RouteDefinition is package-internal — callers never reference it by name
 
 // Env
-public extension EnvironmentValues { var router: RouterInterface }
+public extension EnvironmentValues { var router: Router }
 
 // DSL (free functions, platform-agnostic)
 public func Route<C: Component>(_ path: String, _ factory: () -> C) -> RouteDefinition
 public func Route<C: Component>(_ path: String, _ factory: (RouterContext) -> C) -> RouteDefinition
 public func Route(_ path: String, @RouteBuilder _ children: () -> [RouteDefinition]) -> RouteDefinition
-public func Routes(@RouteBuilder _ children: () -> [RouteDefinition]) -> [RouteDefinition]
+// No Routes() — RouterRoot's @RouteBuilder closure is sufficient
 
 // WASM-only (behind #if canImport(JavaScriptKit))
 public final class RouterRoot: Component { init(mode:routes:) }
-public final class Link: Component { init(_ path: String, _ label: String) }
-public final class LinkContainer: Component { init(_ path: String, @ChildrenBuilder content: () -> [VNode]) }
+public final class Link: Component {
+    init(_ path: String, _ label: String)              // label variant
+    init(_ path: String, @ChildrenBuilder content: () -> [VNode])  // children variant
+}
 ```
 
-`@resultBuilder struct RouteBuilder` is public (needed for `@RouteBuilder` parameter labels), but its static methods are an implementation detail.
+`@resultBuilder struct RouteBuilder` is public (needed for `@RouteBuilder` parameter labels in user code), but its static methods are an implementation detail.
