@@ -17,6 +17,7 @@ final class Counter: Component {
     @State var greeting: String = "Swiflow"
     @State var celebrate: Bool = false
     @State var showToast: Bool = false
+    @State var showSignIn: Bool = false
     let greetingInput = Ref<JSObject>()
 
     static var scopedStyles: CSSSheet? = css {
@@ -71,6 +72,16 @@ final class Counter: Component {
             if showToast {
                 embed { Toast(message: "Saved!", onDone: { self.showToast = false }) }
             }
+
+            div(.style(name: "margin-top", value: "2rem"),
+                .style(name: "border-top", value: "1px solid #eee"),
+                .style(name: "padding-top", value: "1.5rem")) {
+                button(showSignIn ? "Hide Sign In" : "Show Sign In demo",
+                       .on(.click) { self.showSignIn.toggle() })
+                if showSignIn {
+                    embed { SignIn() }
+                }
+            }
         }
     }
 
@@ -118,6 +129,81 @@ final class Toast: Component {
     var body: VNode {
         div(.class("root"), .on(.click) { self.onDone() }) {
             VNode.text(message)
+        }
+    }
+}
+
+/// SignIn — Phase 12b form validation demo.
+///
+/// Showcases:
+/// - `FormController` + `Field` + `Form` coordinator
+/// - Two-field form (email + password) with blur-triggered error messages
+/// - Submit disabled until `form.isValid`; `touchAll()` reveals all errors on early click
+/// - Reset button restores initial values
+final class SignIn: Component {
+    @State var email    = ""
+    @State var password = ""
+    @State var ctrl     = FormController()
+    @State var submitted = false
+
+    var body: VNode {
+        let em = Field("email",    $email,    $ctrl, .required(), .email)
+        let pw = Field("password", $password, $ctrl, .required(), .minLength(8),
+                       .custom("Must contain a number") { $0.contains { $0.isNumber } })
+        let form = Form($ctrl) { em; pw }
+
+        return div(.style(name: "max-width", value: "320px"),
+            .style(name: "margin", value: "1rem 0"),
+            .style(name: "font-family", value: "system-ui, sans-serif")) {
+
+            if submitted {
+                p("Signed in as \(email)!")
+                button("Sign out", .on(.click) {
+                    self.submitted = false
+                    self.email = ""
+                    self.password = ""
+                    self.ctrl = FormController()
+                })
+            } else {
+                h2("Sign In")
+
+                div(.style(name: "margin-bottom", value: "1rem")) {
+                    label("Email")
+                    input(.value($email),
+                          .style(name: "display", value: "block"),
+                          .style(name: "width", value: "100%"),
+                          .style(name: "margin-top", value: "4px"),
+                          .on(.blur) { em.markTouched() })
+                    if em.touched, let err = em.error {
+                        p(err,
+                          .style(name: "color", value: "red"),
+                          .style(name: "font-size", value: "0.85rem"))
+                    }
+                }
+
+                div(.style(name: "margin-bottom", value: "1rem")) {
+                    label("Password")
+                    input(.value($password),
+                          .style(name: "display", value: "block"),
+                          .style(name: "width", value: "100%"),
+                          .style(name: "margin-top", value: "4px"),
+                          .on(.blur) { pw.markTouched() })
+                    if pw.touched, let err = pw.error {
+                        p(err,
+                          .style(name: "color", value: "red"),
+                          .style(name: "font-size", value: "0.85rem"))
+                    }
+                }
+
+                button("Sign In",
+                       .style(name: "margin-right", value: "0.5rem"),
+                       .on(.click) {
+                           form.touchAll()
+                           guard form.isValid else { return }
+                           self.submitted = true
+                       })
+                button("Reset", .on(.click) { form.reset() })
+            }
         }
     }
 }

@@ -13,9 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 12a (Styling & Animation) — CSS-in-Swift scoped styles, keyframe animations, enter/exit transitions, CSS variables bridge.
+**Status:** Phase 12b (Form Validation) — CSS-in-Swift scoped styles, keyframe animations, enter/exit transitions, CSS variables bridge, form validation framework with `Validator`, `FormController`, `Field`, and `Form`.
 
-**What works today (Phase 12a):**
+**What works today (Phase 12b):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
