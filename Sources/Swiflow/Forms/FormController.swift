@@ -4,7 +4,7 @@ package struct AnyInitialValue: @unchecked Sendable {
 }
 
 public struct FormController: @unchecked Sendable {
-    public var touched: Set<String>
+    public internal(set) var touched: Set<String>
     package var initialSnapshots: [String: AnyInitialValue]
 
     public init() {
