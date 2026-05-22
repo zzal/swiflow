@@ -28,6 +28,13 @@ public enum PatchSerializer {
             return PatchPayload(op: "destroyNode", fields: [
                 "handle": .int(handle),
             ])
+        case .animateExit(let handle, let parentHandle, let animation, let durationMs):
+            return PatchPayload(op: "animateExit", fields: [
+                "handle":       .int(handle),
+                "parentHandle": .int(parentHandle),
+                "animation":    .string(animation),
+                "durationMs":   .double(durationMs),
+            ])
 
         // MARK: Tree structure
         case .appendChild(let parent, let child):

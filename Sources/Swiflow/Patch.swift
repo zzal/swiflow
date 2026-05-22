@@ -22,6 +22,12 @@ public enum Patch: Equatable, Sendable {
     case createRawHTML(handle: Int, html: String)
     /// Detaches `handle` from the driver's node map and lets the DOM GC it.
     case destroyNode(handle: Int)
+    /// Triggers a CSS exit animation on `handle` before detaching it from
+    /// `parentHandle`. The JS driver applies `animation`, waits `durationMs`,
+    /// then removes the node from the DOM and drops it from the handle map.
+    /// No `removeChild` patch is emitted alongside this — the driver owns
+    /// the removal timing.
+    case animateExit(handle: Int, parentHandle: Int, animation: String, durationMs: Double)
 
     // MARK: - Tree structure
 

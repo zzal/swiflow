@@ -190,8 +190,21 @@ func diffChildrenKeyed(
     if newStart > newEnd {
         for i in stride(from: oldEnd, through: oldStart, by: -1) {
             let removed = mounted.children[i]
-            patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
-            destroy(removed, into: &patches, handlers: handlers)
+            if let comp = removed.component,
+               let anim = type(of: comp.instance).exitAnimation {
+                let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
+                patches.append(.animateExit(
+                    handle: removed.domHandle,
+                    parentHandle: mounted.handle,
+                    animation: anim,
+                    durationMs: durMs
+                ))
+                destroy(removed, into: &patches, handlers: handlers,
+                        skipDestroyForHandle: removed.domHandle)
+            } else {
+                patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
+                destroy(removed, into: &patches, handlers: handlers)
+            }
             mounted.removeChild(at: i)
         }
         return
@@ -279,8 +292,21 @@ func diffChildrenKeyed(
     // 7. Destroy any old middle node that wasn't reused.
     for i in oldStart...oldEnd where !reusedOldIndices.contains(i) {
         let leftover = mounted.children[i]
-        patches.append(.removeChild(parent: mounted.handle, child: leftover.domHandle))
-        destroy(leftover, into: &patches, handlers: handlers)
+        if let comp = leftover.component,
+           let anim = type(of: comp.instance).exitAnimation {
+            let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
+            patches.append(.animateExit(
+                handle: leftover.domHandle,
+                parentHandle: mounted.handle,
+                animation: anim,
+                durationMs: durMs
+            ))
+            destroy(leftover, into: &patches, handlers: handlers,
+                    skipDestroyForHandle: leftover.domHandle)
+        } else {
+            patches.append(.removeChild(parent: mounted.handle, child: leftover.domHandle))
+            destroy(leftover, into: &patches, handlers: handlers)
+        }
     }
 
     // 8. Compute the LIS over `newToOldIndex`, ignoring fresh mounts (-1).

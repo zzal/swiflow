@@ -542,7 +542,8 @@ func diffHandlers(
 func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
-    handlers: HandlerRegistry
+    handlers: HandlerRegistry,
+    skipDestroyForHandle: Int? = nil
 ) {
     // Fire onDisappear on the component instance at this anchor, if any.
     // This is done BEFORE recursing so the parent component's onDisappear
@@ -595,7 +596,7 @@ func destroy(
     if node.component == nil {
         if case .environmentOverride = node.vnode {
             // Structural handle — no destroyNode patch.
-        } else {
+        } else if node.handle != skipDestroyForHandle {
             patches.append(.destroyNode(handle: node.handle))
         }
     }

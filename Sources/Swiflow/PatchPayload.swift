@@ -19,5 +19,6 @@ public struct PatchPayload: Equatable, Sendable {
         case int(Int)
         case string(String)
         case property(PropertyValue)
+        case double(Double)
     }
 }

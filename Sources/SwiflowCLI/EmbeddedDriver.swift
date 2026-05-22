@@ -126,6 +126,21 @@ enum EmbeddedDriver {
         nodes.delete(p.handle);
         return;
       }
+      case "animateExit": {
+        const node = nodes.get(p.handle);
+        const parent = nodes.get(p.parentHandle);
+        if (!node) return;
+        node.style.animation = p.animation;
+        setTimeout(function () {
+          if (parent && node.parentNode === parent) {
+            parent.removeChild(node);
+          } else if (node.parentNode) {
+            node.parentNode.removeChild(node);
+          }
+          nodes.delete(p.handle);
+        }, p.durationMs);
+        return;
+      }
 
       // Tree structure
       case "appendChild":

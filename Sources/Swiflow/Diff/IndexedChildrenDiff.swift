@@ -90,8 +90,21 @@ func diffChildrenIndexed(
     if oldCount > newCount {
         for _ in newCount..<oldCount {
             let removed = mounted.children[newCount]
-            patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
-            destroy(removed, into: &patches, handlers: handlers)
+            if let comp = removed.component,
+               let anim = type(of: comp.instance).exitAnimation {
+                let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
+                patches.append(.animateExit(
+                    handle: removed.domHandle,
+                    parentHandle: mounted.handle,
+                    animation: anim,
+                    durationMs: durMs
+                ))
+                destroy(removed, into: &patches, handlers: handlers,
+                        skipDestroyForHandle: removed.domHandle)
+            } else {
+                patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
+                destroy(removed, into: &patches, handlers: handlers)
+            }
             mounted.removeChild(at: newCount)
         }
     }
