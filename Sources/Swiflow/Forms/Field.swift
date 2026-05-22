@@ -1,8 +1,8 @@
 public struct Field<Value: Equatable> {
     public let key: String
-    let binding: Binding<Value>
-    let ctrlBinding: Binding<FormController>
-    let validators: [Validator<Value>]
+    package let binding: Binding<Value>
+    package let ctrlBinding: Binding<FormController>
+    package let validators: [Validator<Value>]
 
     public init(_ key: String, _ binding: Binding<Value>, _ ctrl: Binding<FormController>, _ validators: [Validator<Value>] = []) {
         self.key = key
@@ -10,6 +10,7 @@ public struct Field<Value: Equatable> {
         self.ctrlBinding = ctrl
         self.validators = validators
 
+        // First construction for this key: snapshot initial value into FormController (triggers one extra render)
         if ctrl.get().initialSnapshots[key] == nil {
             var updated = ctrl.get()
             let initialValue = binding.get()
