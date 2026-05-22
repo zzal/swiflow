@@ -289,6 +289,7 @@ enum Templates {
 
                         button("Sign In",
                                .style(name: "margin-right", value: "0.5rem"),
+                               .attr("disabled", !form.isValid),
                                .on(.click) {
                                    form.touchAll()
                                    guard form.isValid else { return }
