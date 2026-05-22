@@ -34,6 +34,6 @@ extension Validator where Value == String {
 
 extension Validator {
     public static func custom(_ message: String, _ check: @escaping (Value) -> Bool) -> Validator<Value> {
-        Validator { v in check(v) ? message : nil }
+        Validator { v in check(v) ? nil : message }
     }
 }

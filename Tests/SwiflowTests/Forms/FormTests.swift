@@ -64,14 +64,14 @@ struct FormTests {
 
         @Test(".custom rejects when check returns false")
         func customRejects() {
-            let v = Validator<String>.custom("Bad") { $0 == "bad" }
-            #expect(v.validate("bad") == "Bad")
+            let v = Validator<String>.custom("Must have a number") { $0.contains { $0.isNumber } }
+            #expect(v.validate("hello") == "Must have a number")
         }
 
         @Test(".custom accepts when check returns true")
         func customAccepts() {
-            let v = Validator<String>.custom("Bad") { $0 == "bad" }
-            #expect(v.validate("good") == nil)
+            let v = Validator<String>.custom("Must have a number") { $0.contains { $0.isNumber } }
+            #expect(v.validate("hello1") == nil)
         }
 
         @Test("required before minLength: empty field shows Required not minLength message")
