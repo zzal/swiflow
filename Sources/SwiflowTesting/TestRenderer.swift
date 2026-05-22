@@ -84,7 +84,26 @@ final class TestRenderer {
         text: String?,
         in node: MountNode
     ) -> [(MountNode, ElementData)] {
-        fatalError("implemented in Task 3")
+        var results: [(MountNode, ElementData)] = []
+        switch node.vnode {
+        case .element(let data):
+            if data.tag == tag {
+                let t = textContent(of: node)
+                if text == nil || t.contains(text!) {
+                    results.append((node, data))
+                }
+            }
+            for child in node.children {
+                results += findElements(tag: tag, text: text, in: child)
+            }
+        case .component, .environmentOverride:
+            if let body = node.componentBody {
+                results += findElements(tag: tag, text: text, in: body)
+            }
+        default:
+            break
+        }
+        return results
     }
 
     func findComponentNode(
