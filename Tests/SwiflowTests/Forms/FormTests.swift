@@ -151,4 +151,81 @@ struct FormTests {
             #expect(field.isDirty == true)
         }
     }
+
+    @Suite("Form")
+    struct FormSuite {
+
+        private func makeForm() -> (
+            form: Form,
+            pwBinding: Binding<String>,
+            emBinding: Binding<String>,
+            getCtrl: () -> FormController
+        ) {
+            var pw = ""
+            var em = ""
+            var ctrl = FormController()
+            let pwBinding = Binding<String>(get: { pw }, set: { pw = $0 })
+            let emBinding = Binding<String>(get: { em }, set: { em = $0 })
+            let ctrlBinding = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
+            let pwField = Field("pw", pwBinding, ctrlBinding, [.required(), .minLength(3)])
+            let emField = Field("em", emBinding, ctrlBinding, [.required(), .email])
+            let form = Form(ctrlBinding) { pwField; emField }
+            return (form, pwBinding, emBinding, { ctrl })
+        }
+
+        @Test("isValid is false when any field is invalid")
+        func isValidFalseWhenInvalid() {
+            let (form, _, _, _) = makeForm()
+            #expect(form.isValid == false)
+        }
+
+        @Test("isValid is true when all fields are valid")
+        func isValidTrueWhenAllValid() {
+            let (form, pwBinding, emBinding, _) = makeForm()
+            pwBinding.set("hello")
+            emBinding.set("a@b.com")
+            #expect(form.isValid == true)
+        }
+
+        @Test("isDirty is false before any mutation")
+        func isDirtyFalseBeforeMutation() {
+            let (form, _, _, _) = makeForm()
+            #expect(form.isDirty == false)
+        }
+
+        @Test("isDirty is true after one field changes")
+        func isDirtyTrueAfterMutation() {
+            let (form, pwBinding, _, _) = makeForm()
+            pwBinding.set("hello")
+            #expect(form.isDirty == true)
+        }
+
+        @Test("touchAll marks all fields as touched")
+        func touchAllMarksAllTouched() {
+            let (form, _, _, getCtrl) = makeForm()
+            form.touchAll()
+            #expect(getCtrl().touched.contains("pw"))
+            #expect(getCtrl().touched.contains("em"))
+        }
+
+        @Test("reset restores all values to initial and clears touched")
+        func resetRestoresAndClearsTouched() {
+            let (form, pwBinding, emBinding, getCtrl) = makeForm()
+            pwBinding.set("hello")
+            emBinding.set("a@b.com")
+            form.touchAll()
+            form.reset()
+            #expect(pwBinding.get() == "")
+            #expect(emBinding.get() == "")
+            #expect(getCtrl().touched.isEmpty)
+        }
+
+        @Test("isDirty is false after reset")
+        func isDirtyFalseAfterReset() {
+            let (form, pwBinding, _, _) = makeForm()
+            pwBinding.set("hello")
+            form.reset()
+            #expect(form.isDirty == false)
+        }
+    }
 }
