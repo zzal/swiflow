@@ -1,5 +1,5 @@
 public struct Validator<Value> {
-    let validate: (Value) -> String?
+    public let validate: (Value) -> String?
 }
 
 extension Validator where Value == String {
