@@ -7,4 +7,5 @@ Package.resolved
 .vscode/
 node_modules/
 Tests/playwright/test-results/
-.claude/agent-memory/
+.claude/
+.superpowers/
