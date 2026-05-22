@@ -32,6 +32,8 @@ extension PatchPayload.Field {
             return .number(Double(n))
         case .string(let s):
             return .string(s)
+        case .double(let d):
+            return .number(d)
         case .property(let pv):
             switch pv {
             case .string(let s): return .string(s)
