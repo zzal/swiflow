@@ -130,12 +130,18 @@ struct InitCommandTests {
 @Suite("InitCommand argv")
 struct InitCommandArgvTests {
 
-    @Test("Defaults: --path is .")
-    func defaults() throws {
-        let parsed = try InitCommand.parse(["demo"])
+    @Test("Default: --path is .")
+    func defaultPath() throws {
+        let parsed = try InitCommand.parse(["demo", "--swiflow-source", "/some/path"])
         #expect(parsed.name == "demo")
         #expect(parsed.path == ".")
-        #expect(parsed.swiflowSource == "../..")
+    }
+
+    @Test("Missing --swiflow-source surfaces a ValidationError")
+    func missingSwiflowSource() {
+        #expect(throws: ValidationError.self) {
+            try InitCommand.parse(["demo"])
+        }
     }
 
     @Test("Flags parse: --path, --swiflow-source")
@@ -184,6 +190,7 @@ struct InitCommandRunTests {
         let cmd = try InitCommand.parse([
             "Demo",
             "--path", "/does/not/exist/swiflow-test-\(UUID().uuidString)",
+            "--swiflow-source", "/abs/path/to/swiflow",
         ])
         await #expect(throws: ValidationError.self) {
             try await cmd.run()
