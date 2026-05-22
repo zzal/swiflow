@@ -23,4 +23,7 @@ public struct TestHarness {
     init(_ renderer: TestRenderer) {
         self.renderer = renderer
     }
+
+    /// All text content in the rendered tree, concatenated depth-first.
+    public var allText: String { renderer.allText }
 }
