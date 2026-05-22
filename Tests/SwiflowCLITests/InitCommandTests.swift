@@ -138,9 +138,11 @@ struct InitCommandArgvTests {
     }
 
     @Test("Missing --swiflow-source surfaces a ValidationError")
-    func missingSwiflowSource() {
-        #expect(throws: ValidationError.self) {
-            try InitCommand.parse(["demo"])
+    func missingSwiflowSource() async throws {
+        let cmd = try InitCommand.parse(["demo"])
+        // run() checks swiflowSource before --path, so no valid dir needed
+        await #expect(throws: ValidationError.self) {
+            try await cmd.run()
         }
     }
 

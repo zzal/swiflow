@@ -51,17 +51,15 @@ struct InitCommand: AsyncParsableCommand {
     )
     var swiflowSource: String?
 
-    mutating func validate() throws {
-        if swiflowSource == nil {
+    func run() async throws {
+        guard let swiflowSource else {
             throw ValidationError("""
                 --swiflow-source is required. Swiflow has no public release yet.
                 Pass the path to your local Swiflow clone:
                   swiflow init \(name) --swiflow-source /path/to/swiflow
                 """)
         }
-    }
 
-    func run() async throws {
         // Resolve --path against CWD when relative (so `--path .` and a bare
         // invocation both land in the working directory the user expects).
         // standardizedFileURL collapses `..` segments so error messages and
@@ -76,7 +74,7 @@ struct InitCommand: AsyncParsableCommand {
             try ProjectWriter.writeProject(
                 name: name,
                 into: parentURL,
-                swiflowSource: swiflowSource!,   // validate() guarantees non-nil
+                swiflowSource: swiflowSource,
                 jsDriverSource: EmbeddedDriver.javascriptSource
             )
         } catch let error as ProjectWriterError {
