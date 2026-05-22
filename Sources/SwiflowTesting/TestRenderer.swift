@@ -7,7 +7,7 @@ private final class RerenderRelay: @unchecked Sendable {
 
 @MainActor
 final class TestRenderer {
-    var mountTree: MountNode
+    private(set) var mountTree: MountNode
     let handles: HandleAllocator
     let handlers: HandlerRegistry
     let scheduler: SyncScheduler
@@ -23,9 +23,10 @@ final class TestRenderer {
         self.scheduler = SyncScheduler { [relay] component in
             MainActor.assumeIsolated { relay.owner?.rerender(component) }
         }
-        let any = AnyComponent(instance)
-        wireState(on: any, scheduler: self.scheduler)
+        let anyComponent = AnyComponent(instance)
+        wireState(on: anyComponent, scheduler: self.scheduler)
         _testAmbientHandlers = self.handlers
+        defer { _testAmbientHandlers = nil }
         let result = diff(
             mounted: nil,
             next: instance.body,
@@ -33,13 +34,13 @@ final class TestRenderer {
             handlers: self.handlers,
             scheduler: self.scheduler
         )
-        _testAmbientHandlers = nil
         self.mountTree = result.newMountTree
         relay.owner = self
     }
 
     func rerender(_ component: AnyComponent) {
         _testAmbientHandlers = self.handlers
+        defer { _testAmbientHandlers = nil }
         if ObjectIdentifier(component.instance) == rootID {
             let result = diff(
                 mounted: mountTree,
@@ -59,7 +60,6 @@ final class TestRenderer {
             )
             node.componentBody = result.newMountTree
         }
-        _testAmbientHandlers = nil
     }
 
     func textContent(of node: MountNode) -> String {
@@ -69,6 +69,8 @@ final class TestRenderer {
         case .element:
             return node.children.map { textContent(of: $0) }.joined()
         case .component:
+            return node.componentBody.map { textContent(of: $0) } ?? ""
+        case .environmentOverride:
             return node.componentBody.map { textContent(of: $0) } ?? ""
         default:
             return ""
