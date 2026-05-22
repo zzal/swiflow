@@ -83,4 +83,72 @@ struct FormTests {
             #expect(result == "Required")
         }
     }
+
+    @Suite("Field")
+    struct FieldTests {
+
+        private func makeField(
+            key: String = "pw",
+            value: String = "",
+            touched: Bool = false,
+            validators: Validator<String>...
+        ) -> (field: Field<String>, getValue: () -> String, getCtrl: () -> FormController) {
+            var v = value
+            var ctrl = FormController()
+            if touched { ctrl.touched.insert(key) }
+            let binding = Binding<String>(get: { v }, set: { v = $0 })
+            let ctrlBinding = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
+            let field = Field(key, binding, ctrlBinding, Array(validators))
+            return (field, { v }, { ctrl })
+        }
+
+        @Test("error is nil when untouched even if invalid")
+        func errorNilWhenUntouched() {
+            let (field, _, _) = makeField(value: "", validators: .required())
+            #expect(field.error == nil)
+            #expect(field.isValid == false)
+        }
+
+        @Test("error is non-nil when touched and invalid")
+        func errorNonNilWhenTouchedAndInvalid() {
+            let (field, _, _) = makeField(value: "", touched: true, validators: .required())
+            #expect(field.error == "Required")
+        }
+
+        @Test("error is nil when touched and valid")
+        func errorNilWhenTouchedAndValid() {
+            let (field, _, _) = makeField(value: "hello", touched: true, validators: .required())
+            #expect(field.error == nil)
+        }
+
+        @Test("isValid is false regardless of touched when invalid")
+        func isValidFalseWhenInvalid() {
+            let (field, _, _) = makeField(value: "", validators: .required())
+            #expect(field.isValid == false)
+        }
+
+        @Test("markTouched inserts key into ctrl.touched")
+        func markTouchedInsertsKey() {
+            let (field, _, getCtrl) = makeField(key: "pw", value: "x", validators: .required())
+            field.markTouched()
+            #expect(getCtrl().touched.contains("pw"))
+        }
+
+        @Test("isDirty is false when value matches initial")
+        func isDirtyFalseOnInit() {
+            let (field, _, _) = makeField(value: "hello", validators: .required())
+            #expect(field.isDirty == false)
+        }
+
+        @Test("isDirty is true after mutation")
+        func isDirtyTrueAfterMutation() {
+            var v = "hello"
+            var ctrl = FormController()
+            let binding = Binding<String>(get: { v }, set: { v = $0 })
+            let ctrlBinding = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
+            let field = Field("pw", binding, ctrlBinding, [])
+            binding.set("world")
+            #expect(field.isDirty == true)
+        }
+    }
 }
