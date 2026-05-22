@@ -89,7 +89,9 @@ final class TestRenderer {
         case .element(let data):
             if data.tag == tag {
                 let t = textContent(of: node)
-                if text == nil || t.contains(text!) {
+                if let filter = text {
+                    if t.contains(filter) { results.append((node, data)) }
+                } else {
                     results.append((node, data))
                 }
             }
