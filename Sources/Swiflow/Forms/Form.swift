@@ -8,6 +8,7 @@ public struct ErasedField {
 }
 
 extension Field {
+    // Closes over self (a struct copy) — safe because Binding's get/set closures share the original captured variables by reference
     package var erased: ErasedField {
         ErasedField(
             key: key,
@@ -23,7 +24,7 @@ extension Field {
 @resultBuilder
 public enum FieldBuilder {
     public static func buildBlock(_ fields: ErasedField...) -> [ErasedField] {
-        Array(fields)
+        fields
     }
 
     public static func buildExpression<V: Equatable>(_ field: Field<V>) -> ErasedField {
