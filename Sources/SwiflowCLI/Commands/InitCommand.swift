@@ -41,16 +41,25 @@ struct InitCommand: AsyncParsableCommand {
     @Option(
         name: .customLong("swiflow-source"),
         help: ArgumentHelp(
-            "Path or URL the generated project should use for its Swiflow dependency.",
+            "Path the generated project uses for its Swiflow dependency.",
             discussion: """
-                Defaults to the relative path '../..', which lets generated projects \
-                placed inside this repo's examples/ directory resolve their dependency \
-                back to the parent checkout. After Phase 4 publishes Swiflow, this \
-                default will flip to the official git URL.
+                Required until Swiflow has a public release. Pass the absolute or \
+                relative path to your local Swiflow clone.
+                Example: --swiflow-source /path/to/swiflow
                 """
         )
     )
-    var swiflowSource: String = "../.."
+    var swiflowSource: String?
+
+    mutating func validate() throws {
+        if swiflowSource == nil {
+            throw ValidationError("""
+                --swiflow-source is required. Swiflow has no public release yet.
+                Pass the path to your local Swiflow clone:
+                  swiflow init \(name) --swiflow-source /path/to/swiflow
+                """)
+        }
+    }
 
     func run() async throws {
         // Resolve --path against CWD when relative (so `--path .` and a bare
@@ -67,7 +76,7 @@ struct InitCommand: AsyncParsableCommand {
             try ProjectWriter.writeProject(
                 name: name,
                 into: parentURL,
-                swiflowSource: swiflowSource,
+                swiflowSource: swiflowSource!,   // validate() guarantees non-nil
                 jsDriverSource: EmbeddedDriver.javascriptSource
             )
         } catch let error as ProjectWriterError {
