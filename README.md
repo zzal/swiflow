@@ -13,7 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**What works today (Phase 8):**
+**Status:** Phase 12a (Styling & Animation) — CSS-in-Swift scoped styles, keyframe animations, enter/exit transitions, CSS variables bridge.
+
+**What works today (Phase 12a):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -26,13 +28,19 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - `URLSanitizer`-protected DSL fold (XSS-safe by default).
 - `swiflow init` scaffold + `swiflow build` (WASM SDK auto-probe) +
   `swiflow dev` (file-watch + state-preserving HMR).
-- 327+ tests, Playwright e2e, DWARF debugging guide, `docs/guides/forms.md`.
+- **CSS-in-Swift** — `css { }` builder, `rule()`, `keyframes()`, `from {}`,
+  `to {}`, `at(_ percent:) {}`, ~50 CSS property functions.
+- **Scoped styles** — `static var scopedStyles: CSSSheet?` on any `Component`;
+  injected as a `<style>` tag and class-scoped at mount.
+- **Exit animations** — `static var exitAnimation: String?` + `exitDuration`;
+  the driver plays the animation before DOM removal.
+- 436+ tests, Playwright e2e, DWARF debugging guide, `docs/guides/forms.md`.
 
 **What's not in the box yet:**
 - **Component inspector / devtools** — Phase 9.
 - **`@Environment` / context DI** — Phase 10.
 - **Router** (`SwiflowRouter`) — Phase 11.
-- **Scoped CSS, animation primitives, form validation framework** — Phase 12.
+- **Form validation framework** — Phase 12b+.
 - **Multi-root rendering, lazy components, component testing harness,
   macro diagnostics** — Phase 13.
 
