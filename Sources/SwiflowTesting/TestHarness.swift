@@ -57,4 +57,24 @@ public struct TestHarness {
     public func exists(_ tag: String, text: String? = nil) -> Bool {
         !renderer.findElements(tag: tag, text: text, in: renderer.mountTree).isEmpty
     }
+
+    /// Fires a `click` event on the first element matching `tag` (and `text`).
+    /// No-op if no matching element has a click handler.
+    public func click(_ tag: String, text: String? = nil) {
+        renderer.click(tag: tag, text: text)
+    }
+
+    /// Fires an `input` event on the element at position `index` among all
+    /// elements matching `tag` (default `"input"`). No-op if out-of-bounds
+    /// or if the element has no `input` handler.
+    public func input(_ tag: String = "input", at index: Int = 0, value: String) {
+        renderer.input(tag: tag, at: index, value: value)
+    }
+
+    /// Fires a `blur` event on the element at position `index` among all
+    /// elements matching `tag` (default `"input"`). No-op if out-of-bounds
+    /// or if the element has no `blur` handler.
+    public func blur(_ tag: String = "input", at index: Int = 0) {
+        renderer.blur(tag: tag, at: index)
+    }
 }

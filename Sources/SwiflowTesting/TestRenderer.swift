@@ -13,6 +13,8 @@ final class TestRenderer {
     let scheduler: SyncScheduler
     let rootInstance: any Component
     let rootID: ObjectIdentifier
+    /// Kept alive so @State's weak `_owner` reference doesn't dangle.
+    let rootComponent: AnyComponent
 
     init<C: Component>(_ instance: C) {
         let relay = RerenderRelay()
@@ -24,6 +26,7 @@ final class TestRenderer {
             MainActor.assumeIsolated { relay.owner?.rerender(component) }
         }
         let anyComponent = AnyComponent(instance)
+        self.rootComponent = anyComponent
         wireState(on: anyComponent, scheduler: self.scheduler)
         _testAmbientHandlers = self.handlers
         defer { _testAmbientHandlers = nil }
@@ -112,6 +115,42 @@ final class TestRenderer {
         _ component: AnyComponent,
         in node: MountNode
     ) -> MountNode? {
-        fatalError("implemented in Task 4")
+        if let c = node.component,
+           ObjectIdentifier(c.instance) == ObjectIdentifier(component.instance) {
+            return node
+        }
+        for child in node.children {
+            if let found = findComponentNode(component, in: child) { return found }
+        }
+        if let body = node.componentBody {
+            return findComponentNode(component, in: body)
+        }
+        return nil
+    }
+
+    func click(tag: String, text: String?) {
+        let matches = findElements(tag: tag, text: text, in: mountTree)
+        guard let (node, _) = matches.first,
+              let id = node.handlerIds["click"] else { return }
+        handlers.dispatch(id: id, event: EventInfo(type: "click"))
+        scheduler.flush()
+    }
+
+    func input(tag: String, at index: Int, value: String) {
+        let matches = findElements(tag: tag, text: nil, in: mountTree)
+        guard index < matches.count else { return }
+        let (node, _) = matches[index]
+        guard let id = node.handlerIds["input"] else { return }
+        handlers.dispatch(id: id, event: EventInfo(type: "input", targetValue: value))
+        scheduler.flush()
+    }
+
+    func blur(tag: String, at index: Int) {
+        let matches = findElements(tag: tag, text: nil, in: mountTree)
+        guard index < matches.count else { return }
+        let (node, _) = matches[index]
+        guard let id = node.handlerIds["blur"] else { return }
+        handlers.dispatch(id: id, event: EventInfo(type: "blur"))
+        scheduler.flush()
     }
 }
