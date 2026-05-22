@@ -133,7 +133,7 @@ public struct ComponentDescription: Equatable {
 /// has a stable address for the lifetime of its owner. The `_setOwner`
 /// method is invoked exactly once per @State per component instance
 /// (guarded by a precondition in State.swift).
-func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
+package func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
     wireStateAndRestore(on: owner, scheduler: scheduler, stateMap: nil)
 }
 
