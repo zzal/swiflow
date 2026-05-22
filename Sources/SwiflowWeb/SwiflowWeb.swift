@@ -61,6 +61,7 @@ public extension Swiflow {
         }
 
         let root = factory()
+        CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         ambientRenderer = renderer
         DispatcherBridge.installIfNeeded(registry: renderer.handlers)

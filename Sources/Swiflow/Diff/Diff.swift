@@ -69,6 +69,21 @@ func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
     }
 }
 
+// MARK: - CSS scope-class helpers
+
+/// Prepends `scopeClass` to the `class` attribute of a VNode's root element.
+/// If the VNode is not an `.element`, it is returned unchanged.
+@MainActor
+func addScopeClass(_ vnode: VNode, scopeClass: String) -> VNode {
+    guard case .element(var data) = vnode else { return vnode }
+    if let existing = data.attributes["class"], !existing.isEmpty {
+        data.attributes["class"] = "\(scopeClass) \(existing)"
+    } else {
+        data.attributes["class"] = scopeClass
+    }
+    return .element(data)
+}
+
 // MARK: - Mount helpers (first render only — Task 9 scope)
 
 /// Creates the DOM-side node and (recursively) all children, appending patches
@@ -229,8 +244,13 @@ func mount(
         AmbientEnvironment.current = environment
         let bodyVNode = instance.instance.body
         AmbientEnvironment.current = previousEnv
+        // Notify the CSS injector so scoped styles are injected into
+        // <head> the first time this component type mounts.
+        let componentType = type(of: instance.instance)
+        onComponentTypeMount?(componentType)
+        let scopeClass = "swiflow-\(String(describing: componentType))"
         let bodyMount = mount(
-            bodyVNode,
+            addScopeClass(bodyVNode, scopeClass: scopeClass),
             into: &patches,
             handles: handles,
             handlers: handlers,
@@ -363,13 +383,16 @@ func update(
         AmbientEnvironment.current = environment
         let newBodyVNode = instance.instance.body
         AmbientEnvironment.current = previousEnv
+        // Ensure the scope class stays on the body root across re-renders.
+        let componentType = type(of: instance.instance)
+        let scopeClass = "swiflow-\(String(describing: componentType))"
         // Reconcile the new body VNode against the previously-mounted body
         // subtree. The returned MountNode may be the same reference (if the
         // body root type/tag matched) or a fresh one (if the body root
         // itself was replaced wholesale). Either way it becomes the new body.
         let newBodyMount = update(
             mounted: oldBody,
-            next: newBodyVNode,
+            next: addScopeClass(newBodyVNode, scopeClass: scopeClass),
             into: &patches,
             handles: handles,
             handlers: handlers,
