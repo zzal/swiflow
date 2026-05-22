@@ -21,6 +21,76 @@ private final class MinimalCounter: Component {
     }
 }
 
+@MainActor
+private final class Counter: Component {
+    @State var count: Int = 0
+    @State var name: String = "Swiflow"
+    @State var showToast: Bool = false
+
+    var body: VNode {
+        div {
+            h1("Hello, \(name)!")
+            p("Count: \(count)")
+            button("Increment", .on(.click) { self.count += 1 })
+            button("Show toast", .on(.click) { self.showToast = true })
+            if showToast { div { VNode.text("Saved!") } }
+            input(.attr("type", "text"),
+                  .on(.input) { info in self.name = info.targetValue ?? self.name })
+        }
+    }
+}
+
+@MainActor
+private final class SignIn: Component {
+    @State var email: String = ""
+    @State var password: String = ""
+    @State var emailTouched: Bool = false
+    @State var passwordTouched: Bool = false
+    @State var isSignedIn: Bool = false
+
+    var emailError: String? {
+        guard emailTouched, !email.isEmpty else { return nil }
+        return email.contains("@") ? nil : "Invalid email address"
+    }
+
+    var passwordError: String? {
+        guard passwordTouched, !password.isEmpty else { return nil }
+        return password.count >= 8 ? nil : "Must be at least 8 characters"
+    }
+
+    var body: VNode {
+        div {
+            if isSignedIn {
+                p("Signed in as \(email)!")
+                button("Sign out", .on(.click) {
+                    self.isSignedIn = false
+                    self.email = ""
+                    self.password = ""
+                    self.emailTouched = false
+                    self.passwordTouched = false
+                })
+            } else {
+                h2("Sign In")
+                input(.attr("type", "email"),
+                      .on(.input) { info in self.email = info.targetValue ?? self.email },
+                      .on(.blur) { self.emailTouched = true })
+                if let err = emailError { p(err) }
+                input(.attr("type", "password"),
+                      .on(.input) { info in self.password = info.targetValue ?? self.password },
+                      .on(.blur) { self.passwordTouched = true })
+                if let err = passwordError { p(err) }
+                button("Sign In", .on(.click) {
+                    self.emailTouched = true
+                    self.passwordTouched = true
+                    guard self.emailError == nil, self.passwordError == nil,
+                          !self.email.isEmpty, !self.password.isEmpty else { return }
+                    self.isSignedIn = true
+                })
+            }
+        }
+    }
+}
+
 @Suite("TestHarness — allText")
 @MainActor
 struct AllTextTests {
@@ -119,5 +189,144 @@ struct InteractionTests {
         let r = render(MinimalCounter())
         r.input(at: 99, value: "boom")   // no crash
         #expect(r.find("p", text: "Hello, Swiflow!") != nil)
+    }
+}
+
+@Suite("Counter — spec test cases")
+@MainActor
+struct CounterSpecTests {
+    @Test("initial state")
+    func initialState() {
+        let r = render(Counter())
+        #expect(r.find("p", text: "Count: 0") != nil)
+        #expect(r.find("h1", text: "Hello, Swiflow!") != nil)
+    }
+
+    @Test("click increments count")
+    func clickIncrements() {
+        let r = render(Counter())
+        r.click("button", text: "Increment")
+        #expect(r.find("p", text: "Count: 1") != nil)
+        #expect(r.find("p", text: "Count: 0") == nil)
+    }
+
+    @Test("three clicks reach count 3")
+    func threeClicks() {
+        let r = render(Counter())
+        r.click("button", text: "Increment")
+        r.click("button", text: "Increment")
+        r.click("button", text: "Increment")
+        #expect(r.find("p", text: "Count: 3") != nil)
+    }
+
+    @Test("conditional toast rendering")
+    func toastConditional() {
+        let r = render(Counter())
+        #expect(r.exists("div", text: "Saved!") == false)
+        r.click("button", text: "Show toast")
+        #expect(r.exists("div", text: "Saved!"))
+    }
+
+    @Test("two-way input binding updates greeting")
+    func inputBinding() {
+        let r = render(Counter())
+        #expect(r.find("h1", text: "Hello, Swiflow!") != nil)
+        r.input(value: "World")
+        #expect(r.find("h1", text: "Hello, World!") != nil)
+    }
+
+    @Test("allText contains all visible text")
+    func allTextSmoke() {
+        let r = render(Counter())
+        #expect(r.allText.contains("Count: 0"))
+        #expect(r.allText.contains("Hello, Swiflow!"))
+    }
+
+    @Test("findAll returns buttons in document order")
+    func findAllButtons() {
+        let r = render(Counter())
+        let buttons = r.findAll("button")
+        #expect(buttons.count >= 2)
+        #expect(buttons[0].text == "Increment")
+        #expect(buttons[1].text == "Show toast")
+    }
+}
+
+@Suite("SignIn — form validation spec cases")
+@MainActor
+struct SignInSpecTests {
+    @Test("untouched form shows no errors")
+    func untouchedNoErrors() {
+        let r = render(SignIn())
+        #expect(r.exists("p", text: "Required") == false)
+        #expect(r.exists("p", text: "Invalid email") == false)
+        #expect(r.exists("p", text: "Must be at least") == false)
+    }
+
+    @Test("invalid email after touch shows error")
+    func invalidEmailShowsError() {
+        let r = render(SignIn())
+        r.input(at: 0, value: "notanemail")
+        r.blur(at: 0)
+        #expect(r.find("p", text: "Invalid email address") != nil)
+    }
+
+    @Test("valid email clears email error")
+    func validEmailClearsError() {
+        let r = render(SignIn())
+        r.input(at: 0, value: "notanemail")
+        r.blur(at: 0)
+        r.input(at: 0, value: "good@test.com")
+        r.blur(at: 0)
+        #expect(r.find("p", text: "Invalid email address") == nil)
+    }
+
+    @Test("short password after touch shows error")
+    func shortPasswordShowsError() {
+        let r = render(SignIn())
+        r.input(at: 1, value: "short")
+        r.blur(at: 1)
+        #expect(r.find("p", text: "Must be at least 8 characters") != nil)
+    }
+
+    @Test("valid password clears password error")
+    func validPasswordClearsError() {
+        let r = render(SignIn())
+        r.input(at: 1, value: "short")
+        r.blur(at: 1)
+        r.input(at: 1, value: "secret99")
+        r.blur(at: 1)
+        #expect(r.exists("p", text: "Must be at least") == false)
+    }
+
+    @Test("submit with valid credentials signs in")
+    func submitSignsIn() {
+        let r = render(SignIn())
+        r.input(at: 0, value: "good@test.com")
+        r.blur(at: 0)
+        r.input(at: 1, value: "secret99")
+        r.blur(at: 1)
+        r.click("button", text: "Sign In")
+        #expect(r.find("p", text: "Signed in as good@test.com!") != nil)
+    }
+
+    @Test("sign out returns to sign-in form")
+    func signOutReturnsToForm() {
+        let r = render(SignIn())
+        r.input(at: 0, value: "good@test.com")
+        r.blur(at: 0)
+        r.input(at: 1, value: "secret99")
+        r.blur(at: 1)
+        r.click("button", text: "Sign In")
+        r.click("button", text: "Sign out")
+        #expect(r.find("h2", text: "Sign In") != nil)
+    }
+
+    @Test("submit with invalid inputs does not sign in")
+    func submitInvalidDoesNothing() {
+        let r = render(SignIn())
+        r.click("button", text: "Sign In")
+        #expect(r.find("h2", text: "Sign In") != nil)
+        #expect(r.find("p", text: "Signed in as") == nil)
     }
 }
