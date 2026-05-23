@@ -13,9 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 12b (Form Validation) — CSS-in-Swift scoped styles, keyframe animations, enter/exit transitions, CSS variables bridge, form validation framework with `Validator`, `FormController`, `Field`, and `Form`.
+**Status:** Phase 13b (Browser Debugging) — DWARF symbols in every dev build, RAF error shim, full-viewport error overlay, and a six-section Chrome DevTools debugging guide.
 
-**What works today (Phase 12b):**
+**What works today (Phase 13b):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -60,16 +60,15 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 11 (Router) complete. `SwiflowRouter` ships with hash
-and history modes, param binding, nested routes, programmatic navigation,
-and 422 passing tests. See `docs/guides/router.md` for the user guide.
-Phase 8 (HMR & The Instant Dev Loop) delivered hot module swap on every
-save: the browser fetches the new WASM, the runtime captures the live
-`@State` snapshot from the running module, restores it into a fresh tree,
-and repaints — all without a full page reload. `@State` survives across
-saves. The Counter template's `count` stays at whatever you clicked it
-to; the greeting input keeps whatever you typed. Phase 7 (Bindings, Refs
-& Form Foundations) is the layer this builds on.
+**Status:** Phase 13b (Browser Debugging) complete. Every `swiflow dev`
+build embeds DWARF symbols; the JS driver now wraps the RAF render loop
+in a try/catch and shows a full-viewport error overlay when a WASM render
+crash occurs. Install the Chrome C/C++ DevTools Extension to get Swift
+file:line references in stack traces — see `docs/guides/debugging.md`.
+Phase 13a (SwiflowTesting) shipped the headless test harness (`render()`,
+`click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
+Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
+(Bindings, Refs & Form Foundations).
 
 ## Quick start
 
