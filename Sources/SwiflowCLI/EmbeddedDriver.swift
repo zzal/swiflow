@@ -309,7 +309,7 @@ enum EmbeddedDriver {
       "[swiflow dev] For Swift source locations in stack traces,\n" +
       "install the Chrome C/C++ DevTools Extension:\n" +
       "  https://goo.gle/wasm-debugging-extension\n" +
-      "Then: DevTools → Settings → Experiments → enable \"WebAssembly Debugging: Enable DWARF support\""
+      "Then reload DevTools — DWARF support activates automatically."
     );
 
     // 2. Dev error handler — called by the RAF shim when a WASM render

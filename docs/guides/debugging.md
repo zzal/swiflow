@@ -27,10 +27,8 @@ The extension reads DWARF from the WASM binary and translates addresses to
 source locations inside Chrome DevTools.
 
 1. Install from: **<https://goo.gle/wasm-debugging-extension>**
-2. Open DevTools (`F12` or `Cmd+Option+I`).
-3. Go to **Settings** (⚙ icon) → **Experiments**.
-4. Enable **"WebAssembly Debugging: Enable DWARF support"**.
-5. Close and reopen DevTools — the setting takes effect immediately.
+2. Reload DevTools (`F12` or `Cmd+Option+I`) after installing — DWARF support
+   activates automatically.
 
 This is a one-time setup per browser profile.
 
@@ -56,7 +54,7 @@ Console tab alongside the source-resolved stack trace.
 
 ## 4. Setting breakpoints in Swift source
 
-Once the extension is installed and DWARF support is enabled:
+Once the extension is installed:
 
 1. Open DevTools → **Sources** tab.
 2. In the file tree on the left, expand the `wasm://` entry (or a local file
