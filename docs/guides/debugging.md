@@ -67,8 +67,8 @@ Once the extension is installed:
 
 > **Tip:** Swift variables are represented as their underlying WASM values.
 > Integers and booleans are readable directly. Strings appear as WASM memory
-> pointers; use `po variable` in the DevTools console (Wasm GDB extension) for
-> richer inspection.
+> pointers — inspect them via the Memory Inspector panel (right-click a value
+> in the Scope panel → "Reveal in Memory Inspector").
 
 ---
 
