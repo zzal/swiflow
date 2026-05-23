@@ -314,38 +314,38 @@
         (e && e.stack ? e.stack : String(e))
       );
 
-      var existing = document.getElementById("__swiflow-error-overlay");
+      const existing = document.getElementById("__swiflow-error-overlay");
       if (existing) existing.remove();
 
-      var overlay = document.createElement("div");
+      const overlay = document.createElement("div");
       overlay.id = "__swiflow-error-overlay";
       overlay.style.cssText =
         "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.85);" +
         "color:#fff;font-family:monospace;font-size:14px;padding:24px;" +
         "overflow:auto;white-space:pre-wrap;word-break:break-word;";
 
-      var title = document.createElement("div");
+      const title = document.createElement("div");
       title.style.cssText =
         "font-size:18px;font-weight:bold;margin-bottom:16px;color:#ff6b6b;";
       title.textContent = "⚠ Swiflow render error — WASM execution stopped";
 
-      var msg = document.createElement("pre");
+      const msg = document.createElement("pre");
       msg.style.cssText = "margin:0 0 16px;";
       msg.textContent = e && e.stack ? e.stack : String(e);
 
-      var hint = document.createElement("div");
+      const hint = document.createElement("div");
       hint.style.cssText = "color:#aaa;font-size:12px;margin-bottom:4px;";
       hint.textContent =
         "Install the Chrome C/C++ DevTools Extension to see Swift file:line in the stack above:";
 
-      var link = document.createElement("a");
+      const link = document.createElement("a");
       link.href = "https://goo.gle/wasm-debugging-extension";
       link.target = "_blank";
       link.style.cssText =
         "color:#4dabf7;font-size:12px;display:block;margin-bottom:16px;";
       link.textContent = "https://goo.gle/wasm-debugging-extension";
 
-      var dismiss = document.createElement("button");
+      const dismiss = document.createElement("button");
       dismiss.style.cssText =
         "padding:8px 16px;background:#444;color:#fff;border:none;" +
         "cursor:pointer;font-size:14px;border-radius:4px;";
@@ -357,7 +357,8 @@
       overlay.appendChild(hint);
       overlay.appendChild(link);
       overlay.appendChild(dismiss);
-      document.body.appendChild(overlay);
+      const target = document.body || document.documentElement;
+      target.appendChild(overlay);
     };
 
     // 3. RAF shim — wraps window.requestAnimationFrame so every callback
