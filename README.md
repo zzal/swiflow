@@ -34,7 +34,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
   injected as a `<style>` tag and class-scoped at mount.
 - **Exit animations** — `static var exitAnimation: String?` + `exitDuration`;
   the driver plays the animation before DOM removal.
-- 436+ tests, Playwright e2e, DWARF debugging guide, `docs/guides/forms.md`.
+- 436+ tests, Playwright e2e, [DWARF debugging guide](docs/guides/debugging.md), `docs/guides/forms.md`.
 
 **What's not in the box yet:**
 - **Component inspector / devtools** — Phase 9.
@@ -85,6 +85,8 @@ cd my-app
 ../.build/release/swiflow dev
 # Open http://localhost:3000
 ```
+
+See [docs/guides/debugging.md](docs/guides/debugging.md) for Chrome DevTools setup and Swift source breakpoints.
 
 For one-shot production builds, `swiflow build` wraps `swift package js` with
 the right WASM SDK and toolchain auto-detection.
