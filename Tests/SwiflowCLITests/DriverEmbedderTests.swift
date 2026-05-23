@@ -36,6 +36,13 @@ struct DriverEmbedderTests {
             """)
     }
 
+    @Test("EmbeddedDriver contains dev error handler and RAF shim")
+    func containsDevErrorHandlerAndRAFShim() {
+        #expect(EmbeddedDriver.javascriptSource.contains("__swiflowDevError"))
+        #expect(EmbeddedDriver.javascriptSource.contains("[swiflow dev] For Swift source locations"))
+        #expect(EmbeddedDriver.javascriptSource.contains("goo.gle/wasm-debugging-extension"))
+    }
+
     @Test("EmbeddedDriver.swift is bit-for-bit what DriverEmbedder would produce")
     func embeddedDriverMatchesDriverEmbedderOutput() throws {
         // Catches drift between scripts/embed-driver.swift and

@@ -294,6 +294,85 @@
   // inert and does NOT attempt the WebSocket (no DevTools console
   // noise from a failed `ws://localhost/reload` connection).
   if (window.SWIFLOW_DEV) {
+    // 1. Extension guidance — printed once at page load so the developer
+    //    knows how to get Swift source locations in stack traces.
+    console.log(
+      "[swiflow dev] For Swift source locations in stack traces,\n" +
+      "install the Chrome C/C++ DevTools Extension:\n" +
+      "  https://goo.gle/wasm-debugging-extension\n" +
+      "Then: DevTools → Settings → Experiments → enable \"WebAssembly Debugging: Enable DWARF support\""
+    );
+
+    // 2. Dev error handler — called by the RAF shim when a WASM render
+    //    error escapes. Emits a console.error (so the extension can translate
+    //    WASM addresses to Swift file:line) and injects a full-viewport
+    //    overlay so the freeze is visible without DevTools open.
+    window.__swiflowDevError = function(e) {
+      console.error(
+        "[swiflow] render error — WASM execution stopped.\n" +
+        "Reload the page to recover.\n\n" +
+        (e && e.stack ? e.stack : String(e))
+      );
+
+      var existing = document.getElementById("__swiflow-error-overlay");
+      if (existing) existing.remove();
+
+      var overlay = document.createElement("div");
+      overlay.id = "__swiflow-error-overlay";
+      overlay.style.cssText =
+        "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.85);" +
+        "color:#fff;font-family:monospace;font-size:14px;padding:24px;" +
+        "overflow:auto;white-space:pre-wrap;word-break:break-word;";
+
+      var title = document.createElement("div");
+      title.style.cssText =
+        "font-size:18px;font-weight:bold;margin-bottom:16px;color:#ff6b6b;";
+      title.textContent = "⚠ Swiflow render error — WASM execution stopped";
+
+      var msg = document.createElement("pre");
+      msg.style.cssText = "margin:0 0 16px;";
+      msg.textContent = e && e.stack ? e.stack : String(e);
+
+      var hint = document.createElement("div");
+      hint.style.cssText = "color:#aaa;font-size:12px;margin-bottom:4px;";
+      hint.textContent =
+        "Install the Chrome C/C++ DevTools Extension to see Swift file:line in the stack above:";
+
+      var link = document.createElement("a");
+      link.href = "https://goo.gle/wasm-debugging-extension";
+      link.target = "_blank";
+      link.style.cssText =
+        "color:#4dabf7;font-size:12px;display:block;margin-bottom:16px;";
+      link.textContent = "https://goo.gle/wasm-debugging-extension";
+
+      var dismiss = document.createElement("button");
+      dismiss.style.cssText =
+        "padding:8px 16px;background:#444;color:#fff;border:none;" +
+        "cursor:pointer;font-size:14px;border-radius:4px;";
+      dismiss.textContent = "Dismiss (app is frozen — reload to continue)";
+      dismiss.onclick = function() { overlay.remove(); };
+
+      overlay.appendChild(title);
+      overlay.appendChild(msg);
+      overlay.appendChild(hint);
+      overlay.appendChild(link);
+      overlay.appendChild(dismiss);
+      document.body.appendChild(overlay);
+    };
+
+    // 3. RAF shim — wraps window.requestAnimationFrame so every callback
+    //    (including SwiftWasm's render loop) runs inside a try/catch.
+    //    Installed before connect() so the WASM module sees the patched
+    //    version when it first calls scheduleRAFIfNeeded().
+    //    bind(window) preserves the native this binding before patching.
+    var _raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = function(cb) {
+      return _raf(function(t) {
+        try { cb(t); }
+        catch(e) { window.__swiflowDevError(e); }
+      });
+    };
+
     let reconnectDelay = 250;
     const maxDelay = 5000;
 
