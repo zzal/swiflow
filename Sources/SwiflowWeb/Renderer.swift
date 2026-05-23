@@ -145,7 +145,7 @@ final class Renderer {
             )
         }
 
-        let renderStartMs = JSObject.global.performance.now().number ?? 0
+        let renderStartMs = JSObject.global.performance.object?.now?().number ?? 0
         let result = diff(
             mounted: mountTree,
             next: nextVNode,
@@ -156,7 +156,7 @@ final class Renderer {
         )
         lastPatchCount = result.patches.count
         renderCount += 1
-        lastRenderMs = (JSObject.global.performance.now().number ?? 0) - renderStartMs
+        lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - renderStartMs
 
         // Encode patches to a JSArray and ship across the bridge.
         let jsArray = JSObject.global.Array.function!.new()
