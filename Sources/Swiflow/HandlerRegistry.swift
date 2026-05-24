@@ -53,6 +53,7 @@ package final class HandlerRegistry: @unchecked Sendable {
         openScopes.removeAll { $0 == scope }
         for hid in s.ids {
             handlers.removeValue(forKey: hid)
+            Self.globalTable.removeValue(forKey: hid)
             handlerToScope.removeValue(forKey: hid)
         }
     }

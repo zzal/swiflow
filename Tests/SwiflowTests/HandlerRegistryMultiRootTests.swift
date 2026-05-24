@@ -37,15 +37,17 @@ struct HandlerRegistryMultiRootTests {
         var bFired = false
         let hb = b.register { _ in bFired = true }
 
+        var aFired = false
         let aID: Int
         do {
             let a = HandlerRegistry()
-            let ha = a.register { _ in }
+            let ha = a.register { _ in aFired = true }
             aID = ha.id
         } // a is deallocated here; deinit must sweep aID from globalTable
 
-        // Dispatching to A's swept ID must be a no-op (no crash, no effect).
+        // A's handler was swept — dispatching its ID must not fire the closure.
         HandlerRegistry.dispatchGlobal(id: aID, event: EventInfo(type: "click"))
+        #expect(!aFired)
 
         // B is unaffected and still dispatches.
         HandlerRegistry.dispatchGlobal(id: hb.id, event: EventInfo(type: "click"))
