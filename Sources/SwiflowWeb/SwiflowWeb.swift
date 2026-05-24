@@ -82,7 +82,7 @@ public extension Swiflow {
         }
 
         renderers[selector] = renderer
-        DevAPI.install(renderer: renderer)
+        DevAPI.installAll()
     }
 
     /// Re-evaluates all mounted roots and applies any resulting patches.
@@ -105,7 +105,7 @@ public extension Swiflow {
     static func unmount(into selector: String) {
         guard let renderer = renderers.removeValue(forKey: selector) else { return }
         renderer.teardown()
-        // DevAPI.installAll() will be wired here in Task 6.
+        DevAPI.installAll()
     }
 
 }
