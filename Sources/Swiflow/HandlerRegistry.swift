@@ -83,20 +83,28 @@ package final class HandlerRegistry: @unchecked Sendable {
 
     // MARK: - Handler management
 
-    /// Registers a closure and returns the `EventHandler`. Tracks the ID
-    /// against `activeScopeID` when set (inside `withScope`), otherwise
-    /// against the most-recently-opened scope (`openScopes.last`). If no
-    /// scope is open the registration is permanent until `remove(id:)` is
-    /// called.
+    /// Registers a closure and returns the `EventHandler`. When called inside
+    /// `withScope(_:_:)`, the handler is attributed to that scope and evicted
+    /// when the scope closes. When called outside any `withScope` the handler
+    /// is permanent — it persists until `remove(id:)` is called explicitly.
+    ///
+    /// Calling `register` while scopes are open but outside `withScope` is a
+    /// programmer error: the handler is permanent even though the caller likely
+    /// intends it to be scoped. This fires `swiflowDiagnostic` in DEBUG builds.
     @discardableResult
     package func register(_ invoke: @escaping (EventInfo) -> Void) -> EventHandler {
         let id = nextID; nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
         handlers[id] = h
-        let target = activeScopeID ?? openScopes.last
-        if let t = target {
-            scopes[t]?.ids.append(id)
-            handlerToScope[id] = t
+        if let scope = activeScopeID {
+            scopes[scope]?.ids.append(id)
+            handlerToScope[id] = scope
+        } else if !openScopes.isEmpty {
+            swiflowDiagnostic(
+                "Handler registered outside withScope(_:_:) while \(openScopes.count) scope(s) are open. " +
+                "The handler is permanent and will not be evicted when the scope(s) close — this is almost " +
+                "certainly unintended. Wrap the registration: withScope(scopeID) { registry.register { ... } }."
+            )
         }
         return h
     }

@@ -9,13 +9,13 @@ struct ComponentLifecycleScopedHandlersTests {
     @Test("openScope/closeScope(_:) evicts handlers registered inside scope")
     func scopedHandlersAreEvictedOnClose() {
         let r = HandlerRegistry()
-        let h1 = r.register { _ in }                            // outside any scope
+        let h1 = r.register { _ in }                            // outside any scope — permanent
         let id = r.openScope()
-        let h2 = r.register { _ in }                            // inside scope
-        let h3 = r.register { _ in }                            // inside scope
+        let h2 = r.withScope(id) { r.register { _ in } }       // scoped
+        let h3 = r.withScope(id) { r.register { _ in } }       // scoped
         r.closeScope(id)
 
-        #expect(r.handler(forID: h1.id) != nil)                 // survives
+        #expect(r.handler(forID: h1.id) != nil)                 // survives (permanent)
         #expect(r.handler(forID: h2.id) == nil)                 // evicted
         #expect(r.handler(forID: h3.id) == nil)                 // evicted
     }
@@ -24,9 +24,9 @@ struct ComponentLifecycleScopedHandlersTests {
     func nestedScopes() {
         let r = HandlerRegistry()
         let outerID = r.openScope()
-        let outer = r.register { _ in }
+        let outer = r.withScope(outerID) { r.register { _ in } }
         let innerID = r.openScope()
-        let inner = r.register { _ in }
+        let inner = r.withScope(innerID) { r.register { _ in } }
 
         r.closeScope(innerID)
         #expect(r.handler(forID: outer.id) != nil)
@@ -40,9 +40,9 @@ struct ComponentLifecycleScopedHandlersTests {
     func closeScopeByIDNotByStackPosition() {
         let r = HandlerRegistry()
         let outerID = r.openScope()
-        let hOuter = r.register { _ in }
+        let hOuter = r.withScope(outerID) { r.register { _ in } }
         let innerID = r.openScope()
-        let hInner = r.register { _ in }
+        let hInner = r.withScope(innerID) { r.register { _ in } }
 
         // Close outer while inner is still on top of the open-scopes list.
         // With the old popLast() approach this would evict hInner instead.
@@ -59,10 +59,10 @@ struct ComponentLifecycleScopedHandlersTests {
     func withScopePinsRegistration() {
         let r = HandlerRegistry()
         let counterID = r.openScope(debugName: "Counter")
-        let h1 = r.register { _ in }                            // goes to Counter's scope
+        let h1 = r.withScope(counterID) { r.register { _ in } }
 
         let toastID = r.openScope(debugName: "Toast")
-        let h2 = r.register { _ in }                            // goes to Toast's scope
+        let h2 = r.withScope(toastID) { r.register { _ in } }
 
         // withScope pins to Counter's scope — even though Toast's is on top
         let h3 = r.withScope(counterID) { r.register { _ in } }
@@ -82,8 +82,8 @@ struct ComponentLifecycleScopedHandlersTests {
     func removeKeepsScopeCompact() {
         let r = HandlerRegistry()
         let id = r.openScope()
-        let h1 = r.register { _ in }
-        let h2 = r.register { _ in }
+        let h1 = r.withScope(id) { r.register { _ in } }
+        let h2 = r.withScope(id) { r.register { _ in } }
 
         // Simulate diffHandlers swapping h1 for a new handler
         r.remove(id: h1.id)
@@ -237,10 +237,10 @@ struct ComponentLifecycleScopedHandlersTests {
         let r = HandlerRegistry()
         var received: String?
         let id = r.openScope()
-        let h = r.register { event in received = event.type }
+        let h = r.withScope(id) { r.register { event in received = event.type } }
         r.closeScope(id)
 
-        // Handler is evicted after closeScope — re-register outside scope for dispatch test
+        // Handler is evicted after closeScope — re-register outside any scope for dispatch test
         let h2 = r.register { event in received = event.type }
         r.dispatch(id: h2.id, event: EventInfo(type: "click"))
         #expect(received == "click")
