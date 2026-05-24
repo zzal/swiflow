@@ -18,7 +18,7 @@ public struct Swiflow: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "swiflow",
         abstract: "Swift-WASM developer ecosystem — scaffold and build Swiflow projects.",
-        version: "0.1.0",
+        version: "0.1.1",
         subcommands: [InitCommand.self, BuildCommand.self, DevCommand.self],
         defaultSubcommand: nil
     )
