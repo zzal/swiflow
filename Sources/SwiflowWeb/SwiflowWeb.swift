@@ -32,13 +32,9 @@ public extension Swiflow {
     /// Mounts a Component tree into the DOM node matched by `selector`.
     ///
     /// The factory is invoked exactly once to produce the root Component
-    /// instance. A `RAFScheduler` is created and wired into the diff so
-    /// `@State` mutations on any component in the tree automatically
-    /// schedule re-renders via `requestAnimationFrame`.
-    ///
-    /// **Single-root:** the v1 implementation supports a single root per
-    /// app. Calling `render` twice traps with a clear error — multi-root
-    /// support is a future-phase item.
+    /// instance. Multiple roots can be mounted at different selectors.
+    /// Calling `render(into:)` twice with the same selector traps — call
+    /// `unmount(into:)` first if you need to replace a root.
     ///
     /// Usage:
     /// ```swift
@@ -49,11 +45,12 @@ public extension Swiflow {
         into selector: String,
         _ factory: @escaping @MainActor () -> C
     ) {
-        // Phase 8: if the dev server staged a pending HMR snapshot in
-        // window.__swiflowPendingSnapshot, decode it now. We install
-        // the diff's restore hook BEFORE constructing the root
-        // component so the very first wireState call gets the chance
-        // to restore.
+        precondition(
+            renderers[selector] == nil,
+            "Swiflow.render(into: \"\(selector)\") was already called. " +
+            "Call Swiflow.unmount(into: \"\(selector)\") before mounting a new root at the same selector."
+        )
+
         let pendingIndex = HMRBridge.takePendingSnapshot()
         if let index = pendingIndex {
             HMRRestoreInstall.stateFor = { path, typeName, key in
@@ -66,51 +63,49 @@ public extension Swiflow {
         CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         DispatcherBridge.install()
-        // Install the Ref resolver so `ref.wrappedValue` can map a Swiflow
-        // handle to the live JS DOM node via `window.swiflow.nodeForHandle`.
-        // Closure-installs into the non-generic `RefResolverInstall.resolver`
-        // shim (not a static on `Ref<Element>` — generic-statics are
-        // per-specialization and would force a separate install per `E`).
         RefResolverInstall.resolver = { handle in
             guard let swiflowGlobal = JSObject.global.swiflow.object else {
                 return nil
             }
-            // Mirror the Renderer's call pattern (`swiflowGlobal.mount!(…)`):
-            // member-access on `JSObject` produces a bound function, the
-            // `!` unwraps it, and calling it with `JSValue`s returns a
-            // `JSValue`. `nodeForHandle` returns the DOM node (a JSObject)
-            // or `null` for an unknown handle — `.object` is nil in the
-            // null case, which propagates out as `nil` here.
             let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
             return result.object
         }
 
-        // Phase 8: install the snapshot exporter so the JS driver can
-        // call window.__swiflow.hmrSnapshot() before the next swap.
-        // The exporter walks `renderer.mountTree` at call time, so it
-        // always reports the current tree even after many re-renders.
         HMRBridge.installSnapshotExporter { [weak renderer] in
             renderer?.mountTree
         }
 
         renderer.renderOnce()
 
-        // Phase 8: clear the install slot after the first render
-        // completes. Subsequent reactivity-driven renders should
-        // not re-restore.
         if pendingIndex != nil {
             HMRRestoreInstall.stateFor = nil
         }
 
-        // Phase 9: install devtools API (no-op in production).
+        renderers[selector] = renderer
         DevAPI.install(renderer: renderer)
     }
 
-    /// Re-evaluates the registered view producer and applies any resulting
-    /// patches. A no-op if `render(into:_:)` has not been called.
+    /// Re-evaluates all mounted roots and applies any resulting patches.
+    /// A no-op if no roots have been mounted.
     @MainActor
     static func rerender() {
-        // ambientRenderer removed in Task 3 — will be properly replaced in Task 5.
+        renderers.values.forEach { $0.renderOnce() }
+    }
+
+    /// Removes the component tree mounted at `selector` from the DOM and
+    /// releases all associated state, handlers, and the RAF scheduler.
+    ///
+    /// A no-op if `selector` was never mounted or has already been unmounted.
+    ///
+    /// Usage:
+    /// ```swift
+    /// Swiflow.unmount(into: "#widget")
+    /// ```
+    @MainActor
+    static func unmount(into selector: String) {
+        guard let renderer = renderers.removeValue(forKey: selector) else { return }
+        renderer.teardown()
+        // DevAPI.installAll() will be wired here in Task 6.
     }
 
 }
