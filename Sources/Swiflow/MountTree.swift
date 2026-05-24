@@ -31,12 +31,12 @@ public final class MountNode {
     /// mount time; future tasks may mutate.
     public var component: AnyComponent?
 
-    /// Stable scope-frame ID returned by `HandlerRegistry.openScope()` when
-    /// this component-anchor node was mounted. Passed to `closeScope(id:)`
-    /// at unmount and to `withScope(id:_:)` before each body re-evaluation
-    /// so handler ownership is always correct regardless of sibling scope
-    /// ordering. `nil` for non-component nodes.
-    public var scopeID: Int?
+    /// Stable scope ID returned by `HandlerRegistry.openScope(debugName:)` when
+    /// this component-anchor node was mounted. Passed to `closeScope(_:)` at
+    /// unmount and to `withScope(_:_:)` before each body re-evaluation so
+    /// handler ownership is always correct regardless of sibling scope ordering.
+    /// `nil` for non-component nodes.
+    package var scopeID: ScopeID?
 
     /// For a component-anchor mount node, the mount-tree root of the
     /// instance's `body`. `nil` for every other node kind. Populated only
@@ -66,14 +66,14 @@ public final class MountNode {
 
     /// Creates a `MountNode`. Wires `parent` pointers for any pre-supplied
     /// children so callers don't need a separate pass.
-    public init(
+    package init(
         handle: Int,
         vnode: VNode,
         children: [MountNode] = [],
         handlerIds: [String: Int] = [:],
         component: AnyComponent? = nil,
         componentBody: MountNode? = nil,
-        scopeID: Int? = nil
+        scopeID: ScopeID? = nil
     ) {
         self.handle = handle
         self.vnode = vnode

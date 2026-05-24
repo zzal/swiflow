@@ -6,14 +6,14 @@ import Testing
 @Suite("HandlerRegistry per-Component scope")
 struct ComponentLifecycleScopedHandlersTests {
 
-    @Test("openScope/closeScope(id:) evicts handlers registered inside scope")
+    @Test("openScope/closeScope(_:) evicts handlers registered inside scope")
     func scopedHandlersAreEvictedOnClose() {
         let r = HandlerRegistry()
         let h1 = r.register { _ in }                            // outside any scope
         let id = r.openScope()
         let h2 = r.register { _ in }                            // inside scope
         let h3 = r.register { _ in }                            // inside scope
-        r.closeScope(id: id)
+        r.closeScope(id)
 
         #expect(r.handler(forID: h1.id) != nil)                 // survives
         #expect(r.handler(forID: h2.id) == nil)                 // evicted
@@ -28,58 +28,58 @@ struct ComponentLifecycleScopedHandlersTests {
         let innerID = r.openScope()
         let inner = r.register { _ in }
 
-        r.closeScope(id: innerID)
+        r.closeScope(innerID)
         #expect(r.handler(forID: outer.id) != nil)
         #expect(r.handler(forID: inner.id) == nil)
 
-        r.closeScope(id: outerID)
+        r.closeScope(outerID)
         #expect(r.handler(forID: outer.id) == nil)
     }
 
-    @Test("closeScope(id:) targets its frame by ID, not by stack position")
-    func closeScopeByIDPreservesOtherFrames() {
+    @Test("closeScope(_:) evicts by ScopeID, not by open-scopes position")
+    func closeScopeByIDNotByStackPosition() {
         let r = HandlerRegistry()
         let outerID = r.openScope()
         let hOuter = r.register { _ in }
         let innerID = r.openScope()
         let hInner = r.register { _ in }
 
-        // Close outer while inner is still on top of the stack.
+        // Close outer while inner is still on top of the open-scopes list.
         // With the old popLast() approach this would evict hInner instead.
-        r.closeScope(id: outerID)
+        r.closeScope(outerID)
 
         #expect(r.handler(forID: hOuter.id) == nil, "outer's handler must be evicted")
         #expect(r.handler(forID: hInner.id) != nil, "inner's handler must survive")
 
-        r.closeScope(id: innerID)
+        r.closeScope(innerID)
         #expect(r.handler(forID: hInner.id) == nil)
     }
 
-    @Test("withScope(id:_:) pins registration to the specified frame")
+    @Test("withScope(_:_:) pins registration to the specified scope")
     func withScopePinsRegistration() {
         let r = HandlerRegistry()
-        let counterID = r.openScope(name: "Counter")
-        let h1 = r.register { _ in }                            // goes to Counter's frame
+        let counterID = r.openScope(debugName: "Counter")
+        let h1 = r.register { _ in }                            // goes to Counter's scope
 
-        let toastID = r.openScope(name: "Toast")
-        let h2 = r.register { _ in }                            // goes to Toast's frame
+        let toastID = r.openScope(debugName: "Toast")
+        let h2 = r.register { _ in }                            // goes to Toast's scope
 
-        // withScope pins to Counter's frame — even though Toast's is on top
-        let h3 = r.withScope(id: counterID) { r.register { _ in } }
+        // withScope pins to Counter's scope — even though Toast's is on top
+        let h3 = r.withScope(counterID) { r.register { _ in } }
 
-        r.closeScope(id: toastID)
+        r.closeScope(toastID)
 
         #expect(r.handler(forID: h1.id) != nil)                 // original Counter handler
         #expect(r.handler(forID: h2.id) == nil)                 // Toast handler evicted
         #expect(r.handler(forID: h3.id) != nil,
                 "Handler registered via withScope must survive child scope closure")
 
-        r.closeScope(id: counterID)
+        r.closeScope(counterID)
         #expect(r.handler(forID: h3.id) == nil)                 // evicted on Counter unmount
     }
 
-    @Test("remove(id:) prunes handler from its scope frame immediately")
-    func removeKeepsScopeFrameCompact() {
+    @Test("remove(id:) prunes handler from its scope immediately")
+    func removeKeepsScopeCompact() {
         let r = HandlerRegistry()
         let id = r.openScope()
         let h1 = r.register { _ in }
@@ -88,9 +88,9 @@ struct ComponentLifecycleScopedHandlersTests {
         // Simulate diffHandlers swapping h1 for a new handler
         r.remove(id: h1.id)
 
-        // h1 must no longer be in the frame; closeScope should not crash
+        // h1 must no longer be in the scope; closeScope should not crash
         // and h2 must be correctly evicted
-        r.closeScope(id: id)
+        r.closeScope(id)
         #expect(r.handler(forID: h1.id) == nil)
         #expect(r.handler(forID: h2.id) == nil)
     }
@@ -153,7 +153,7 @@ struct ComponentLifecycleScopedHandlersTests {
 
         // Handler must actually dispatch
         var fired = false
-        _ = registry.withScope(id: r2.newMountTree.scopeID!) {
+        _ = registry.withScope(r2.newMountTree.scopeID!) {
             registry.register { _ in fired = true }
         }
         registry.dispatch(id: newClickID!, event: EventInfo(type: "click"))
@@ -164,7 +164,7 @@ struct ComponentLifecycleScopedHandlersTests {
     }
 
     // Regression: keyed sibling B's handlers were evicted when sibling A
-    // was destroyed because the old popLast() approach closed B's frame.
+    // was destroyed because the old popLast() approach closed B's scope.
     @Test("Keyed sibling handlers survive after other sibling is removed")
     func keyedSiblingHandlersSurviveAfterOtherSiblingRemoved() {
         // A Leaf component that registers a click handler and invokes a callback.
@@ -238,7 +238,7 @@ struct ComponentLifecycleScopedHandlersTests {
         var received: String?
         let id = r.openScope()
         let h = r.register { event in received = event.type }
-        r.closeScope(id: id)
+        r.closeScope(id)
 
         // Handler is evicted after closeScope — re-register outside scope for dispatch test
         let h2 = r.register { event in received = event.type }

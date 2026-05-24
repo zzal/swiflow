@@ -238,11 +238,11 @@ func mount(
         // Open a handler scope for this component and capture the stable ID.
         // The scope is closed in `destroy()` when the component unmounts,
         // ensuring handler closures cannot outlive their owning Component.
-        // `withScope(id:_:)` pins handler registration to this component's own
-        // frame during body evaluation, regardless of which sibling or child
-        // frames are currently open.
-        let scopeID = handlers.openScope(name: path)
-        let bodyVNode = handlers.withScope(id: scopeID) {
+        // `withScope(_:_:)` pins handler registration to this component's own
+        // scope during body evaluation, regardless of which sibling or child
+        // scopes are currently open.
+        let scopeID = handlers.openScope(debugName: path)
+        let bodyVNode = handlers.withScope(scopeID) {
             let previousEnv = AmbientEnvironment.current
             AmbientEnvironment.current = environment
             defer { AmbientEnvironment.current = previousEnv }
@@ -385,13 +385,13 @@ func update(
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
         //
-        // `withScope(id:_:)` pins handler registration to this component's
-        // own scope frame for the duration of the body call. Without this,
-        // handlers would land in the top-of-stack frame — which may belong
-        // to a child component (e.g. Toast) that is about to be destroyed in
-        // this same diff pass, taking the new handlers with it and silently
-        // dropping all future events for this component.
-        let newBodyVNode = handlers.withScope(id: mounted.scopeID) {
+        // `withScope(_:_:)` pins handler registration to this component's own
+        // scope for the duration of the body call. Without this, handlers would
+        // land in the top-of-open-scopes entry — which may belong to a child
+        // component (e.g. Toast) that is about to be destroyed in this same
+        // diff pass, taking the new handlers with it and silently dropping all
+        // future events for this component.
+        let newBodyVNode = handlers.withScope(mounted.scopeID) {
             let previousEnv = AmbientEnvironment.current
             AmbientEnvironment.current = environment
             defer { AmbientEnvironment.current = previousEnv }
@@ -570,7 +570,7 @@ func destroy(
         // can be destroyed in any order without cross-contaminating each other's
         // handler registrations.
         if let scopeID = node.scopeID {
-            handlers.closeScope(id: scopeID)
+            handlers.closeScope(scopeID)
         }
         OnChangeStorage.remove(for: ObjectIdentifier(any.instance))
         // Symmetric with the register call in mount(): drop this instance

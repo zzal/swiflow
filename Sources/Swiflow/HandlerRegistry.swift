@@ -7,81 +7,85 @@
 /// Closing the scope evicts every ID registered inside it, ensuring
 /// `.on(_:perform:)` closures cannot outlive their owning Component instance.
 ///
-/// Scopes are identified by stable integer IDs returned from `openScope()`.
-/// `closeScope(id:)` evicts by ID, not by stack position, so sibling
-/// components can be destroyed in any order without cross-contamination.
+/// Scopes are identified by stable `ScopeID` values returned from
+/// `openScope(debugName:)`. `closeScope(_:)` evicts by ID, not by stack
+/// position, so sibling components can be destroyed in any order without
+/// cross-contamination.
 ///
 /// `package` access: visible to `SwiflowWeb` (same package) but not to
 /// application code that imports Swiflow as a library dependency.
 package final class HandlerRegistry: @unchecked Sendable {
     private var nextID: Int = 0
-    private var nextFrameID: Int = 0
+    private var nextScopeID: Int = 0
     private var handlers: [Int: EventHandler] = [:]
 
-    private struct Frame {
-        var name: String
+    private struct Scope {
+        var debugName: String
         var ids: [Int]
     }
-    private var frames: [Int: Frame] = [:]
-    private var frameStack: [Int] = []       // open frame IDs in push order; last = top
-    private var handlerToFrame: [Int: Int] = [:]  // handlerID → frameID for O(1) removal
-    private var activeFrameID: Int? = nil    // set during withScope(id:_:)
+    private var scopes: [ScopeID: Scope] = [:]
+    private var openScopes: [ScopeID] = []      // open scope IDs in push order; last = top
+    private var handlerToScope: [Int: ScopeID] = [:]  // handlerID → ScopeID for O(1) removal
+    private var activeScopeID: ScopeID? = nil   // set during withScope(_:_:)
 
     package init() {}
 
     // MARK: - Scope management
 
-    /// Opens a new scope frame and returns its stable ID. The ID must be
-    /// saved and passed to `closeScope(id:)` at unmount time.
-    package func openScope(name: String = "") -> Int {
-        let id = nextFrameID; nextFrameID += 1
-        frames[id] = Frame(name: name, ids: [])
-        frameStack.append(id)
+    /// Opens a new scope and returns its stable `ScopeID`. The ID must be
+    /// saved and passed to `closeScope(_:)` at unmount time.
+    ///
+    /// `debugName` is used only by `countPerScope()` for diagnostics; it is
+    /// not structurally load-bearing and two scopes may share the same name.
+    package func openScope(debugName: String = "") -> ScopeID {
+        let id = ScopeID(raw: nextScopeID); nextScopeID += 1
+        scopes[id] = Scope(debugName: debugName, ids: [])
+        openScopes.append(id)
         return id
     }
 
-    /// Closes the scope identified by `id`, evicting every handler it owns
+    /// Closes the scope identified by `scope`, evicting every handler it owns
     /// from the registry. Safe to call in any order relative to other open
-    /// scopes — lookup is by stable frame ID, not by stack position.
-    package func closeScope(id: Int) {
-        guard let frame = frames.removeValue(forKey: id) else { return }
-        frameStack.removeAll { $0 == id }
-        for hid in frame.ids {
+    /// scopes — lookup is by stable `ScopeID`, not by stack position.
+    package func closeScope(_ scope: ScopeID) {
+        guard let s = scopes.removeValue(forKey: scope) else { return }
+        openScopes.removeAll { $0 == scope }
+        for hid in s.ids {
             handlers.removeValue(forKey: hid)
-            handlerToFrame.removeValue(forKey: hid)
+            handlerToScope.removeValue(forKey: hid)
         }
     }
 
-    /// Runs `body` with `id` as the active scope frame. Handlers registered
-    /// during `body` are tracked against frame `id`, regardless of what
-    /// frames are currently on top of the open-frame stack. Saves and
-    /// restores the previous active frame, so nested calls compose correctly.
+    /// Runs `body` with `scope` as the active scope. Handlers registered
+    /// during `body` are tracked against `scope`, regardless of what scopes
+    /// are currently on top of the open-scope list. Saves and restores the
+    /// previous active scope, so nested calls compose correctly.
     ///
     /// Use this around every component `body` evaluation during both mount
     /// and update so handler ownership is always correct — even when sibling
     /// or descendant scopes are simultaneously open.
     @discardableResult
-    package func withScope<T>(id: Int, _ body: () -> T) -> T {
-        let previous = activeFrameID
-        activeFrameID = id
-        defer { activeFrameID = previous }
+    package func withScope<T>(_ scope: ScopeID, _ body: () -> T) -> T {
+        let previous = activeScopeID
+        activeScopeID = scope
+        defer { activeScopeID = previous }
         return body()
     }
 
-    /// Variant of `withScope(id:_:)` that is a no-op when `id` is `nil`.
-    /// Allows callers to pass an optional scope ID without extra unwrapping
+    /// Variant of `withScope(_:_:)` that is a no-op when `scope` is `nil`.
+    /// Allows callers to pass an optional `ScopeID` without extra unwrapping
     /// when a non-component node has no associated scope.
     @discardableResult
-    package func withScope<T>(id: Int?, _ body: () -> T) -> T {
-        guard let id else { return body() }
-        return withScope(id: id, body)
+    package func withScope<T>(_ scope: ScopeID?, _ body: () -> T) -> T {
+        guard let scope else { return body() }
+        return withScope(scope, body)
     }
 
     // MARK: - Handler management
 
     /// Registers a closure and returns the `EventHandler`. Tracks the ID
-    /// against `activeFrameID` when set (inside `withScope`), otherwise
-    /// against the most-recently-opened frame (`frameStack.last`). If no
+    /// against `activeScopeID` when set (inside `withScope`), otherwise
+    /// against the most-recently-opened scope (`openScopes.last`). If no
     /// scope is open the registration is permanent until `remove(id:)` is
     /// called.
     @discardableResult
@@ -89,24 +93,24 @@ package final class HandlerRegistry: @unchecked Sendable {
         let id = nextID; nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
         handlers[id] = h
-        let target = activeFrameID ?? frameStack.last
+        let target = activeScopeID ?? openScopes.last
         if let t = target {
-            frames[t]?.ids.append(id)
-            handlerToFrame[id] = t
+            scopes[t]?.ids.append(id)
+            handlerToScope[id] = t
         }
         return h
     }
 
     package func handler(forID id: Int) -> EventHandler? { handlers[id] }
 
-    /// Removes a handler from the registry and from its owning scope frame.
-    /// This keeps frame ID arrays compact across re-renders (handlers swapped
+    /// Removes a handler from the registry and from its owning scope.
+    /// This keeps scope ID arrays compact across re-renders (handlers swapped
     /// out by `diffHandlers` are pruned immediately, not left as stale entries
     /// that accumulate until the component unmounts).
     package func remove(id: Int) {
         handlers.removeValue(forKey: id)
-        if let frameID = handlerToFrame.removeValue(forKey: id) {
-            frames[frameID]?.ids.removeAll { $0 == id }
+        if let scopeID = handlerToScope.removeValue(forKey: id) {
+            scopes[scopeID]?.ids.removeAll { $0 == id }
         }
     }
 
@@ -114,11 +118,11 @@ package final class HandlerRegistry: @unchecked Sendable {
 
     // MARK: - Diagnostics
 
-    /// Returns handler counts per scope name. Used by `__swiflow__.handlers()`.
+    /// Returns handler counts per scope debug name. Used by `__swiflow__.handlers()`.
     package func countPerScope() -> [String: Int] {
         var result: [String: Int] = [:]
-        for (_, frame) in frames {
-            result[frame.name, default: 0] += frame.ids.count
+        for (_, scope) in scopes {
+            result[scope.debugName, default: 0] += scope.ids.count
         }
         return result
     }
