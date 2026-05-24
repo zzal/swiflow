@@ -117,6 +117,9 @@ final class Renderer {
     /// driver to attach the root node at `selector`. Also fires lifecycle
     /// hooks on the root component when applicable.
     func renderOnce() {
+        _currentRenderingRenderer = self
+        defer { _currentRenderingRenderer = nil }
+
         let nextVNode: VNode
 
         if let producer = viewProducer {
@@ -194,6 +197,30 @@ final class Renderer {
                 root.instance.onChange()
             }
         }
+    }
+
+    /// Destroys the mounted tree, emits remove patches to the JS driver,
+    /// and cancels the RAF scheduler. Called by `Swiflow.unmount(into:)`.
+    /// Safe to call on an already-torn-down renderer (no-op if mountTree is nil).
+    package func teardown() {
+        guard let tree = mountTree else { return }
+
+        var patches: [Patch] = []
+        destroy(tree, into: &patches, handlers: handlers)
+
+        let jsArray = JSObject.global.Array.function!.new()
+        for (index, patch) in patches.enumerated() {
+            let payload = PatchSerializer.encode(patch)
+            jsArray[index] = JSAdapter.toJSValue(payload)
+        }
+        let swiflowGlobal = JSObject.global.swiflow.object!
+        _ = swiflowGlobal.applyPatches!(jsArray)
+
+        // Nil out the scheduler to prevent any pending RAF from triggering
+        // a render on a torn-down tree. The weak-self capture in the RAF
+        // closure means it becomes a no-op once the RAFScheduler is released.
+        _schedulerBox.value = nil
+        mountTree = nil
     }
 }
 

@@ -554,7 +554,7 @@ func diffHandlers(
 /// "parent unmount before child unmount" ordering, so the parent can
 /// still read state from children before they are torn down.
 @MainActor
-func destroy(
+package func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
     handlers: HandlerRegistry,
