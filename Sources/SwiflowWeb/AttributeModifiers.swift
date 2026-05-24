@@ -169,7 +169,7 @@ public extension Attribute {
     /// ```swift
     /// let nameInput = Ref<JSObject>()
     /// input(.value($name), .ref(nameInput))
-    /// // …in onAppear: _ = nameInput.wrappedValue?.focus.function?()
+    /// // …in onAppear: if let el = nameInput.wrappedValue { _ = el.focus!() }
     /// ```
     static func ref<E>(_ ref: Ref<E>) -> Attribute {
         .refBinding(AnyRefBinding(ref))

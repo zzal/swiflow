@@ -57,11 +57,11 @@ public final class Link: Component {
         let navigate = capturedNavigate ?? { _ in }
         let targetPath = path
         let closure = JSClosure { args -> JSValue in
-            args.first?.object?.preventDefault.function?()
+            if let event = args.first?.object { _ = event.preventDefault!() }
             navigate(targetPath)
             return .undefined
         }
-        linkRef.wrappedValue?.addEventListener.function?("click", closure)
+        if let el = linkRef.wrappedValue { _ = el.addEventListener!("click", closure) }
         clickClosure = closure
     }
 }

@@ -14,7 +14,7 @@
 ///     }
 ///
 ///     func onAppear() {
-///         _ = nameInput.wrappedValue?.focus.function?()
+///         if let el = nameInput.wrappedValue { _ = el.focus!() }
 ///     }
 /// }
 /// ```

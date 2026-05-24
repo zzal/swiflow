@@ -86,7 +86,7 @@ final class Counter: Component {
     }
 
     func onAppear() {
-        _ = greetingInput.wrappedValue?.focus.function?()
+        if let el = greetingInput.wrappedValue { _ = el.focus!() }
     }
 }
 
