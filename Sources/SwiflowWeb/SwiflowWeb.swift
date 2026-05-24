@@ -64,7 +64,7 @@ public extension Swiflow {
         CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         ambientRenderer = renderer
-        DispatcherBridge.installIfNeeded(registry: renderer.handlers)
+        DispatcherBridge.install()
         // Install the Ref resolver so `ref.wrappedValue` can map a Swiflow
         // handle to the live JS DOM node via `window.swiflow.nodeForHandle`.
         // Closure-installs into the non-generic `RefResolverInstall.resolver`

@@ -12,18 +12,16 @@ import Swiflow
 /// 2. `eventPayload: Object` — `{ type: String, targetValue: String? }`.
 enum DispatcherBridge {
     /// Strong reference holding the `JSClosure` so it isn't deallocated.
-    /// JSClosure-with-Swift-callback documentation: the closure must outlive
-    /// every invocation, so we stash it module-private.
     nonisolated(unsafe) private static var installed: JSClosure?
 
-    /// Idempotent: subsequent calls are no-ops. Phase 2a creates exactly one
-    /// registry per app; this matches.
-    static func installIfNeeded(registry: HandlerRegistry) {
+    /// Idempotent: subsequent calls are no-ops. One JSClosure services all
+    /// roots — handler IDs are globally unique across all `HandlerRegistry`
+    /// instances (Phase 13c), so `HandlerRegistry.dispatchGlobal` routes
+    /// correctly regardless of which root registered the handler.
+    static func install() {
         guard installed == nil else { return }
 
         let closure = JSClosure { args -> JSValue in
-            // Defensive: silently no-op on malformed payloads. The driver is
-            // the only caller and always provides both args.
             guard
                 args.count >= 2,
                 let handlerId = args[0].number.map({ Int($0) }),
@@ -37,7 +35,7 @@ enum DispatcherBridge {
             let targetChecked = payload.targetChecked.boolean
 
             MainActor.assumeIsolated {
-                registry.dispatch(
+                HandlerRegistry.dispatchGlobal(
                     id: handlerId,
                     event: EventInfo(
                         type: type,
@@ -47,15 +45,9 @@ enum DispatcherBridge {
                 )
             }
 
-            // Returning a JSValue from the closure is required by JSClosure's
-            // signature; the JS driver doesn't read it. Future phases may
-            // surface preventDefault / stopPropagation here.
             return .undefined
         }
 
-        // JavaScriptKit 0.53+ deprecated `.function(closure)`; use `.object`.
-        // The JSClosure is implicitly convertible to a JSObject for this
-        // purpose since it's no longer a JSFunction subclass.
         JSObject.global.__swiflowDispatch = .object(closure)
         installed = closure
     }
