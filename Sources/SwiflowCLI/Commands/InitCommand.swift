@@ -52,11 +52,12 @@ struct InitCommand: AsyncParsableCommand {
     var swiflowSource: String?
 
     func run() async throws {
-        guard let swiflowSource else {
+        guard let swiflowSource = swiflowSource ?? ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"] else {
             throw ValidationError("""
                 --swiflow-source is required. Swiflow has no public release yet.
                 Pass the path to your local Swiflow clone:
                   swiflow init \(name) --swiflow-source /path/to/swiflow
+                Or set the SWIFLOW_SOURCE environment variable.
                 """)
         }
 
