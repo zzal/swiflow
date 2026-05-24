@@ -17,20 +17,33 @@ package final class HandlerRegistry {
     private var scopeStack: [[Int]] = []     // each frame is the IDs registered in that scope
     private var scopeNames: [String] = []    // parallel array of scope names
 
+    /// When set, `register()` tracks the new ID against this specific scope
+    /// frame index instead of the top of the stack. Used by the diff's
+    /// component-update path to ensure re-render handlers land in the
+    /// component's own scope frame rather than a child component's frame
+    /// that happens to be on top. Cleared after each body evaluation.
+    package var activeScopeIndex: Int? = nil
+
+    /// The index of the scope frame most recently opened. Valid only while
+    /// at least one scope is open; callers must only read this immediately
+    /// after `openScope()`.
+    package var currentScopeIndex: Int { scopeStack.count - 1 }
+
     package init() {}
 
-    /// Registers a closure and returns the `EventHandler`. If a scope is
-    /// currently open, the ID is tracked against the innermost scope and
-    /// will be evicted when that scope closes. If no scope is open, the
-    /// registration is permanent until explicitly `remove(id:)`'d.
+    /// Registers a closure and returns the `EventHandler`. Tracks the ID
+    /// against `activeScopeIndex` when set, otherwise the innermost open
+    /// scope. If no scope is open the registration is permanent until
+    /// explicitly `remove(id:)`'d.
     @discardableResult
     package func register(_ invoke: @escaping (EventInfo) -> Void) -> EventHandler {
         let id = nextID
         nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
         handlers[id] = h
-        if !scopeStack.isEmpty {
-            scopeStack[scopeStack.count - 1].append(id)
+        let target = activeScopeIndex ?? (scopeStack.isEmpty ? nil : scopeStack.count - 1)
+        if let t = target, t >= 0, t < scopeStack.count {
+            scopeStack[t].append(id)
         }
         return h
     }

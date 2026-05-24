@@ -240,6 +240,7 @@ func mount(
         // is closed in `destroy()` when the component unmounts, ensuring
         // handler closures cannot outlive their owning Component instance.
         handlers.openScope(name: path)
+        let scopeIndex = handlers.currentScopeIndex
         let previousEnv = AmbientEnvironment.current
         AmbientEnvironment.current = environment
         let bodyVNode = instance.instance.body
@@ -263,7 +264,8 @@ func mount(
             handle: anchorHandle,
             vnode: vnode,
             component: instance,
-            componentBody: bodyMount
+            componentBody: bodyMount,
+            scopeIndex: scopeIndex
         )
 
     case .environmentOverride(let overrides, let child):
@@ -379,10 +381,20 @@ func update(
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
+        //
+        // Pin activeScopeIndex to this component's own scope frame before
+        // calling body. Without this, handlers registered during body would
+        // land in whatever scope frame is currently on top of the stack —
+        // which may belong to a child component (e.g. Toast) that is about
+        // to be destroyed in this same diff pass, taking the new handlers
+        // with it and silently dropping all future events for this component.
+        let previousScopeIndex = handlers.activeScopeIndex
+        handlers.activeScopeIndex = mounted.scopeIndex
         let previousEnv = AmbientEnvironment.current
         AmbientEnvironment.current = environment
         let newBodyVNode = instance.instance.body
         AmbientEnvironment.current = previousEnv
+        handlers.activeScopeIndex = previousScopeIndex
         // Ensure the scope class stays on the body root across re-renders.
         let componentType = type(of: instance.instance)
         let scopeClass = "swiflow-\(String(describing: componentType))"
