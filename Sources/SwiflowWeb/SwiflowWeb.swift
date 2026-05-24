@@ -14,10 +14,19 @@ import JavaScriptKit
 // The extension below hangs the renderer API off this enum.
 public enum Swiflow {}
 
-// Module-internal ambient renderer — single root per app in Phase 2a.
-// `internal` (not `private`) so AttributeModifiers.swift can reach it
-// when registering handlers during a render cycle.
-nonisolated(unsafe) var ambientRenderer: Renderer?
+/// All live roots, keyed by CSS selector. Package-internal so
+/// AttributeModifiers.swift and DevAPI.swift can read it.
+nonisolated(unsafe) var renderers: [String: Renderer] = [:]
+
+/// Set to the active `Renderer` at the start of each `renderOnce()` call
+/// and restored to `nil` in a defer. Lets `.on(_:perform:)` modifiers
+/// find the correct registry during both initial renders and RAF re-renders.
+nonisolated(unsafe) var _currentRenderingRenderer: Renderer?
+
+/// Single shared handle allocator used by all production `Renderer` instances.
+/// Guarantees globally unique node handles across all roots so the JS
+/// driver's `nodes` Map never has collisions.
+nonisolated(unsafe) let sharedHandleAllocator = HandleAllocator()
 
 public extension Swiflow {
     /// Mounts a Component tree into the DOM node matched by `selector`.
@@ -40,13 +49,6 @@ public extension Swiflow {
         into selector: String,
         _ factory: @escaping @MainActor () -> C
     ) {
-        precondition(
-            ambientRenderer == nil,
-            "Swiflow.render(into:_:) was already called. v1 supports a single root per app; " +
-            "a second render would silently drop event dispatch for new handlers because the JS " +
-            "dispatcher remains bound to the first registry."
-        )
-
         // Phase 8: if the dev server staged a pending HMR snapshot in
         // window.__swiflowPendingSnapshot, decode it now. We install
         // the diff's restore hook BEFORE constructing the root
@@ -63,7 +65,6 @@ public extension Swiflow {
         let root = factory()
         CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
-        ambientRenderer = renderer
         DispatcherBridge.install()
         // Install the Ref resolver so `ref.wrappedValue` can map a Swiflow
         // handle to the live JS DOM node via `window.swiflow.nodeForHandle`.
@@ -109,7 +110,7 @@ public extension Swiflow {
     /// patches. A no-op if `render(into:_:)` has not been called.
     @MainActor
     static func rerender() {
-        ambientRenderer?.renderOnce()
+        // ambientRenderer removed in Task 3 — will be properly replaced in Task 5.
     }
 
 }

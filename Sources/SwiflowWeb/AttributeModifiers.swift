@@ -10,11 +10,12 @@
 func _registerAmbientHandler(
     _ invoke: @escaping @MainActor (EventInfo) -> Void
 ) -> EventHandler {
-    guard let renderer = ambientRenderer else {
+    guard let renderer = _currentRenderingRenderer else {
         fatalError(
-            "Swiflow modifier .on(_:perform:) was used before Swiflow.render(into:_:) was called. "
-            + "Event handlers must be constructed inside a Component body that the renderer is "
-            + "actively building — typically this means you're calling a Swiflow factory at module scope."
+            "Swiflow modifier .on(_:perform:) was used outside a render cycle. "
+            + "Event handlers must be constructed inside a Component body while the renderer is "
+            + "actively building the tree. In a multi-root app, ensure each root is mounted via "
+            + "Swiflow.render(into:_:) before any component body runs."
         )
     }
     return renderer.handlers.register { event in

@@ -77,11 +77,11 @@ final class Renderer {
     /// Phase 2a init: the renderer evaluates `viewProducer` on every render.
     /// No scheduler is created — re-renders are triggered manually via
     /// `Swiflow.rerender()`.
-    init(viewProducer: @escaping () -> VNode, selector: String) {
+    init(viewProducer: @escaping () -> VNode, selector: String, handles: HandleAllocator = sharedHandleAllocator) {
         self.viewProducer = viewProducer
         self.rootComponent = nil
         self.selector = selector
-        self.handles = HandleAllocator()
+        self.handles = handles
         self.handlers = HandlerRegistry()
         self.mountTree = nil
         // _schedulerBox stays nil (default).
@@ -93,11 +93,11 @@ final class Renderer {
     ///
     /// The `RAFScheduler` captures `self` weakly to avoid a retain cycle:
     /// Renderer → _schedulerBox → RAFScheduler → closure → Renderer.
-    init(rootComponent: AnyComponent, selector: String) {
+    init(rootComponent: AnyComponent, selector: String, handles: HandleAllocator = sharedHandleAllocator) {
         self.viewProducer = nil
         self.rootComponent = rootComponent
         self.selector = selector
-        self.handles = HandleAllocator()
+        self.handles = handles
         self.handlers = HandlerRegistry()
         self.mountTree = nil
         // _schedulerBox is default-initialised to nil above (let constant
