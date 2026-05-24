@@ -31,12 +31,12 @@ public final class MountNode {
     /// mount time; future tasks may mutate.
     public var component: AnyComponent?
 
-    /// Index of the `HandlerRegistry` scope frame opened when this
-    /// component-anchor node was mounted. Used by the diff's update path
-    /// to pin `activeScopeIndex` before calling body, ensuring re-render
-    /// handlers land in this component's own frame even when deeper child
-    /// scopes are currently on top of the stack. `-1` for non-component nodes.
-    public var scopeIndex: Int
+    /// Stable scope-frame ID returned by `HandlerRegistry.openScope()` when
+    /// this component-anchor node was mounted. Passed to `closeScope(id:)`
+    /// at unmount and to `withScope(id:_:)` before each body re-evaluation
+    /// so handler ownership is always correct regardless of sibling scope
+    /// ordering. `nil` for non-component nodes.
+    public var scopeID: Int?
 
     /// For a component-anchor mount node, the mount-tree root of the
     /// instance's `body`. `nil` for every other node kind. Populated only
@@ -73,7 +73,7 @@ public final class MountNode {
         handlerIds: [String: Int] = [:],
         component: AnyComponent? = nil,
         componentBody: MountNode? = nil,
-        scopeIndex: Int = -1
+        scopeID: Int? = nil
     ) {
         self.handle = handle
         self.vnode = vnode
@@ -81,7 +81,7 @@ public final class MountNode {
         self.handlerIds = handlerIds
         self.component = component
         self.componentBody = componentBody
-        self.scopeIndex = scopeIndex
+        self.scopeID = scopeID
         for child in children {
             child.parent = self
         }

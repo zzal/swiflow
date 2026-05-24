@@ -2,6 +2,7 @@
 import Testing
 @testable import Swiflow
 
+@MainActor
 @Suite("HandlerRegistry")
 struct HandlerRegistryTests {
     @Test("Registering a closure returns a fresh ID")

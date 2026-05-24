@@ -36,14 +36,16 @@ enum DispatcherBridge {
             let targetValue = payload.targetValue.string
             let targetChecked = payload.targetChecked.boolean
 
-            registry.dispatch(
-                id: handlerId,
-                event: EventInfo(
-                    type: type,
-                    targetValue: targetValue,
-                    targetChecked: targetChecked
+            MainActor.assumeIsolated {
+                registry.dispatch(
+                    id: handlerId,
+                    event: EventInfo(
+                        type: type,
+                        targetValue: targetValue,
+                        targetChecked: targetChecked
+                    )
                 )
-            )
+            }
 
             // Returning a JSValue from the closure is required by JSClosure's
             // signature; the JS driver doesn't read it. Future phases may
