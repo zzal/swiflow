@@ -15,7 +15,8 @@
 /// `package` access: visible to `SwiflowWeb` (same package) but not to
 /// application code that imports Swiflow as a library dependency.
 package final class HandlerRegistry: @unchecked Sendable {
-    private var nextID: Int = 0
+    nonisolated(unsafe) private static var nextID: Int = 0
+    nonisolated(unsafe) private static var globalTable: [Int: EventHandler] = [:]
     private var nextScopeID: Int = 0
     private var handlers: [Int: EventHandler] = [:]
 
@@ -93,9 +94,10 @@ package final class HandlerRegistry: @unchecked Sendable {
     /// intends it to be scoped. This fires `swiflowDiagnostic` in DEBUG builds.
     @discardableResult
     package func register(_ invoke: @escaping (EventInfo) -> Void) -> EventHandler {
-        let id = nextID; nextID += 1
+        let id = Self.nextID; Self.nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
         handlers[id] = h
+        Self.globalTable[id] = h
         if let scope = activeScopeID {
             scopes[scope]?.ids.append(id)
             handlerToScope[id] = scope
@@ -117,12 +119,23 @@ package final class HandlerRegistry: @unchecked Sendable {
     /// that accumulate until the component unmounts).
     package func remove(id: Int) {
         handlers.removeValue(forKey: id)
+        Self.globalTable.removeValue(forKey: id)
         if let scopeID = handlerToScope.removeValue(forKey: id) {
             scopes[scopeID]?.ids.removeAll { $0 == id }
         }
     }
 
     package func dispatch(id: Int, event: EventInfo) { handlers[id]?.invoke(event) }
+
+    deinit {
+        for id in handlers.keys {
+            Self.globalTable.removeValue(forKey: id)
+        }
+    }
+
+    package static func dispatchGlobal(id: Int, event: EventInfo) {
+        globalTable[id]?.invoke(event)
+    }
 
     // MARK: - Diagnostics
 
