@@ -14,7 +14,7 @@ struct InitCommandTests {
         try ProjectWriter.writeProject(
             name: "Demo",
             into: tmp,
-            swiflowSource: "../..",
+            swiflowDep: .path("../.."),
             jsDriverSource: "// fake driver\n"
         )
 
@@ -39,7 +39,7 @@ struct InitCommandTests {
         try ProjectWriter.writeProject(
             name: "Demo",
             into: tmp,
-            swiflowSource: "../..",
+            swiflowDep: .path("../.."),
             jsDriverSource: driver
         )
 
@@ -61,7 +61,7 @@ struct InitCommandTests {
             try ProjectWriter.writeProject(
                 name: "Demo",
                 into: tmp,
-                swiflowSource: "../..",
+                swiflowDep: .path("../.."),
                 jsDriverSource: "// driver\n"
             )
         }
@@ -75,7 +75,7 @@ struct InitCommandTests {
         try ProjectWriter.writeProject(
             name: "Demo",
             into: tmp,
-            swiflowSource: "/abs/path/to/swiflow",
+            swiflowDep: .path("/abs/path/to/swiflow"),
             jsDriverSource: "// driver\n"
         )
 
@@ -94,7 +94,7 @@ struct InitCommandTests {
         try ProjectWriter.writeProject(
             name: "Demo",
             into: tmp,
-            swiflowSource: "../..",
+            swiflowDep: .path("../.."),
             jsDriverSource: "// driver\n"
         )
 

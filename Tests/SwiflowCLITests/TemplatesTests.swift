@@ -29,7 +29,7 @@ struct TemplatesTests {
 
     @Test("Package.swift renders identically to examples/HelloWorld/Package.swift")
     func packageSwiftMatchesExample() throws {
-        let rendered = Templates.packageSwift(name: "HelloWorld", swiflowSource: "../..")
+        let rendered = Templates.packageSwift(name: "HelloWorld", swiflowDep: .path("../.."))
         let expected = try Self.exampleFile("Package.swift")
         #expect(rendered == expected)
     }
@@ -72,14 +72,14 @@ struct TemplatesTests {
 
     @Test("Variable substitution applies {{NAME}} everywhere it appears")
     func substitutesName() {
-        let rendered = Templates.packageSwift(name: "MyCoolApp", swiflowSource: "../..")
+        let rendered = Templates.packageSwift(name: "MyCoolApp", swiflowDep: .path("../.."))
         #expect(rendered.contains("\"MyCoolApp\""))
         #expect(!rendered.contains("{{NAME}}"))
     }
 
     @Test("Variable substitution applies {{SWIFLOW_SOURCE}}")
     func substitutesSwiflowSource() {
-        let rendered = Templates.packageSwift(name: "Demo", swiflowSource: "/tmp/swiflow-checkout")
+        let rendered = Templates.packageSwift(name: "Demo", swiflowDep: .path("/tmp/swiflow-checkout"))
         #expect(rendered.contains("/tmp/swiflow-checkout"))
         #expect(!rendered.contains("{{SWIFLOW_SOURCE}}"))
     }
@@ -90,5 +90,31 @@ struct TemplatesTests {
         #expect(rendered.contains("<title>MyCoolApp</title>"))
         #expect(!rendered.contains("Swiflow Hello World"))
         #expect(!rendered.contains("{{NAME}}"))
+    }
+
+    @Test("packageSwift with URL dep uses .package(url:exact:) instead of .package(path:)")
+    func packageSwiftURLDep() {
+        let pkg = Templates.packageSwift(
+            name: "MyApp",
+            swiflowDep: .url("https://github.com/example/Swiflow.git", version: "1.0.0")
+        )
+        #expect(pkg.contains(#".package(url: "https://github.com/example/Swiflow.git", exact: "1.0.0")"#))
+        #expect(!pkg.contains(".package(path:"))
+        #expect(!pkg.contains("{{SWIFLOW_SOURCE}}"),
+                "Placeholder must be substituted; if not, the template's .package(path:) literal changed.")
+    }
+
+    @Test("packageSwift with path dep uses .package(path:)")
+    func packageSwiftPathDep() {
+        let pkg = Templates.packageSwift(
+            name: "MyApp",
+            swiflowDep: .path("/abs/path/to/swiflow")
+        )
+        #expect(pkg.contains(#".package(path: "/abs/path/to/swiflow")"#))
+        // The template also contains a JavaScriptKit .package(url:…) dependency,
+        // so we only assert the Swiflow-specific URL form is absent.
+        #expect(!pkg.contains(#".package(url: "https://github.com/swiflow/"#))
+        #expect(!pkg.contains("{{SWIFLOW_SOURCE}}"),
+                "Placeholder must be substituted; if not, the template's .package(path:) literal changed.")
     }
 }

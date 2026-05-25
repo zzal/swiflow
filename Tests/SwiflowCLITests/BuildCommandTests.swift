@@ -191,7 +191,7 @@ struct BuildCommandIntegrationTests {
         try ProjectWriter.writeProject(
             name: "Demo",
             into: tmp,
-            swiflowSource: Self.swiflowRepoRoot.path,
+            swiflowDep: .path(Self.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource
         )
 

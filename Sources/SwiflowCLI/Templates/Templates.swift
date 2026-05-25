@@ -5,20 +5,46 @@
 // participate naturally in `swift test` and don't require Bundle access.
 //
 // Variable substitution is dumb `replacingOccurrences`. Phase 2b has two
-// variables: {{NAME}} (project name) and {{SWIFLOW_SOURCE}} (path or URL
-// the generated Package.swift uses to depend on Swiflow). If we ever need
+// variables: {{NAME}} (project name) and the SwiflowDep fragment that
+// the generated Package.swift uses to depend on Swiflow. If we ever need
 // a third, consider promoting to a real templating helper.
 
 import Foundation
+
+/// How the generated Package.swift should depend on Swiflow.
+enum SwiflowDep: Equatable {
+    /// A local path dep: `.package(path: "/path/to/swiflow")`.
+    case path(String)
+    /// A versioned URL dep: `.package(url: "...", exact: "x.y.z")`.
+    case url(String, version: String)
+
+    /// The exact `.package(...)` fragment as it appears in the generated Package.swift.
+    var packageFragment: String {
+        switch self {
+        case .path(let p):
+            return #".package(path: "\#(p)")"#
+        case .url(let u, let v):
+            return #".package(url: "\#(u)", exact: "\#(v)")"#
+        }
+    }
+}
+
+extension SwiflowDep {
+    /// TODO(pre-release): Confirm Swiflow's GitHub org/repo before cutting the first release.
+    /// This is the URL used by `swiflow init --swiflow-version <v>` to generate a
+    /// versioned `.package(url:exact:)` dependency in the scaffolded Package.swift.
+    static let officialRepositoryURL = "https://github.com/swiflow/swiflow.git"
+}
 
 enum Templates {
 
     // MARK: - Public rendering API
 
-    static func packageSwift(name: String, swiflowSource: String) -> String {
+    static func packageSwift(name: String, swiflowDep: SwiflowDep) -> String {
         return rawPackageSwift
             .replacingOccurrences(of: "{{NAME}}", with: name)
-            .replacingOccurrences(of: "{{SWIFLOW_SOURCE}}", with: swiflowSource)
+            .replacingOccurrences(of: #".package(path: "{{SWIFLOW_SOURCE}}")"#,
+                                  with: swiflowDep.packageFragment)
     }
 
     static func appSwift(name: String) -> String {

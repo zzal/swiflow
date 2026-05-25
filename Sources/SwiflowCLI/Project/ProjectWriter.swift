@@ -24,7 +24,8 @@ enum ProjectWriter {
     /// - Parameters:
     ///   - name: project name; used as the directory name and `Package.swift` `name:`.
     ///   - parent: parent directory (the new project becomes a sibling of existing children here).
-    ///   - swiflowSource: value for the generated `Package.swift`'s `.package(path:)`.
+    ///   - swiflowDep: how the generated `Package.swift` depends on Swiflow — either a local
+    ///     `.path(...)` or a versioned URL `.url(..., version:)`.
     ///   - jsDriverSource: contents to write to `swiflow-driver.js`. Pass `EmbeddedDriver.javascriptSource`
     ///     in production; tests pass a stub string.
     /// - Throws: `ProjectWriterError.targetExists` if `<into>/<name>/` already exists, or
@@ -32,7 +33,7 @@ enum ProjectWriter {
     static func writeProject(
         name: String,
         into parent: URL,
-        swiflowSource: String,
+        swiflowDep: SwiflowDep,
         jsDriverSource: String
     ) throws {
         let fm = FileManager.default
@@ -53,7 +54,7 @@ enum ProjectWriter {
         )
 
         // Write each file.
-        try Templates.packageSwift(name: name, swiflowSource: swiflowSource)
+        try Templates.packageSwift(name: name, swiflowDep: swiflowDep)
             .write(to: project.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
         try Templates.appSwift(name: name)
             .write(to: project.appendingPathComponent("Sources/App/App.swift"), atomically: true, encoding: .utf8)

@@ -51,13 +51,35 @@ struct InitCommand: AsyncParsableCommand {
     )
     var swiflowSource: String?
 
+    @Option(
+        name: .customLong("swiflow-version"),
+        help: ArgumentHelp(
+            "Version of Swiflow to depend on via URL (e.g. 1.0.0).",
+            discussion: """
+                When provided, the generated Package.swift uses a versioned URL dependency \
+                on the official Swiflow GitHub release instead of a local path.
+                Example: --swiflow-version 1.0.0
+                """
+        )
+    )
+    var swiflowVersion: String?
+
     func run() async throws {
-        guard let swiflowSource = swiflowSource ?? ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"] else {
+        let dep: SwiflowDep
+        if let version = swiflowVersion {
+            dep = .url(SwiflowDep.officialRepositoryURL, version: version)
+        } else if let source = swiflowSource ?? ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"] {
+            dep = .path(source)
+        } else {
             throw ValidationError("""
                 --swiflow-source is required. Swiflow has no public release yet.
                 Pass the path to your local Swiflow clone:
                   swiflow init \(name) --swiflow-source /path/to/swiflow
                 Or set the SWIFLOW_SOURCE environment variable.
+
+                (--swiflow-version <version> is forward-looking infrastructure — it generates a
+                versioned URL dep, but won't resolve until the first public release lands.
+                Pre-release: use --swiflow-source.)
                 """)
         }
 
@@ -75,7 +97,7 @@ struct InitCommand: AsyncParsableCommand {
             try ProjectWriter.writeProject(
                 name: name,
                 into: parentURL,
-                swiflowSource: swiflowSource,
+                swiflowDep: dep,
                 jsDriverSource: EmbeddedDriver.javascriptSource
             )
         } catch let error as ProjectWriterError {
