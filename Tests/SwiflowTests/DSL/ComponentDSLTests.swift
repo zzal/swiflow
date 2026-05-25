@@ -61,6 +61,63 @@ struct EmbedReusedInstanceTests {
 }
 #endif
 
+// MARK: - @Component macro integration
+@MainActor
+@Suite("@Component macro integration")
+struct ComponentMacroIntegrationTests {
+
+    @MainActor
+    @Component
+    final class SimpleComponent {
+        var body: VNode { div { text("hello") } }
+    }
+
+    @MainActor
+    @Component
+    final class CounterComponent {
+        @State var count: Int = 0
+        var body: VNode { div { text(count) } }
+    }
+
+    @Test("@Component mounts and renders body correctly")
+    func simpleMountsAndRenders() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let component = SimpleComponent()
+        let result = diff(mounted: nil, next: component.body, handles: handles, handlers: handlers)
+        let mountTree = result.newMountTree
+        func textContent(_ node: MountNode) -> String {
+            switch node.vnode {
+            case .text(let s): return s
+            case .element: return node.children.map { textContent($0) }.joined()
+            case .component: return node.componentBody.map { textContent($0) } ?? ""
+            default: return ""
+            }
+        }
+        let rendered = textContent(mountTree)
+        #expect(rendered.contains("hello"), "Expected rendered output to contain 'hello'; got: \(rendered)")
+    }
+
+    @Test("@Component with @State renders initial value")
+    func counterRendersInitialState() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let component = CounterComponent()
+        let result = diff(mounted: nil, next: component.body, handles: handles, handlers: handlers)
+        let mountTree = result.newMountTree
+        func textContent(_ node: MountNode) -> String {
+            switch node.vnode {
+            case .text(let s): return s
+            case .element: return node.children.map { textContent($0) }.joined()
+            case .component: return node.componentBody.map { textContent($0) } ?? ""
+            default: return ""
+            }
+        }
+        let rendered = textContent(mountTree)
+        #expect(rendered.contains("0"), "Expected rendered output to contain '0'; got: \(rendered)")
+    }
+}
+
 // MARK: - text() free functions
 @MainActor
 @Suite("text() free functions")

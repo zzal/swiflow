@@ -4,5 +4,5 @@ import SwiftSyntaxMacros
 
 @main
 struct SwiflowMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = []
+    let providingMacros: [Macro.Type] = [ComponentMacro.self]
 }
