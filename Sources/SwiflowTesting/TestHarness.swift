@@ -6,7 +6,20 @@ public struct TestNode {
     public let tag: String
     public let text: String
     public let attributes: [String: String]
-    public let properties: [String: PropertyValue]
+    /// DOM properties set via `.prop()`, `.value()`, `.checked()`, etc.
+    /// Each `PropertyValue` is stringified: `.string(s)` → `s`, `.bool(b)` → `"true"`/`"false"`,
+    /// `.int(n)` → decimal string, `.double(d)` → Swift `String(d)` representation.
+    /// Use `attributes` for HTML attributes; this field covers typed DOM assignments.
+    public let properties: [String: String]
+}
+
+private func flattenProperty(_ value: PropertyValue) -> String {
+    switch value {
+    case .string(let s): return s
+    case .bool(let b):   return b ? "true" : "false"
+    case .int(let i):    return String(i)
+    case .double(let d): return String(d)
+    }
 }
 
 /// Renders `component` into a headless virtual DOM and returns a `TestHarness`.
@@ -37,7 +50,7 @@ public struct TestHarness {
             tag: data.tag,
             text: renderer.textContent(of: node),
             attributes: data.attributes,
-            properties: data.properties
+            properties: data.properties.mapValues { flattenProperty($0) }
         )
     }
 
@@ -48,7 +61,7 @@ public struct TestHarness {
                 tag: data.tag,
                 text: renderer.textContent(of: node),
                 attributes: data.attributes,
-                properties: data.properties
+                properties: data.properties.mapValues { flattenProperty($0) }
             )
         }
     }

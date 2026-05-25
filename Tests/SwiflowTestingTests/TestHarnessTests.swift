@@ -91,6 +91,14 @@ private final class SignIn: Component {
     }
 }
 
+@Component
+private final class PropHost {
+    @State var text = "hello"
+    var body: VNode {
+        input(.prop("value", .string(text)))
+    }
+}
+
 @Suite("TestHarness — allText")
 @MainActor
 struct AllTextTests {
@@ -135,6 +143,15 @@ struct QueryTests {
         #expect(ps.count == 2)
         #expect(ps[0].text == "Count: 0")
         #expect(ps[1].text == "Hello, Swiflow!")
+    }
+
+    @Test("TestNode.properties is typed [String: String], not [String: PropertyValue]")
+    @MainActor
+    func testNodePropertiesIsStringDict() {
+        let h = render(PropHost())
+        let node = h.find("input")
+        let props: [String: String]? = node?.properties  // ← type assertion
+        #expect(props?["value"] == "hello")
     }
 
     @Test("exists returns true iff at least one match")
