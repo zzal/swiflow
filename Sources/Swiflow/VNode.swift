@@ -32,9 +32,9 @@ public indirect enum VNode {
     /// description at the same child position reuse the existing instance
     /// (Phase 3+ — see `Component` and `ComponentDescription`).
     case component(ComponentDescription)
-    /// An environment override wrapping a subtree. Equality compares only the
-    /// child node; environment values themselves are not compared (they are
-    /// not Equatable). The diff always re-merges overrides on every update.
+    /// An environment override wrapping a subtree. Equality compares both the
+    /// environment values and the child node; when only the env values change
+    /// the diff detects the difference and re-merges the subtree.
     case environmentOverride(EnvironmentValues, VNode)
 }
 
@@ -180,8 +180,8 @@ extension VNode: Equatable {
         case (.rawHTML(let a), .rawHTML(let b)): return a == b
         case (.element(let a), .element(let b)): return a == b
         case (.component(let a), .component(let b)): return a == b
-        case (.environmentOverride(_, let a), .environmentOverride(_, let b)):
-            return a == b   // compare only the child, not the env values
+        case (.environmentOverride(let envA, let a), .environmentOverride(let envB, let b)):
+            return envA == envB && a == b
         default: return false
         }
     }

@@ -6,19 +6,60 @@ public protocol EnvironmentKey {
 }
 
 public struct EnvironmentValues {
-    private var storage: [ObjectIdentifier: Any] = [:]
+    private struct StoredValue {
+        let any: Any
+        let equals: (Any) -> Bool
+    }
+
+    private var storage: [ObjectIdentifier: StoredValue] = [:]
 
     public init() {}
 
+    /// Preferred overload when `K.Value` conforms to `Equatable`. Captures a
+    /// value-aware equality closure at write time, so two `EnvironmentValues`
+    /// holding the same key→value pair compare equal in `==`.
+    ///
+    /// Call sites that go through computed properties (e.g. `env.locale = "fr"`
+    /// → `self[LocaleKey.self] = newValue`) always reach this overload, because
+    /// the property layer holds the concrete `K.Value: Equatable` constraint.
+    /// Direct subscript calls (`env[SomeKey.self] = ...`) need the same constraint
+    /// in their generic context to pick this overload; otherwise they fall through
+    /// to the conservative non-Equatable subscript below.
+    public subscript<K: EnvironmentKey>(_ key: K.Type) -> K.Value where K.Value: Equatable {
+        get { storage[ObjectIdentifier(K.self)]?.any as? K.Value ?? K.defaultValue }
+        set {
+            let v = newValue
+            storage[ObjectIdentifier(K.self)] = StoredValue(any: v, equals: { ($0 as? K.Value) == v })
+        }
+    }
+
+    /// Fallback overload for `K.Value` types that do NOT conform to `Equatable`.
+    /// Captures `{ _ in false }` so any comparison conservatively returns
+    /// "not equal" — the diff will re-merge the subtree on every render.
+    /// This matches the pre-Equatable behavior for non-Equatable env values
+    /// (e.g. `Router`).
     public subscript<K: EnvironmentKey>(_ key: K.Type) -> K.Value {
-        get { storage[ObjectIdentifier(K.self)] as? K.Value ?? K.defaultValue }
-        set { storage[ObjectIdentifier(K.self)] = newValue }
+        get { storage[ObjectIdentifier(K.self)]?.any as? K.Value ?? K.defaultValue }
+        set {
+            storage[ObjectIdentifier(K.self)] = StoredValue(any: newValue, equals: { _ in false })
+        }
     }
 
     func merging(_ overrides: EnvironmentValues) -> EnvironmentValues {
         var result = self
         for (id, val) in overrides.storage { result.storage[id] = val }
         return result
+    }
+}
+
+extension EnvironmentValues: Equatable {
+    public static func == (lhs: EnvironmentValues, rhs: EnvironmentValues) -> Bool {
+        guard lhs.storage.count == rhs.storage.count else { return false }
+        for (id, lhsVal) in lhs.storage {
+            guard let rhsVal = rhs.storage[id] else { return false }
+            if !lhsVal.equals(rhsVal.any) || !rhsVal.equals(lhsVal.any) { return false }
+        }
+        return true
     }
 }
 

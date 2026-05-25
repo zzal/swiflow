@@ -83,4 +83,20 @@ struct VNodeTests {
         let e2 = EventInfo(type: "click", targetValue: nil)
         #expect(e2.targetValue == nil)
     }
+
+    @Test("environmentOverride VNodes with different env values are not equal")
+    func environmentOverrideDifferentValuesAreNotEqual() {
+        let a = withEnvironment(\.locale, "fr") { VNode.text("hello") }
+        let b = withEnvironment(\.locale, "de") { VNode.text("hello") }
+        // Before fix: a == b (wrong — diff skips subtree when locale changes)
+        // After fix:  a != b (correct)
+        #expect(a != b)
+    }
+
+    @Test("environmentOverride VNodes with same env values are equal")
+    func environmentOverrideSameValuesAreEqual() {
+        let a = withEnvironment(\.locale, "fr") { VNode.text("hello") }
+        let b = withEnvironment(\.locale, "fr") { VNode.text("hello") }
+        #expect(a == b)
+    }
 }
