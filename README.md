@@ -49,9 +49,12 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - **Public release / Homebrew distribution** — infrastructure landed in 13e (`--swiflow-version` flag, URL-based `SwiflowDep`), waiting on a real GitHub release URL.
 
 **Costs you should know:**
-- **WASM bundle (Counter example, release):** ~59 MB (`.wasm` only);
-  ~59 MB total payload with the JS runtime. Order-of-magnitude
-  larger than a Vite-built JS app — that's the Swift-on-WASM tax.
+- **WASM bundle (Counter example, release):** ~59 MB raw / ~20 MB gzipped
+  on the wire. Order-of-magnitude larger than a Vite-built JS app — that's
+  the Swift-on-WASM tax. Exact numbers in
+  [`docs/perf/bundle-baseline.json`](docs/perf/bundle-baseline.json); every
+  PR runs `scripts/measure-bundle.sh` in CI and comments the diff. A >5%
+  growth fails the build unless the PR carries the `bundle-size-skip` label.
 - **Cold build:** ~80s (`swift package clean` then
   `swift package --swift-sdk <wasm-sdk> js -c release` from the
   example project).

@@ -32,22 +32,28 @@ A single committed file at `docs/perf/bundle-baseline.json`:
 ```json
 {
   "example": "examples/HelloWorld",
-  "swift_version": "6.3.0",
+  "swift_version": "6.3",
   "wasm_sdk_version": "6.3-RELEASE",
   "measured_at": "2026-05-25",
-  "wasm_bytes": 61902848,
-  "wasm_gzip_bytes": 14523904,
-  "js_bytes": 27648,
-  "js_gzip_bytes": 8192,
-  "total_gzip_bytes": 14532096
+  "wasm_bytes": 61920228,
+  "wasm_gzip_bytes": 20590053,
+  "js_bytes": 55847,
+  "js_gzip_bytes": 11578,
+  "total_gzip_bytes": 20601631
 }
 ```
+
+`js_bytes` / `js_gzip_bytes` sum **all** `.js` files in
+`.build/plugins/PackageToJS/outputs/Package/` (recursively) — not just
+`index.js`, which is only an entry shim. The HTML imports `index.js` as
+an ES module and that pulls in `instantiate.js`, `runtime.js`, and the
+`platforms/browser.js` shims; users fetch all of them.
 
 Updating the baseline is a deliberate, reviewed action — a one-line PR that bumps the numbers with a commit message explaining *why* the budget moves. There is no "auto-update baseline" mode; that defeats the purpose of having a budget.
 
 ## Measurement script
 
-`Scripts/measure-bundle.sh` (POSIX `sh`, no Bash-isms — runs on the CI Linux runner and on local macOS).
+`scripts/measure-bundle.sh` (POSIX `sh`, no Bash-isms — runs on the CI Linux runner and on local macOS).
 
 Behavior:
 
@@ -69,7 +75,7 @@ Behavior:
 7. Write a fresh `current-bundle.json` (same shape as baseline) to a path the workflow can pick up.
 8. Exit 0 always. The compare step is separate.
 
-Local devs run `Scripts/measure-bundle.sh` to reproduce the CI number on their machine. The CI job adds a comparison step on top.
+Local devs run `scripts/measure-bundle.sh` to reproduce the CI number on their machine. The CI job adds a comparison step on top.
 
 **Why a shell script and not Swift:** zero compile cost; the work is `du`, `gzip -c | wc -c`, and `printf`. A Swift target would add 30s of compile time to a job whose whole point is measuring something else.
 
@@ -88,10 +94,10 @@ bundle-size:
     - name: Build swiflow CLI
       run: swift build -c release --product swiflow
     - name: Measure bundle
-      run: Scripts/measure-bundle.sh
+      run: scripts/measure-bundle.sh
     - name: Compare against baseline
       id: compare
-      run: Scripts/compare-bundle.sh
+      run: scripts/compare-bundle.sh
     - name: Comment on PR
       if: always()
       uses: marocchino/sticky-pull-request-comment@v2
@@ -148,7 +154,7 @@ Replace the hand-written "~59 MB" line in `README.md` with a section that links 
 
 ```markdown
 **WASM bundle (Counter example, release):** see [docs/perf/bundle-baseline.json](docs/perf/bundle-baseline.json).
-Every PR runs `Scripts/measure-bundle.sh` in CI and comments the diff.
+Every PR runs `scripts/measure-bundle.sh` in CI and comments the diff.
 ```
 
 That way the README never drifts from reality; the JSON is the source of truth and the CI keeps it honest.
