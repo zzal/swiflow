@@ -4,10 +4,6 @@ import PackageDescription
 let package = Package(
     name: "Swiflow",
     platforms: [
-        // Bumped from .v13 → .v14 because Hummingbird 2.x requires macOS 14.
-        // SwiflowCLI is the only macOS-bound product (the WASM-side libs run
-        // in the browser via JavaScriptKit and aren't affected), so the
-        // floor only matters for the dev server's host.
         .macOS(.v14),
     ],
     products: [
@@ -18,24 +14,29 @@ let package = Package(
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
     dependencies: [
-        // Pinned to minor range. JavaScriptKit's 0.x cadence has shipped
-        // breaking changes across minor bumps (e.g. JSValue.function was
-        // deprecated 0.21 → 0.53). Bumping the minor requires intentional
-        // review of the renderer + dispatcher bridge.
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
-        // ArgumentParser drives the swiflow CLI. Use a major-bump range —
-        // 1.x has been API-stable since 2021.
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
-        // Hummingbird is the HTTP+WebSocket server for `swiflow dev`. v2 is
-        // async/await native and Swift 6 strict-concurrency clean. We pin
-        // to upToNextMinor — 2.x has had API drift across minor releases
-        // (WebSocket router context refactor in 2.6, etc.).
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", .upToNextMinor(from: "2.6.0")),
         .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", .upToNextMinor(from: "2.2.0")),
+        // swift-syntax powers the @Component macro compiler plugin.
+        // Pinned to upToNextMinor: 600.x covers Swift 6; 601+ may introduce breaking API changes.
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", .upToNextMinor(from: "600.0.0")),
     ],
     targets: [
+        // Compiler plugin — runs on the macOS HOST at build time; never in the WASM binary.
+        // Uses executableTarget because .macro() was added in later PackageDescription.
+        .executableTarget(
+            name: "SwiflowMacrosPlugin",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ],
+            path: "Sources/SwiflowMacrosPlugin",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .target(
             name: "Swiflow",
+            dependencies: ["SwiflowMacrosPlugin"],
             path: "Sources/Swiflow",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
@@ -99,6 +100,15 @@ let package = Package(
             name: "SwiflowTestingTests",
             dependencies: ["SwiflowTesting", "Swiflow"],
             path: "Tests/SwiflowTestingTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SwiflowMacrosTests",
+            dependencies: [
+                "SwiflowMacrosPlugin",
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+            ],
+            path: "Tests/SwiflowMacrosTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]
