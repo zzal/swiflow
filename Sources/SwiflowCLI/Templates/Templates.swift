@@ -382,9 +382,23 @@ enum Templates {
         """
 
     private static let rawGitignore: String = """
+        # macOS
         .DS_Store
+
+        # Swift build outputs
         .build/
         .swiftpm/
+        Package.resolved
+
+        # Editor / IDE
+        *.swp
+        *~
+        .idea/
+        .vscode/
+        xcuserdata/
+
+        # Swiflow dev artifacts (regenerated on `swiflow dev`)
+        swiflow-driver.js
 
         """
 
