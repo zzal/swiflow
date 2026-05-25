@@ -90,4 +90,14 @@ public struct TestHarness {
     public func blur(_ tag: String = "input", at index: Int = 0) {
         renderer.blur(tag: tag, at: index)
     }
+
+    /// Fires a `change` event on the element at position `index` among all
+    /// elements matching `tag` (default `"select"`) and flushes. No-op if
+    /// out-of-bounds or if the element has no `change` handler.
+    ///
+    /// Use for `<select>` and `<textarea>` with `.on(.change)` handlers;
+    /// pair with `.input(...)` for `<input>` elements that use `.on(.input)`.
+    public func change(_ tag: String = "select", at index: Int = 0, value: String) {
+        renderer.change(tag: tag, at: index, value: value)
+    }
 }

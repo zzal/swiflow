@@ -153,4 +153,13 @@ final class TestRenderer {
         handlers.dispatch(id: id, event: EventInfo(type: "blur"))
         scheduler.flush()
     }
+
+    func change(tag: String, at index: Int, value: String) {
+        let matches = findElements(tag: tag, text: nil, in: mountTree)
+        guard index < matches.count else { return }
+        let (node, _) = matches[index]
+        guard let id = node.handlerIds["change"] else { return }
+        handlers.dispatch(id: id, event: EventInfo(type: "change", targetValue: value))
+        scheduler.flush()
+    }
 }

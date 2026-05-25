@@ -99,6 +99,21 @@ private final class PropHost {
     }
 }
 
+@MainActor @Component
+private final class SelectHost {
+    @State var selection = "opt1"
+
+    var body: VNode {
+        div {
+            select(.on(.change) { info in self.selection = info.targetValue ?? self.selection }) {
+                option("Option 1", .attr("value", "opt1"))
+                option("Option 2", .attr("value", "opt2"))
+            }
+            p("Selected: \(selection)")
+        }
+    }
+}
+
 @Suite("TestHarness — allText")
 @MainActor
 struct AllTextTests {
@@ -206,6 +221,14 @@ struct InteractionTests {
         let r = render(MinimalCounter())
         r.input(at: 99, value: "boom")   // no crash
         #expect(r.find("p", text: "Hello, Swiflow!") != nil)
+    }
+
+    @Test("change() dispatches a change event and updates state via the .on(.change) handler")
+    func changeUpdatesStateViaOnChangeHandler() {
+        let h = render(SelectHost())
+        #expect(h.find("p")?.text == "Selected: opt1")
+        h.change("select", value: "opt2")
+        #expect(h.find("p")?.text == "Selected: opt2")
     }
 }
 

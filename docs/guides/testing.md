@@ -169,6 +169,23 @@ h.blur()
 
 Useful for testing form-validation flows that surface errors on blur.
 
+### `change(_ tag: at: value:)`
+
+Fires a `change` event on the element at `index` among all elements matching
+`tag` (default `"select"`) and flushes. Use for `<select>` and `<textarea>`
+elements with `.on(.change)` handlers.
+
+```swift
+h.change("select", value: "opt2")
+
+// tag defaults to "select", at defaults to 0:
+h.change(value: "opt2")
+```
+
+The event's `targetValue` is set to the provided `value` string. No-op if
+out-of-bounds or the element has no `change` handler. For `<input>` elements
+that use `.on(.input)`, use `input(...)` instead.
+
 ## Recipes
 
 ### Click interaction
@@ -275,9 +292,6 @@ private final class LocaleHost: Component {
 
 - **No async/await support.** `task {}` lifecycle hooks (pre-1.0 feature) are
   not exercised by `TestHarness`. An `AsyncTestRenderer` is planned.
-- **No `change` event support.** `<select>` and `<textarea>` `onChange`
-  handlers cannot currently be dispatched. Use `input` as a workaround where
-  the host element accepts it.
-- **No keyboard or mouse-position events.** Only `click`, `input`, and `blur`
-  are supported. Other DOM events would need direct dispatch through the
-  underlying `HandlerRegistry`.
+- **No keyboard or mouse-position events.** Only `click`, `input`, `blur`, and
+  `change` are supported. Other DOM events would need direct dispatch through
+  the underlying `HandlerRegistry`.
