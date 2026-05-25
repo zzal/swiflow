@@ -1,5 +1,6 @@
 // swift-tools-version: 6.0
 import PackageDescription
+import CompilerPluginSupport
 
 let package = Package(
     name: "Swiflow",
@@ -24,8 +25,7 @@ let package = Package(
     ],
     targets: [
         // Compiler plugin — runs on the macOS HOST at build time; never in the WASM binary.
-        // Uses executableTarget because .macro() was added in later PackageDescription.
-        .executableTarget(
+        .macro(
             name: "SwiflowMacrosPlugin",
             dependencies: [
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),

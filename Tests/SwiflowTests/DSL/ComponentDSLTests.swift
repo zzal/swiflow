@@ -62,28 +62,27 @@ struct EmbedReusedInstanceTests {
 #endif
 
 // MARK: - @Component macro integration
+
+@Component
+private final class IntegrationSimpleComponent {
+    var body: VNode { div { text("hello") } }
+}
+
+@Component
+private final class IntegrationCounterComponent {
+    @State var count: Int = 0
+    var body: VNode { div { text(count) } }
+}
+
 @MainActor
 @Suite("@Component macro integration")
 struct ComponentMacroIntegrationTests {
-
-    @MainActor
-    @Component
-    final class SimpleComponent {
-        var body: VNode { div { text("hello") } }
-    }
-
-    @MainActor
-    @Component
-    final class CounterComponent {
-        @State var count: Int = 0
-        var body: VNode { div { text(count) } }
-    }
 
     @Test("@Component mounts and renders body correctly")
     func simpleMountsAndRenders() {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
-        let component = SimpleComponent()
+        let component = IntegrationSimpleComponent()
         let result = diff(mounted: nil, next: component.body, handles: handles, handlers: handlers)
         let mountTree = result.newMountTree
         func textContent(_ node: MountNode) -> String {
@@ -102,7 +101,7 @@ struct ComponentMacroIntegrationTests {
     func counterRendersInitialState() {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
-        let component = CounterComponent()
+        let component = IntegrationCounterComponent()
         let result = diff(mounted: nil, next: component.body, handles: handles, handlers: handlers)
         let mountTree = result.newMountTree
         func textContent(_ node: MountNode) -> String {

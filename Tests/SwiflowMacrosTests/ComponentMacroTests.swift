@@ -9,8 +9,7 @@ private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
 
 final class ComponentMacroTests: XCTestCase {
 
-    // Test 1: Happy path — stored property gets @MainActor; computed property (body) does not;
-    // extension conformance is emitted.
+    // Test 1: Happy path — extension conformance emitted; class body unchanged.
     func testHappyPath() {
         assertMacroExpansion(
             """
@@ -22,8 +21,7 @@ final class ComponentMacroTests: XCTestCase {
             """,
             expandedSource: """
             final class Counter {
-                @State
-                @MainActor var count: Int = 0
+                @State var count: Int = 0
                 var body: VNode { .text("hello") }
             }
 
@@ -84,65 +82,21 @@ final class ComponentMacroTests: XCTestCase {
         )
     }
 
-    // Test 4: Computed property (var with accessor) must NOT get @MainActor.
-    func testComputedPropertySkipped() {
+    // Test 4: Multiple members — only conformance extension emitted; class body unchanged.
+    func testMultipleMembersNoModification() {
         assertMacroExpansion(
             """
             @Component
             final class Foo {
-                var x: Int { 42 }
+                var x: Int = 0
+                var computed: Int { x + 1 }
                 var body: VNode { .text("hello") }
             }
             """,
             expandedSource: """
             final class Foo {
-                var x: Int { 42 }
-                var body: VNode { .text("hello") }
-            }
-
-            extension Foo: Component {
-            }
-            """,
-            macros: testMacros
-        )
-    }
-
-    // Test 5: Property already annotated @MainActor must NOT get a duplicate.
-    func testAlreadyMainActorNotDuplicated() {
-        assertMacroExpansion(
-            """
-            @Component
-            final class Foo {
-                @MainActor var x: Int = 0
-                var body: VNode { .text("hello") }
-            }
-            """,
-            expandedSource: """
-            final class Foo {
-                @MainActor var x: Int = 0
-                var body: VNode { .text("hello") }
-            }
-
-            extension Foo: Component {
-            }
-            """,
-            macros: testMacros
-        )
-    }
-
-    // Test 6: nonisolated property must NOT get @MainActor.
-    func testNonisolatedRespected() {
-        assertMacroExpansion(
-            """
-            @Component
-            final class Foo {
-                nonisolated var x: Int = 0
-                var body: VNode { .text("hello") }
-            }
-            """,
-            expandedSource: """
-            final class Foo {
-                nonisolated var x: Int = 0
+                var x: Int = 0
+                var computed: Int { x + 1 }
                 var body: VNode { .text("hello") }
             }
 
