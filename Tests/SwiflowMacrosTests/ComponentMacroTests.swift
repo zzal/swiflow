@@ -22,7 +22,8 @@ final class ComponentMacroTests: XCTestCase {
             """,
             expandedSource: """
             final class Counter {
-                @MainActor @State var count: Int = 0
+                @State
+                @MainActor var count: Int = 0
                 var body: VNode { .text("hello") }
             }
 
