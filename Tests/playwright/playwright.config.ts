@@ -14,6 +14,7 @@ const SWIFLOW = join(REPO_ROOT, ".build", "release", "swiflow");
 // Scaffold a fresh demo project once per test session.
 const DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-e2e-"));
 const DEMO_PROJECT = join(DEMO_TMP, "demo");
+const ROUTER_DEMO_ROOT = join(REPO_ROOT, "examples", "RouterDemo");
 
 // Build swiflow CLI if not present. execFileSync (no shell) so paths
 // don't need quoting and there's no shell-interpolation surface.
@@ -41,13 +42,22 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry",
   },
-  webServer: {
-    command: `'${SWIFLOW}' dev`,
-    cwd: DEMO_PROJECT,
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: false,
-    timeout: 300_000,  // cold WASM build can take ~3 min
-  },
+  webServer: [
+    {
+      command: `'${SWIFLOW}' dev`,
+      cwd: DEMO_PROJECT,
+      url: "http://127.0.0.1:3000",
+      reuseExistingServer: false,
+      timeout: 300_000,  // cold WASM build can take ~3 min
+    },
+    {
+      command: `'${SWIFLOW}' dev --port 3001`,
+      cwd: ROUTER_DEMO_ROOT,
+      url: "http://127.0.0.1:3001",
+      reuseExistingServer: false,
+      timeout: 300_000,
+    },
+  ],
   projects: [
     {
       name: "chromium",

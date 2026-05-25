@@ -1,0 +1,41 @@
+// Tests/playwright/router.spec.ts
+import { test, expect, type ConsoleMessage } from "@playwright/test";
+
+test.describe("RouterDemo — hash-mode navigation", () => {
+  test.use({ baseURL: "http://127.0.0.1:3001" });
+
+  test("Home page renders on load", async ({ page }) => {
+    const errors: ConsoleMessage[] = [];
+    page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg); });
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+    expect(errors.map((e) => e.text()), "no console errors on load").toHaveLength(0);
+  });
+
+  test("Link navigation changes URL hash and renders About page", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Go to About" }).click();
+
+    // URL hash must change to /about
+    await expect(page).toHaveURL(/#\/about$/);
+    // About heading must appear
+    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+    // Home heading must be gone
+    await expect(page.getByRole("heading", { name: "Home" })).toHaveCount(0);
+  });
+
+  test("Back button returns to Home page and restores URL", async ({ page }) => {
+    await page.goto("/#/about");
+    await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Back" }).click();
+
+    await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+    // URL hash must no longer point at /about
+    const url = page.url();
+    expect(url).not.toMatch(/#\/about/);
+  });
+});
