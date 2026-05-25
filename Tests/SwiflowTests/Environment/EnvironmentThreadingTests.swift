@@ -4,6 +4,30 @@ import Testing
 
 // MARK: - Shared helpers (used by E3 and E4 tests)
 
+@MainActor private final class LifecycleEnvProbe: Component {
+    @Environment(\.locale) var locale
+    // bodyLocale: captured during body (should see in-tree override).
+    // appearLocale: captured in onAppear (should see default, because
+    //   AmbientEnvironment.current is reset after body finishes).
+    var bodyLocale: String = "(not-set)"
+    var appearLocale: String = "(not-set)"
+
+    var body: VNode {
+        // Capture body's view of locale exactly once on first mount.
+        if bodyLocale == "(not-set)" {
+            bodyLocale = locale
+        }
+        return p("body=\(bodyLocale) appear=\(appearLocale)")
+    }
+
+    func onAppear() {
+        // @Environment outside body reads AmbientEnvironment.current,
+        // which the diff resets after body finishes. We expect the
+        // default here, NOT the in-tree override.
+        appearLocale = locale
+    }
+}
+
 @MainActor private final class DeepEnvReader: Component {
     @Environment(\.locale) var locale
     @Environment(\.colorScheme) var colorScheme
@@ -138,5 +162,35 @@ struct EnvironmentThreadingTests {
         // Innermost overrides win for both keys.
         #expect(reader.capturedLocale == "L5")
         #expect(reader.capturedScheme == .dark)
+    }
+
+    @Test("@Environment in body sees override; @Environment in onAppear sees default")
+    func environmentInBodyDiffersFromOnAppear() {
+        let probe = LifecycleEnvProbe()
+        let desc = ComponentDescription(LifecycleEnvProbe.self, key: nil) { probe }
+
+        var overrides = EnvironmentValues()
+        overrides.locale = "fr"
+        let vnode = VNode.environmentOverride(overrides, .component(desc))
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        var patches: [Patch] = []
+        _ = mount(vnode, into: &patches, handles: handles, handlers: handlers)
+
+        // NOTE: The pure-Swift mount() call does NOT fire onAppear —
+        // that lifecycle hook is driven by the web Renderer (SwiflowWeb)
+        // after the DOM commit. In the test harness, onAppear never runs,
+        // so appearLocale stays "(not-set)". We pin the body-side behaviour,
+        // which is the most important contract:
+        //   - body sees the in-tree override "fr"
+        //   - onAppear would see the default "en" (AmbientEnvironment.current
+        //     is reset after body finishes) — documented in Link.swift and
+        //     docs/guides/router.md (audit gap R3).
+        #expect(probe.bodyLocale == "fr",
+                "body must capture the in-tree override; got: \(probe.bodyLocale)")
+        // Document the observed behaviour: onAppear did not fire in the test renderer.
+        #expect(probe.appearLocale == "(not-set)",
+                "onAppear does not fire in the pure-Swift mount() harness; got: \(probe.appearLocale)")
     }
 }

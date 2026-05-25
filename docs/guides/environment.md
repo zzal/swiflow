@@ -136,3 +136,34 @@ override func onChange() {
 The `key:` defaults to `#function`, which is the same string for every call site in the same method. Always supply explicit keys when watching more than one value.
 
 The side table is cleared automatically when the component unmounts.
+
+---
+
+## Reading `@Environment` in lifecycle hooks
+
+`@Environment` reads `AmbientEnvironment.current`, which the diff sets only
+while a component's `body` is being evaluated. Reading `@Environment` from
+`onAppear`, `onChange(of:)`, or `onDisappear` returns the **default value**
+for the key, not the in-tree override.
+
+To use an environment value in a lifecycle hook, capture it during `body`:
+
+```swift
+final class Greeter: Component {
+    @Environment(\.locale) var locale
+    private var capturedLocale = ""
+
+    var body: VNode {
+        capturedLocale = locale  // captured while body is running
+        return p("Hello in \(capturedLocale)!")
+    }
+
+    func onAppear() {
+        // Use capturedLocale, not locale directly.
+        print("mounted with locale: \(capturedLocale)")
+    }
+}
+```
+
+`SwiflowRouter`'s `Link` component follows this exact pattern for
+`router.navigate` — see [the router guide](router.md#why-capture-during-body).
