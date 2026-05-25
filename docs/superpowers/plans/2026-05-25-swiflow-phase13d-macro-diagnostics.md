@@ -1,5 +1,13 @@
 # Phase 13d — Macro Diagnostics & `@Component` Implementation Plan
 
+> ### Phase 13e correction (2026-05-25)
+>
+> The `MemberAttributeMacro` step (auto-add `@MainActor` to stored properties) and its associated tests were dropped in implementation (commit `03a48f5`) due to a Swift 6 isolation paradox: macro-added `@MainActor` on stored properties broke the synthesized default init. The macro shipped as `ExtensionMacro`-only.
+>
+> Swift 6 doesn't propagate `@MainActor` retroactively through a macro-emitted extension conformance, so the class body remained nonisolated. This was masked on the macOS host build but failed on WASM cross-compile. Phase 13e (commit `7d1adb2`) corrected the canonical pattern to `@MainActor @Component final class Foo`.
+>
+> **The body of this plan describes the original intent.** For current truth, see the [Phase 13e plan](2026-05-25-phase13e-confidence-fixes.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a `@Component` attached macro that eliminates `: Component` and synthesizes `@MainActor` on stored properties, plus `@available(*, unavailable)` overloads on `ChildrenBuilder` that turn cryptic type errors into "Use text(…)" guidance.

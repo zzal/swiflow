@@ -2,7 +2,15 @@
 
 **Date:** 2026-05-25
 **Phase:** 13d (Maturity & 1.0 Readiness — Macro DX)
-**Status:** Approved
+**Status:** Approved — but the `MemberAttributeMacro` half (auto-add `@MainActor` to stored properties) did NOT ship. See Phase 13e correction note below.
+
+> ### Phase 13e correction (2026-05-25)
+>
+> The original spec proposed `@Component` would synthesize `@MainActor` on stored properties via `MemberAttributeMacro`. In implementation (commit `03a48f5`) that role was dropped because it created an isolation paradox: macro-added `@MainActor` on stored properties made the synthesized init non-default-initializable. The macro shipped as `ExtensionMacro`-only — emitting just `extension Foo: Component {}`.
+>
+> Swift 6 does **not** propagate `@MainActor` retroactively through a macro-emitted extension conformance, so the class body remains nonisolated. This was masked on the macOS host build but failed on the WASM cross-compile path. Phase 13e (commit `7d1adb2`) corrected the canonical pattern to `@MainActor @Component final class Foo` — analogous to `@MainActor @Observable`.
+>
+> **The body of this spec describes the original intent.** It is preserved as historical context. For current truth, see the [Phase 13e plan](../plans/2026-05-25-phase13e-confidence-fixes.md) and the README.
 
 ---
 

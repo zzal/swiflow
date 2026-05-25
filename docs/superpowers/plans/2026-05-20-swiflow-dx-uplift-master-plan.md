@@ -194,7 +194,7 @@ This plan **supersedes** the older drafts in `docs/superpowers/plans/`:
   - Vitest/RTL-shaped: `try await render(Counter()).click("button").assert(text: "Count: 1")`.
 - Macro-driven diagnostics for `@ChildrenBuilder`:
   - A Swift macro that intercepts builder-rejected expressions and emits a specific compiler error pointing at the offender ("returned `String`, expected `VNode` — wrap with `text(...)` or use a tagged element").
-  - Optional: a `@Component` macro that eliminates the `final class` + `Component` + `@MainActor` boilerplate for the common case.
+  - Optional: a `@Component` macro that eliminates the `final class` + `Component` + `@MainActor` boilerplate for the common case. (Shipped in Phase 13d as `ExtensionMacro`-only — removes `: Component` but **not** `@MainActor`; Swift 6 doesn't propagate isolation retroactively through a macro-emitted extension. Canonical pattern is `@MainActor @Component final class Foo` per Phase 13e correction.)
 - 1.0 API surface audit: every `public` symbol gets an `@available(*, introduced: 1.0)` annotation; ABI surface frozen.
 - Migration guide: `docs/guides/coming-from-react.md`, `docs/guides/coming-from-vue.md`, `docs/guides/coming-from-swiftui.md`.
 - Status line: "Phase 13 (Maturity & 1.0 Readiness)".

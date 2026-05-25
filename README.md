@@ -13,9 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 13d (Macro Diagnostics & @Component) — Components are now declared with `@Component final class Foo` — no `@MainActor` or `: Component` needed. `@ChildrenBuilder` now emits actionable `Use text(…)` diagnostics for scalar types.
+**Status:** Phase 13e (Confidence Fixes) — closed 11 audit gaps across the public API, `@Environment`, the CLI, and Router test coverage. Components are declared with `@MainActor @Component final class Foo` (canonical pattern; the `@Component` macro adds the `Component` conformance, the `@MainActor` makes the class body isolated so `@MainActor`-typed DSL methods like `.on(.click)` resolve cleanly). `@ChildrenBuilder` emits actionable `Use text(…)` diagnostics for scalar types.
 
-**What works today (Phase 13d):**
+**What works today (Phase 13e):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -34,15 +34,19 @@ drives the roadmap to 1.0 across phases 6 through 13.
   injected as a `<style>` tag and class-scoped at mount.
 - **Exit animations** — `static var exitAnimation: String?` + `exitDuration`;
   the driver plays the animation before DOM removal.
-- **`@Component` macro** — components declared with `@Component final class Foo { ... }` automatically conform to `Component`, eliminating boilerplate `@MainActor` and `: Component`. `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
-- 436+ tests, Playwright e2e, [DWARF debugging guide](docs/guides/debugging.md), `docs/guides/forms.md`.
+- **`@Component` macro** — components declared with `@MainActor @Component final class Foo { ... }` automatically conform to `Component`. The macro removes the `: Component` boilerplate; the `@MainActor` is still required (Swift 6 doesn't propagate actor isolation retroactively through a macro-emitted conformance extension, so the class body needs its own isolation). `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
+- **`@Environment` / context DI** — typed `EnvironmentKey` protocol, `EnvironmentValues`, `Environment` property wrapper, plus both the `withEnvironment(\.key, value) { ... }` DSL and the postfix `.environment(\.key, value)` VNode modifier. `EnvironmentValues: Equatable` so the VNode diff detects environment changes.
+- **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`).
+- **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
+- **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
+- **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
+- 524 tests across 103 suites, Playwright e2e (Counter + RouterDemo), [DWARF debugging guide](docs/guides/debugging.md), [forms guide](docs/guides/forms.md), [router guide](docs/guides/router.md), [testing guide](docs/guides/testing.md).
 
 **What's not in the box yet:**
-- **Component inspector / devtools** — Phase 9.
-- **`@Environment` / context DI** — Phase 10.
-- **Router** (`SwiflowRouter`) — Phase 11.
-- **Form validation framework** — Phase 12b+.
-- **Lazy components, advanced macro features** — Phase 13+.
+- **Component inspector / devtools** — Phase 9 (pending).
+- **`AsyncTestRenderer`** — for `task {}` lifecycle hooks (pre-1.0 follow-up).
+- **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
+- **Public release / Homebrew distribution** — infrastructure landed in 13e (`--swiflow-version` flag, URL-based `SwiflowDep`), waiting on a real GitHub release URL.
 
 **Costs you should know:**
 - **WASM bundle (Counter example, release):** ~59 MB (`.wasm` only);
@@ -60,8 +64,8 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 13d (Macro Diagnostics & @Component) complete. Components can be declared with `@Component final class Foo { ... }` eliminating `@MainActor` and `: Component`. Builder block diagnostics guide scalar types to `text(…)`.
-Phase 13c (Multi-Root & Unmount) added multiple independent component trees at different DOM selectors with clean resource release via `Swiflow.unmount(into: selector)`. Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays, and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
+**Status:** Phase 13e (Confidence Fixes) complete — 11 audit gaps closed across public API hygiene (`Patch`/`PatchPayload`/`PatchSerializer`/`HandleAllocator`/`MountNode` demoted to `package`; `TestNode.properties` no longer leaks `PropertyValue`), `@Environment` correctness (`EnvironmentValues: Equatable`; postfix `.environment()` modifier; VNode diff now detects env changes), CLI distribution readiness (`--swiflow-version` flag + `SwiflowDep` enum), and Router test coverage (`@Environment(\.router)` propagation across `embed {}` verified; Playwright URL/history test added). Also fixed a Phase 13d WASM cross-compile regression — `@Component` classes now require an explicit `@MainActor` because Swift 6 won't propagate isolation through a macro-emitted extension.
+Phase 13d (Macro Diagnostics & @Component) introduced the macro and `@ChildrenBuilder` builder-block diagnostics guiding scalar types to `text(…)`. Phase 13c (Multi-Root & Unmount) added multiple independent component trees at different DOM selectors with clean resource release via `Swiflow.unmount(into: selector)`. Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays, and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
 Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
 (Bindings, Refs & Form Foundations).
 
@@ -131,7 +135,7 @@ design exploration.
 swift test
 ```
 
-281 tests across 59 suites. Tests that require the WASM SDK end-to-end are
+524 tests across 103 suites. Tests that require the WASM SDK end-to-end are
 gated and skip cleanly when it's absent.
 
 ## License

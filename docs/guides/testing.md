@@ -35,12 +35,22 @@ struct CounterTests {
 ```
 
 > **Note on `@Component` vs direct conformance.** You can declare test
-> components either way: `final class Foo: Component { ... }` (direct
-> conformance) or `@Component final class Foo { ... }` (macro). When using the
-> `@Component` macro the class must live at **file scope** — the macro emits an
-> `extension Foo: Component {}` declaration, and Swift does not allow extensions
-> inside function or struct bodies. Mark the class `private` if it should only
-> be visible inside the test file.
+> components either way:
+>
+> - `@MainActor final class Foo: Component { ... }` (direct conformance)
+> - `@MainActor @Component final class Foo { ... }` (macro)
+>
+> The `@Component` macro removes the `: Component` text but **still requires
+> an explicit `@MainActor` on the class** — Swift 6 doesn't propagate actor
+> isolation retroactively through a macro-emitted conformance extension.
+> Without `@MainActor`, calls to `@MainActor`-isolated DSL methods like
+> `.on(.click)` will fail under WASM cross-compile (the host build is more
+> lenient and can mask this).
+>
+> Either pattern requires the class to live at **file scope** — Swift does
+> not allow extension declarations inside function or struct bodies, and the
+> macro emits one. Mark the class `private` if it should only be visible
+> inside the test file.
 
 ## `render(_:)`
 

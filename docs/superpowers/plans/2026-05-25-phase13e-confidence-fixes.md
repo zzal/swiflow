@@ -1,5 +1,9 @@
 # Phase 13e — Confidence Fixes Implementation Plan
 
+> ### Implementation note (2026-05-25, post-execution)
+>
+> All 9 tasks landed (commits `24612bf` → `4218bd4`), plus a bonus correction (commit `7d1adb2`) for a Phase 13d WASM-cross-compile regression uncovered by Task 8's integration test. Where this plan's example components use `@Component` without an explicit `@MainActor`, the implementation adjusted them to `@MainActor @Component final class Foo` — the canonical pattern that compiles under both host and WASM builds. See [`memory/project_component_mainactor_requirement.md`](../../../../../.claude/projects/-Users-alainduchesneau-Projets-swiflow/memory/project_component_mainactor_requirement.md) and the [Phase 13d correction note](2026-05-25-swiflow-phase13d-macro-diagnostics.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close all 11 audit gaps (1 critical + 10 important) from the Phase 13 confidence audit, spanning public API hygiene, @Environment correctness, CLI distribution readiness, and Router test coverage.
