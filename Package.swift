@@ -92,7 +92,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowRouterTests",
-            dependencies: ["SwiflowRouter"],
+            dependencies: ["SwiflowRouter", "SwiflowTesting"],
             path: "Tests/SwiflowRouterTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
