@@ -136,6 +136,37 @@ final class LogoutButton: Component {
 `router.replace("/path")` — replace the current history entry.
 `router.back()` — equivalent to `history.back()`.
 
+### Why capture during `body`?
+
+`@Environment(\.router)` reads `AmbientEnvironment.current`, which is only set
+while the diff is evaluating a component's `body`. Lifecycle hooks like
+`onAppear`, `onChange(of:)`, and `onDisappear` run outside that context — if
+you read `router` there directly, you'll get the framework's default no-op
+router (path `"/"`, no-op `navigate`).
+
+The fix is to capture the values you need during `body` and use them later:
+
+```swift
+final class DelayedRedirect: Component {
+    @Environment(\.router) var router
+    private var navigate: (@Sendable (String) -> Void)?
+
+    var body: VNode {
+        navigate = router.navigate   // capture while body is running
+        return p("Redirecting…")
+    }
+
+    func onAppear() {
+        // Uses the captured closure, not @Environment directly.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [navigate] in
+            navigate?("/home")
+        }
+    }
+}
+```
+
+`Link` follows this same pattern internally.
+
 ## 404 handling
 
 If no route matches, `RouterRoot` renders a plain text "404" node. Add a
