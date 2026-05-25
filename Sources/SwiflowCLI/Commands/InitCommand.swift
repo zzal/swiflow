@@ -45,7 +45,9 @@ struct InitCommand: AsyncParsableCommand {
             discussion: """
                 Required until Swiflow has a public release. Pass the absolute or \
                 relative path to your local Swiflow clone.
-                Example: --swiflow-source /path/to/swiflow
+                Examples:
+                  --swiflow-source /path/to/swiflow   (absolute)
+                  --swiflow-source ../swiflow         (relative to the project parent dir)
                 """
         )
     )
