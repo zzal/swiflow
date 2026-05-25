@@ -10,7 +10,7 @@
 /// - **Per-bag mutations**: attribute / property / style / text.
 /// - **Events**: add / remove DOM event listeners (handlerId points into
 ///   `HandlerRegistry`).
-public enum Patch: Equatable, Sendable {
+package enum Patch: Equatable, Sendable {
     // MARK: - Lifecycle
 
     /// Creates an element node with the given tag, bound to `handle`.

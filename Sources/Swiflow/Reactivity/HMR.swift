@@ -19,8 +19,8 @@ import Foundation
 /// instead of `_hmrRestore(_:)`). The pure-Swift path (no JS bridge)
 /// never produces this sentinel — Swift's own `Optional<T>.none as Any`
 /// round-trips correctly through `as? Value` without needing it.
-public struct HMRNilSentinel: Sendable {
-    public init() {}
+package struct HMRNilSentinel: Sendable {
+    package init() {}
 }
 
 /// One row in an HMR snapshot — captures the identifying triple and
@@ -33,19 +33,19 @@ public struct HMRNilSentinel: Sendable {
 /// encodes the supported primitive subset; values that don't make
 /// it across the bridge are simply absent on restore (the field
 /// falls back to the declared initial value, with a debug log).
-public struct ComponentSnapshot {
-    public let path: String
+package struct ComponentSnapshot {
+    package let path: String
     /// Fully-qualified type name produced by `String(reflecting:)`,
     /// e.g. `"MyApp.Counter"`. Because it includes the Swift module
     /// name, **renaming the module invalidates all HMR snapshots for
     /// its components** — they will fall back to declared initial
     /// values on the next hot-swap. This is intentional for v1:
     /// a mismatched name likely means an incompatible state shape.
-    public let typeName: String
-    public let key: String?
-    public let state: [String: Any]
+    package let typeName: String
+    package let key: String?
+    package let state: [String: Any]
 
-    public init(path: String, typeName: String, key: String?, state: [String: Any]) {
+    package init(path: String, typeName: String, key: String?, state: [String: Any]) {
         self.path = path
         self.typeName = typeName
         self.key = key
@@ -56,12 +56,12 @@ public struct ComponentSnapshot {
 /// Lookup key used by HMRRestore to find a snapshot for a freshly-
 /// instantiated Component. Two `ComponentSnapshot`s with the same
 /// path+typeName+key are treated as the same logical Component.
-public struct SnapshotKey: Hashable {
-    public let path: String
-    public let typeName: String
-    public let key: String?
+package struct SnapshotKey: Hashable {
+    package let path: String
+    package let typeName: String
+    package let key: String?
 
-    public init(path: String, typeName: String, key: String?) {
+    package init(path: String, typeName: String, key: String?) {
         self.path = path
         self.typeName = typeName
         self.key = key
@@ -88,8 +88,8 @@ public struct SnapshotKey: Hashable {
 /// `nonisolated(unsafe)`: closures are not Sendable; the slot is
 /// only read/written from `@MainActor` contexts. Mirrors
 /// `RefResolverInstall` from Phase 7.
-public enum HMRRestoreInstall {
-    public nonisolated(unsafe) static var stateFor: (@MainActor (String, String, String?) -> [String: Any]?)?
+package enum HMRRestoreInstall {
+    package nonisolated(unsafe) static var stateFor: (@MainActor (String, String, String?) -> [String: Any]?)?
 }
 
 /// Mount-tree HMR helpers. The walker traverses a `MountNode` tree
@@ -101,7 +101,7 @@ public enum HMRRestoreInstall {
 /// applier writes through `StateWireable._hmrRestore(_:)`, which is
 /// idempotent and safe to call multiple times.
 @MainActor
-public enum HMRWalker {
+package enum HMRWalker {
 
     /// Walk `tree` in document order and produce one
     /// `ComponentSnapshot` per Component-bearing `MountNode`.
@@ -111,7 +111,7 @@ public enum HMRWalker {
     /// topologically a continuation of the current path (it's "the
     /// body of this component", not a separately-indexed child).
     /// Regular `children` add their index to the path.
-    public static func snapshot(from tree: MountNode) -> [ComponentSnapshot] {
+    package static func snapshot(from tree: MountNode) -> [ComponentSnapshot] {
         var out: [ComponentSnapshot] = []
         walk(tree, path: "", into: &out)
         return out
@@ -174,7 +174,7 @@ public enum HMRWalker {
 
     /// Build a lookup index from a snapshot array. SwiflowWeb's bridge
     /// calls this after decoding the JS-side snapshot payload.
-    public static func indexSnapshots(_ snapshots: [ComponentSnapshot]) -> [SnapshotKey: [String: Any]] {
+    package static func indexSnapshots(_ snapshots: [ComponentSnapshot]) -> [SnapshotKey: [String: Any]] {
         var index: [SnapshotKey: [String: Any]] = [:]
         for snap in snapshots {
             let key = SnapshotKey(path: snap.path, typeName: snap.typeName, key: snap.key)
@@ -196,7 +196,7 @@ public enum HMRWalker {
     /// State fields whose decoded value is `HMRNilSentinel` are routed to
     /// `_hmrRestoreNil()` instead of `_hmrRestore(_:)` — this covers the
     /// JS-bridge path where `Optional.none` becomes JS `null` then back.
-    public static func applyRestore(
+    package static func applyRestore(
         index: [SnapshotKey: [String: Any]],
         to component: AnyComponent,
         at path: String,

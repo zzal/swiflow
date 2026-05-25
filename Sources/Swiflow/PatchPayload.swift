@@ -5,17 +5,17 @@
 /// payload as a plain Swift value lets every encoding decision live under
 /// `swift test`; only the final dict→JSObject step depends on JavaScriptKit
 /// and so escapes macOS-side testing.
-public struct PatchPayload: Equatable, Sendable {
-    public let op: String
-    public let fields: [String: Field]
+package struct PatchPayload: Equatable, Sendable {
+    package let op: String
+    package let fields: [String: Field]
 
-    public init(op: String, fields: [String: Field]) {
+    package init(op: String, fields: [String: Field]) {
         self.op = op
         self.fields = fields
     }
 
     /// A single field value inside a `PatchPayload.fields` dictionary.
-    public enum Field: Equatable, Sendable {
+    package enum Field: Equatable, Sendable {
         case int(Int)
         case string(String)
         case property(PropertyValue)

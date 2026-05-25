@@ -5,8 +5,8 @@
 /// on `payload.op`, so any rename here MUST be coordinated with
 /// `js-driver/swiflow-driver.js`. Field names are case-sensitive and match
 /// the JS driver's switch arms.
-public enum PatchSerializer {
-    public static func encode(_ patch: Patch) -> PatchPayload {
+package enum PatchSerializer {
+    package static func encode(_ patch: Patch) -> PatchPayload {
         switch patch {
         // MARK: Lifecycle
         case .createElement(let handle, let tag):
