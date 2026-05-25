@@ -35,4 +35,35 @@ struct EnvironmentDSLTests {
         }
         #expect(innerEnv.colorScheme == .dark)
     }
+
+    @Test(".environment() postfix produces an environmentOverride VNode")
+    func postfixEnvironmentModifier() {
+        let vnode = VNode.text("hello").environment(\.locale, "fr")
+        guard case let .environmentOverride(env, child) = vnode else {
+            Issue.record("Expected .environmentOverride, got \(vnode)")
+            return
+        }
+        #expect(env.locale == "fr")
+        if case .text(let t) = child {
+            #expect(t == "hello")
+        } else {
+            Issue.record("Expected .text child")
+        }
+    }
+
+    @Test(".environment() chains to produce nested overrides")
+    func postfixEnvironmentChain() {
+        let vnode = VNode.text("x")
+            .environment(\.locale, "fr")
+            .environment(\.colorScheme, .dark)
+        // Outer override is colorScheme (last applied)
+        guard case let .environmentOverride(outerEnv, outerChild) = vnode else {
+            Issue.record("Expected outer .environmentOverride"); return
+        }
+        #expect(outerEnv.colorScheme == .dark)
+        guard case .environmentOverride(let innerEnv, _) = outerChild else {
+            Issue.record("Expected inner .environmentOverride"); return
+        }
+        #expect(innerEnv.locale == "fr")
+    }
 }

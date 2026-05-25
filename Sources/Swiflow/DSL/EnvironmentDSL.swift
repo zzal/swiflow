@@ -27,3 +27,20 @@ public func withEnvironment<Value>(
     overrides[keyPath: keyPath] = value
     return .environmentOverride(overrides, content())
 }
+
+public extension VNode {
+    /// Wraps this VNode in an `.environmentOverride` node, injecting a single
+    /// environment value for the subtree rooted at this node.
+    ///
+    /// ```swift
+    /// embed { Sidebar() }.environment(\.locale, "fr")
+    /// ```
+    func environment<Value>(
+        _ keyPath: WritableKeyPath<EnvironmentValues, Value>,
+        _ value: Value
+    ) -> VNode {
+        var overrides = EnvironmentValues()
+        overrides[keyPath: keyPath] = value
+        return .environmentOverride(overrides, self)
+    }
+}
