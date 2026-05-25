@@ -40,7 +40,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
 - **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 524 Swift tests across 103 suites + 15 JS driver tests (`node --test` against jsdom) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+- 533 Swift tests across 104 suites + 15 JS driver tests (`node --test` against jsdom) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
 **What's not in the box yet:**
 - **Component inspector / devtools** — Phase 9 (pending).
@@ -132,7 +132,7 @@ design exploration.
 ## Testing
 
 ```bash
-# Swift core: 524 tests across 103 suites.
+# Swift core: 533 tests across 104 suites.
 # WASM-SDK-gated E2E tests skip cleanly when no SDK is installed.
 swift test
 
