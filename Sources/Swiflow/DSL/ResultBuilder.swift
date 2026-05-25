@@ -43,4 +43,16 @@ public enum ChildrenBuilder {
     public static func buildArray(_ children: [[VNode]]) -> [VNode] {
         children.flatMap { $0 }
     }
+
+    @available(*, unavailable, message: "Use text(\"...\") to display a String")
+    public static func buildExpression(_ expression: String) -> [VNode] { [] }
+
+    @available(*, unavailable, message: "Use text(n) to display an integer")
+    public static func buildExpression<I: BinaryInteger>(_ expression: I) -> [VNode] { [] }
+
+    @available(*, unavailable, message: "Use text(n) to display a floating-point number")
+    public static func buildExpression<F: BinaryFloatingPoint>(_ expression: F) -> [VNode] { [] }
+
+    @available(*, unavailable, message: "Use text(flag) to display a Bool")
+    public static func buildExpression(_ expression: Bool) -> [VNode] { [] }
 }

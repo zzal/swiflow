@@ -60,3 +60,33 @@ struct EmbedReusedInstanceTests {
     }
 }
 #endif
+
+// MARK: - text() free functions
+@MainActor
+@Suite("text() free functions")
+struct TextBuilderTests {
+    @Test("text(String) creates VNode.text with the string")
+    func testTextString() {
+        #expect(text("hello") == VNode.text("hello"))
+    }
+
+    @Test("text(Int) converts integer to string")
+    func testTextInt() {
+        #expect(text(42) == VNode.text("42"))
+    }
+
+    @Test("text(Double) converts double to string")
+    func testTextDouble() {
+        #expect(text(3.14) == VNode.text("3.14"))
+    }
+
+    @Test("text(Bool) converts true to string")
+    func testTextBoolTrue() {
+        #expect(text(true) == VNode.text("true"))
+    }
+
+    @Test("text(Bool) converts false to string")
+    func testTextBoolFalse() {
+        #expect(text(false) == VNode.text("false"))
+    }
+}

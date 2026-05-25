@@ -260,3 +260,9 @@ public func mainElement(
 ) -> VNode {
     .element(applyAttributes(tag: "main", attributes, children: children()))
 }
+
+// MARK: - Text node builders
+public func text(_ string: String) -> VNode { .text(string) }
+public func text(_ value: Int) -> VNode { .text(String(value)) }
+public func text(_ value: Double) -> VNode { .text(String(value)) }
+public func text(_ value: Bool) -> VNode { .text(String(value)) }
