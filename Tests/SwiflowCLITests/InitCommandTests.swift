@@ -86,7 +86,7 @@ struct InitCommandTests {
         #expect(pkg.contains(#".package(path: "/abs/path/to/swiflow")"#))
     }
 
-    @Test("Generated App.swift uses Counter: Component with @State (Phase 3)")
+    @Test("Generated App.swift uses @Component Counter with @State")
     func appSwiftIsCounterComponent() throws {
         let tmp = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -102,17 +102,13 @@ struct InitCommandTests {
             contentsOf: tmp.appendingPathComponent("Demo/Sources/App/App.swift"),
             encoding: .utf8
         )
-        #expect(app.contains("final class Counter: Component"))
+        // @Component macro replaces the explicit `: Component` conformance declaration.
+        #expect(app.contains("@Component"))
+        #expect(app.contains("final class Counter {"))
         #expect(app.contains("@State var count: Int = 0"))
         #expect(app.contains("Swiflow.render(into: \"#app\") { Counter() }"))
-        // The comment in the template mentions "Swiflow.rerender()" to explain it
-        // is absent as a call; check that there is no actual call-site (i.e. the
-        // pattern followed by a newline or preceded by whitespace as a statement).
         let hasRerenderCall = app.contains("Swiflow.rerender()\n") || app.contains("            Swiflow.rerender()")
-        #expect(!hasRerenderCall,
-                "Phase 3 Counter shouldn't need explicit rerender — @State handles it")
-        #expect(!app.contains("var count = 0\n") && !app.contains("var count: Int = 0\n@"),
-                "Phase 2a global `var count` should be gone")
+        #expect(!hasRerenderCall, "Counter shouldn't need explicit rerender — @State handles it")
     }
 
     // MARK: - Helpers
@@ -206,5 +202,72 @@ struct InitCommandRunTests {
         let desc = String(describing: error)
         #expect(desc.contains("does not exist"))
         #expect(desc.contains("/does/not/exist"))
+    }
+}
+
+// MARK: - End-to-end (gated on WASM SDK presence)
+
+@Suite("InitCommand end-to-end integration (requires WASM SDK)")
+struct InitCommandIntegrationTests {
+
+    static var wasmSDKAvailable: Bool {
+        BuildCommandIntegrationTests.wasmSDKAvailable
+    }
+
+    static var swiflowRepoRoot: URL {
+        BuildCommandIntegrationTests.swiflowRepoRoot
+    }
+
+    @Test(
+        "swiflow init end-to-end: InitCommand.run() produces a project that builds successfully",
+        .enabled(if: wasmSDKAvailable)
+    )
+    func initCommandRunThenBuild() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiflow-init-e2e-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // 1. Invoke the full InitCommand.run() — not just ProjectWriter directly.
+        let cmd = try InitCommand.parse([
+            "Demo",
+            "--path", tmp.path,
+            "--swiflow-source", Self.swiflowRepoRoot.path,
+        ])
+        try await cmd.run()
+
+        // 2. Verify the project directory was created.
+        let project = tmp.appendingPathComponent("Demo")
+        let fm = FileManager.default
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("Package.swift").path))
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("Sources/App/App.swift").path))
+
+        // 3. Build the scaffolded project.
+        let runner = SystemProcessRunner()
+        guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
+            Issue.record("swift not on PATH; cannot complete end-to-end test.")
+            return
+        }
+        let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
+        guard let sdk = try probe.list().first else {
+            Issue.record("WasmSDKProbe returned empty even though .enabled gated true; flaky CI?")
+            return
+        }
+        let toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
+        let invocation = BuildInvocation(
+            swiftExecutable: swift,
+            projectPath: project,
+            swiftSDK: sdk,
+            toolchainBundleID: toolchainBundleID
+        )
+        let result = try invocation.run(using: runner)
+        #expect(result.exitCode == 0)
+
+        // 4. Verify PackageToJS output exists.
+        let outputDir = project.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
+        let indexJS = outputDir.appendingPathComponent("index.js")
+        let appWASM = outputDir.appendingPathComponent("App.wasm")
+        #expect(fm.fileExists(atPath: indexJS.path), "missing \(indexJS.path)")
+        #expect(fm.fileExists(atPath: appWASM.path), "missing \(appWASM.path)")
     }
 }

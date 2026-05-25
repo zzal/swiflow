@@ -185,7 +185,7 @@ enum Templates {
 
                     label(.class("checkbox-row")) {
                         input(.attr("type", "checkbox"), .checked($celebrate))
-                        VNode.text(" Celebrate")
+                        text(" Celebrate")
                     }
 
                     if showToast {
@@ -248,7 +248,7 @@ enum Templates {
 
             var body: VNode {
                 div(.class("root"), .on(.click) { self.onDone() }) {
-                    VNode.text(message)
+                    text(message)
                 }
             }
         }
