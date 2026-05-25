@@ -104,7 +104,8 @@ enum Templates {
         /// - `if showToast { embed { Toast(...) } }` conditional embedding
         ///
         /// Phase 7 features (two-way bindings, Ref) are preserved from prior work.
-        final class Counter: Component {
+        @Component
+        final class Counter {
             @State var count: Int = 0
             @State var greeting: String = "Swiflow"
             @State var celebrate: Bool = false
@@ -187,7 +188,8 @@ enum Templates {
         /// When the user clicks the toast (or the parent sets `showToast = false`),
         /// the framework plays the `toast-out` keyframe for `exitDuration` seconds
         /// before removing the DOM node — a smooth exit with zero JS glue.
-        final class Toast: Component {
+        @Component
+        final class Toast {
             let message: String
             let onDone: () -> Void
 
@@ -232,7 +234,8 @@ enum Templates {
         /// - Two-field form (email + password) with blur-triggered error messages
         /// - Submit disabled until `form.isValid`; `touchAll()` reveals all errors on early click
         /// - Reset button restores initial values
-        final class SignIn: Component {
+        @Component
+        final class SignIn {
             @State var email    = ""
             @State var password = ""
             @State var ctrl     = FormController()

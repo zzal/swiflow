@@ -13,9 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 13c (Multi-Root & Unmount) — Multiple component trees can be mounted at different selectors, independently unmounted with state cleanup, and DevAPI reports which selector each component belongs to for devtools routing.
+**Status:** Phase 13d (Macro Diagnostics & @Component) — Components are now declared with `@Component final class Foo` — no `@MainActor` or `: Component` needed. `@ChildrenBuilder` now emits actionable `Use text(…)` diagnostics for scalar types.
 
-**What works today (Phase 13c):**
+**What works today (Phase 13d):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -34,6 +34,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
   injected as a `<style>` tag and class-scoped at mount.
 - **Exit animations** — `static var exitAnimation: String?` + `exitDuration`;
   the driver plays the animation before DOM removal.
+- **`@Component` macro** — components declared with `@Component final class Foo { ... }` automatically conform to `Component`, eliminating boilerplate `@MainActor` and `: Component`. `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
 - 436+ tests, Playwright e2e, [DWARF debugging guide](docs/guides/debugging.md), `docs/guides/forms.md`.
 
 **What's not in the box yet:**
@@ -41,8 +42,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - **`@Environment` / context DI** — Phase 10.
 - **Router** (`SwiflowRouter`) — Phase 11.
 - **Form validation framework** — Phase 12b+.
-- **Multi-root rendering, lazy components, component testing harness,
-  macro diagnostics** — Phase 13.
+- **Lazy components, advanced macro features** — Phase 13+.
 
 **Costs you should know:**
 - **WASM bundle (Counter example, release):** ~59 MB (`.wasm` only);
@@ -60,14 +60,8 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 13c (Multi-Root & Unmount) complete. Multiple independent
-component trees can now be mounted at different DOM selectors, each with its own
-state and event registry. The new `Swiflow.unmount(into: selector)` API cleanly
-releases all resources, handlers, and RAF schedulers for that root. DevAPI has
-been extended to report per-selector component membership for future devtools routing.
-Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays,
-and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless
-test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
+**Status:** Phase 13d (Macro Diagnostics & @Component) complete. Components can be declared with `@Component final class Foo { ... }` eliminating `@MainActor` and `: Component`. Builder block diagnostics guide scalar types to `text(…)`.
+Phase 13c (Multi-Root & Unmount) added multiple independent component trees at different DOM selectors with clean resource release via `Swiflow.unmount(into: selector)`. Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays, and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
 Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
 (Bindings, Refs & Form Foundations).
 
