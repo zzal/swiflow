@@ -3,7 +3,7 @@
 /// Single entry point for the framework's debug-only diagnostic checks.
 ///
 /// In debug builds (`-c debug`, the default), calling this function
-/// invokes `fatalError(message)` — the test suite's exit-test cases
+/// invokes `preconditionFailure(message)` — the test suite's exit-test cases
 /// detect the crash and verify the message substring. In release builds
 /// (`-c release`), the call is compiled to nothing: zero CPU cost, zero
 /// binary footprint.
@@ -31,7 +31,7 @@ public func swiflowDiagnostic(_ message: @autoclosure () -> String) {
         override(message())
         return
     }
-    fatalError("Swiflow diagnostic: \(message())")
+    preconditionFailure("Swiflow diagnostic: \(message())")
     #endif
 }
 
@@ -39,7 +39,7 @@ public func swiflowDiagnostic(_ message: @autoclosure () -> String) {
 /// Test-side override for capturing `swiflowDiagnostic` messages.
 ///
 /// Set to a non-nil closure from inside a test to redirect diagnostics
-/// (which otherwise `fatalError` and tear down the process) into a
+/// (which otherwise `preconditionFailure` and tear down the process) into a
 /// capture buffer; restore to `nil` before the test exits.
 ///
 /// The leading underscore flags this as framework-internal — user code

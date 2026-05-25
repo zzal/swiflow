@@ -11,7 +11,7 @@ func _registerAmbientHandler(
     _ invoke: @escaping @MainActor (EventInfo) -> Void
 ) -> EventHandler {
     guard let renderer = _currentRenderingRenderer else {
-        fatalError(
+        preconditionFailure(
             "Swiflow modifier .on(_:perform:) was used outside a render cycle. "
             + "Event handlers must be constructed inside a Component body while the renderer is "
             + "actively building the tree. In a multi-root app, ensure each root is mounted via "
