@@ -10,7 +10,12 @@ package struct RoutePattern: Sendable {
 
     private let segments: [Segment]
 
+    /// The original pattern string as passed to `init(_:)`, before
+    /// normalisation. Useful for diagnostic output and test assertions.
+    package let original: String
+
     package init(_ pattern: String) {
+        original = pattern
         let stripped = Self.stripQuery(pattern)
         let normalized = stripped.hasSuffix("/") && stripped.count > 1
             ? String(stripped.dropLast())
