@@ -366,13 +366,18 @@
     //    Installed before connect() so the WASM module sees the patched
     //    version when it first calls scheduleRAFIfNeeded().
     //    bind(window) preserves the native this binding before patching.
-    var _raf = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = function(cb) {
-      return _raf(function(t) {
-        try { cb(t); }
-        catch(e) { window.__swiflowDevError(e); }
-      });
-    };
+    //    Guarded against environments without RAF (e.g. JSDOM in unit
+    //    tests). Without the guard the script throws on load and the
+    //    WebSocket reload connection below never opens.
+    if (typeof window.requestAnimationFrame === "function") {
+      var _raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function(cb) {
+        return _raf(function(t) {
+          try { cb(t); }
+          catch(e) { window.__swiflowDevError(e); }
+        });
+      };
+    }
 
     let reconnectDelay = 250;
     const maxDelay = 5000;
