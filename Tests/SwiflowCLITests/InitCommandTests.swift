@@ -67,6 +67,36 @@ struct InitCommandTests {
         }
     }
 
+    @Test("Init cleans up the target directory when a file write fails partway through")
+    func cleansUpOnFailure() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // Force a failure between createDirectory and the file writes.
+        // ProjectWriter throws a CocoaError to simulate a real FileManager
+        // write failure; targetExists (the precondition error) would be
+        // semantically wrong here since the dir was just created by this call.
+        var caught: Error?
+        do {
+            try ProjectWriter.writeProject(
+                name: "Demo",
+                into: tmp,
+                swiflowDep: .path("/abs/path/to/swiflow"),
+                jsDriverSource: "// driver\n",
+                _testFailDuringWrites: true
+            )
+            Issue.record("expected writeProject to throw when _testFailDuringWrites is true")
+        } catch {
+            caught = error
+        }
+        #expect(caught != nil)
+
+        // The target must not exist after the failure.
+        let project = tmp.appendingPathComponent("Demo")
+        #expect(!FileManager.default.fileExists(atPath: project.path),
+                "ProjectWriter must remove the target directory when writes fail; found leftover at \(project.path)")
+    }
+
     @Test("Init applies the swiflow-source argument to the generated Package.swift")
     func threadsSwiflowSource() throws {
         let tmp = try makeTempDir()
