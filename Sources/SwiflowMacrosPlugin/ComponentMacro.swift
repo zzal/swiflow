@@ -1,9 +1,13 @@
+// Sources/SwiflowMacrosPlugin/ComponentMacro.swift
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
 public struct ComponentMacro: ExtensionMacro {
 
+    // MARK: - ExtensionMacro
+
+    /// Emits `extension TypeName: Component {}` after validating class shape.
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
