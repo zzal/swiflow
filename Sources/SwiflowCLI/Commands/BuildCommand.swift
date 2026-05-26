@@ -80,8 +80,8 @@ struct BuildInvocation {
     }
 
     /// Composes the `swift package js` argv without side effects.
-    /// `.release` appends `-c release` plus `--Xswiftc -Osize` and
-    /// `--Xswiftc -gnone` (size-over-speed optimisation; debug info
+    /// `.release` appends `-c release` plus `-Xswiftc -Osize` and
+    /// `-Xswiftc -gnone` (size-over-speed optimisation; debug info
     /// dropped — not needed in production bundles).
     /// `.dev` appends `--debug-info-format dwarf` so the WASM build carries
     /// DWARF debug symbols for the Phase 13b Chrome DevTools story.

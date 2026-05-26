@@ -35,7 +35,7 @@ struct BuildCommandArgvTests {
         #expect(call.workingDirectory?.path == "/tmp/demo")
     }
 
-    @Test("Release-mode invocation passes -Osize and -gnone via --Xswiftc")
+    @Test("Release-mode invocation passes -Osize and -gnone via -Xswiftc")
     func releaseFlagsAreOsizeAndGnone() throws {
         let invocation = BuildInvocation(
             swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
