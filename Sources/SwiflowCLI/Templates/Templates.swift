@@ -386,6 +386,9 @@ enum Templates {
         # Swiflow dev artifacts (regenerated on `swiflow dev`)
         swiflow-driver.js
 
+        # Swiflow build artifacts (emitted by `swiflow build` at project root)
+        swiflow-manifest.json
+
         """
 
     private static let rawReadme: String = """
