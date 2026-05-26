@@ -220,9 +220,26 @@ struct BuildCommand: AsyncParsableCommand {
 
         // 5. Write swiflow-manifest.json alongside the PackageToJS output.
         let outputDir = projectURL.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
+        try BuildCommand.writeManifest(outputDir: outputDir)
+        print("swiflow: manifest written → .build/plugins/PackageToJS/outputs/Package/swiflow-manifest.json")
+
+        print("""
+            swiflow: build complete.
+              Output:  .build/plugins/PackageToJS/outputs/Package/
+              Serve:   python3 -m http.server 3000  (from \(projectURL.path))
+            """)
+    }
+
+    /// Builds `swiflow-manifest.json` from the PackageToJS output artifacts and
+    /// writes it to `outputDir/swiflow-manifest.json`.
+    ///
+    /// Extracted from `run()` so tests can invoke the real production manifest-write
+    /// path after running the build step independently — without having to re-invoke
+    /// `BuildCommand.run()` and repeat the full WASM compilation.
+    package static func writeManifest(outputDir: URL) throws {
         let wasmURL = outputDir.appendingPathComponent("App.wasm")
         guard FileManager.default.fileExists(atPath: wasmURL.path) else {
-            throw ValidationError(String(describing: BuildCommandError.manifestArtifactMissing(wasmURL)))
+            throw BuildCommandError.manifestArtifactMissing(wasmURL)
         }
         let wasmEntry = BundleManifest.Entry.computing(
             url: "App.wasm",
@@ -243,12 +260,5 @@ struct BuildCommand: AsyncParsableCommand {
 
         let manifest = BundleManifest(version: "1", wasm: wasmEntry, runtime: runtimeEntries)
         try manifest.encoded().write(to: outputDir.appendingPathComponent("swiflow-manifest.json"))
-        print("swiflow: manifest written → .build/plugins/PackageToJS/outputs/Package/swiflow-manifest.json")
-
-        print("""
-            swiflow: build complete.
-              Output:  .build/plugins/PackageToJS/outputs/Package/
-              Serve:   python3 -m http.server 3000  (from \(projectURL.path))
-            """)
     }
 }

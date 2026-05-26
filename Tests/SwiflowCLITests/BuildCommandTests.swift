@@ -257,11 +257,7 @@ struct BuildCommandIntegrationTests {
         }
         let toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
 
-        // 3. Build via BuildInvocation (same as production) then call the
-        //    manifest writer through BuildCommand.run() by re-invoking the
-        //    shared post-build logic.  We drive BuildCommand.run() via its
-        //    underlying invocation + manual manifest write to keep the test
-        //    hermetic (no ArgumentParser setup needed).
+        // 3. Build via BuildInvocation (the same process-runner step production uses).
         let projectPath = tmp.appendingPathComponent("Demo")
         let invocation = BuildInvocation(
             swiftExecutable: swift,
@@ -272,17 +268,13 @@ struct BuildCommandIntegrationTests {
         let result = try invocation.run(using: runner)
         #expect(result.exitCode == 0)
 
-        // 4. Replicate the manifest-write step (mirrors BuildCommand.run step 5).
+        // 4. Write the manifest via the real production helper — not inline duplication.
+        //    BuildCommand.writeManifest(outputDir:) is the exact code path that
+        //    BuildCommand.run() calls in step 5; exercising it here gives the
+        //    manifest-write block genuine test coverage.
         let outputDir = projectPath.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
-        let wasmURL = outputDir.appendingPathComponent("App.wasm")
-        let wasmEntry = BundleManifest.Entry.computing(url: "App.wasm", from: try Data(contentsOf: wasmURL))
-        let runtimeRelPaths = ["index.js", "instantiate.js", "runtime.js", "platforms/browser.js"]
-        let runtimeEntries: [BundleManifest.Entry] = try runtimeRelPaths.map { rel in
-            BundleManifest.Entry.computing(url: rel, from: try Data(contentsOf: outputDir.appendingPathComponent(rel)))
-        }
-        let manifest = BundleManifest(version: "1", wasm: wasmEntry, runtime: runtimeEntries)
         let manifestURL = outputDir.appendingPathComponent("swiflow-manifest.json")
-        try manifest.encoded().write(to: manifestURL)
+        try BuildCommand.writeManifest(outputDir: outputDir)
 
         // 5. Verify the manifest on disk.
         #expect(FileManager.default.fileExists(atPath: manifestURL.path))
