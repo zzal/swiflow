@@ -84,6 +84,8 @@ In decimal and as a share of the total:
 | Custom: target_features | 148 | 0.0% |
 | **Total** | **46,128,153** | 100% |
 
+> **Note:** The section-body sum (46,128,153 bytes) is 53 bytes less than the raw file size (46,128,206 bytes). The delta is the WASM module preamble (8-byte magic + version) and the per-section header bytes that `wasm-objdump -h` reports as section body size but does not include in the body totals — this is expected and not a measurement error.
+
 The **Data section dominates at 77.3%** (35.7 MB). It holds Swift's static
 string table, Unicode data tables (ICU), reflection metadata (type names,
 field offsets), and constant data embedded by the stdlib and Foundation.
@@ -140,10 +142,10 @@ demangled with `swift demangle`.
 
 | Bucket | Functions in top 30 | Total bytes |
 |---|---:|---:|
-| Swift stdlib | 18 | ~430,000 |
-| Foundation (FoundationEssentials) | 7 | ~113,000 |
-| Foundation (ICU — icu_76) | 4 | ~74,800 |
-| Foundation (CoreFoundation) | 2 | ~35,400 |
+| Swift stdlib | 18 | ~435,448 |
+| Foundation (FoundationEssentials) | 6 | ~92,196 |
+| Foundation (ICU — icu_76) | 4 | ~74,812 |
+| Foundation (CoreFoundation) | 2 | ~35,438 |
 | JavaScriptKit | 0 | — |
 | Swiflow | 0 | — |
 | App (HelloWorld) | 0 | — |
@@ -190,6 +192,8 @@ That redesign is on the post-1.0 punch list.
 - Cost of JavaScriptKit's `JSObject` machinery vs. an ahead-of-time JS
   bridge (different architectural choice; documented as a multi-quarter
   post-1.0 project in `docs/superpowers/specs/2026-05-26-phase14b-wasm-perf-design.md`)
-- The `name` custom section cost (it is not present in the shipped WASM;
-  PackageToJS strips it. wasm-strip in Task 5 targets this section in the
-  pre-PackageToJS intermediate, which may not be actionable here)
+- Savings from `wasm-strip` targeting the `name` section (Task 5): the
+  `name` custom section is already absent from the PackageToJS-emitted
+  artifact — confirmed by `wasm-objdump -h` showing no `name` section.
+  Task 5's `wasm-strip` invocation has no effect on the shipped WASM and
+  can be dropped from the plan or redirected to another target.
