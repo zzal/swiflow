@@ -16,6 +16,43 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 14b — Track 3] — 2026-05-26
+
+**Stability:** Driver-side enhancement. No Swift API moves, no new
+prereqs, no breaking change.
+
+### Added
+- `fetchWithProgress` helper in `swiflow-driver.js`: streams the WASM
+  fetch via `getReader()` and writes the percent to
+  `document.documentElement.dataset.swiflowProgress`. Cancels the
+  reader on mid-stream errors so connections release immediately.
+- Default `[data-swiflow-progress]` CSS rule in `swiflow init`
+  scaffold so new projects show a "Loading N%" overlay out of the
+  box. Users style or remove freely.
+- Playwright `progress.spec.ts` covering the attribute path against
+  the SW config's release static server.
+
+### Changed
+- Driver boot pre-fetches `App.wasm` and hands the `Response` promise
+  to PackageToJS `init({ module })` instead of letting PackageToJS
+  run its own fetch. On cache hits (Track 1 service worker) the
+  stream completes within a tick and the attribute jumps straight
+  to "100" with no flash.
+
+### Constraints
+- When `Content-Length` is absent (some CDN configurations) the
+  driver does not write intermediate percents — only the final
+  `"100"`. The CSS rule
+  `html[data-swiflow-progress]:not([data-swiflow-progress="100"])`
+  stays dormant in that case rather than showing a misleading "0%"
+  indefinitely.
+- Synchronous failure of the progress fetch falls back to PackageToJS's
+  default internal fetch. Asynchronous rejection surfaces as a
+  "WASM init failed" console warning — intentional, so users see
+  hard fetch errors instead of silent failure.
+
+---
+
 ## [Phase 14b — Track 2] — 2026-05-26
 
 **Stability:** Measurement and modest trim. No functional behaviour
