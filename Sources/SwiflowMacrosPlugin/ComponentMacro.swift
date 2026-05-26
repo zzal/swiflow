@@ -3,11 +3,12 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-public struct ComponentMacro: ExtensionMacro {
+public struct ComponentMacro: ExtensionMacro, MemberMacro {
 
     // MARK: - ExtensionMacro
 
-    /// Emits `extension TypeName: Component {}` after validating class shape.
+    /// Emits `extension TypeName: Component, _ComponentRuntime {}` after
+    /// validating class shape.
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
@@ -39,7 +40,113 @@ public struct ComponentMacro: ExtensionMacro {
             ))
             return []
         }
-        return [try ExtensionDeclSyntax("extension \(type): Component {}")]
+        return [try ExtensionDeclSyntax("extension \(type): Component, _ComponentRuntime {}")]
+    }
+
+    // MARK: - MemberMacro
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
+            return []   // already diagnosed by ExtensionMacro path
+        }
+        // Skip member emission for non-final classes — the ExtensionMacro
+        // path already emitted the diagnostic. Returning empty here keeps
+        // the expanded source clean (no orphaned members on an invalid decl).
+        guard classDecl.modifiers.contains(where: { $0.name.text == "final" }) else {
+            return []
+        }
+        let className = classDecl.name.text
+
+        // Scan members for @MacroState or @State (the migration window
+        // accepts both — Task 6 will normalize to @State).
+        var cellEntries: [String] = []
+        for member in classDecl.memberBlock.members {
+            guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+            let isState = varDecl.attributes.contains { attr in
+                guard let attrSyntax = attr.as(AttributeSyntax.self),
+                      let attrName = attrSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text else {
+                    return false
+                }
+                return attrName == "MacroState" || attrName == "State"
+            }
+            guard isState else { continue }
+            guard let binding = varDecl.bindings.first,
+                  let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
+                  let typeAnno = binding.typeAnnotation else {
+                continue   // diagnosed by @MacroState's own expansion
+            }
+            let name = identifier.text
+            let valueType = typeAnno.type.trimmedDescription
+            let isOptional = valueType.hasSuffix("?")
+
+            // Per Phase 15 Task 1 finding: Optional<T>.none stored in Any
+            // is type-erased. Snapshot must normalize .none to HMRNilSentinel
+            // at the source so the encoder never sees a raw nil-Optional.
+            if isOptional {
+                cellEntries.append("""
+                    StateCell<\(className)>(
+                        name: "\(name)",
+                        snapshot: { c in
+                            c.\(name).map { $0 as Any } ?? HMRNilSentinel() as Any
+                        },
+                        restore: { c, v in
+                            guard let typed = v as? \(valueType) else {
+                                return false
+                            }
+                            c.\(name) = typed
+                            return true
+                        },
+                        restoreNil: { c in
+                            c.\(name) = nil
+                            return true
+                        }
+                    )
+                    """)
+            } else {
+                cellEntries.append("""
+                    StateCell<\(className)>(
+                        name: "\(name)",
+                        snapshot: {
+                            $0.\(name) as Any
+                        },
+                        restore: { c, v in
+                            guard let typed = v as? \(valueType) else {
+                                return false
+                            }
+                            c.\(name) = typed
+                            return true
+                        },
+                        restoreNil: { _ in
+                            false
+                        }
+                    )
+                    """)
+            }
+        }
+
+        let stateCellsDecl: DeclSyntax
+        if cellEntries.isEmpty {
+            stateCellsDecl = "@MainActor static let stateCells: [any AnyStateCell] = []"
+        } else {
+            let joined = cellEntries.joined(separator: ",\n    ")
+            stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor static let stateCells: [any AnyStateCell] = [\n    \(joined),\n]")
+        }
+
+        return [
+            "private weak var runtimeOwner: AnyComponent?",
+            "private var runtimeScheduler: Scheduler?",
+            stateCellsDecl,
+            """
+            func bind(owner: AnyComponent, scheduler: Scheduler) {
+                self.runtimeOwner = owner
+                self.runtimeScheduler = scheduler
+            }
+            """,
+        ]
     }
 }
 

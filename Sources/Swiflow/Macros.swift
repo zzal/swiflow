@@ -1,4 +1,14 @@
-@attached(extension, conformances: Component)
+/// Conforms a `final class` to `Component` and emits the
+/// `_ComponentRuntime` runtime infrastructure: stored properties for
+/// owner/scheduler refs, the `bind(owner:scheduler:)` hook, and a
+/// `stateCells` array describing each `@MacroState`-decorated member.
+@attached(extension, conformances: Component, _ComponentRuntime)
+@attached(member, names:
+    named(runtimeOwner),
+    named(runtimeScheduler),
+    named(stateCells),
+    named(bind)
+)
 public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "ComponentMacro")
 
 /// Reactive state cell on a `@Component`-decorated class. Expansion adds

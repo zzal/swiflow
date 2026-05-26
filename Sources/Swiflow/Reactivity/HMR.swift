@@ -7,18 +7,23 @@
 // `Sources/SwiflowWeb/HMR/HMRBridge.swift` (Task E) is a thin
 // marshalling layer over these types.
 
-/// Sentinel placed in a decoded state map when the corresponding JS value
-/// was `null`. Signals that the `@State` field was `Optional.none` at
-/// snapshot time and should be restored to nil rather than left at the
-/// declared initial value.
+/// Sentinel placed in a state map when a value is `Optional.none`.
 ///
-/// Produced by `HMRBridge.decodeStateMap` (JS null → `HMRNilSentinel`);
-/// consumed by `HMRWalker.applyRestore` (routes to `_hmrRestoreNil()`
-/// instead of `_hmrRestore(_:)`). The pure-Swift path (no JS bridge)
-/// never produces this sentinel — Swift's own `Optional<T>.none as Any`
-/// round-trips correctly through `as? Value` without needing it.
-package struct HMRNilSentinel: Sendable {
-    package init() {}
+/// On the **decode path** (JS → Swift): produced by `HMRBridge.decodeStateMap`
+/// when a JS `null` arrives for a known Optional field; consumed by
+/// `HMRWalker.applyRestore`, routed to `_hmrRestoreNil()`.
+///
+/// On the **encode path** (Swift → JS): emitted by macro-generated
+/// `snapshot` closures when an Optional `@State` field is `.none` —
+/// because Optional<T>.none stored in `Any` is type-erased (Swift can't
+/// distinguish Optional<Bool>.none from Optional<Int>.none via type
+/// cast), the macro normalizes `.none` to this sentinel at the source.
+/// Downstream encoders dispatch on the sentinel rather than walking
+/// Mirror to detect nil-Optionals.
+///
+/// Public because macro-emitted code in user modules references it.
+public struct HMRNilSentinel: Sendable {
+    public init() {}
 }
 
 /// One row in an HMR snapshot — captures the identifying triple and
