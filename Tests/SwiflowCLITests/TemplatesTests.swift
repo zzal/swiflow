@@ -126,6 +126,13 @@ struct TemplatesTests {
                 "Placeholder must be substituted; if not, the template's .package(path:) literal changed.")
     }
 
+    @Test("Default template includes the [data-swiflow-progress] loading hook")
+    func templateHasProgressHook() {
+        let html = Templates.indexHTML(name: "demo")
+        #expect(html.contains("data-swiflow-progress"))
+        #expect(html.contains("html[data-swiflow-progress]:not([data-swiflow-progress=\"100\"])"))
+    }
+
     @Test("packageSwift with path dep uses .package(path:)")
     func packageSwiftPathDep() {
         let pkg = Templates.packageSwift(

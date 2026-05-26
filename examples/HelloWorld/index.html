@@ -10,6 +10,22 @@
       .greeting-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; }
       .greeting-row input { flex: 1; padding: 0.3rem 0.5rem; }
       .checkbox-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Customize freely. */
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f8f8;
+        color: #333;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
     </style>
   </head>
   <body>
