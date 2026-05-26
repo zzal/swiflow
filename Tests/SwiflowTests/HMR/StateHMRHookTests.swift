@@ -62,4 +62,47 @@ struct StateHMRHookTests {
         #expect(ok == true)
         #expect(s.wrappedValue == nil)
     }
+
+    // BLOCKED (Phase 15 Task 1): Swift runtime erases the concrete type of
+    // Optional<T>.none when stored in Any — all .none values become
+    // indistinguishable and match the first Optional-typed `as T?` pattern
+    // encountered, regardless of T. The exhaustive type-switch design in the
+    // Phase 15 plan cannot distinguish Int?.none from Bool?.none without Mirror.
+    // Mirror.displayStyle is still required for the .none branch.
+    // This test documents the proven constraint; see plan for redesign notes.
+    @Test("Optional<T>.none stored as Any loses concrete type — Mirror required for .none detection")
+    func optionalNoneInAnySwitchErasesType() throws {
+        func classify(_ v: Any) -> String {
+            switch v {
+            case let b as Bool:    return "bool=\(b)"
+            case let s as String:  return "string=\(s)"
+            case let i as Int:     return "int=\(i)"
+            case let d as Double:  return "double=\(d)"
+            case let b as Bool?:   return b.map { "boolopt.some=\($0)" } ?? "boolopt.none"
+            case let s as String?: return s.map { "stropt.some=\($0)" } ?? "stropt.none"
+            case let i as Int?:    return i.map { "intopt.some=\($0)" } ?? "intopt.none"
+            case let d as Double?: return d.map { "doubleopt.some=\($0)" } ?? "doubleopt.none"
+            default: return "unknown"
+            }
+        }
+
+        // .some cases preserve concrete type — no Mirror needed for these.
+        let someInt: Int? = 5
+        #expect(classify(someInt as Any) == "int=5")
+        #expect(classify(5 as Any) == "int=5")
+        #expect(classify("hi" as Any) == "string=hi")
+        #expect(classify(true as Any) == "bool=true")
+
+        // .none cases lose concrete type — all match the first Optional arm (Bool?).
+        // This is the proven constraint: exhaustive switch cannot route .none
+        // to the correct arm; Mirror.displayStyle remains necessary for .none.
+        let noneBool: Bool? = nil
+        let noneInt: Int? = nil
+        let noneString: String? = nil
+        let noneDouble: Double? = nil
+        #expect(classify(noneBool as Any) == "boolopt.none")   // correct arm
+        #expect(classify(noneInt as Any) == "boolopt.none")    // wrong arm — type erased
+        #expect(classify(noneString as Any) == "boolopt.none") // wrong arm — type erased
+        #expect(classify(noneDouble as Any) == "boolopt.none") // wrong arm — type erased
+    }
 }
