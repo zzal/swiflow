@@ -35,7 +35,7 @@ final class ComponentMacroTests: XCTestCase {
                         $0.count as Any
                     },
                     restore: { c, v in
-                        guard let typed = v as? Int else {
+                        guard let typed = _hmrCoerce(v, to: Int.self) else {
                             return false
                         }
                         c.count = typed
@@ -149,15 +149,15 @@ final class ComponentMacroTests: XCTestCase {
     }
 
     // Test 5: @Component emits _ComponentRuntime conformance + members + cells
-    // for @MacroState decorated vars. @MacroState also expands its own
+    // for @State decorated vars. @State also expands its own
     // didSet accessor + $name peer, so the full expansion is verified here.
     func testEmitsRuntimeMembers() {
         assertMacroExpansion(
             """
             @Component
             final class Counter {
-                @MacroState var count: Int = 0
-                @MacroState var label: String = "hi"
+                @State var count: Int = 0
+                @State var label: String = "hi"
                 var body: VNode { .text("") }
             }
             """,
@@ -212,7 +212,7 @@ final class ComponentMacroTests: XCTestCase {
                         $0.count as Any
                     },
                     restore: { c, v in
-                        guard let typed = v as? Int else {
+                        guard let typed = _hmrCoerce(v, to: Int.self) else {
                             return false
                         }
                         c.count = typed
@@ -228,7 +228,7 @@ final class ComponentMacroTests: XCTestCase {
                         $0.label as Any
                     },
                     restore: { c, v in
-                        guard let typed = v as? String else {
+                        guard let typed = _hmrCoerce(v, to: String.self) else {
                             return false
                         }
                         c.label = typed
@@ -249,7 +249,7 @@ final class ComponentMacroTests: XCTestCase {
             extension Counter: Component, _ComponentRuntime {
             }
             """,
-            macros: ["Component": ComponentMacro.self, "MacroState": StateMacro.self]
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
         )
     }
 
@@ -293,7 +293,7 @@ final class ComponentMacroTests: XCTestCase {
             """
             @Component
             final class Counter {
-                @MacroState var maybeId: Int? = nil
+                @State var maybeId: Int? = nil
                 var body: VNode { .text("") }
             }
             """,
@@ -332,7 +332,7 @@ final class ComponentMacroTests: XCTestCase {
                         } ?? HMRNilSentinel() as Any
                     },
                     restore: { c, v in
-                        guard let typed = v as? Int? else {
+                        guard let typed = _hmrCoerce(v, to: Int?.self) else {
                             return false
                         }
                         c.maybeId = typed
@@ -354,7 +354,7 @@ final class ComponentMacroTests: XCTestCase {
             extension Counter: Component, _ComponentRuntime {
             }
             """,
-            macros: ["Component": ComponentMacro.self, "MacroState": StateMacro.self]
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
         )
     }
 }

@@ -123,11 +123,20 @@ package enum HMRBridge {
     private static func encodeStateMap(_ state: [String: Any]) -> JSValue {
         let obj = JSObject.global.Object.function!.new()
         for (k, v) in state {
-            // Bool MUST be checked BEFORE Int because Swift bridges Bool
-            // to NSNumber, and `v as? Int` succeeds for Bool values
-            // (true → 1, false → 0). Swapping order would encode every
-            // checkbox as a number on the wire.
-            if let b = v as? Bool {
+            // Phase 15: HMR snapshot values are either
+            //   - a concrete primitive (Bool/Int/Double/String) — from a
+            //     non-Optional @State or an Optional .some(payload) the
+            //     macro unwrapped at the source via `.map { $0 as Any }`,
+            //   - or an `HMRNilSentinel` — for Optional .none, which the
+            //     `@Component` macro normalizes at the source because
+            //     Optional<T>.none stored in `Any` is type-erased and
+            //     cannot be distinguished by exhaustive `as?` checks here.
+            // We never see a raw `Optional<T>.none` — the macro guarantees
+            // it. Bool is checked before Int because Swift bridges Bool to
+            // NSNumber and `v as? Int` succeeds for Bool values.
+            if v is HMRNilSentinel {
+                obj[k] = .null
+            } else if let b = v as? Bool {
                 obj[k] = .boolean(b)
             } else if let s = v as? String {
                 obj[k] = .string(s)
@@ -135,37 +144,8 @@ package enum HMRBridge {
                 obj[k] = .number(Double(i))
             } else if let d = v as? Double {
                 obj[k] = .number(d)
-            } else {
-                // Try Optional<primitive> via Mirror displayStyle.
-                let mirror = Mirror(reflecting: v)
-                if mirror.displayStyle == .optional {
-                    if mirror.children.isEmpty {
-                        // Optional.none — explicitly write JS null so
-                        // restore-side can map back to nil.
-                        obj[k] = .null
-                    } else {
-                        // Optional.some(payload) — recurse on the
-                        // unwrapped payload by re-running the same
-                        // type checks. Build a single-entry map so we
-                        // can reuse encodeStateMap. Less efficient than
-                        // inline branches, but v1 only handles
-                        // Optional<{String,Int,Double,Bool}> so the
-                        // recursion depth is bounded at 1.
-                        let payload = mirror.children.first!.value
-                        if let b = payload as? Bool {
-                            obj[k] = .boolean(b)
-                        } else if let s = payload as? String {
-                            obj[k] = .string(s)
-                        } else if let i = payload as? Int {
-                            obj[k] = .number(Double(i))
-                        } else if let d = payload as? Double {
-                            obj[k] = .number(d)
-                        }
-                        // Other Optional payloads — skip (v1 limitation).
-                    }
-                }
-                // Other unsupported types — skip (v1 limitation).
             }
+            // Other unsupported types — skip (v1 limitation).
         }
         return .object(obj)
     }
@@ -195,15 +175,15 @@ package enum HMRBridge {
                 out[k] = s
             } else if let n = v.number {
                 // JS numbers are doubles; preserve Int when integral so
-                // `_hmrRestore` on `@State var count: Int` accepts the
-                // value. The restore-side `as? Int` cast won't match a
-                // Double, so we synthesize.
-                // Note: `_hmrRestoreImpl` adds a Double↔Int coercion layer
-                // for `@State var price: Double = 0` whose current value
-                // happens to be integral (arrives here as Int). The two
-                // layers are complementary — this side biases toward Int
-                // for the common counter case; restore-side corrects for
-                // Double fields.
+                // the macro-emitted restore closure for `@State var count: Int`
+                // accepts the value. The restore-side `as? Int` cast won't
+                // match a Double, so we synthesize.
+                // Note: `_hmrCoerce` adds a Double↔Int coercion layer for
+                // `@State var price: Double = 0` whose current value happens
+                // to be integral (arrives here as Int). The two layers are
+                // complementary — this side biases toward Int for the
+                // common counter case; restore-side corrects for Double
+                // fields.
                 if n.truncatingRemainder(dividingBy: 1) == 0 && n.isFinite
                     && n >= Double(Int.min) && n <= Double(Int.max) {
                     out[k] = Int(n)
@@ -211,11 +191,11 @@ package enum HMRBridge {
                     out[k] = n
                 }
             } else if case .null = v {
-                // JS null → sentinel. `_hmrRestoreNil()` on the target
-                // @State field will write `Optional.none` if `Value` is
-                // Optional; non-Optional fields return false and emit a
-                // diagnostic (shouldn't happen unless the snapshot is
-                // from a mismatched build).
+                // JS null → sentinel. The macro-emitted `restoreNil`
+                // closure on the target @State field will write
+                // `Optional.none` if `Value` is Optional; non-Optional
+                // fields return false and emit a diagnostic (shouldn't
+                // happen unless the snapshot is from a mismatched build).
                 out[k] = HMRNilSentinel()
             }
             // Other JS values (objects, functions, undefined) — skip.

@@ -1,14 +1,15 @@
 import Testing
 @testable import Swiflow
 
+@MainActor @Component
+private final class HMRTD_NowString {
+    @State var n: String = "initial"
+    var body: VNode { .text("") }
+}
+
 @MainActor
 @Suite("HMR type drift")
 struct HMRTypeDriftTests {
-
-    final class NowString: Component {
-        @State var n: String = "initial"
-        var body: VNode { .text("") }
-    }
 
     @Test("type-mismatched snapshot field leaves declared initial value untouched")
     func typeMismatchPreservesInitial() {
@@ -26,13 +27,13 @@ struct HMRTypeDriftTests {
 
         let snap = ComponentSnapshot(
             path: "",
-            typeName: String(reflecting: NowString.self),
+            typeName: String(reflecting: HMRTD_NowString.self),
             key: nil,
             state: ["n": 7]  // OLD-shape value (Int), new field is String
         )
         let index = HMRWalker.indexSnapshots([snap])
 
-        let fresh = NowString()
+        let fresh = HMRTD_NowString()
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.n == "initial")  // declared initial, not "7"

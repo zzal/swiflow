@@ -138,34 +138,38 @@ public struct ComponentDescription: Equatable {
     }
 }
 
-/// Walks the instance's stored properties via Mirror and wires every
-/// `@State` wrapper to `(owner, scheduler)` so its mutations call
+/// Wires the owner/scheduler refs into every `@State`-bearing
+/// `@Component` so its `didSet` blocks can call
 /// `scheduler.markDirty(owner)`.
 ///
-/// Called by the diff at first mount of each component anchor (Task 7).
+/// Called by the diff at first mount of each component anchor.
 /// No-op when `scheduler` is nil (used by tests and headless diffing).
 ///
-/// **Why Mirror?** Swift doesn't let a property wrapper observe its
-/// enclosing instance directly without an `_enclosingInstance` static
-/// subscript (which is class-only and significantly more boilerplate).
-/// A one-shot Mirror walk at instance-construction time is simpler and
-/// sufficient: components are reference types, so each State<T> wrapper
-/// has a stable address for the lifetime of its owner. The `_setOwner`
-/// method is invoked exactly once per @State per component instance
-/// (guarded by a precondition in State.swift).
+/// Phase 15: drives wiring through `_ComponentRuntime.bind(...)`,
+/// which the `@Component` macro emits. Hand-rolled `Component`
+/// conformances that don't adopt `_ComponentRuntime` simply receive
+/// no wiring — the right default, since they have no macro-emitted
+/// `@State` cells to wire.
+@MainActor
 package func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
     wireStateAndRestore(on: owner, scheduler: scheduler, stateMap: nil)
 }
 
-/// Fused owner-wiring + HMR restore. Does ONE Mirror walk to both
-/// wire `@State` scheduler ownership and apply any pending snapshot
-/// values — eliminating the double walk that separate `wireState` +
-/// `applyRestore` calls would require.
+/// Fused owner-wiring + HMR restore. Iterates the
+/// `_ComponentRuntime.stateCells` array emitted by the `@Component`
+/// macro to wire `(owner, scheduler)` and apply pending snapshot
+/// values in a single pass.
 ///
 /// Called from the diff at component mount time (replaces the old
 /// `wireState(on:scheduler:)` + `HMRRestoreInstall.restore?` pair).
 /// `stateMap` is nil when no HMR swap is pending; wiring still
 /// happens, restore is skipped.
+///
+/// State fields whose decoded value is `HMRNilSentinel` are routed to
+/// the cell's `restoreNil` closure instead of `restore(value:)` — this
+/// covers the JS-bridge path where `Optional.none` becomes JS `null`
+/// then back.
+@MainActor
 func wireStateAndRestore(
     on owner: AnyComponent,
     scheduler: Scheduler?,
@@ -173,27 +177,23 @@ func wireStateAndRestore(
     path: String = ""
 ) {
     guard scheduler != nil || stateMap != nil else { return }
-    let mirror = Mirror(reflecting: owner.instance)
-    for child in mirror.children {
-        // Property-wrapper-backed properties surface as `_propertyName`
-        // children whose values are the wrapper class instance itself.
-        guard let wireable = child.value as? StateWireable else { continue }
-        if let scheduler {
-            wireable._setOwner(owner, scheduler: scheduler)
-        }
-        guard let stateMap, let label = child.label else { continue }
-        let fieldName = label.hasPrefix("_") ? String(label.dropFirst()) : label
-        guard let newValue = stateMap[fieldName] else { continue }
-        let ok: Bool
-        if newValue is HMRNilSentinel {
-            ok = wireable._hmrRestoreNil()
-        } else {
-            ok = wireable._hmrRestore(newValue)
-        }
+    guard let runtime = owner.instance as? any _ComponentRuntime else { return }
+
+    if let scheduler {
+        runtime.bind(owner: owner, scheduler: scheduler)
+    }
+
+    guard let stateMap else { return }
+    let cells = type(of: runtime).stateCells
+    for cell in cells {
+        guard let newValue = stateMap[cell.name] else { continue }
+        let ok = newValue is HMRNilSentinel
+            ? cell.restoreNil(on: runtime)
+            : cell.restore(on: runtime, value: newValue)
         if !ok {
-            let typeName = String(reflecting: type(of: owner.instance))
+            let typeName = String(reflecting: type(of: runtime))
             swiflowDiagnostic(
-                "HMR restore: type mismatch on \(typeName).\(fieldName) at path '\(path)'. Field reset to its declared initial value."
+                "HMR restore: type mismatch on \(typeName).\(cell.name) at path '\(path)'. Field reset to its declared initial value."
             )
         }
     }

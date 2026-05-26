@@ -22,6 +22,49 @@
 import Testing
 @testable import Swiflow
 
+// MARK: - Bool (must be checked before Int — Swift bridges Bool to NSNumber)
+
+@MainActor @Component
+private final class HMRB_BoolHolder {
+    @State var flag: Bool = false
+    var body: VNode { .text("") }
+}
+
+// MARK: - Int (decodeStateMap stores integral JS numbers as Int)
+
+@MainActor @Component
+private final class HMRB_IntHolder {
+    @State var count: Int = 0
+    var body: VNode { .text("") }
+}
+
+// MARK: - Double (decodeStateMap converts non-integral JS numbers to Double,
+//         but integral JS numbers become Int — requiring coercion on restore)
+
+@MainActor @Component
+private final class HMRB_DoubleHolder {
+    @State var price: Double = 0.0
+    @State var fraction: Double = 0.0
+    var body: VNode { .text("") }
+}
+
+// MARK: - String
+
+@MainActor @Component
+private final class HMRB_StringHolder {
+    @State var label: String = ""
+    var body: VNode { .text("") }
+}
+
+// MARK: - Optional (nil → JS null → HMRNilSentinel)
+
+@MainActor @Component
+private final class HMRB_OptionalHolder {
+    @State var name: String? = nil
+    @State var score: Int? = nil
+    var body: VNode { .text("") }
+}
+
 @MainActor
 @Suite("HMR bridge round-trip simulation")
 struct HMRBridgeRoundTripTests {
@@ -35,53 +78,30 @@ struct HMRBridgeRoundTripTests {
         ])
     }
 
-    // MARK: - Bool (must be checked before Int — Swift bridges Bool to NSNumber)
-
-    final class BoolHolder: Component {
-        @State var flag: Bool = false
-        var body: VNode { .text("") }
-    }
-
     @Test("bridge: Bool true round-trips")
     func boolTrue() {
-        let fresh = BoolHolder()
-        let idx = index(typeName: String(reflecting: BoolHolder.self), state: ["flag": true])
+        let fresh = HMRB_BoolHolder()
+        let idx = index(typeName: String(reflecting: HMRB_BoolHolder.self), state: ["flag": true])
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.flag == true)
     }
 
     @Test("bridge: Bool false round-trips")
     func boolFalse() {
-        let fresh = BoolHolder()
+        let fresh = HMRB_BoolHolder()
         fresh.flag = true
-        let idx = index(typeName: String(reflecting: BoolHolder.self), state: ["flag": false])
+        let idx = index(typeName: String(reflecting: HMRB_BoolHolder.self), state: ["flag": false])
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.flag == false)
     }
 
-    // MARK: - Int (decodeStateMap stores integral JS numbers as Int)
-
-    final class IntHolder: Component {
-        @State var count: Int = 0
-        var body: VNode { .text("") }
-    }
-
     @Test("bridge: Int round-trips as Int")
     func intRoundTrip() {
-        let fresh = IntHolder()
+        let fresh = HMRB_IntHolder()
         // decodeStateMap produces Int for integral JS numbers
-        let idx = index(typeName: String(reflecting: IntHolder.self), state: ["count": Int(99)])
+        let idx = index(typeName: String(reflecting: HMRB_IntHolder.self), state: ["count": Int(99)])
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.count == 99)
-    }
-
-    // MARK: - Double (decodeStateMap converts non-integral JS numbers to Double,
-    //         but integral JS numbers become Int — requiring coercion on restore)
-
-    final class DoubleHolder: Component {
-        @State var price: Double = 0.0
-        @State var fraction: Double = 0.0
-        var body: VNode { .text("") }
     }
 
     @Test("bridge: integral Double arrives as Int, coerces to Double")
@@ -89,9 +109,9 @@ struct HMRBridgeRoundTripTests {
         // encodeStateMap: Double(42.0) → .number(42.0)
         // decodeStateMap: 42.0.truncatingRemainder == 0 → stored as Int(42)
         // _hmrRestoreImpl must coerce Int → Double (was Blocker 2)
-        let fresh = DoubleHolder()
+        let fresh = HMRB_DoubleHolder()
         let idx = index(
-            typeName: String(reflecting: DoubleHolder.self),
+            typeName: String(reflecting: HMRB_DoubleHolder.self),
             state: ["price": Int(42), "fraction": Double(3.14)]
         )
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
@@ -99,27 +119,12 @@ struct HMRBridgeRoundTripTests {
         #expect(fresh.fraction == 3.14)
     }
 
-    // MARK: - String
-
-    final class StringHolder: Component {
-        @State var label: String = ""
-        var body: VNode { .text("") }
-    }
-
     @Test("bridge: String round-trips")
     func stringRoundTrip() {
-        let fresh = StringHolder()
-        let idx = index(typeName: String(reflecting: StringHolder.self), state: ["label": "hello"])
+        let fresh = HMRB_StringHolder()
+        let idx = index(typeName: String(reflecting: HMRB_StringHolder.self), state: ["label": "hello"])
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.label == "hello")
-    }
-
-    // MARK: - Optional (nil → JS null → HMRNilSentinel)
-
-    final class OptionalHolder: Component {
-        @State var name: String? = nil
-        @State var score: Int? = nil
-        var body: VNode { .text("") }
     }
 
     @Test("bridge: JS null decodes to HMRNilSentinel, restores Optional to nil")
@@ -127,11 +132,11 @@ struct HMRBridgeRoundTripTests {
         // encodeStateMap: Optional.none → .null
         // decodeStateMap: .null → HMRNilSentinel (was Blocker 3 when missed)
         // applyRestore: routes HMRNilSentinel to _hmrRestoreNil()
-        let fresh = OptionalHolder()
+        let fresh = HMRB_OptionalHolder()
         fresh.name = "before"
         fresh.score = 7
         let idx = index(
-            typeName: String(reflecting: OptionalHolder.self),
+            typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["name": HMRNilSentinel(), "score": HMRNilSentinel()]
         )
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
@@ -144,9 +149,9 @@ struct HMRBridgeRoundTripTests {
         // encodeStateMap: Optional.some("x") → Optional payload → .string("x")
         // decodeStateMap: .string("x") → "x"
         // _hmrRestoreImpl: "x" as? String? matches via Swift's Any-to-Optional promotion
-        let fresh = OptionalHolder()
+        let fresh = HMRB_OptionalHolder()
         let idx = index(
-            typeName: String(reflecting: OptionalHolder.self),
+            typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["name": "restored"]
         )
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
@@ -158,9 +163,9 @@ struct HMRBridgeRoundTripTests {
         // encodeStateMap: Optional.some(Int(5)) → Double(5.0) via .number(Double(i))
         // decodeStateMap: integral 5.0 → Int(5)
         // _hmrRestoreImpl: Int(5) as? Int? matches
-        let fresh = OptionalHolder()
+        let fresh = HMRB_OptionalHolder()
         let idx = index(
-            typeName: String(reflecting: OptionalHolder.self),
+            typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["score": Int(5)]
         )
         HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)

@@ -61,6 +61,19 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         }
         let className = classDecl.name.text
 
+        // Detect class access level so the emitted protocol witnesses match
+        // the host class's visibility. A public class adopting the public
+        // `_ComponentRuntime` protocol must declare its witnesses public.
+        // Internal/private/fileprivate classes don't get a leading keyword
+        // (the default access already covers internal). The `runtimeOwner`
+        // and `runtimeScheduler` stored properties stay private regardless
+        // — they're implementation detail, not part of the protocol.
+        let isPublic = classDecl.modifiers.contains { mod in
+            mod.name.tokenKind == .keyword(.public) ||
+            mod.name.tokenKind == .keyword(.open)
+        }
+        let accessPrefix = isPublic ? "public " : ""
+
         // Scan members for @MacroState or @State (the migration window
         // accepts both — Task 6 will normalize to @State).
         var cellEntries: [String] = []
@@ -86,6 +99,11 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             // Per Phase 15 Task 1 finding: Optional<T>.none stored in Any
             // is type-erased. Snapshot must normalize .none to HMRNilSentinel
             // at the source so the encoder never sees a raw nil-Optional.
+            //
+            // `_hmrCoerce` provides the Int↔Double bridge-round-trip
+            // coercion the old `State<T>` propertyWrapper class did
+            // inline; lives in `StateCell.swift` (public so macro-emitted
+            // code in user modules can reach it).
             if isOptional {
                 cellEntries.append("""
                     StateCell<\(className)>(
@@ -94,7 +112,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                             c.\(name).map { $0 as Any } ?? HMRNilSentinel() as Any
                         },
                         restore: { c, v in
-                            guard let typed = v as? \(valueType) else {
+                            guard let typed = _hmrCoerce(v, to: \(valueType).self) else {
                                 return false
                             }
                             c.\(name) = typed
@@ -114,7 +132,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                             $0.\(name) as Any
                         },
                         restore: { c, v in
-                            guard let typed = v as? \(valueType) else {
+                            guard let typed = _hmrCoerce(v, to: \(valueType).self) else {
                                 return false
                             }
                             c.\(name) = typed
@@ -130,22 +148,40 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
 
         let stateCellsDecl: DeclSyntax
         if cellEntries.isEmpty {
-            stateCellsDecl = "@MainActor static let stateCells: [any AnyStateCell] = []"
+            if isPublic {
+                stateCellsDecl = "@MainActor public static let stateCells: [any AnyStateCell] = []"
+            } else {
+                stateCellsDecl = "@MainActor static let stateCells: [any AnyStateCell] = []"
+            }
         } else {
             let joined = cellEntries.joined(separator: ",\n    ")
-            stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor static let stateCells: [any AnyStateCell] = [\n    \(joined),\n]")
+            let body = "[\n    \(joined),\n]"
+            if isPublic {
+                stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor public static let stateCells: [any AnyStateCell] = \(body)")
+            } else {
+                stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor static let stateCells: [any AnyStateCell] = \(body)")
+            }
         }
+
+        let bindDecl: DeclSyntax = isPublic
+            ? """
+              public func bind(owner: AnyComponent, scheduler: Scheduler) {
+                  self.runtimeOwner = owner
+                  self.runtimeScheduler = scheduler
+              }
+              """
+            : """
+              func bind(owner: AnyComponent, scheduler: Scheduler) {
+                  self.runtimeOwner = owner
+                  self.runtimeScheduler = scheduler
+              }
+              """
 
         return [
             "private weak var runtimeOwner: AnyComponent?",
             "private var runtimeScheduler: Scheduler?",
             stateCellsDecl,
-            """
-            func bind(owner: AnyComponent, scheduler: Scheduler) {
-                self.runtimeOwner = owner
-                self.runtimeScheduler = scheduler
-            }
-            """,
+            bindDecl,
         ]
     }
 }

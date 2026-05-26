@@ -1,32 +1,46 @@
 import Testing
 @testable import Swiflow
 
+@MainActor @Component
+private final class HMRSC_Foo {
+    @State var x: Int = 0
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRSC_Bar {
+    @State var x: Int = 0
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRSC_Outer {
+    @State var n: Int = 0
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRSC_Inner {
+    @State var m: Int = 0
+    var body: VNode { .text("") }
+}
+
 @MainActor
 @Suite("HMR shape change")
 struct HMRShapeChangeTests {
-
-    final class Foo: Component {
-        @State var x: Int = 0
-        var body: VNode { .text("") }
-    }
-
-    final class Bar: Component {
-        @State var x: Int = 0
-        var body: VNode { .text("") }
-    }
 
     @Test("type-name mismatch at the same path skips restore entirely")
     func typeNameMismatchSkipsRestore() {
         // Snapshot is for Foo, new tree has Bar at the same path.
         let snap = ComponentSnapshot(
             path: "",
-            typeName: String(reflecting: Foo.self),
+            typeName: String(reflecting: HMRSC_Foo.self),
             key: nil,
             state: ["x": 99]
         )
         let index = HMRWalker.indexSnapshots([snap])
 
-        let fresh = Bar()
+        let fresh = HMRSC_Bar()
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.x == 0)  // declared initial, not 99
@@ -36,13 +50,13 @@ struct HMRShapeChangeTests {
     func unmatchedPathDropped() {
         let snap = ComponentSnapshot(
             path: "5",  // doesn't match where we mount
-            typeName: String(reflecting: Foo.self),
+            typeName: String(reflecting: HMRSC_Foo.self),
             key: nil,
             state: ["x": 17]
         )
         let index = HMRWalker.indexSnapshots([snap])
 
-        let fresh = Foo()
+        let fresh = HMRSC_Foo()
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.x == 0)  // declared initial, not 17
@@ -54,18 +68,9 @@ struct HMRShapeChangeTests {
     // so a future refactor doesn't silently break it.
     @Test("chained components: outer.componentBody = inner anchor → both emit at path ''")
     func chainedComponentsSamePath() {
-        final class Outer: Component {
-            @State var n: Int = 0
-            var body: VNode { .text("") }
-        }
-        final class Inner: Component {
-            @State var m: Int = 0
-            var body: VNode { .text("") }
-        }
-
-        let outer = Outer()
+        let outer = HMRSC_Outer()
         outer.n = 1
-        let inner = Inner()
+        let inner = HMRSC_Inner()
         inner.m = 9
 
         // Outer's componentBody IS the inner Component anchor directly
@@ -90,8 +95,8 @@ struct HMRShapeChangeTests {
         let allPathsEmpty = snaps.allSatisfy { $0.path == "" }
         #expect(allPathsEmpty == true)
         // Distinguishable by typeName.
-        let outerSnap = snaps.first { $0.typeName.hasSuffix(".Outer") }
-        let innerSnap = snaps.first { $0.typeName.hasSuffix(".Inner") }
+        let outerSnap = snaps.first { $0.typeName.hasSuffix(".HMRSC_Outer") }
+        let innerSnap = snaps.first { $0.typeName.hasSuffix(".HMRSC_Inner") }
         #expect((outerSnap?.state["n"] as? Int) == 1)
         #expect((innerSnap?.state["m"] as? Int) == 9)
     }

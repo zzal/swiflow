@@ -18,7 +18,8 @@ import Swiflow
 ///     }
 /// }
 /// ```
-public final class RouterRoot: Component {
+@MainActor @Component
+public final class RouterRoot {
     public enum Mode { case hash, history }
 
     @State private var currentPath: String = "/"
@@ -32,7 +33,7 @@ public final class RouterRoot: Component {
     public init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
         self.mode = mode
         self.routes = routes()
-        _currentPath = State(wrappedValue: Self.readPath(mode: mode))
+        self.currentPath = Self.readPath(mode: mode)
     }
 
     public var body: VNode {

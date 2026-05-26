@@ -1,9 +1,10 @@
 // Tests/SwiflowTests/Binding/CheckedSelectionBindingTests.swift
 //
-// Task D — Phase 7. Validates the two pieces that together make
-// `.checked(_:Binding<Bool>)` and `.selection(_:Binding<String>)` work
-// without depending on SwiflowWeb (which is gated behind
-// `#if canImport(JavaScriptKit)` and unavailable to host-side tests):
+// Task D — Phase 7 / Phase 15 refresh. Validates the two pieces that
+// together make `.checked(_:Binding<Bool>)` and
+// `.selection(_:Binding<String>)` work without depending on SwiflowWeb
+// (which is gated behind `#if canImport(JavaScriptKit)` and unavailable
+// to host-side tests):
 //
 //   1. The `Attribute.compound([…])` shape that each modifier produces —
 //      hand-built here, identical to what SwiflowWeb emits, so we can
@@ -12,10 +13,23 @@
 //      `EventInfo`, exactly mirroring how `.checked` / `.selection`
 //      shape the closure inside SwiflowWeb.
 //
-// This mirrors the Option γ pattern already established by
-// `ValueBindingTests`.
+// Phase 15: `@State` is now a macro, so the test fixtures use
+// `@MainActor @Component`-decorated host classes for state cells.
+// `Binding<T>` itself is unchanged.
 import Testing
 @testable import Swiflow
+
+@MainActor @Component
+private final class BoolHost {
+    @State var flag: Bool = false
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class StringHost {
+    @State var value: String = "A"
+    var body: VNode { .text("") }
+}
 
 @Suite("@State + .checked / .selection round-trip")
 @MainActor
@@ -25,8 +39,8 @@ struct CheckedSelectionBindingTests {
 
     @Test(".checked-shaped compound for Binding<Bool> contains `checked` property + `change` handler")
     func checkedShape() {
-        let state = State<Bool>(wrappedValue: false)
-        let binding = state.projectedValue
+        let host = BoolHost()
+        let binding = host.$flag
 
         // Hand-build the exact `Attribute.compound([…])` that
         // SwiflowWeb's `.checked(_:Binding<Bool>)` will produce.
@@ -61,33 +75,33 @@ struct CheckedSelectionBindingTests {
 
     @Test(".checked handler updates the binding when targetChecked is true")
     func checkedTrueUpdate() {
-        let state = State<Bool>(wrappedValue: false)
-        let binding = state.projectedValue
+        let host = BoolHost()
+        let binding = host.$flag
         // Closure shape mirrors `.checked(_:Binding<Bool>)` exactly.
         let invoke: (EventInfo) -> Void = { info in
             if let c = info.targetChecked { binding.set(c) }
         }
         invoke(EventInfo(type: "change", targetChecked: true))
-        #expect(state.wrappedValue == true)
+        #expect(host.flag == true)
     }
 
     @Test(".checked handler leaves binding unchanged when targetChecked is nil")
     func checkedNilNoChange() {
-        let state = State<Bool>(wrappedValue: false)
-        let binding = state.projectedValue
+        let host = BoolHost()
+        let binding = host.$flag
         let invoke: (EventInfo) -> Void = { info in
             if let c = info.targetChecked { binding.set(c) }
         }
         invoke(EventInfo(type: "change"))  // no targetChecked
-        #expect(state.wrappedValue == false)
+        #expect(host.flag == false)
     }
 
     // MARK: - .selection(_:Binding<String>)
 
     @Test(".selection-shaped compound for Binding<String> contains `value` property + `change` handler")
     func selectionShape() {
-        let state = State<String>(wrappedValue: "A")
-        let binding = state.projectedValue
+        let host = StringHost()
+        let binding = host.$value
 
         // Hand-build the exact `Attribute.compound([…])` that
         // SwiflowWeb's `.selection(_:Binding<String>)` will produce.
@@ -122,23 +136,23 @@ struct CheckedSelectionBindingTests {
 
     @Test(".selection handler writes targetValue into the binding")
     func selectionUpdate() {
-        let state = State<String>(wrappedValue: "A")
-        let binding = state.projectedValue
+        let host = StringHost()
+        let binding = host.$value
         let invoke: (EventInfo) -> Void = { info in
             binding.set(info.targetValue ?? "")
         }
         invoke(EventInfo(type: "change", targetValue: "B"))
-        #expect(state.wrappedValue == "B")
+        #expect(host.value == "B")
     }
 
     @Test(".selection handler writes empty string when targetValue is nil")
     func selectionNilWritesEmpty() {
-        let state = State<String>(wrappedValue: "A")
-        let binding = state.projectedValue
+        let host = StringHost()
+        let binding = host.$value
         let invoke: (EventInfo) -> Void = { info in
             binding.set(info.targetValue ?? "")
         }
         invoke(EventInfo(type: "change"))
-        #expect(state.wrappedValue == "")
+        #expect(host.value == "")
     }
 }

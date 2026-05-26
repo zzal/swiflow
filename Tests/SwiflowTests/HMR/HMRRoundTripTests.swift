@@ -1,22 +1,37 @@
 import Testing
 @testable import Swiflow
 
+@MainActor @Component
+private final class HMRRT_Demo {
+    @State var s: String = ""
+    @State var i: Int = 0
+    @State var d: Double = 0
+    @State var b: Bool = false
+    @State var os: String? = nil
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRRT_Prices {
+    @State var price: Double = 0.0
+    @State var optPrice: Double? = nil
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRRT_Nullable {
+    @State var label: String? = nil
+    @State var name: String = "keep"
+    var body: VNode { .text("") }
+}
+
 @MainActor
 @Suite("HMR round-trip")
 struct HMRRoundTripTests {
 
-    final class Demo: Component {
-        @State var s: String = ""
-        @State var i: Int = 0
-        @State var d: Double = 0
-        @State var b: Bool = false
-        @State var os: String? = nil
-        var body: VNode { .text("") }
-    }
-
     @Test("snapshot → index → applyRestore preserves all supported primitives")
     func roundTripAllPrimitives() {
-        let original = Demo()
+        let original = HMRRT_Demo()
         original.s = "hello"
         original.i = 42
         original.d = 3.14
@@ -31,7 +46,7 @@ struct HMRRoundTripTests {
         let snaps = HMRWalker.snapshot(from: tree)
         let index = HMRWalker.indexSnapshots(snaps)
 
-        let fresh = Demo()
+        let fresh = HMRRT_Demo()
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.s == "hello")
@@ -47,14 +62,9 @@ struct HMRRoundTripTests {
         // `Int(42)` (all integral JS numbers are Int-biased). Without the
         // coercion added in the Blocker 2 fix, `Int(42) as? Double` is nil
         // and the field silently reverts to its declared initial (0.0).
-        final class Prices: Component {
-            @State var price: Double = 0.0
-            @State var optPrice: Double? = nil
-            var body: VNode { .text("") }
-        }
         let snap = ComponentSnapshot(
             path: "",
-            typeName: String(reflecting: Prices.self),
+            typeName: String(reflecting: HMRRT_Prices.self),
             key: nil,
             state: [
                 "price": Int(42),       // would arrive as Int from decodeStateMap
@@ -62,7 +72,7 @@ struct HMRRoundTripTests {
             ]
         )
         let index = HMRWalker.indexSnapshots([snap])
-        let fresh = Prices()
+        let fresh = HMRRT_Prices()
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.price == 42.0)
@@ -75,14 +85,9 @@ struct HMRRoundTripTests {
         // HMRNilSentinel. Without the Blocker 3 fix, the sentinel is routed
         // through _hmrRestore which can't match it to String?, so the field
         // is silently left at the declared initial ("before-restore").
-        final class Nullable: Component {
-            @State var label: String? = nil
-            @State var name: String = "keep"
-            var body: VNode { .text("") }
-        }
         let snap = ComponentSnapshot(
             path: "",
-            typeName: String(reflecting: Nullable.self),
+            typeName: String(reflecting: HMRRT_Nullable.self),
             key: nil,
             state: [
                 "label": HMRNilSentinel(),  // JS null → sentinel
@@ -90,7 +95,7 @@ struct HMRRoundTripTests {
             ]
         )
         let index = HMRWalker.indexSnapshots([snap])
-        let fresh = Nullable()
+        let fresh = HMRRT_Nullable()
         fresh.label = "before-restore"
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
@@ -100,7 +105,7 @@ struct HMRRoundTripTests {
 
     @Test("round-trip preserves nil Optional<String>")
     func roundTripNilOptional() {
-        let original = Demo()
+        let original = HMRRT_Demo()
         original.s = "x"
         original.os = nil
 
@@ -112,7 +117,7 @@ struct HMRRoundTripTests {
         let snaps = HMRWalker.snapshot(from: tree)
         let index = HMRWalker.indexSnapshots(snaps)
 
-        let fresh = Demo()
+        let fresh = HMRRT_Demo()
         fresh.os = "before-restore"
         HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 

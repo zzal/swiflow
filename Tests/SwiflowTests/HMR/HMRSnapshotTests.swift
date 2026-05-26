@@ -2,24 +2,26 @@
 import Testing
 @testable import Swiflow
 
+@MainActor @Component
+private final class HMRSnap_Counter {
+    @State var count: Int = 0
+    @State var label: String = ""
+    var body: VNode { .text("") }
+}
+
+@MainActor @Component
+private final class HMRSnap_Toggle {
+    @State var on: Bool = false
+    var body: VNode { .text("") }
+}
+
 @Suite("HMR snapshot walker")
 @MainActor
 struct HMRSnapshotTests {
 
-    final class Counter: Component {
-        @State var count: Int = 0
-        @State var label: String = ""
-        var body: VNode { .text("") }
-    }
-
-    final class Toggle: Component {
-        @State var on: Bool = false
-        var body: VNode { .text("") }
-    }
-
     @Test("snapshot produces one row for a single component anchor")
     func snapshotSingleComponent() {
-        let counter = Counter()
+        let counter = HMRSnap_Counter()
         counter.count = 7
         counter.label = "hi"
 
@@ -29,7 +31,7 @@ struct HMRSnapshotTests {
         let body = MountNode(handle: 2, vnode: .text(""))
         let anchor = MountNode(
             handle: 1,
-            vnode: .component(.init(Counter.self) { Counter() }),
+            vnode: .component(.init(HMRSnap_Counter.self) { HMRSnap_Counter() }),
             component: AnyComponent(counter),
             componentBody: body
         )
@@ -38,7 +40,7 @@ struct HMRSnapshotTests {
         #expect(snapshots.count == 1)
         let snap = snapshots[0]
         #expect(snap.path == "")
-        #expect(snap.typeName.hasSuffix(".Counter"))
+        #expect(snap.typeName.hasSuffix(".HMRSnap_Counter"))
         #expect(snap.key == nil)
         #expect((snap.state["count"] as? Int) == 7)
         #expect((snap.state["label"] as? String) == "hi")
@@ -53,9 +55,9 @@ struct HMRSnapshotTests {
 
     @Test("snapshot computes nested paths correctly")
     func snapshotNestedPath() {
-        let outer = Counter()
+        let outer = HMRSnap_Counter()
         outer.count = 1
-        let inner = Toggle()
+        let inner = HMRSnap_Toggle()
         inner.on = true
 
         // Inner component anchor — body is a leaf text node.
@@ -85,8 +87,8 @@ struct HMRSnapshotTests {
 
         let snapshots = HMRWalker.snapshot(from: outerNode)
         #expect(snapshots.count == 2)
-        let outerSnap = snapshots.first { $0.typeName.hasSuffix(".Counter") }
-        let innerSnap = snapshots.first { $0.typeName.hasSuffix(".Toggle") }
+        let outerSnap = snapshots.first { $0.typeName.hasSuffix(".HMRSnap_Counter") }
+        let innerSnap = snapshots.first { $0.typeName.hasSuffix(".HMRSnap_Toggle") }
         #expect(outerSnap?.path == "")
         #expect(innerSnap?.path == "0")
         #expect((innerSnap?.state["on"] as? Bool) == true)

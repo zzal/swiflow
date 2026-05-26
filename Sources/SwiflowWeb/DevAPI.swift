@@ -102,8 +102,14 @@ enum DevAPI {
     private static func encodeStateForDisplay(_ state: [String: Any]) -> JSValue {
         let obj = JSObject.global.Object.function!.new()
         for (k, v) in state {
-            // Bool MUST be checked before Int (Swift bridges Bool to NSNumber).
-            if let b = v as? Bool {
+            // Phase 15: same shape as HMRBridge.encodeStateMap — snapshot
+            // values are concrete primitives or HMRNilSentinel; raw
+            // Optional<T>.none never reaches us (the @Component macro
+            // normalizes it at the source). Bool before Int because Swift
+            // bridges Bool to NSNumber.
+            if v is HMRNilSentinel {
+                obj[k] = .null
+            } else if let b = v as? Bool {
                 obj[k] = .boolean(b)
             } else if let s = v as? String {
                 obj[k] = .string(s)
@@ -111,19 +117,6 @@ enum DevAPI {
                 obj[k] = .number(Double(i))
             } else if let d = v as? Double {
                 obj[k] = .number(d)
-            } else {
-                let mirror = Mirror(reflecting: v)
-                if mirror.displayStyle == .optional {
-                    if mirror.children.isEmpty {
-                        obj[k] = .null
-                    } else {
-                        let payload = mirror.children.first!.value
-                        if let b = payload as? Bool { obj[k] = .boolean(b) }
-                        else if let s = payload as? String { obj[k] = .string(s) }
-                        else if let i = payload as? Int { obj[k] = .number(Double(i)) }
-                        else if let d = payload as? Double { obj[k] = .number(d) }
-                    }
-                }
             }
         }
         return .object(obj)

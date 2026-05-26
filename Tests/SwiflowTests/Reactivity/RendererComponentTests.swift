@@ -125,6 +125,12 @@ struct OnDisappearTests {
 
 // MARK: - Scheduler coalescing contract
 
+@MainActor @Component
+private final class RC_Counter {
+    @State var n: Int = 0
+    var body: VNode { .text("n=\(n)") }
+}
+
 @Suite("RAFScheduler contract (SyncScheduler used as stand-in)")
 @MainActor
 struct SchedulerCoalescingTests {
@@ -136,11 +142,6 @@ struct SchedulerCoalescingTests {
     // RAFScheduler-specific behaviors (rAF deduplication, one-callback-per-
     // flush semantics) are exercised by the WASM-side e2e harness.
 
-    final class Counter: Component {
-        @State var n: Int = 0
-        var body: VNode { .text("n=\(n)") }
-    }
-
     @Test("SyncScheduler marks dirty exactly once per unique component regardless of mutation count")
     func deduplicatesMarksForSameComponent() {
         var renderCount = 0
@@ -148,10 +149,10 @@ struct SchedulerCoalescingTests {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
-        let v = VNode.component(.init(Counter.self) { Counter() })
+        let v = VNode.component(.init(RC_Counter.self) { RC_Counter() })
         let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers, scheduler: scheduler)
 
-        let counter = result.newMountTree.component?.instance as? Counter
+        let counter = result.newMountTree.component?.instance as? RC_Counter
         #expect(counter != nil)
 
         // Mark the same component dirty three times before any flush.
@@ -170,10 +171,10 @@ struct SchedulerCoalescingTests {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
-        let v = VNode.component(.init(Counter.self) { Counter() })
+        let v = VNode.component(.init(RC_Counter.self) { RC_Counter() })
         let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers, scheduler: scheduler)
 
-        let counter = result.newMountTree.component?.instance as? Counter
+        let counter = result.newMountTree.component?.instance as? RC_Counter
         let any = result.newMountTree.component
 
         counter?.n = 7
@@ -190,10 +191,10 @@ struct SchedulerCoalescingTests {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
-        let v = VNode.component(.init(Counter.self) { Counter() })
+        let v = VNode.component(.init(RC_Counter.self) { RC_Counter() })
         let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers, scheduler: nil)
 
-        let counter = result.newMountTree.component?.instance as? Counter
+        let counter = result.newMountTree.component?.instance as? RC_Counter
         counter?.n = 99  // must not crash, no scheduler to call
         #expect(counter?.n == 99)
     }

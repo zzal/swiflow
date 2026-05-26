@@ -1,7 +1,7 @@
 /// Conforms a `final class` to `Component` and emits the
 /// `_ComponentRuntime` runtime infrastructure: stored properties for
 /// owner/scheduler refs, the `bind(owner:scheduler:)` hook, and a
-/// `stateCells` array describing each `@MacroState`-decorated member.
+/// `stateCells` array describing each `@State`-decorated member.
 @attached(extension, conformances: Component, _ComponentRuntime)
 @attached(member, names:
     named(runtimeOwner),
@@ -23,6 +23,6 @@ public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "
 ///   `runtimeScheduler`) that `@State`'s `didSet` writes through.
 /// - Cannot declare its own `didSet`. Use a regular `var` and a method
 ///   if you need observation side-effects.
-@attached(accessor)
+@attached(accessor, names: named(didSet))
 @attached(peer, names: arbitrary)
-public macro MacroState() = #externalMacro(module: "SwiflowMacrosPlugin", type: "StateMacro")
+public macro State() = #externalMacro(module: "SwiflowMacrosPlugin", type: "StateMacro")

@@ -5,8 +5,8 @@ import Swiflow
 
 // Minimal inline component used by Task 2–4 tests.
 // Expanded to full Counter + SignIn in Task 5.
-@MainActor
-private final class MinimalCounter: Component {
+@MainActor @Component
+private final class MinimalCounter {
     @State var count: Int = 0
     @State var label: String = "Swiflow"
 
@@ -21,8 +21,8 @@ private final class MinimalCounter: Component {
     }
 }
 
-@MainActor
-private final class Counter: Component {
+@MainActor @Component
+private final class Counter {
     @State var count: Int = 0
     @State var name: String = "Swiflow"
     @State var showToast: Bool = false
@@ -40,8 +40,8 @@ private final class Counter: Component {
     }
 }
 
-@MainActor
-private final class SignIn: Component {
+@MainActor @Component
+private final class SignIn {
     @State var email: String = ""
     @State var password: String = ""
     @State var emailTouched: Bool = false
@@ -91,9 +91,9 @@ private final class SignIn: Component {
     }
 }
 
-@Component
+@MainActor @Component
 private final class PropHost {
-    @State var text = "hello"
+    @State var text: String = "hello"
     var body: VNode {
         input(.prop("value", .string(text)))
     }
@@ -101,7 +101,7 @@ private final class PropHost {
 
 @MainActor @Component
 private final class SelectHost {
-    @State var selection = "opt1"
+    @State var selection: String = "opt1"
 
     var body: VNode {
         div {

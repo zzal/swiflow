@@ -262,10 +262,10 @@ enum Templates {
         /// - Reset button restores initial values
         @MainActor @Component
         final class SignIn {
-            @State var email    = ""
-            @State var password = ""
-            @State var ctrl     = FormController()
-            @State var submitted = false
+            @State var email: String    = ""
+            @State var password: String = ""
+            @State var ctrl: FormController = FormController()
+            @State var submitted: Bool  = false
 
             var body: VNode {
                 let em = Field("email",    $email,    $ctrl, .required(), .email)

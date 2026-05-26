@@ -11,7 +11,8 @@
 ///
 /// On the **decode path** (JS → Swift): produced by `HMRBridge.decodeStateMap`
 /// when a JS `null` arrives for a known Optional field; consumed by
-/// `HMRWalker.applyRestore`, routed to `_hmrRestoreNil()`.
+/// `HMRWalker.applyRestore`, routed to the macro-emitted
+/// `StateCell.restoreNil` closure.
 ///
 /// On the **encode path** (Swift → JS): emitted by macro-generated
 /// `snapshot` closures when an Optional `@State` field is `.none` —
@@ -31,11 +32,12 @@ public struct HMRNilSentinel: Sendable {
 /// tree. Snapshot arrays are produced by `HMRWalker.snapshot(from:)`
 /// and consumed by `HMRWalker.applyRestore(...)`.
 ///
-/// `state[fieldName]` is the raw `Any` value pulled from a
-/// `StateWireable._hmrSnapshotValue()` call. The JS bridge later
-/// encodes the supported primitive subset; values that don't make
-/// it across the bridge are simply absent on restore (the field
-/// falls back to the declared initial value, with a debug log).
+/// `state[fieldName]` is the raw `Any` value produced by a state
+/// cell's `snapshot(of:)` closure (macro-emitted by `@Component`).
+/// The JS bridge later encodes the supported primitive subset; values
+/// that don't make it across the bridge are simply absent on restore
+/// (the field falls back to the declared initial value, with a debug
+/// log).
 package struct ComponentSnapshot {
     package let path: String
     /// Fully-qualified type name produced by `String(reflecting:)`,
@@ -97,12 +99,13 @@ package enum HMRRestoreInstall {
 
 /// Mount-tree HMR helpers. The walker traverses a `MountNode` tree
 /// and produces snapshots; the restore applier reads a snapshot
-/// index back into freshly-instantiated Components via Mirror.
+/// index back into freshly-instantiated Components.
 ///
 /// All functions are pure with respect to the tree shape — they
 /// don't mutate `MountNode` or `Component` instances. The restore
-/// applier writes through `StateWireable._hmrRestore(_:)`, which is
-/// idempotent and safe to call multiple times.
+/// applier writes through each `StateCell`'s `restore` closure
+/// (macro-emitted), which is idempotent and safe to call multiple
+/// times.
 @MainActor
 package enum HMRWalker {
 
@@ -160,14 +163,15 @@ package enum HMRWalker {
         }
 
         var stateMap: [String: Any] = [:]
-        let mirror = Mirror(reflecting: instance)
-        for child in mirror.children {
-            guard let label = child.label else { continue }
-            guard let wireable = child.value as? StateWireable else { continue }
-            // Property-wrapper-backed labels are `_count`, `_label`, etc.
-            // Strip the leading underscore to recover the user-visible name.
-            let fieldName = label.hasPrefix("_") ? String(label.dropFirst()) : label
-            stateMap[fieldName] = wireable._hmrSnapshotValue()
+        // Phase 15: snapshot values come from `_ComponentRuntime.stateCells`
+        // — an array of typed StateCell descriptors emitted by the
+        // `@Component` macro. Hand-rolled `Component` conformances that
+        // don't adopt `_ComponentRuntime` produce an empty state map,
+        // which is exactly right (they have no `@State` to record).
+        if let runtime = instance as? any _ComponentRuntime {
+            for cell in type(of: runtime).stateCells {
+                stateMap[cell.name] = cell.snapshot(of: runtime)
+            }
         }
 
         return ComponentSnapshot(path: path, typeName: typeName, key: key, state: stateMap)
@@ -197,8 +201,9 @@ package enum HMRWalker {
     /// (Diff's mount path) is responsible for supplying both.
     ///
     /// State fields whose decoded value is `HMRNilSentinel` are routed to
-    /// `_hmrRestoreNil()` instead of `_hmrRestore(_:)` — this covers the
-    /// JS-bridge path where `Optional.none` becomes JS `null` then back.
+    /// the cell's `restoreNil` closure instead of `restore(value:)` — this
+    /// covers the JS-bridge path where `Optional.none` becomes JS `null`
+    /// then back.
     package static func applyRestore(
         index: [SnapshotKey: [String: Any]],
         to component: AnyComponent,
@@ -210,22 +215,18 @@ package enum HMRWalker {
         let lookupKey = SnapshotKey(path: path, typeName: typeName, key: key)
         guard let stateMap = index[lookupKey] else { return }
 
-        let mirror = Mirror(reflecting: instance)
-        for child in mirror.children {
-            guard let label = child.label else { continue }
-            guard let wireable = child.value as? StateWireable else { continue }
-            let fieldName = label.hasPrefix("_") ? String(label.dropFirst()) : label
-            guard let newValue = stateMap[fieldName] else { continue }
-            let ok: Bool
-            if newValue is HMRNilSentinel {
-                // JS `null` decoded as sentinel — restore Optional to .none.
-                ok = wireable._hmrRestoreNil()
-            } else {
-                ok = wireable._hmrRestore(newValue)
-            }
+        // Phase 15: dispatch through `_ComponentRuntime.stateCells`. Plain
+        // `Component` conformances (no `@Component` macro) have no cells
+        // to restore — skip silently.
+        guard let runtime = instance as? any _ComponentRuntime else { return }
+        for cell in type(of: runtime).stateCells {
+            guard let newValue = stateMap[cell.name] else { continue }
+            let ok = newValue is HMRNilSentinel
+                ? cell.restoreNil(on: runtime)
+                : cell.restore(on: runtime, value: newValue)
             if !ok {
                 swiflowDiagnostic(
-                    "HMR restore: type mismatch on \(typeName).\(fieldName) at path '\(path)'. Field reset to its declared initial value."
+                    "HMR restore: type mismatch on \(typeName).\(cell.name) at path '\(path)'. Field reset to its declared initial value."
                 )
             }
         }

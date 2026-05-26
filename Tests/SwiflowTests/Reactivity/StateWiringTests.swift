@@ -2,15 +2,16 @@
 import Testing
 @testable import Swiflow
 
-@Suite("@State owner wiring via Mirror")
+@MainActor @Component
+private final class SW_Counter {
+    @State var n: Int = 0
+    @State var label: String = "hi"
+    var body: VNode { .text("\(label)=\(n)") }
+}
+
+@Suite("@State owner wiring via _ComponentRuntime.bind")
 @MainActor
 struct StateWiringTests {
-
-    final class Counter: Component {
-        @State var n: Int = 0
-        @State var label: String = "hi"
-        var body: VNode { .text("\(label)=\(n)") }
-    }
 
     final class CountingScheduler: Scheduler {
         var markCount = 0
@@ -28,7 +29,7 @@ struct StateWiringTests {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
 
-        let v = VNode.component(.init(Counter.self) { Counter() })
+        let v = VNode.component(.init(SW_Counter.self) { SW_Counter() })
         let result = diff(
             mounted: nil,
             next: v,
@@ -37,7 +38,7 @@ struct StateWiringTests {
             scheduler: scheduler
         )
 
-        let counter = result.newMountTree.component?.instance as? Counter
+        let counter = result.newMountTree.component?.instance as? SW_Counter
         #expect(counter != nil)
         #expect(scheduler.markCount == 0, "Mount itself should not mark anything")
 
@@ -52,7 +53,7 @@ struct StateWiringTests {
     func noSchedulerSilent() {
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
-        let v = VNode.component(.init(Counter.self) { Counter() })
+        let v = VNode.component(.init(SW_Counter.self) { SW_Counter() })
         let result = diff(
             mounted: nil,
             next: v,
@@ -60,7 +61,7 @@ struct StateWiringTests {
             handlers: handlers,
             scheduler: nil
         )
-        let counter = result.newMountTree.component?.instance as? Counter
+        let counter = result.newMountTree.component?.instance as? SW_Counter
         counter?.n = 99  // must not crash
         #expect(counter?.n == 99)
     }

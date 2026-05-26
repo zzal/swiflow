@@ -4,7 +4,7 @@ import XCTest
 @testable import SwiflowMacrosPlugin
 
 private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
-    "MacroState": StateMacro.self,
+    "State": StateMacro.self,
 ]
 
 final class StateMacroTests: XCTestCase {
@@ -14,7 +14,7 @@ final class StateMacroTests: XCTestCase {
         assertMacroExpansion(
             """
             final class Counter {
-                @MacroState var count: Int = 0
+                @State var count: Int = 0
             }
             """,
             expandedSource: """
@@ -48,7 +48,7 @@ final class StateMacroTests: XCTestCase {
         assertMacroExpansion(
             """
             final class Counter {
-                @MacroState var maybeId: Int? = nil
+                @State var maybeId: Int? = nil
             }
             """,
             expandedSource: """
@@ -77,12 +77,12 @@ final class StateMacroTests: XCTestCase {
         )
     }
 
-    // Test 3: User-defined didSet on a @MacroState var → diagnostic.
+    // Test 3: User-defined didSet on a @State var → diagnostic.
     func testUserDidSetIsRejected() {
         assertMacroExpansion(
             """
             final class Counter {
-                @MacroState var count: Int = 0 {
+                @State var count: Int = 0 {
                     didSet { print("user") }
                 }
             }
@@ -109,7 +109,7 @@ final class StateMacroTests: XCTestCase {
         assertMacroExpansion(
             """
             final class Counter {
-                @MacroState let count: Int = 0
+                @State let count: Int = 0
             }
             """,
             expandedSource: """
@@ -132,7 +132,7 @@ final class StateMacroTests: XCTestCase {
         assertMacroExpansion(
             """
             final class Counter {
-                @MacroState var count = 0
+                @State var count = 0
             }
             """,
             expandedSource: """
