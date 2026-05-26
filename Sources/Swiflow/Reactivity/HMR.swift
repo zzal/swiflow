@@ -7,8 +7,6 @@
 // `Sources/SwiflowWeb/HMR/HMRBridge.swift` (Task E) is a thin
 // marshalling layer over these types.
 
-import Foundation
-
 /// Sentinel placed in a decoded state map when the corresponding JS value
 /// was `null`. Signals that the `@State` field was `Optional.none` at
 /// snapshot time and should be restored to nil rather than left at the

@@ -57,6 +57,7 @@ struct URLSanitizerTests {
     @Test("Rejects javascript: encoded with HTML entities")
     func rejectsJavascriptHTMLEntities() {
         #expect(URLSanitizer.sanitize("javascript&#58;alert(1)") == nil)
+        #expect(URLSanitizer.sanitize("javascript&#x3a;alert(1)") == nil)
         #expect(URLSanitizer.sanitize("javascript&#x3A;alert(1)") == nil)
     }
 

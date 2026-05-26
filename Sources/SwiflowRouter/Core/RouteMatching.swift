@@ -1,4 +1,5 @@
 // Sources/SwiflowRouter/Core/RouteMatching.swift
+import Foundation
 import Swiflow
 
 /// Walks `routes` depth-first, returns the first matching route's VNode.

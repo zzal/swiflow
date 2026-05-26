@@ -1,7 +1,5 @@
 // Sources/Swiflow/Reactivity/URLSanitizer.swift
 
-import Foundation
-
 /// Validates and sanitizes URL values destined for the four URL-bearing
 /// HTML attributes (`href`, `src`, `action`, `formaction`). Returns `nil`
 /// for any value that fails the allowlist; callers (the DSL fold step)
@@ -79,9 +77,54 @@ public enum URLSanitizer {
     /// literal — DSL callers pass Swift strings, not HTML text, so
     /// only the exact obfuscations a hand-crafted attack would use
     /// need to be normalised.
+    ///
+    /// stdlib-only — no Foundation dep. Single-pass scan with a small
+    /// state machine.
     private static func decodeHTMLColonEntities(_ s: String) -> String {
-        s.replacingOccurrences(of: "&#58;", with: ":")
-         .replacingOccurrences(of: "&#x3a;", with: ":", options: .caseInsensitive)
+        guard s.contains("&") else { return s }   // fast path: nothing to do
+        var out = ""
+        out.reserveCapacity(s.count)
+        var i = s.startIndex
+        while i < s.endIndex {
+            if matches(s, at: i, pattern: "&#58;") {
+                out.append(":")
+                i = s.index(i, offsetBy: "&#58;".count)
+            } else if matchesCaseInsensitive(s, at: i, pattern: "&#x3a;") {
+                out.append(":")
+                i = s.index(i, offsetBy: "&#x3a;".count)
+            } else {
+                out.append(s[i])
+                i = s.index(after: i)
+            }
+        }
+        return out
+    }
+
+    /// True if `s` has `pattern` as an exact substring starting at `i`.
+    private static func matches(_ s: String, at i: String.Index, pattern: String) -> Bool {
+        var si = i
+        var pi = pattern.startIndex
+        while pi < pattern.endIndex {
+            guard si < s.endIndex, s[si] == pattern[pi] else { return false }
+            si = s.index(after: si)
+            pi = pattern.index(after: pi)
+        }
+        return true
+    }
+
+    /// Same as `matches`, but ASCII-case-insensitive (pattern lowercased; input
+    /// folded per-character). Adequate for the two hex entities we care about.
+    private static func matchesCaseInsensitive(_ s: String, at i: String.Index, pattern: String) -> Bool {
+        var si = i
+        var pi = pattern.startIndex
+        while pi < pattern.endIndex {
+            guard si < s.endIndex else { return false }
+            let inputLower = Character(s[si].lowercased())
+            guard inputLower == pattern[pi] else { return false }
+            si = s.index(after: si)
+            pi = pattern.index(after: pi)
+        }
+        return true
     }
 
     private static func extractScheme(_ s: String) -> String? {
