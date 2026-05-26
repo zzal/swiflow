@@ -50,6 +50,26 @@ public extension Component {
     static var exitDuration: Double? { nil }
 }
 
+/// Framework-runtime adoption point for `@Component`-decorated classes.
+/// The macro emits the conformance + members. Hand-rolled `Component`
+/// implementations (test mocks, stubs) can skip it — they just don't
+/// get HMR wiring or state-cell dispatch, which is the right default
+/// for code outside the macro's contract.
+///
+/// The leading underscore on the protocol name carries the
+/// framework-internal signal once for the whole surface; members inside
+/// have clean, unprefixed names.
+@MainActor
+public protocol _ComponentRuntime: Component {
+    /// Descriptors for each `@State` cell on this type. Macro-emitted.
+    static var stateCells: [any AnyStateCell] { get }
+
+    /// Installs the owner + scheduler refs the synthesized `didSet`
+    /// blocks call into. One call per instance per mount, not one per
+    /// state cell. Macro-emitted.
+    func bind(owner: AnyComponent, scheduler: Scheduler)
+}
+
 /// Type-erased reference to a `Component`. Stored on `MountNode` so the
 /// mount tree can hold heterogeneous component instances without
 /// conditional-conformance gymnastics. `typeID` is the identity used by the
