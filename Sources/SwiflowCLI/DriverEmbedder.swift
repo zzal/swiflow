@@ -8,34 +8,38 @@
 import Foundation
 
 enum DriverEmbedder {
-    /// Produces the Swift source for `EmbeddedDriver.swift` that wraps the
-    /// given JS driver source as a raw string literal.
+    /// Produces the Swift source for `EmbeddedDriver.swift` that wraps both
+    /// the JS driver source and the service-worker source as raw string literals.
     ///
     /// We use Swift's extended-delimiter raw string (`#"""..."""#`) so that
     /// any quotes, backslashes, or string-interpolation markers in the JS
     /// source pass through untouched. The JS driver currently contains
     /// neither `"""#` nor `#"""`, but defensively bumping to `##"""..."""##`
     /// would be wise if a future JS edit ever introduced one.
-    static func swiftSource(forJSSource js: String) -> String {
+    static func swiftSource(driverJS: String, swJS: String) -> String {
         // Swift multi-line strings strip ONE newline immediately after the
         // opening delimiter and ONE immediately before the closing delimiter.
         // So to round-trip a JS source `V` (which itself ends in `\n`)
         // verbatim, the literal between `#"""` and `"""#` must be
-        // `\n` + V + `\n`. We achieve that by interpolating `\(js)` on its
+        // `\n` + V + `\n`. We achieve that by interpolating `\(...)` on its
         // own line and putting `"""#` on the next line — the trailing `\n`
-        // of `js` lands inside the raw-string body, and the next `\n`
-        // (the one that ends the `\(js)` line) is the one Swift strips.
+        // of the source lands inside the raw-string body, and the next `\n`
+        // (the one that ends the interpolation line) is the one Swift strips.
         return """
         // GENERATED FILE — do not edit.
         //
         // Regenerate by running, from the repo root:
         //     swift scripts/embed-driver.swift
         //
-        // Source: js-driver/swiflow-driver.js
+        // Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js
 
         enum EmbeddedDriver {
             static let javascriptSource: String = #\"\"\"
-        \(js)
+        \(driverJS)
+        \"\"\"#
+
+            static let serviceWorkerSource: String = #\"\"\"
+        \(swJS)
         \"\"\"#
         }
         """ + "\n"

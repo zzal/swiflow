@@ -18,19 +18,24 @@ import Foundation
 let fm = FileManager.default
 let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
 
-let jsPath = cwd.appendingPathComponent("js-driver/swiflow-driver.js")
+let jsPath  = cwd.appendingPathComponent("js-driver/swiflow-driver.js")
+let swPath  = cwd.appendingPathComponent("js-driver/swiflow-sw.js")
 let outPath = cwd.appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
 
-guard fm.fileExists(atPath: jsPath.path) else {
-    FileHandle.standardError.write(Data("error: \(jsPath.path) not found. Run from repo root.\n".utf8))
-    exit(1)
+for path in [jsPath, swPath] {
+    guard fm.fileExists(atPath: path.path) else {
+        FileHandle.standardError.write(Data("error: \(path.path) not found. Run from repo root.\n".utf8))
+        exit(1)
+    }
 }
 
 let js: String
+let sw: String
 do {
     js = try String(contentsOf: jsPath, encoding: .utf8)
+    sw = try String(contentsOf: swPath, encoding: .utf8)
 } catch {
-    FileHandle.standardError.write(Data("error: failed to read \(jsPath.path): \(error)\n".utf8))
+    FileHandle.standardError.write(Data("error: failed to read source files: \(error)\n".utf8))
     exit(1)
 }
 
@@ -39,24 +44,27 @@ do {
 // must stay in sync with DriverEmbedder; the freshness test will catch
 // any drift between this script and DriverEmbedder.swiftSource.
 // Swift multi-line raw strings strip one \n after the opening delimiter
-// and one \n before the closing delimiter. The JS file already ends in
-// "\n", so to make EmbeddedDriver.javascriptSource round-trip the file
-// byte-for-byte we want the literal between #""" and """# to be
-// \n + <jsContents> + \n. That's accomplished by putting \(js) on its
-// own line and """# on the line below: the line break after \(js) is
-// the stripped trailing \n, and the JS's own final \n stays inside the
-// string body.
+// and one \n before the closing delimiter. Each JS file already ends in
+// "\n", so to round-trip each file byte-for-byte we want the literal
+// between #""" and """# to be \n + <contents> + \n. That's accomplished
+// by putting \(...) on its own line and """# on the line below: the line
+// break after the interpolation is the stripped trailing \n, and the JS's
+// own final \n stays inside the string body.
 let output = """
 // GENERATED FILE — do not edit.
 //
 // Regenerate by running, from the repo root:
 //     swift scripts/embed-driver.swift
 //
-// Source: js-driver/swiflow-driver.js
+// Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js
 
 enum EmbeddedDriver {
     static let javascriptSource: String = #\"\"\"
 \(js)
+\"\"\"#
+
+    static let serviceWorkerSource: String = #\"\"\"
+\(sw)
 \"\"\"#
 }
 """ + "\n"

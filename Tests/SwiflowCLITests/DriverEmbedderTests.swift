@@ -6,15 +6,18 @@ import Testing
 @Suite("Driver embedding")
 struct DriverEmbedderTests {
 
-    @Test("DriverEmbedder.swiftSource wraps the JS source in a Swift String constant")
+    @Test("DriverEmbedder.swiftSource wraps both JS sources in Swift String constants")
     func wrapsJSAsSwiftConstant() {
-        let js = "console.log('hello');"
-        let generated = DriverEmbedder.swiftSource(forJSSource: js)
+        let driverJS = "console.log('hello');"
+        let swJS     = "console.log('sw');"
+        let generated = DriverEmbedder.swiftSource(driverJS: driverJS, swJS: swJS)
         #expect(generated.contains("// GENERATED FILE — do not edit."))
         #expect(generated.contains("enum EmbeddedDriver"))
         #expect(generated.contains("static let javascriptSource: String"))
-        // The JS source must appear verbatim somewhere in the output.
-        #expect(generated.contains(js))
+        #expect(generated.contains("static let serviceWorkerSource: String"))
+        // Both JS sources must appear verbatim somewhere in the output.
+        #expect(generated.contains(driverJS))
+        #expect(generated.contains(swJS))
     }
 
     @Test("EmbeddedDriver.javascriptSource matches js-driver/swiflow-driver.js verbatim")
@@ -43,6 +46,19 @@ struct DriverEmbedderTests {
         #expect(EmbeddedDriver.javascriptSource.contains("goo.gle/wasm-debugging-extension"))
     }
 
+    @Test("EmbeddedDriver.serviceWorkerSource matches js-driver/swiflow-sw.js verbatim")
+    func swSourceIsFresh() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repoRoot = testFile
+            .deletingLastPathComponent()  // SwiflowCLITests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+        let path = repoRoot.appendingPathComponent("js-driver/swiflow-sw.js")
+        let onDisk = try String(contentsOf: path, encoding: .utf8)
+        #expect(EmbeddedDriver.serviceWorkerSource == onDisk,
+                "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
+    }
+
     @Test("EmbeddedDriver.swift is bit-for-bit what DriverEmbedder would produce")
     func embeddedDriverMatchesDriverEmbedderOutput() throws {
         // Catches drift between scripts/embed-driver.swift and
@@ -56,11 +72,14 @@ struct DriverEmbedderTests {
             .deletingLastPathComponent()  // repo root
         let jsURL = repoRoot
             .appendingPathComponent("js-driver/swiflow-driver.js")
+        let swURL = repoRoot
+            .appendingPathComponent("js-driver/swiflow-sw.js")
         let embeddedURL = repoRoot
             .appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
 
         let jsSource = try String(contentsOf: jsURL, encoding: .utf8)
-        let expectedEmbedded = DriverEmbedder.swiftSource(forJSSource: jsSource)
+        let swSource = try String(contentsOf: swURL, encoding: .utf8)
+        let expectedEmbedded = DriverEmbedder.swiftSource(driverJS: jsSource, swJS: swSource)
         let actualEmbedded = try String(contentsOf: embeddedURL, encoding: .utf8)
 
         #expect(actualEmbedded == expectedEmbedded, """
