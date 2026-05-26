@@ -218,10 +218,11 @@ struct BuildCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: error))
         }
 
-        // 5. Write swiflow-manifest.json alongside the PackageToJS output.
-        let outputDir = projectURL.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
-        try BuildCommand.writeManifest(outputDir: outputDir)
-        print("swiflow: manifest written → .build/plugins/PackageToJS/outputs/Package/swiflow-manifest.json")
+        // 5. Write swiflow-manifest.json at the project root, where swiflow-sw.js
+        //    expects to find it (new URL("swiflow-manifest.json", self.location.href)
+        //    resolves to the SW's own scope, which is the project root).
+        try BuildCommand.writeManifest(projectDir: projectURL)
+        print("swiflow: manifest written → swiflow-manifest.json")
 
         print("""
             swiflow: build complete.
@@ -231,18 +232,28 @@ struct BuildCommand: AsyncParsableCommand {
     }
 
     /// Builds `swiflow-manifest.json` from the PackageToJS output artifacts and
-    /// writes it to `outputDir/swiflow-manifest.json`.
+    /// writes it at `projectDir/swiflow-manifest.json` — alongside `swiflow-sw.js`,
+    /// where the service worker resolves it (the SW does
+    /// `new URL("swiflow-manifest.json", self.location.href)`, which resolves
+    /// against its own scope = the project root).
+    ///
+    /// Artifact URLs in the manifest carry the PackageToJS output-dir prefix
+    /// (`.build/plugins/PackageToJS/outputs/Package/`) so they resolve to the
+    /// real artifact paths under the same scope.
     ///
     /// Extracted from `run()` so tests can invoke the real production manifest-write
     /// path after running the build step independently — without having to re-invoke
     /// `BuildCommand.run()` and repeat the full WASM compilation.
-    package static func writeManifest(outputDir: URL) throws {
+    package static func writeManifest(projectDir: URL) throws {
+        let outputDir = projectDir.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
+        let outputPrefix = ".build/plugins/PackageToJS/outputs/Package/"
+
         let wasmURL = outputDir.appendingPathComponent("App.wasm")
         guard FileManager.default.fileExists(atPath: wasmURL.path) else {
             throw BuildCommandError.manifestArtifactMissing(wasmURL)
         }
         let wasmEntry = BundleManifest.Entry.computing(
-            url: "App.wasm",
+            url: outputPrefix + "App.wasm",
             from: try Data(contentsOf: wasmURL)
         )
 
@@ -253,14 +264,14 @@ struct BuildCommand: AsyncParsableCommand {
                 throw BuildCommandError.manifestArtifactMissing(artifactURL)
             }
             return BundleManifest.Entry.computing(
-                url: rel,
+                url: outputPrefix + rel,
                 from: try Data(contentsOf: artifactURL)
             )
         }
 
         let manifest = BundleManifest(version: "1", wasm: wasmEntry, runtime: runtimeEntries)
         try manifest.encoded().write(
-            to: outputDir.appendingPathComponent("swiflow-manifest.json"),
+            to: projectDir.appendingPathComponent("swiflow-manifest.json"),
             options: .atomic
         )
     }

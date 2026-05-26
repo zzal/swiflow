@@ -271,19 +271,26 @@ struct BuildCommandIntegrationTests {
         #expect(result.exitCode == 0)
 
         // 4. Write the manifest via the real production helper — not inline duplication.
-        //    BuildCommand.writeManifest(outputDir:) is the exact code path that
+        //    BuildCommand.writeManifest(projectDir:) is the exact code path that
         //    BuildCommand.run() calls in step 5; exercising it here gives the
         //    manifest-write block genuine test coverage.
-        let outputDir = projectPath.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
-        let manifestURL = outputDir.appendingPathComponent("swiflow-manifest.json")
-        try BuildCommand.writeManifest(outputDir: outputDir)
+        let manifestURL = projectPath.appendingPathComponent("swiflow-manifest.json")
+        try BuildCommand.writeManifest(projectDir: projectPath)
 
-        // 5. Verify the manifest on disk.
+        // 5. Verify the manifest on disk at the project root (where the SW
+        //    expects it). URLs in the manifest must include the PackageToJS
+        //    output-dir prefix so they resolve correctly against the SW's
+        //    scope (the project root).
         #expect(FileManager.default.fileExists(atPath: manifestURL.path))
         let data = try Data(contentsOf: manifestURL)
         let decoded = try JSONDecoder().decode(BundleManifest.self, from: data)
         #expect(decoded.wasm.url.hasSuffix("App.wasm"))
+        #expect(decoded.wasm.url.hasPrefix(".build/plugins/PackageToJS/outputs/Package/"))
         #expect(decoded.wasm.sha256.count == 64)
         #expect(decoded.runtime.count >= 4)
+        for entry in decoded.runtime {
+            #expect(entry.url.hasPrefix(".build/plugins/PackageToJS/outputs/Package/"),
+                    "manifest runtime URL must carry the output-dir prefix; got '\(entry.url)'")
+        }
     }
 }

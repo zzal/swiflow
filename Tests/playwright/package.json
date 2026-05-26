@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:sw": "playwright test --config=playwright.sw.config.ts",
     "install-browsers": "playwright install --with-deps chromium"
   },
   "devDependencies": {

@@ -16,6 +16,11 @@ const DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-e2e-"));
 const DEMO_PROJECT = join(DEMO_TMP, "demo");
 const ROUTER_DEMO_ROOT = join(REPO_ROOT, "examples", "RouterDemo");
 
+// SW cache e2e: scaffold a separate demo project and run a release build
+// so the service worker registers (SW is skipped in dev mode).
+const SW_DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-sw-e2e-"));
+const SW_DEMO_PROJECT = join(SW_DEMO_TMP, "demo");
+
 // Build swiflow CLI if not present. execFileSync (no shell) so paths
 // don't need quoting and there's no shell-interpolation surface.
 if (!existsSync(SWIFLOW)) {
@@ -33,6 +38,29 @@ execFileSync(
   ["init", "demo", "--path", DEMO_TMP, "--swiflow-source", REPO_ROOT],
   { stdio: "inherit" }
 );
+
+// ── SW cache e2e setup ────────────────────────────────────────────────────────
+// NOTE: this block is duplicated in playwright.sw.config.ts so that local
+// dev can run `npm run test:sw` without spinning up the Counter or
+// RouterDemo dev servers. Keep both copies in sync.
+// Service workers only register in release builds (dev mode skips registration
+// to avoid fighting HMR). We scaffold a separate demo and run `swiflow build`;
+// the build writes swiflow-manifest.json directly to the project root, where
+// the SW resolves it.
+console.log("Initialising SW e2e demo project...");
+execFileSync(
+  SWIFLOW,
+  ["init", "demo", "--path", SW_DEMO_TMP, "--swiflow-source", REPO_ROOT],
+  { stdio: "inherit" }
+);
+
+console.log("Running swiflow build for SW e2e demo (release WASM — this can take ~3 min)...");
+execFileSync(
+  SWIFLOW,
+  ["build", "--path", SW_DEMO_PROJECT],
+  { stdio: "inherit", cwd: SW_DEMO_PROJECT }
+);
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default defineConfig({
   testDir: ".",
@@ -56,6 +84,20 @@ export default defineConfig({
       url: "http://127.0.0.1:3001",
       reuseExistingServer: false,
       timeout: 300_000,
+    },
+    {
+      // Release build served by python3's built-in HTTP server. The build
+      // already ran synchronously above (at config-load time); this entry
+      // just brings up the static server so Playwright can probe its
+      // readiness via the `url` field.
+      // python3 is used rather than npx http-server / npx serve because
+      // python3 is universally available on macOS and CI (no npm install
+      // required), and the zero-dependency option is always preferred.
+      command: "python3 -m http.server 3002",
+      cwd: SW_DEMO_PROJECT,
+      url: "http://127.0.0.1:3002",
+      reuseExistingServer: false,
+      timeout: 30_000,  // static server starts instantly; generous for CI
     },
   ],
   projects: [
