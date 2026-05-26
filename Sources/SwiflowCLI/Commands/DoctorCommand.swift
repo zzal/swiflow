@@ -10,7 +10,7 @@ import ArgumentParser
 
 // MARK: - ToolStatus
 
-enum ToolStatus: Equatable {
+internal enum ToolStatus {
     case found(String)  // detail: version string or identifier; opaque to callers
     case missing
 }
@@ -35,7 +35,7 @@ struct DoctorReport {
         lines.append(row(name: "swift", status: swift,
                          hint: "Install Swift 6.3 from https://swift.org/install/"))
         lines.append(row(name: "wasm-sdk", status: wasmSDK,
-                         hint: "swift sdk install https://download.swift.org/swift-6.3-release/wasm-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_wasm.artifactbundle.tar.gz --checksum 9fa4016ee632c7e9e906608ec3b55cf13dfc4dff44e47574c5af58064dc33fd9"))
+                         hint: "Install the WebAssembly Swift SDK 6.3. See README.md → Prerequisites for the current `swift sdk install …` command (the checksum changes per release)."))
         lines.append(row(name: "wasm-opt", status: wasmOpt,
                          hint: "brew install binaryen   # required for release builds"))
         lines.append("")
@@ -104,7 +104,7 @@ struct DoctorCommand: AsyncParsableCommand {
         proc.arguments = [executable] + args
         let pipe = Pipe()
         proc.standardOutput = pipe
-        proc.standardError = Pipe()  // discard stderr
+        proc.standardError = FileHandle(forWritingAtPath: "/dev/null")  // discard stderr without buffering
         try proc.run()
         proc.waitUntilExit()
         guard proc.terminationStatus == 0 else {
