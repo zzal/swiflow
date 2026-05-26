@@ -21,6 +21,10 @@ describe("service worker", () => {
     const res = await ev.responded;
     assert.ok(res, "resolved Response must be truthy");
     assert.ok(res instanceof Object, "resolved value must be a Response-like object");
+    assert.ok(
+      typeof res.body === "string" && res.body.startsWith("cached:"),
+      "must be the cached response body, not a network fallback"
+    );
   });
 
   test("fetch falls through for non-manifest URLs", async () => {
