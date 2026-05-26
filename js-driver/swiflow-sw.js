@@ -3,8 +3,8 @@
 // Swiflow service worker. Pre-caches the WASM + JS runtime keyed by
 // content hash so repeat visits transfer ~0 bytes. Two caches:
 //
-//   swiflow-runtime-v<sha8>  — JS runtime files (index.js, runtime.js, etc.)
-//   swiflow-wasm-v<sha8>     — App.wasm
+//   swiflow-runtime-v<hash8>  — JS runtime files (index.js, runtime.js, etc.)
+//   swiflow-wasm-v<sha8>      — App.wasm
 //
 // Split so a Swift-source edit (new App.wasm) doesn't invalidate the JS
 // runtime cache, and vice versa.
@@ -22,15 +22,21 @@ function cacheNameFor(prefix, sha256) {
   return `${prefix}-v${sha256.slice(0, 8)}`;
 }
 
+// FNV-1a 32-bit fold over a string. Synchronous, deterministic,
+// good enough for 8-char cache-name tags.
+function shortHash(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
 function runtimeCacheNameFor(manifest) {
-  // Hash the concatenation of runtime entries' hashes for a stable name.
+  // Fold ALL runtime entries' hashes so any file change rotates the name.
   const joined = manifest.runtime.map(e => e.sha256).join(":");
-  // SubtleCrypto isn't available synchronously and we want this name
-  // computable from manifest data alone. Use the first runtime entry's
-  // sha as the bucket key — it's deterministic given the manifest.
-  // Collision: only if the same file content changes within the same
-  // runtime set, which means it was meant to change.
-  return cacheNameFor("swiflow-runtime", manifest.runtime[0]?.sha256 ?? "00000000");
+  return `swiflow-runtime-v${shortHash(joined)}`;
 }
 
 async function loadManifest() {
@@ -44,8 +50,12 @@ async function precache(manifest) {
   const runtimeCacheName = runtimeCacheNameFor(manifest);
   const wasmCache = await caches.open(wasmCacheName);
   const runtimeCache = await caches.open(runtimeCacheName);
-  await wasmCache.addAll([manifest.wasm.url]);
-  await runtimeCache.addAll(manifest.runtime.map(e => e.url));
+  // Resolve to absolute URLs so caches.match() (exact-URL semantics in
+  // real browsers) hits correctly when requests arrive with full origins.
+  const wasmAbs = new URL(manifest.wasm.url, self.location.href).href;
+  const runtimeAbs = manifest.runtime.map(e => new URL(e.url, self.location.href).href);
+  await wasmCache.addAll([wasmAbs]);
+  await runtimeCache.addAll(runtimeAbs);
   return { wasmCacheName, runtimeCacheName };
 }
 
@@ -70,6 +80,8 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
+    // Re-load the manifest if this SW process was evicted since install
+    // (browsers can evict idle SWs between lifecycle phases).
     const manifest = self.__swiflowManifest ?? await loadManifest();
     self.__swiflowManifest = manifest;
     const wasmCacheName = cacheNameFor("swiflow-wasm", manifest.wasm.sha256);
@@ -79,22 +91,15 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
+// Caches-first, network-fallback. Works because:
+//   1. precache() stores absolute URLs, matching the full request URL exactly.
+//   2. caches.match() searches all named caches — no manifest needed here.
+//   3. Non-Swiflow URLs are not in any cache; they fall through to network.
 self.addEventListener("fetch", (event) => {
-  const url = event.request.url;
-  // Match against manifest URLs (suffix match — pages may serve from
-  // any path prefix, manifest stores the path as written).
-  const manifest = self.__swiflowManifest;
-  if (!manifest) return; // not yet installed; pass through
-
-  const matchesWasm = url.endsWith(manifest.wasm.url) || url.includes(manifest.wasm.url);
-  const matchesRuntime = manifest.runtime.some(e => url.endsWith(e.url) || url.includes(e.url));
-  if (!matchesWasm && !matchesRuntime) return;
-
+  if (event.request.method !== "GET") return;
   event.respondWith((async () => {
     const cached = await caches.match(event.request);
-    if (cached) return cached;
-    const fresh = await fetch(event.request);
-    return fresh;
+    return cached ?? fetch(event.request);
   })());
 });
 

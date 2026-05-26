@@ -15,15 +15,9 @@ const swPath = join(here, "..", "swiflow-sw.js");
 class MockCache {
   constructor() { this.store = new Map(); }
   async match(req) {
+    // Exact-URL match only — mirrors real browser Cache API semantics.
     const url = typeof req === "string" ? req : req.url;
-    if (this.store.has(url)) return this.store.get(url);
-    // Also match by suffix — the cache stores manifest-relative paths
-    // (e.g. "/.build/.../App.wasm") but requests arrive with a full
-    // origin (e.g. "https://x.test/.build/.../App.wasm").
-    for (const [key, val] of this.store) {
-      if (url.endsWith(key) || url.includes(key)) return val;
-    }
-    return undefined;
+    return this.store.get(url);
   }
   async put(req, res) { this.store.set(typeof req === "string" ? req : req.url, res); }
   async addAll(urls) {
