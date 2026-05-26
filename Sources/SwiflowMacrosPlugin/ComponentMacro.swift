@@ -72,10 +72,11 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             mod.name.tokenKind == .keyword(.public) ||
             mod.name.tokenKind == .keyword(.open)
         }
-        let accessPrefix = isPublic ? "public " : ""
 
-        // Scan members for @MacroState or @State (the migration window
-        // accepts both — Task 6 will normalize to @State).
+        // Scan members for @MacroState or @State. The scanner accepts
+        // both during the Phase 15 migration window (Task 4 introduced
+        // @MacroState; Task 6 normalized to @State). Both forms produce
+        // identical expansion.
         var cellEntries: [String] = []
         for member in classDecl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
