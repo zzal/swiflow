@@ -254,6 +254,12 @@
    *
    * No intermediate writes happen when Content-Length is missing — only
    * the final "100" — because percent can't be computed without the total.
+   *
+   * @throws {Error} on non-ok HTTP status, or when the underlying fetch
+   *                 or reader rejects (e.g., mid-stream network drop).
+   *                 On reader failure the reader is cancelled before the
+   *                 error propagates, so the underlying TCP connection
+   *                 is released rather than held until GC.
    */
   async function fetchWithProgress(url) {
     const res = await fetch(url);
@@ -269,16 +275,21 @@
     const chunks = [];
     let received = 0;
     const canReport = Number.isFinite(total) && total > 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.byteLength;
-      if (canReport) {
-        const pct = Math.floor((received / total) * 100);
-        document.documentElement.dataset.swiflowProgress =
-          String(Math.min(pct, 99));
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        if (canReport) {
+          const pct = Math.floor((received / total) * 100);
+          document.documentElement.dataset.swiflowProgress =
+            String(Math.min(pct, 99));
+        }
       }
+    } catch (err) {
+      try { await reader.cancel(); } catch (_) { /* already released */ }
+      throw err;
     }
     document.documentElement.dataset.swiflowProgress = "100";
     const body = new Blob(chunks, {

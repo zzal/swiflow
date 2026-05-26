@@ -156,3 +156,20 @@ test("fetchWithProgress re-throws on fetch failure without touching the attribut
     undefined
   );
 });
+
+test("fetchWithProgress throws on non-ok HTTP status with the status code in the message", async () => {
+  const { window, ctx } = setupDriver();
+  const fn = vm.runInContext("window.swiflow.__test_fetchWithProgress", ctx);
+
+  ctx.__nextResponse = new Response("not found", { status: 404 });
+  vm.runInContext(
+    "fetch = () => Promise.resolve(global.__nextResponse);",
+    ctx
+  );
+
+  await assert.rejects(() => fn("any://url"), /404/);
+  assert.equal(
+    window.document.documentElement.dataset.swiflowProgress,
+    undefined
+  );
+});
