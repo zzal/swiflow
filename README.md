@@ -13,9 +13,9 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 13e (Confidence Fixes) — closed 11 audit gaps across the public API, `@Environment`, the CLI, and Router test coverage. Components are declared with `@MainActor @Component final class Foo` (canonical pattern; the `@Component` macro adds the `Component` conformance, the `@MainActor` makes the class body isolated so `@MainActor`-typed DSL methods like `.on(.click)` resolve cleanly). `@ChildrenBuilder` emits actionable `Use text(…)` diagnostics for scalar types.
+**Status:** Phase 14b Track 1 (Service Worker Cache) — the WASM and JS runtime are now cached by content hash on the user's first visit, so visit #2 onward transfers ~0 bytes. The driver auto-registers the SW on release builds and skips it in `swiflow dev` to avoid fighting HMR. The driver also owns the dynamic `import()` of the PackageToJS entry — user `index.html` is one `<script>` tag lighter. Components remain `@MainActor @Component final class Foo`; `@ChildrenBuilder` still emits actionable `Use text(…)` diagnostics for scalar types.
 
-**What works today (Phase 13e):**
+**What works today (Phase 14b Track 1):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -40,7 +40,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
 - **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
 - **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 533 Swift tests across 104 suites + 15 JS driver tests (`node --test` against jsdom) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+- 540 Swift tests across 105 suites + 26 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
 **What's not in the box yet:**
 - **Component inspector / devtools** — Phase 9 (pending).
@@ -50,11 +50,15 @@ drives the roadmap to 1.0 across phases 6 through 13.
 
 **Costs you should know:**
 - **WASM bundle (Counter example, release):** ~59 MB raw / ~20 MB gzipped
-  on the wire. Order-of-magnitude larger than a Vite-built JS app — that's
-  the Swift-on-WASM tax. Exact numbers in
+  on the wire **on the first visit**. Order-of-magnitude larger than a
+  Vite-built JS app — that's the Swift-on-WASM tax. Exact numbers in
   [`docs/perf/bundle-baseline.json`](docs/perf/bundle-baseline.json); every
   PR runs `scripts/measure-bundle.sh` in CI and comments the diff. A >5%
   growth fails the build unless the PR carries the `bundle-size-skip` label.
+- **Repeat visits:** ~0 bytes. The service worker shipped in Phase 14b
+  caches the WASM and JS runtime by content hash, so visit #2 onward
+  serves from local cache until you rebuild. Auto-registers on release
+  builds; `swiflow dev` skips it so HMR isn't fighting a stale cache.
 - **Cold build:** ~80s (`swift package clean` then
   `swift package --swift-sdk <wasm-sdk> js -c release` from the
   example project).
@@ -67,7 +71,7 @@ drives the roadmap to 1.0 across phases 6 through 13.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 13e (Confidence Fixes) complete — 11 audit gaps closed across public API hygiene (`Patch`/`PatchPayload`/`PatchSerializer`/`HandleAllocator`/`MountNode` demoted to `package`; `TestNode.properties` no longer leaks `PropertyValue`), `@Environment` correctness (`EnvironmentValues: Equatable`; postfix `.environment()` modifier; VNode diff now detects env changes), CLI distribution readiness (`--swiflow-version` flag + `SwiflowDep` enum), and Router test coverage (`@Environment(\.router)` propagation across `embed {}` verified; Playwright URL/history test added). Also fixed a Phase 13d WASM cross-compile regression — `@Component` classes now require an explicit `@MainActor` because Swift 6 won't propagate isolation through a macro-emitted extension.
+**Status:** Phase 14b Track 1 (Service Worker Cache) complete — first visit unchanged at ~20 MB gzipped; repeat visits hit local cache. `swiflow build` now emits `swiflow-manifest.json` at the project root with SHA256s of each artifact; the SW splits cache namespaces between WASM and JS runtime so a Swift-source edit doesn't invalidate the JS runtime cache and vice versa. Track 2 (WASM trimming) and Track 3 (progress UI) follow. Phase 14a (Bundle Size CI) — `scripts/measure-bundle.sh` + `bundle-size` CI job now enforce a 5%-growth budget on every PR. Phase 13e (Confidence Fixes) complete — 11 audit gaps closed across public API hygiene (`Patch`/`PatchPayload`/`PatchSerializer`/`HandleAllocator`/`MountNode` demoted to `package`; `TestNode.properties` no longer leaks `PropertyValue`), `@Environment` correctness (`EnvironmentValues: Equatable`; postfix `.environment()` modifier; VNode diff now detects env changes), CLI distribution readiness (`--swiflow-version` flag + `SwiflowDep` enum), and Router test coverage (`@Environment(\.router)` propagation across `embed {}` verified; Playwright URL/history test added). Also fixed a Phase 13d WASM cross-compile regression — `@Component` classes now require an explicit `@MainActor` because Swift 6 won't propagate isolation through a macro-emitted extension.
 Phase 13d (Macro Diagnostics & @Component) introduced the macro and `@ChildrenBuilder` builder-block diagnostics guiding scalar types to `text(…)`. Phase 13c (Multi-Root & Unmount) added multiple independent component trees at different DOM selectors with clean resource release via `Swiflow.unmount(into: selector)`. Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays, and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
 Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
 (Bindings, Refs & Form Foundations).
@@ -139,7 +143,7 @@ design exploration.
 # WASM-SDK-gated E2E tests skip cleanly when no SDK is installed.
 swift test
 
-# JS driver: 15 jsdom-based unit tests for the driver opcodes + dev reload.
+# JS driver: 26 jsdom-based unit tests covering driver opcodes, dev reload, and service worker.
 (cd js-driver && npm test)
 ```
 
