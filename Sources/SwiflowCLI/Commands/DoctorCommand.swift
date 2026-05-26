@@ -20,10 +20,9 @@ internal enum ToolStatus {
 struct DoctorReport {
     let swift: ToolStatus
     let wasmSDK: ToolStatus
-    let wasmOpt: ToolStatus
 
     var exitCode: Int32 {
-        let allPresent = [swift, wasmSDK, wasmOpt].allSatisfy {
+        let allPresent = [swift, wasmSDK].allSatisfy {
             if case .missing = $0 { return false }
             return true
         }
@@ -36,8 +35,6 @@ struct DoctorReport {
                          hint: "Install Swift 6.3 from https://swift.org/install/"))
         lines.append(row(name: "wasm-sdk", status: wasmSDK,
                          hint: "Install the WebAssembly Swift SDK 6.3. See README.md → Prerequisites for the current `swift sdk install …` command (the checksum changes per release)."))
-        lines.append(row(name: "wasm-opt", status: wasmOpt,
-                         hint: "brew install binaryen   # required for release builds"))
         lines.append("")
         if exitCode == 0 {
             lines.append("All checks passed.")
@@ -68,8 +65,7 @@ struct DoctorCommand: AsyncParsableCommand {
     func run() async throws {
         let report = DoctorReport(
             swift: probeSwift(),
-            wasmSDK: probeWasmSDK(),
-            wasmOpt: probeBinary(named: "wasm-opt", versionArgs: ["--version"])
+            wasmSDK: probeWasmSDK()
         )
         print(report.summary)
         if report.exitCode != 0 {
@@ -89,13 +85,6 @@ struct DoctorCommand: AsyncParsableCommand {
             return .missing
         }
         return .found(String(line).trimmingCharacters(in: .whitespaces))
-    }
-
-    private func probeBinary(named name: String, versionArgs: [String]) -> ToolStatus {
-        guard let _ = try? captureOutput("which", [name]) else { return .missing }
-        guard let out = try? captureOutput(name, versionArgs) else { return .missing }
-        let firstLine = out.split(separator: "\n").first.map(String.init) ?? "unknown"
-        return .found(firstLine.trimmingCharacters(in: .whitespaces))
     }
 
     private func captureOutput(_ executable: String, _ args: [String]) throws -> String {

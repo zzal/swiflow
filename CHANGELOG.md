@@ -16,6 +16,44 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 14b — Track 2] — 2026-05-26
+
+**Stability:** Measurement and modest trim. No functional behaviour
+change. No Swift API moves.
+
+### Added
+- `swiflow doctor` subcommand — standalone toolchain audit. Checks
+  swift + the WASM SDK and prints install hints when anything is
+  missing.
+- `docs/perf/2026-05-26-wasm-bundle-audit.md` — baseline audit of
+  the HelloWorld WASM with section sizes, top-30 functions, attribution
+  buckets, and the reflection-disabled lower-bound measurement.
+
+### Changed
+- Release builds now compile with `-Osize -gnone` instead of `-O`,
+  shaving ~37 KB (0.21%) off the gzipped bundle.
+- `docs/perf/bundle-baseline.json` refreshed to the actual measured
+  baseline (18.2 MB gzipped); the previous figure (20.6 MB) predated
+  the current PackageToJS pipeline.
+
+### Investigated and dropped
+- `wasm-opt -Oz` post-processing — pre-flight measurement showed
+  0.06% gzipped savings because PackageToJS already runs `wasm-opt -O`
+  internally. Adding a required Binaryen dependency for marginal
+  reduction was the wrong trade.
+- `wasm-strip` name-section drop — PackageToJS already omits the
+  name section from the shipped artifact.
+
+### Audit conclusions
+- The dominant cost is the Apple-pre-compiled Swift stdlib + Foundation,
+  not user-code optimisation flags. Top-30 function attribution is
+  in the audit doc.
+- The next meaningful trim lever is removing the `Mirror` dependency
+  in `@State`, which would unlock `-disable-reflection-metadata`.
+  That's a post-1.0 API redesign, not a Track 2 follow-up.
+
+---
+
 ## [Phase 14b — Track 1] — 2026-05-26
 **Stability:** Stable for pre-1.0 usage. Auto-registered in release builds, skipped in `swiflow dev`.
 
