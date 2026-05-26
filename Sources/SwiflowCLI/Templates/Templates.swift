@@ -358,24 +358,10 @@ enum Templates {
           <body>
             <div id="app"></div>
 
-            <!-- Load the Swiflow driver BEFORE the WASM bootstrap so
-                 `window.swiflow` exists when App.main calls `Swiflow.render`. -->
+            <!-- The Swiflow driver script owns WASM initialisation.
+                 It dynamically imports the PackageToJS module and calls init()
+                 so no <script type="module"> block is needed here. -->
             <script src="swiflow-driver.js"></script>
-
-            <!--
-              JavaScriptKit 0.53's PackageToJS plugin (`swift package js`) emits a
-              ready-to-import ES module at .build/plugins/PackageToJS/outputs/Package/
-              that handles WASI + Swift runtime initialization. Build first:
-
-                  swift package --swift-sdk swift-6.3-RELEASE_wasm js -c release
-
-              then open index.html via a static server rooted at this directory
-              (so the relative .build path resolves).
-            -->
-            <script type="module">
-              import { init } from "./.build/plugins/PackageToJS/outputs/Package/index.js";
-              await init();
-            </script>
           </body>
         </html>
 
