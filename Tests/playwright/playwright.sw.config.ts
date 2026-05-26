@@ -57,7 +57,7 @@ execFileSync(
 
 export default defineConfig({
   testDir: ".",
-  testMatch: ["sw-cache.spec.ts"],
+  testMatch: ["sw-cache.spec.ts", "progress.spec.ts"],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
   use: {
