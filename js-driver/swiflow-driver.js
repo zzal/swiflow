@@ -245,6 +245,48 @@
     }
   }
 
+  /**
+   * Pre-fetch `url` and stream the body, reporting download progress to
+   * document.documentElement.dataset.swiflowProgress (a string "0".."100").
+   *
+   * Returns a Response over the accumulated bytes so the caller can hand
+   * it to PackageToJS's init({ module }) without re-fetching.
+   *
+   * No intermediate writes happen when Content-Length is missing — only
+   * the final "100" — because percent can't be computed without the total.
+   */
+  async function fetchWithProgress(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error("swiflow: fetch " + url + " failed (" + res.status + ")");
+    }
+    const total = parseInt(res.headers.get("Content-Length") || "", 10);
+    const reader = res.body && res.body.getReader ? res.body.getReader() : null;
+    if (!reader) {
+      document.documentElement.dataset.swiflowProgress = "100";
+      return res;
+    }
+    const chunks = [];
+    let received = 0;
+    const canReport = Number.isFinite(total) && total > 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      if (canReport) {
+        const pct = Math.floor((received / total) * 100);
+        document.documentElement.dataset.swiflowProgress =
+          String(Math.min(pct, 99));
+      }
+    }
+    document.documentElement.dataset.swiflowProgress = "100";
+    const body = new Blob(chunks, {
+      type: res.headers.get("Content-Type") || "application/wasm",
+    });
+    return new Response(body, { headers: res.headers, status: res.status });
+  }
+
   window.swiflow = {
     /** Called by Swift each frame with a JSArray of patch objects. */
     applyPatches: function (patches) {
@@ -501,6 +543,9 @@
 
   // Test seam — same logic, with explicit swiflowDev for jsdom tests.
   window.swiflow.__bootForTest = window.swiflow.__boot;
+
+  // Test-only handle. Production paths reference fetchWithProgress directly.
+  window.swiflow.__test_fetchWithProgress = fetchWithProgress;
 
   // Production boot: run on script-load, register SW, then dynamic-import
   // the PackageToJS entry. This used to be the user's HTML responsibility

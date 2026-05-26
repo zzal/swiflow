@@ -5,7 +5,7 @@
   "description": "Internal node:test + jsdom unit tests for swiflow-driver.js. Not published.",
   "type": "module",
   "scripts": {
-    "test": "node --test test/opcodes.test.js test/dev-reload.test.js test/sw.test.js test/sw-registration.test.js"
+    "test": "node --test test/opcodes.test.js test/dev-reload.test.js test/sw.test.js test/sw-registration.test.js test/progress.test.js"
   },
   "devDependencies": {
     "jsdom": "^25.0.0"
