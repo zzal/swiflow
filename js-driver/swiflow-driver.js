@@ -484,7 +484,10 @@
       const regs = await navigator.serviceWorker.getRegistrations();
       for (const reg of regs) {
         const url = (reg.active || reg.installing || reg.waiting)?.scriptURL ?? "";
-        if (!url.endsWith("/swiflow-sw.js") && !url.endsWith("swiflow-sw.js")) continue;
+        // scriptURL is always absolute per spec, so "/swiflow-sw.js" alone
+        // is correct. Don't fall back to the bare-suffix form: it would
+        // false-positive on a third-party SW named e.g. "my-swiflow-sw.js".
+        if (!url.endsWith("/swiflow-sw.js")) continue;
         try { await reg.unregister(); } catch (_) {}
       }
       return;

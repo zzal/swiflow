@@ -470,6 +470,75 @@ enum EmbeddedDriver {
 
     connect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Service worker registration + WASM entry ownership
+  // ---------------------------------------------------------------------------
+
+  // SW registration. Exposed on window.swiflow for testability; the
+  // production caller is the IIFE just below.
+  //
+  // swiflowDev: boolean — pass true in dev builds (same flag as SWIFLOW_DEV).
+  //
+  //   false → register swiflow-sw.js (production / release builds).
+  //   true  → unregister all SWs scoped to this page (aggressive but correct
+  //            in dev — HMR must not fight a stale cache from a prior release
+  //            build). Does NOT register a new SW.
+  window.swiflow.__boot = async function __boot({ swiflowDev }) {
+    if (!("serviceWorker" in navigator)) return;
+    if (swiflowDev) {
+      // Unregister any stale swiflow-sw.js SW so HMR isn't fighting a cache.
+      // Only SWs whose scriptURL ends with "swiflow-sw.js" are touched;
+      // any other SWs on the same origin (e.g. a PWA) are left intact.
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url = (reg.active || reg.installing || reg.waiting)?.scriptURL ?? "";
+        // scriptURL is always absolute per spec, so "/swiflow-sw.js" alone
+        // is correct. Don't fall back to the bare-suffix form: it would
+        // false-positive on a third-party SW named e.g. "my-swiflow-sw.js".
+        if (!url.endsWith("/swiflow-sw.js")) continue;
+        try { await reg.unregister(); } catch (_) {}
+      }
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("swiflow-sw.js");
+    } catch (e) {
+      console.warn("swiflow: service worker registration failed", e);
+    }
+  };
+
+  // Test seam — same logic, with explicit swiflowDev for jsdom tests.
+  window.swiflow.__bootForTest = window.swiflow.__boot;
+
+  // Production boot: run on script-load, register SW, then dynamic-import
+  // the PackageToJS entry. This used to be the user's HTML responsibility
+  // (via <script type="module">). The driver now owns it so the user's
+  // index.html only needs one <script> tag.
+  //
+  // Idempotency guard: if window.swiflow.__inited is already true when the
+  // boot IIFE runs, skip the import. This handles the one-time migration
+  // period where user HTML still has the old <script type="module"> block.
+  (async () => {
+    if (window.__SWIFLOW_SKIP_BOOT) return;
+    await window.swiflow.__boot({ swiflowDev: !!window.SWIFLOW_DEV });
+    if (window.swiflow.__inited) return;
+    window.swiflow.__inited = true;
+    try {
+      // Dynamic-import the PackageToJS entry. The path is conventional and
+      // matches what swiflow init's index.html template used to do inline.
+      const { init } = await import(
+        "./.build/plugins/PackageToJS/outputs/Package/index.js"
+      );
+      await init();
+    } catch (e) {
+      // Surface init failures loudly: the dev-error overlay is only
+      // populated by the WASM runtime, which never runs if the import
+      // itself fails. Without this log, a 404 on index.js or an init()
+      // throw leaves the page silently dead.
+      console.warn("swiflow: WASM init failed", e);
+    }
+  })();
 })();
 
 """#
