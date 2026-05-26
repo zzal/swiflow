@@ -17,6 +17,7 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case wasmSDKListFailed(exitCode: Int32, stderr: String?)
     case swiftPackageJSFailed(exitCode: Int32)
     case projectPathNotFound(URL)
+    case manifestArtifactMissing(URL)
 
     var description: String {
         switch self {
@@ -40,6 +41,8 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
             return "swift package js failed with exit code \(code). See output above."
         case .projectPathNotFound(let url):
             return "project path does not exist or is not a directory: \(url.path)"
+        case .manifestArtifactMissing(let url):
+            return "swiflow: manifest artifact missing after build: \(url.path)"
         }
     }
 }
@@ -214,6 +217,33 @@ struct BuildCommand: AsyncParsableCommand {
         } catch let error as BuildCommandError {
             throw ValidationError(String(describing: error))
         }
+
+        // 5. Write swiflow-manifest.json alongside the PackageToJS output.
+        let outputDir = projectURL.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
+        let wasmURL = outputDir.appendingPathComponent("App.wasm")
+        guard FileManager.default.fileExists(atPath: wasmURL.path) else {
+            throw ValidationError(String(describing: BuildCommandError.manifestArtifactMissing(wasmURL)))
+        }
+        let wasmEntry = BundleManifest.Entry.computing(
+            url: "App.wasm",
+            from: try Data(contentsOf: wasmURL)
+        )
+
+        let runtimeRelPaths = ["index.js", "instantiate.js", "runtime.js", "platforms/browser.js"]
+        let runtimeEntries: [BundleManifest.Entry] = try runtimeRelPaths.map { rel in
+            let artifactURL = outputDir.appendingPathComponent(rel)
+            guard FileManager.default.fileExists(atPath: artifactURL.path) else {
+                throw BuildCommandError.manifestArtifactMissing(artifactURL)
+            }
+            return BundleManifest.Entry.computing(
+                url: rel,
+                from: try Data(contentsOf: artifactURL)
+            )
+        }
+
+        let manifest = BundleManifest(version: "1", wasm: wasmEntry, runtime: runtimeEntries)
+        try manifest.encoded().write(to: outputDir.appendingPathComponent("swiflow-manifest.json"))
+        print("swiflow: manifest written → .build/plugins/PackageToJS/outputs/Package/swiflow-manifest.json")
 
         print("""
             swiflow: build complete.
