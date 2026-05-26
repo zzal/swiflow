@@ -30,7 +30,7 @@ output) for function-level attribution. All essential data was captured.
 |---|---|---|---|
 | Current release (`-O`) | 46,128,206 | 18,203,153 | Baseline before Track 2. PackageToJS default: DWARF stripped, wasm-opt `-O`. |
 | With `-Osize` + `-gnone` | 46,059,478 | 18,165,326 | Task 3. `-Xswiftc -Osize -Xswiftc -gnone` passed before the `js` plugin subcommand. Delta: −68,728 raw (−0.15%), −37,827 gzipped (−0.21%). Small reduction because WASM SDK stdlib/Foundation is pre-compiled at Apple's settings; only app and Swiflow layers benefit. |
-| With `-Osize` + `wasm-opt -Oz` | TBD (Task 4) | TBD (Task 4) | Measured at Task 4 |
+| With `-Osize` + `wasm-opt -Oz` | 45,872,738 | 18,154,129 | Task 4 **BLOCKED — savings below threshold.** Delta: −186,740 raw (−0.41%), −11,197 gzipped (−0.06%). PackageToJS already runs `wasm-opt -O` internally; a second pass at `-Oz` yields negligible gzip reduction. All other opt levels (`-O2`, `-O3`) and flag combos tested — none approached the 2% gzip threshold. Task 4 implementation skipped; wasm-opt dependency burden not warranted. |
 | With above + `wasm-strip` (name) | TBD (Task 5) | TBD (Task 5) | Measured at Task 5 |
 | With `-Osize -disable-reflection-metadata` | ~46,041,608 (est.) | ~18,158,362 (est.) | **Measurement only — binary crashes at runtime.** Processed via `wasm-opt --strip-debug -O` to match PackageToJS treatment. Delta: −44,791 gzipped bytes (−0.25%). Records the theoretical floor available if `@State` is redesigned (post-1.0). |
 
