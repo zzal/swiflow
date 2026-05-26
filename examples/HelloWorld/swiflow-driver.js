@@ -30,6 +30,9 @@
   /** Currently mounted CSS selector — set by `mount`, used by HMR. */
   let mountSelector = null;
 
+  /** Path to the PackageToJS-emitted WASM, relative to the page. */
+  const WASM_URL = "./.build/plugins/PackageToJS/outputs/Package/App.wasm";
+
   /**
    * Parse a raw HTML string into a single DOM node, mirroring the create-side
    * `createRawHTML` logic exactly so that `setRawHTML` produces a node of the
@@ -243,6 +246,59 @@
         console.error("swiflow-driver: unknown opcode", p.op, p);
         return;
     }
+  }
+
+  /**
+   * Pre-fetch `url` and stream the body, reporting download progress to
+   * document.documentElement.dataset.swiflowProgress (a string "0".."100").
+   *
+   * Returns a Response over the accumulated bytes so the caller can hand
+   * it to PackageToJS's init({ module }) without re-fetching.
+   *
+   * No intermediate writes happen when Content-Length is missing — only
+   * the final "100" — because percent can't be computed without the total.
+   *
+   * @throws {Error} on non-ok HTTP status, or when the underlying fetch
+   *                 or reader rejects (e.g., mid-stream network drop).
+   *                 On reader failure the reader is cancelled before the
+   *                 error propagates, so the underlying TCP connection
+   *                 is released rather than held until GC.
+   */
+  async function fetchWithProgress(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error("swiflow: fetch " + url + " failed (" + res.status + ")");
+    }
+    const total = parseInt(res.headers.get("Content-Length") || "", 10);
+    const reader = res.body && res.body.getReader ? res.body.getReader() : null;
+    if (!reader) {
+      document.documentElement.dataset.swiflowProgress = "100";
+      return res;
+    }
+    const chunks = [];
+    let received = 0;
+    const canReport = Number.isFinite(total) && total > 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        if (canReport) {
+          const pct = Math.floor((received / total) * 100);
+          document.documentElement.dataset.swiflowProgress =
+            String(Math.min(pct, 99));
+        }
+      }
+    } catch (err) {
+      try { await reader.cancel(); } catch (_) { /* already released */ }
+      throw err;
+    }
+    document.documentElement.dataset.swiflowProgress = "100";
+    const body = new Blob(chunks, {
+      type: res.headers.get("Content-Type") || "application/wasm",
+    });
+    return new Response(body, { headers: res.headers, status: res.status });
   }
 
   window.swiflow = {
@@ -502,6 +558,9 @@
   // Test seam — same logic, with explicit swiflowDev for jsdom tests.
   window.swiflow.__bootForTest = window.swiflow.__boot;
 
+  // Test-only handle. Production paths reference fetchWithProgress directly.
+  window.swiflow.__test_fetchWithProgress = fetchWithProgress;
+
   // Production boot: run on script-load, register SW, then dynamic-import
   // the PackageToJS entry. This used to be the user's HTML responsibility
   // (via <script type="module">). The driver now owns it so the user's
@@ -521,7 +580,14 @@
       const { init } = await import(
         "./.build/plugins/PackageToJS/outputs/Package/index.js"
       );
-      await init();
+      let modulePromise;
+      try {
+        modulePromise = fetchWithProgress(WASM_URL);
+      } catch (e) {
+        console.warn("swiflow: progress fetch failed, falling back to default init", e);
+        modulePromise = undefined;
+      }
+      await init({ module: modulePromise });
     } catch (e) {
       // Surface init failures loudly: the dev-error overlay is only
       // populated by the WASM runtime, which never runs if the import

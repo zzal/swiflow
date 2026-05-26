@@ -30,6 +30,9 @@
   /** Currently mounted CSS selector — set by `mount`, used by HMR. */
   let mountSelector = null;
 
+  /** Path to the PackageToJS-emitted WASM, relative to the page. */
+  const WASM_URL = "./.build/plugins/PackageToJS/outputs/Package/App.wasm";
+
   /**
    * Parse a raw HTML string into a single DOM node, mirroring the create-side
    * `createRawHTML` logic exactly so that `setRawHTML` produces a node of the
@@ -577,7 +580,14 @@
       const { init } = await import(
         "./.build/plugins/PackageToJS/outputs/Package/index.js"
       );
-      await init();
+      let modulePromise;
+      try {
+        modulePromise = fetchWithProgress(WASM_URL);
+      } catch (e) {
+        console.warn("swiflow: progress fetch failed, falling back to default init", e);
+        modulePromise = undefined;
+      }
+      await init({ module: modulePromise });
     } catch (e) {
       // Surface init failures loudly: the dev-error overlay is only
       // populated by the WASM runtime, which never runs if the import
