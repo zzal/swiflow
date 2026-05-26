@@ -2,10 +2,10 @@
   "example": "examples/HelloWorld",
   "swift_version": "6.3",
   "wasm_sdk_version": "6.3-RELEASE",
-  "measured_at": "2026-05-25",
-  "wasm_bytes": 61920228,
-  "wasm_gzip_bytes": 20590053,
+  "measured_at": "2026-05-26",
+  "wasm_bytes": 46059478,
+  "wasm_gzip_bytes": 18165326,
   "js_bytes": 55847,
   "js_gzip_bytes": 11578,
-  "total_gzip_bytes": 20601631
+  "total_gzip_bytes": 18176904
 }

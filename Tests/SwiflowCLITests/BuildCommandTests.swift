@@ -20,15 +20,54 @@ struct BuildCommandArgvTests {
         #expect(stub.calls.count == 1)
         let call = stub.calls[0]
         #expect(call.executable.path == "/usr/bin/swift")
+        // -Xswiftc flags are swift-package globals and must precede the `js`
+        // plugin subcommand; -c release is a plugin flag and follows `js`.
         #expect(call.arguments == [
             "package",
             "--swift-sdk", "swift-6.3-RELEASE_wasm",
+            "-Xswiftc", "-Osize",
+            "-Xswiftc", "-gnone",
             "js",
             "--use-cdn",
             "--product", "App",
             "-c", "release",
         ])
         #expect(call.workingDirectory?.path == "/tmp/demo")
+    }
+
+    @Test("Release-mode invocation passes -Osize and -gnone via --Xswiftc")
+    func releaseFlagsAreOsizeAndGnone() throws {
+        let invocation = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .release
+        )
+        let args = invocation.composeArguments()
+
+        // -Osize and -gnone must each be passed via -Xswiftc (swift-package global flag)
+        let xSwiftcIndices = args.indices.filter { args[$0] == "-Xswiftc" }
+        let followers = xSwiftcIndices.compactMap { idx -> String? in
+            let next = args.index(after: idx)
+            return next < args.endIndex ? args[next] : nil
+        }
+        #expect(followers.contains("-Osize"))
+        #expect(followers.contains("-gnone"))
+    }
+
+    @Test("Dev-mode invocation does NOT pass -Osize or -gnone")
+    func devFlagsAreUnaffected() throws {
+        let invocation = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .dev
+        )
+        let args = invocation.composeArguments()
+        #expect(!args.contains("-Osize"))
+        #expect(!args.contains("-gnone"))
     }
 
     @Test("Sets TOOLCHAINS in the child environment when bundleID supplied")

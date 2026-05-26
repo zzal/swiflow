@@ -79,24 +79,37 @@ struct BuildInvocation {
         self.configuration = configuration
     }
 
-    /// Runs `swift package --swift-sdk <id> js --use-cdn --product App ...`
-    /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
-    /// The trailing flags vary by `configuration`: `.release` appends `-c release`;
+    /// Composes the `swift package js` argv without side effects.
+    /// `.release` appends `-c release` plus `--Xswiftc -Osize` and
+    /// `--Xswiftc -gnone` (size-over-speed optimisation; debug info
+    /// dropped — not needed in production bundles).
     /// `.dev` appends `--debug-info-format dwarf` so the WASM build carries
-    /// DWARF debug symbols (the PackageToJS plugin doesn't pass through
-    /// `-Xswiftc -g`; it owns the debug-info plumbing via its own flag).
-    @discardableResult
-    func run(using runner: ProcessRunner) throws -> ProcessResult {
-        var arguments = [
+    /// DWARF debug symbols for the Phase 13b Chrome DevTools story.
+    func composeArguments() -> [String] {
+        // Base: swift package global flags (--swift-sdk, -Xswiftc etc.) come
+        // before the plugin subcommand `js`; the plugin's own flags (-c, --use-cdn,
+        // --product, --debug-info-format) come after it.
+        var prePluginArgs: [String] = [
             "package",
             "--swift-sdk", swiftSDK,
+        ]
+        var pluginArgs: [String] = [
             "js",
             "--use-cdn",
             "--product", "App",
         ]
         switch configuration {
         case .release:
-            arguments.append(contentsOf: ["-c", "release"])
+            // -Osize asks the Swift compiler to optimise for size rather than
+            // speed — a better trade-off for DOM-diffing workloads that don't
+            // do numerical compute. -gnone drops debug info in release (dev
+            // still ships DWARF via --debug-info-format dwarf below).
+            // -Xswiftc is a swift-package global option and must precede `js`.
+            prePluginArgs.append(contentsOf: [
+                "-Xswiftc", "-Osize",
+                "-Xswiftc", "-gnone",
+            ])
+            pluginArgs.append(contentsOf: ["-c", "release"])
         case .dev:
             // Dev mode: no -c release (default is debug). Ask the
             // PackageToJS plugin to keep DWARF in the final wasm so trap
@@ -105,8 +118,17 @@ struct BuildInvocation {
             // --debug-info-format option is the only path; -Xswiftc -g
             // isn't forwarded by the plugin (it errors with
             // "Unexpected arguments: -Xswiftc -g").
-            arguments.append(contentsOf: ["--debug-info-format", "dwarf"])
+            pluginArgs.append(contentsOf: ["--debug-info-format", "dwarf"])
         }
+        return prePluginArgs + pluginArgs
+    }
+
+    /// Runs `swift package --swift-sdk <id> js --use-cdn --product App ...`
+    /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
+    /// Delegates argv composition to `composeArguments()`.
+    @discardableResult
+    func run(using runner: ProcessRunner) throws -> ProcessResult {
+        let arguments = composeArguments()
 
         let environment: [String: String]? = {
             guard let bundleID = toolchainBundleID else { return nil }

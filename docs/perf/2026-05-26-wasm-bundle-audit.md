@@ -29,7 +29,7 @@ output) for function-level attribution. All essential data was captured.
 | Build | Raw bytes | Gzipped bytes | Notes |
 |---|---|---|---|
 | Current release (`-O`) | 46,128,206 | 18,203,153 | Baseline before Track 2. PackageToJS default: DWARF stripped, wasm-opt `-O`. |
-| With `-Osize` | TBD (Task 3) | TBD (Task 3) | Measured at Task 3 |
+| With `-Osize` + `-gnone` | 46,059,478 | 18,165,326 | Task 3. `-Xswiftc -Osize -Xswiftc -gnone` passed before the `js` plugin subcommand. Delta: −68,728 raw (−0.15%), −37,827 gzipped (−0.21%). Small reduction because WASM SDK stdlib/Foundation is pre-compiled at Apple's settings; only app and Swiflow layers benefit. |
 | With `-Osize` + `wasm-opt -Oz` | TBD (Task 4) | TBD (Task 4) | Measured at Task 4 |
 | With above + `wasm-strip` (name) | TBD (Task 5) | TBD (Task 5) | Measured at Task 5 |
 | With `-Osize -disable-reflection-metadata` | ~46,041,608 (est.) | ~18,158,362 (est.) | **Measurement only — binary crashes at runtime.** Processed via `wasm-opt --strip-debug -O` to match PackageToJS treatment. Delta: −44,791 gzipped bytes (−0.25%). Records the theoretical floor available if `@State` is redesigned (post-1.0). |
