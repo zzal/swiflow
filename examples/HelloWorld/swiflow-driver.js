@@ -3,13 +3,16 @@
 // Swiflow JS driver — vanilla JavaScript, no build step.
 //
 // The driver owns the canonical Map<int, Node> that the Swift side references
-// by integer handle. It exposes three operations to Swift through the
+// by integer handle. It exposes four operations to Swift through the
 // `window.swiflow` global:
 //
 //   - applyPatches(patches): a JSArray of patch objects; the driver iterates
 //                            and executes each in arrival order.
 //   - mount(rootHandle, selector): attach a previously-created node into
 //                                  the DOM under querySelector(selector).
+//   - nodeForHandle(handle): return the DOM node for a Swift handle (used
+//                            by Ref<Element>.wrappedValue), or null if
+//                            unknown.
 //   - registerDispatcher(fn): legacy hook reserved for future use.
 //
 // Per-listener wrappers call window.__swiflowDispatch(handlerId, event)
@@ -23,6 +26,9 @@
 
   /** `${handle}:${event}` → bound listener function (for removal). */
   const listeners = new Map();
+
+  /** Currently mounted CSS selector — set by `mount`, used by HMR. */
+  let mountSelector = null;
 
   /**
    * Parse a raw HTML string into a single DOM node, mirroring the create-side
@@ -48,15 +54,21 @@
   }
 
   /**
-   * Serialize a DOM event into the minimal shape Swift expects.
-   * Phase 1's Event has type + optional targetValue; everything else is
-   * deferred to Phase 3.
+   * Serialize a DOM event into the shape Swift expects.
+   * EventInfo carries: type, optional targetValue (for value-bearing
+   * inputs), and optional targetChecked (for checkbox/radio inputs).
    */
   function serializeEvent(event) {
     const target = event.target;
     const targetValue =
       target && "value" in target ? String(target.value) : null;
-    return { type: event.type, targetValue: targetValue };
+    const targetChecked =
+      target && "checked" in target ? Boolean(target.checked) : null;
+    return {
+      type: event.type,
+      targetValue: targetValue,
+      targetChecked: targetChecked,
+    };
   }
 
   /**
@@ -103,6 +115,21 @@
           listeners.delete(key);
         }
         nodes.delete(p.handle);
+        return;
+      }
+      case "animateExit": {
+        const node = nodes.get(p.handle);
+        const parent = nodes.get(p.parentHandle);
+        if (!node) return;
+        node.style.animation = p.animation;
+        setTimeout(function () {
+          if (parent && node.parentNode === parent) {
+            parent.removeChild(node);
+          } else if (node.parentNode) {
+            node.parentNode.removeChild(node);
+          }
+          nodes.delete(p.handle);
+        }, p.durationMs);
         return;
       }
 
@@ -234,7 +261,23 @@
           "swiflow-driver: mount target '" + selector + "' not found"
         );
       }
+      mountSelector = selector;
       target.appendChild(nodes.get(rootHandle));
+    },
+
+    /**
+     * Resolve a Swiflow handle to the live DOM node.
+     *
+     * Powers `Ref<Element>.wrappedValue` — Swift calls this once per
+     * dereference (no caching) so the framework always sees the current
+     * node, even after a node swap (e.g. setRawHTML).
+     *
+     * Returns `null` for unknown handles (anchor handles, post-destroy
+     * handles). Callers in Swift treat null as "ref not currently bound".
+     */
+    nodeForHandle: function (h) {
+      const n = nodes.get(h);
+      return n === undefined ? null : n;
     },
 
     /**
@@ -244,4 +287,247 @@
      */
     registerDispatcher: function (_fn) {},
   };
+
+  // Dev-mode reload listener. Activates only when the dev server has
+  // injected `window.SWIFLOW_DEV=true` before this driver runs.
+  // Production builds leave the global undefined; this branch stays
+  // inert and does NOT attempt the WebSocket (no DevTools console
+  // noise from a failed `ws://localhost/reload` connection).
+  if (window.SWIFLOW_DEV) {
+    // 1. Extension guidance — printed once at page load so the developer
+    //    knows how to get Swift source locations in stack traces.
+    console.log(
+      "[swiflow dev] For Swift source locations in stack traces,\n" +
+      "install the Chrome C/C++ DevTools Extension:\n" +
+      "  https://goo.gle/wasm-debugging-extension\n" +
+      "Then reload DevTools — DWARF support activates automatically."
+    );
+
+    // 2. Dev error handler — called by the RAF shim when a WASM render
+    //    error escapes. Emits a console.error (so the extension can translate
+    //    WASM addresses to Swift file:line) and injects a full-viewport
+    //    overlay so the freeze is visible without DevTools open.
+    window.__swiflowDevError = function(e) {
+      console.error(
+        "[swiflow] render error — WASM execution stopped.\n" +
+        "Reload the page to recover.\n\n" +
+        (e && e.stack ? e.stack : String(e))
+      );
+
+      const existing = document.getElementById("__swiflow-error-overlay");
+      if (existing) existing.remove();
+
+      const overlay = document.createElement("div");
+      overlay.id = "__swiflow-error-overlay";
+      overlay.style.cssText =
+        "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.85);" +
+        "color:#fff;font-family:monospace;font-size:14px;padding:24px;" +
+        "overflow:auto;white-space:pre-wrap;word-break:break-word;";
+
+      const title = document.createElement("div");
+      title.style.cssText =
+        "font-size:18px;font-weight:bold;margin-bottom:16px;color:#ff6b6b;";
+      title.textContent = "⚠ Swiflow render error — WASM execution stopped";
+
+      const msg = document.createElement("pre");
+      msg.style.cssText = "margin:0 0 16px;";
+      msg.textContent = e && e.stack ? e.stack : String(e);
+
+      const hint = document.createElement("div");
+      hint.style.cssText = "color:#aaa;font-size:12px;margin-bottom:4px;";
+      hint.textContent =
+        "Install the Chrome C/C++ DevTools Extension to see Swift file:line in the stack above:";
+
+      const link = document.createElement("a");
+      link.href = "https://goo.gle/wasm-debugging-extension";
+      link.target = "_blank";
+      link.style.cssText =
+        "color:#4dabf7;font-size:12px;display:block;margin-bottom:16px;";
+      link.textContent = "https://goo.gle/wasm-debugging-extension";
+
+      const dismiss = document.createElement("button");
+      dismiss.style.cssText =
+        "padding:8px 16px;background:#444;color:#fff;border:none;" +
+        "cursor:pointer;font-size:14px;border-radius:4px;";
+      dismiss.textContent = "Dismiss (app is frozen — reload to continue)";
+      dismiss.onclick = function() { overlay.remove(); };
+
+      overlay.appendChild(title);
+      overlay.appendChild(msg);
+      overlay.appendChild(hint);
+      overlay.appendChild(link);
+      overlay.appendChild(dismiss);
+      const target = document.body || document.documentElement;
+      target.appendChild(overlay);
+    };
+
+    // 3. RAF shim — wraps window.requestAnimationFrame so every callback
+    //    (including SwiftWasm's render loop) runs inside a try/catch.
+    //    Installed before connect() so the WASM module sees the patched
+    //    version when it first calls scheduleRAFIfNeeded().
+    //    bind(window) preserves the native this binding before patching.
+    //    Guarded against environments without RAF (e.g. JSDOM in unit
+    //    tests). Without the guard the script throws on load and the
+    //    WebSocket reload connection below never opens.
+    if (typeof window.requestAnimationFrame === "function") {
+      var _raf = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function(cb) {
+        return _raf(function(t) {
+          try { cb(t); }
+          catch(e) { window.__swiflowDevError(e); }
+        });
+      };
+    }
+
+    let reconnectDelay = 250;
+    const maxDelay = 5000;
+
+    function connect() {
+      const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/reload";
+      const ws = new WebSocket(url);
+      ws.onopen = function () {
+        reconnectDelay = 250;
+      };
+      ws.onmessage = function (m) {
+        let payload;
+        try {
+          payload = JSON.parse(m.data);
+        } catch (e) {
+          return;
+        }
+        if (!payload) return;
+        if (payload.type === "reload") {
+          location.reload();
+          return;
+        }
+        if (payload.type === "hmr-swap") {
+          hmrSwap(payload);
+          return;
+        }
+      };
+      ws.onclose = function () {
+        // Reconnect with exponential backoff so killing+restarting
+        // `swiflow dev` causes the page to silently reattach. No cap
+        // on attempts — dev mode, no users.
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+      };
+      ws.onerror = function () {
+        // The close handler does the retry; swallow the error to keep
+        // DevTools console clean during dev-server restarts.
+      };
+    }
+
+    async function hmrSwap(payload) {
+      const t0 = performance.now();
+      try {
+        const snapshot =
+          window.__swiflow && window.__swiflow.hmrSnapshot
+            ? window.__swiflow.hmrSnapshot()
+            : null;
+        window.__swiflowPendingSnapshot = snapshot;
+
+        // Drop maps + clear DOM mount target via replaceChildren()
+        // (no HTML-property writes — matches the driver's XSS-safe
+        // contract: setRawHTML is the only intentional HTML-writing
+        // site).
+        nodes.clear();
+        listeners.clear();
+        if (mountSelector) {
+          const t = document.querySelector(mountSelector);
+          if (t) t.replaceChildren();
+        }
+
+        // Re-import the new entry. Browsers cache ES-module imports
+        // by URL, so the cache-busting query is what makes the new
+        // module load fresh. Await it so failures fall through to
+        // catch and trigger the reload fallback.
+        await import(payload.jsURL);
+        // NOTE: The previous WASM module's heap (old ambientRenderer,
+        // old JSClosures) is not explicitly freed — the browser GC
+        // reclaims it eventually. This is acceptable for a dev-only
+        // code path. A page reload always clears everything cleanly.
+
+        const dt = (performance.now() - t0).toFixed(1);
+        console.log("[swiflow] hmr-swap took " + dt + "ms");
+      } catch (e) {
+        console.warn(
+          "[swiflow] HMR swap failed, falling back to full reload:",
+          e
+        );
+        location.reload();
+      }
+    }
+
+    connect();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Service worker registration + WASM entry ownership
+  // ---------------------------------------------------------------------------
+
+  // SW registration. Exposed on window.swiflow for testability; the
+  // production caller is the IIFE just below.
+  //
+  // swiflowDev: boolean — pass true in dev builds (same flag as SWIFLOW_DEV).
+  //
+  //   false → register swiflow-sw.js (production / release builds).
+  //   true  → unregister all SWs scoped to this page (aggressive but correct
+  //            in dev — HMR must not fight a stale cache from a prior release
+  //            build). Does NOT register a new SW.
+  window.swiflow.__boot = async function __boot({ swiflowDev }) {
+    if (!("serviceWorker" in navigator)) return;
+    if (swiflowDev) {
+      // Unregister any stale swiflow-sw.js SW so HMR isn't fighting a cache.
+      // Only SWs whose scriptURL ends with "swiflow-sw.js" are touched;
+      // any other SWs on the same origin (e.g. a PWA) are left intact.
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        const url = (reg.active || reg.installing || reg.waiting)?.scriptURL ?? "";
+        // scriptURL is always absolute per spec, so "/swiflow-sw.js" alone
+        // is correct. Don't fall back to the bare-suffix form: it would
+        // false-positive on a third-party SW named e.g. "my-swiflow-sw.js".
+        if (!url.endsWith("/swiflow-sw.js")) continue;
+        try { await reg.unregister(); } catch (_) {}
+      }
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("swiflow-sw.js");
+    } catch (e) {
+      console.warn("swiflow: service worker registration failed", e);
+    }
+  };
+
+  // Test seam — same logic, with explicit swiflowDev for jsdom tests.
+  window.swiflow.__bootForTest = window.swiflow.__boot;
+
+  // Production boot: run on script-load, register SW, then dynamic-import
+  // the PackageToJS entry. This used to be the user's HTML responsibility
+  // (via <script type="module">). The driver now owns it so the user's
+  // index.html only needs one <script> tag.
+  //
+  // Idempotency guard: if window.swiflow.__inited is already true when the
+  // boot IIFE runs, skip the import. This handles the one-time migration
+  // period where user HTML still has the old <script type="module"> block.
+  (async () => {
+    if (window.__SWIFLOW_SKIP_BOOT) return;
+    await window.swiflow.__boot({ swiflowDev: !!window.SWIFLOW_DEV });
+    if (window.swiflow.__inited) return;
+    window.swiflow.__inited = true;
+    try {
+      // Dynamic-import the PackageToJS entry. The path is conventional and
+      // matches what swiflow init's index.html template used to do inline.
+      const { init } = await import(
+        "./.build/plugins/PackageToJS/outputs/Package/index.js"
+      );
+      await init();
+    } catch (e) {
+      // Surface init failures loudly: the dev-error overlay is only
+      // populated by the WASM runtime, which never runs if the import
+      // itself fails. Without this log, a 404 on index.js or an init()
+      // throw leaves the page silently dead.
+      console.warn("swiflow: WASM init failed", e);
+    }
+  })();
 })();

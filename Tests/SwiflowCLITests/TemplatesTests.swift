@@ -55,6 +55,28 @@ struct TemplatesTests {
         #expect(rendered == expected)
     }
 
+    @Test("examples/HelloWorld/swiflow-driver.js byte-equals js-driver/swiflow-driver.js")
+    func exampleDriverMatchesCanonical() throws {
+        let canonical = try String(
+            contentsOf: Self.repoRoot.appendingPathComponent("js-driver/swiflow-driver.js"),
+            encoding: .utf8
+        )
+        let example = try Self.exampleFile("swiflow-driver.js")
+        #expect(canonical == example,
+                "examples/HelloWorld/swiflow-driver.js drifted from js-driver/swiflow-driver.js — `cp` the canonical file over the example")
+    }
+
+    @Test("examples/HelloWorld/swiflow-sw.js byte-equals js-driver/swiflow-sw.js")
+    func exampleServiceWorkerMatchesCanonical() throws {
+        let canonical = try String(
+            contentsOf: Self.repoRoot.appendingPathComponent("js-driver/swiflow-sw.js"),
+            encoding: .utf8
+        )
+        let example = try Self.exampleFile("swiflow-sw.js")
+        #expect(canonical == example,
+                "examples/HelloWorld/swiflow-sw.js drifted from js-driver/swiflow-sw.js — `cp` the canonical file over the example")
+    }
+
     @Test("README.md renders identically to examples/HelloWorld/README.md")
     func readmeMatchesExample() throws {
         let rendered = Templates.readme(name: "HelloWorld")
