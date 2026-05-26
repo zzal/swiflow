@@ -7,6 +7,13 @@
 // (set up in playwright.sw.config.ts and playwright.config.ts). The progress
 // attribute is written by fetchWithProgress() in the JS driver and is
 // meaningless in dev mode without the release WASM stream.
+//
+// The MutationObserver writes to window.__swiflowProgressLog inside the page
+// rather than calling out via page.exposeFunction(). exposeFunction crosses
+// the CDP boundary asynchronously; the test can finish (poll resolves to
+// "100" within ~900ms) before those async calls land, leaving `seen.length`
+// at 0. Keeping the log on window and reading it once via page.evaluate
+// avoids the race.
 import { test, expect } from "@playwright/test";
 
 const SW_BASE = "http://127.0.0.1:3002";
@@ -16,16 +23,14 @@ test.describe("progress attribute during WASM load", () => {
     // Install a MutationObserver BEFORE any page script runs, so we
     // capture every value the attribute takes — including any
     // intermediate percents on a cold load.
-    const seen: string[] = [];
-    await page.exposeFunction("__recordProgress", (v: string) => {
-      seen.push(v);
-    });
     await page.addInitScript(() => {
+      (window as unknown as { __swiflowProgressLog: string[] }).__swiflowProgressLog = [];
       const html = document.documentElement;
       const obs = new MutationObserver(() => {
         const v = html.dataset.swiflowProgress;
         if (v != null) {
-          (window as any).__recordProgress(v);
+          (window as unknown as { __swiflowProgressLog: string[] })
+            .__swiflowProgressLog.push(v);
         }
       });
       obs.observe(html, {
@@ -48,6 +53,14 @@ test.describe("progress attribute during WASM load", () => {
         { timeout: 60_000, intervals: [100, 200, 500] }
       )
       .toBe("100");
+
+    // Read the page-side log AFTER the poll resolves. All MO callbacks
+    // that fired during load have already drained into the array by now.
+    const seen = await page.evaluate(
+      () =>
+        (window as unknown as { __swiflowProgressLog: string[] })
+          .__swiflowProgressLog
+    );
 
     // At least one value must have been written; the final one is "100".
     expect(seen.length).toBeGreaterThanOrEqual(1);
