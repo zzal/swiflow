@@ -192,7 +192,8 @@ struct BuildCommandIntegrationTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path(Self.swiflowRepoRoot.path),
-            jsDriverSource: EmbeddedDriver.javascriptSource
+            jsDriverSource: EmbeddedDriver.javascriptSource,
+            jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource
         )
 
         // 2. Probe the SDK from the same shell-out path the production code uses.
@@ -241,7 +242,8 @@ struct BuildCommandIntegrationTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path(Self.swiflowRepoRoot.path),
-            jsDriverSource: EmbeddedDriver.javascriptSource
+            jsDriverSource: EmbeddedDriver.javascriptSource,
+            jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource
         )
 
         // 2. Probe swift + SDK (same path as production code).

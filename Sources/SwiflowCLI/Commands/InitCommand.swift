@@ -100,7 +100,8 @@ struct InitCommand: AsyncParsableCommand {
                 name: name,
                 into: parentURL,
                 swiflowDep: dep,
-                jsDriverSource: EmbeddedDriver.javascriptSource
+                jsDriverSource: EmbeddedDriver.javascriptSource,
+                jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource
             )
         } catch let error as ProjectWriterError {
             throw ValidationError(String(describing: error))

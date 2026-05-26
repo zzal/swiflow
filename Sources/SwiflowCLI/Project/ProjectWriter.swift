@@ -28,6 +28,8 @@ enum ProjectWriter {
     ///     `.path(...)` or a versioned URL `.url(..., version:)`.
     ///   - jsDriverSource: contents to write to `swiflow-driver.js`. Pass `EmbeddedDriver.javascriptSource`
     ///     in production; tests pass a stub string.
+    ///   - jsServiceWorkerSource: contents to write to `swiflow-sw.js`. Pass
+    ///     `EmbeddedDriver.serviceWorkerSource` in production; tests pass a stub string.
     ///   - _testFailDuringWrites: test-only hook; when `true`, throws immediately after
     ///     `createDirectory` so the cleanup path is exercised deterministically. Production
     ///     callers omit this parameter (it defaults to `false`).
@@ -41,6 +43,7 @@ enum ProjectWriter {
         into parent: URL,
         swiflowDep: SwiflowDep,
         jsDriverSource: String,
+        jsServiceWorkerSource: String,
         _testFailDuringWrites: Bool = false
     ) throws {
         let fm = FileManager.default
@@ -85,6 +88,8 @@ enum ProjectWriter {
                 .write(to: project.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
             try jsDriverSource
                 .write(to: project.appendingPathComponent("swiflow-driver.js"), atomically: true, encoding: .utf8)
+            try jsServiceWorkerSource
+                .write(to: project.appendingPathComponent("swiflow-sw.js"), atomically: true, encoding: .utf8)
         } catch {
             // Best-effort cleanup; ignore removal errors so we still surface
             // the original failure to the caller.

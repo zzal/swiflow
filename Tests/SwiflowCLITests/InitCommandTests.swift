@@ -15,7 +15,8 @@ struct InitCommandTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path("../.."),
-            jsDriverSource: "// fake driver\n"
+            jsDriverSource: "// fake driver\n",
+            jsServiceWorkerSource: "// fake sw\n"
         )
 
         let project = tmp.appendingPathComponent("Demo")
@@ -26,6 +27,7 @@ struct InitCommandTests {
         #expect(fm.fileExists(atPath: project.appendingPathComponent("Sources/App/App.swift").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("index.html").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-driver.js").path))
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-sw.js").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent(".gitignore").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("README.md").path))
     }
@@ -40,12 +42,32 @@ struct InitCommandTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path("../.."),
-            jsDriverSource: driver
+            jsDriverSource: driver,
+            jsServiceWorkerSource: "// fake sw\n"
         )
 
         let url = tmp.appendingPathComponent("Demo/swiflow-driver.js")
         let onDisk = try String(contentsOf: url, encoding: .utf8)
         #expect(onDisk == driver)
+    }
+
+    @Test("Init writes the embedded service worker verbatim to swiflow-sw.js")
+    func writesServiceWorkerVerbatim() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let sw = "// custom sw payload\nself.addEventListener('install', () => {});\n"
+        try ProjectWriter.writeProject(
+            name: "Demo",
+            into: tmp,
+            swiflowDep: .path("../.."),
+            jsDriverSource: "// fake driver\n",
+            jsServiceWorkerSource: sw
+        )
+
+        let url = tmp.appendingPathComponent("Demo/swiflow-sw.js")
+        let onDisk = try String(contentsOf: url, encoding: .utf8)
+        #expect(onDisk == sw)
     }
 
     @Test("Init refuses to overwrite an existing directory")
@@ -62,7 +84,8 @@ struct InitCommandTests {
                 name: "Demo",
                 into: tmp,
                 swiflowDep: .path("../.."),
-                jsDriverSource: "// driver\n"
+                jsDriverSource: "// driver\n",
+                jsServiceWorkerSource: "// fake sw\n"
             )
         }
     }
@@ -83,6 +106,7 @@ struct InitCommandTests {
                 into: tmp,
                 swiflowDep: .path("/abs/path/to/swiflow"),
                 jsDriverSource: "// driver\n",
+                jsServiceWorkerSource: "// fake sw\n",
                 _testFailDuringWrites: true
             )
             Issue.record("expected writeProject to throw when _testFailDuringWrites is true")
@@ -106,7 +130,8 @@ struct InitCommandTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path("/abs/path/to/swiflow"),
-            jsDriverSource: "// driver\n"
+            jsDriverSource: "// driver\n",
+            jsServiceWorkerSource: "// fake sw\n"
         )
 
         let pkg = try String(
@@ -125,7 +150,8 @@ struct InitCommandTests {
             name: "Demo",
             into: tmp,
             swiflowDep: .path("../.."),
-            jsDriverSource: "// driver\n"
+            jsDriverSource: "// driver\n",
+            jsServiceWorkerSource: "// fake sw\n"
         )
 
         let app = try String(
