@@ -41,6 +41,7 @@ describe("dev-mode WebSocket reload", () => {
     );
     dom.window.SWIFLOW_DEV = true;
     dom.window.WebSocket = FakeWS;
+    dom.window.__SWIFLOW_SKIP_BOOT = true;
 
     let reloaded = false;
     // JSDOM makes location.reload non-configurable on the wrapper object, so

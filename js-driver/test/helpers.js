@@ -33,6 +33,11 @@ export function setupDriver() {
     "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
     { url: "http://localhost:3000/", runScripts: "dangerously" }
   );
+  // Suppress the production boot IIFE so it doesn't attempt dynamic-import
+  // inside jsdom's vm context (which has no dynamic-import callback and would
+  // otherwise emit ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING on every test).
+  // Tests that want to exercise boot logic call __bootForTest explicitly.
+  dom.window.__SWIFLOW_SKIP_BOOT = true;
   const scriptEl = dom.window.document.createElement("script");
   scriptEl.textContent = driverSource;
   dom.window.document.head.appendChild(scriptEl);

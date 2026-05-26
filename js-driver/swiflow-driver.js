@@ -478,9 +478,13 @@
   window.swiflow.__boot = async function __boot({ swiflowDev }) {
     if (!("serviceWorker" in navigator)) return;
     if (swiflowDev) {
-      // Unregister any stale swiflow SW so HMR isn't fighting a cache.
+      // Unregister any stale swiflow-sw.js SW so HMR isn't fighting a cache.
+      // Only SWs whose scriptURL ends with "swiflow-sw.js" are touched;
+      // any other SWs on the same origin (e.g. a PWA) are left intact.
       const regs = await navigator.serviceWorker.getRegistrations();
       for (const reg of regs) {
+        const url = (reg.active || reg.installing || reg.waiting)?.scriptURL ?? "";
+        if (!url.endsWith("/swiflow-sw.js") && !url.endsWith("swiflow-sw.js")) continue;
         try { await reg.unregister(); } catch (_) {}
       }
       return;
@@ -504,6 +508,7 @@
   // boot IIFE runs, skip the import. This handles the one-time migration
   // period where user HTML still has the old <script type="module"> block.
   (async () => {
+    if (window.__SWIFLOW_SKIP_BOOT) return;
     await window.swiflow.__boot({ swiflowDev: !!window.SWIFLOW_DEV });
     if (window.swiflow.__inited) return;
     window.swiflow.__inited = true;
@@ -514,12 +519,12 @@
         "./.build/plugins/PackageToJS/outputs/Package/index.js"
       );
       await init();
-    } catch (_) {
-      // Swallow errors from environments where dynamic import() is
-      // unavailable (e.g. jsdom in unit tests) or where the PackageToJS
-      // output hasn't been built yet (dev-server cold start). The WASM
-      // init is a best-effort; real failures surface via the dev-error
-      // overlay (window.__swiflowDevError) installed above.
+    } catch (e) {
+      // Surface init failures loudly: the dev-error overlay is only
+      // populated by the WASM runtime, which never runs if the import
+      // itself fails. Without this log, a 404 on index.js or an init()
+      // throw leaves the page silently dead.
+      console.warn("swiflow: WASM init failed", e);
     }
   })();
 })();

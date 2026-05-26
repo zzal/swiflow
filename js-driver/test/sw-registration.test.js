@@ -39,6 +39,7 @@ describe("service worker registration", () => {
     const { window } = setupDriver();
     const unregistered = [];
     const fakeReg = {
+      active: { scriptURL: "https://x.test/swiflow-sw.js" },
       unregister: () => { unregistered.push("yes"); return Promise.resolve(true); },
     };
     window.navigator.serviceWorker = {
@@ -47,6 +48,21 @@ describe("service worker registration", () => {
     };
     await window.swiflow.__bootForTest({ swiflowDev: true });
     assert.equal(unregistered.length, 1);
+  });
+
+  test("driver does NOT unregister non-swiflow SW in dev", async () => {
+    const { window } = setupDriver();
+    const unregistered = [];
+    const otherReg = {
+      active: { scriptURL: "https://x.test/my-pwa-sw.js" },
+      unregister: () => { unregistered.push("yes"); return Promise.resolve(true); },
+    };
+    window.navigator.serviceWorker = {
+      register: () => Promise.resolve({}),
+      getRegistrations: async () => [otherReg],
+    };
+    await window.swiflow.__bootForTest({ swiflowDev: true });
+    assert.equal(unregistered.length, 0, "non-swiflow SW must not be unregistered");
   });
 
 });
