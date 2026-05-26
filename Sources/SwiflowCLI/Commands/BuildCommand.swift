@@ -259,6 +259,9 @@ struct BuildCommand: AsyncParsableCommand {
         }
 
         let manifest = BundleManifest(version: "1", wasm: wasmEntry, runtime: runtimeEntries)
-        try manifest.encoded().write(to: outputDir.appendingPathComponent("swiflow-manifest.json"))
+        try manifest.encoded().write(
+            to: outputDir.appendingPathComponent("swiflow-manifest.json"),
+            options: .atomic
+        )
     }
 }
