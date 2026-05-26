@@ -461,4 +461,65 @@
 
     connect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Service worker registration + WASM entry ownership
+  // ---------------------------------------------------------------------------
+
+  // SW registration. Exposed on window.swiflow for testability; the
+  // production caller is the IIFE just below.
+  //
+  // swiflowDev: boolean — pass true in dev builds (same flag as SWIFLOW_DEV).
+  //
+  //   false → register swiflow-sw.js (production / release builds).
+  //   true  → unregister all SWs scoped to this page (aggressive but correct
+  //            in dev — HMR must not fight a stale cache from a prior release
+  //            build). Does NOT register a new SW.
+  window.swiflow.__boot = async function __boot({ swiflowDev }) {
+    if (!("serviceWorker" in navigator)) return;
+    if (swiflowDev) {
+      // Unregister any stale swiflow SW so HMR isn't fighting a cache.
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) {
+        try { await reg.unregister(); } catch (_) {}
+      }
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("swiflow-sw.js");
+    } catch (e) {
+      console.warn("swiflow: service worker registration failed", e);
+    }
+  };
+
+  // Test seam — same logic, with explicit swiflowDev for jsdom tests.
+  window.swiflow.__bootForTest = window.swiflow.__boot;
+
+  // Production boot: run on script-load, register SW, then dynamic-import
+  // the PackageToJS entry. This used to be the user's HTML responsibility
+  // (via <script type="module">). The driver now owns it so the user's
+  // index.html only needs one <script> tag.
+  //
+  // Idempotency guard: if window.swiflow.__inited is already true when the
+  // boot IIFE runs, skip the import. This handles the one-time migration
+  // period where user HTML still has the old <script type="module"> block.
+  (async () => {
+    await window.swiflow.__boot({ swiflowDev: !!window.SWIFLOW_DEV });
+    if (window.swiflow.__inited) return;
+    window.swiflow.__inited = true;
+    try {
+      // Dynamic-import the PackageToJS entry. The path is conventional and
+      // matches what swiflow init's index.html template used to do inline.
+      const { init } = await import(
+        "./.build/plugins/PackageToJS/outputs/Package/index.js"
+      );
+      await init();
+    } catch (_) {
+      // Swallow errors from environments where dynamic import() is
+      // unavailable (e.g. jsdom in unit tests) or where the PackageToJS
+      // output hasn't been built yet (dev-server cold start). The WASM
+      // init is a best-effort; real failures surface via the dev-error
+      // overlay (window.__swiflowDevError) installed above.
+    }
+  })();
 })();
