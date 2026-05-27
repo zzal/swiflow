@@ -16,6 +16,81 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 15] — 2026-05-26
+
+**The dependency diet.** Release bundle gzipped: 18.17 MB → 1.81 MB
+(−90.05%). User-facing API is essentially unchanged — `@MainActor
+@Component final class Foo`, `@State var count: Int = 0`, `$count`,
+forms, router, SwiflowTesting all work identically — with one small
+breaking change noted below.
+
+### Changed
+- `@State` is now an attached macro (accessor `didSet` + peer
+  `$`-projection) instead of a `final class State<Value>` property
+  wrapper. State lives inline on the component class; the setter
+  routes through a synthesized `didSet` that calls
+  `scheduler.markDirty(owner)`. The previous `State<T>`, `Box<T>`,
+  and `StateWireable` protocol are deleted.
+- `@Component` macro now also a `MemberMacro`: scans the class body
+  for `@State`-decorated members and emits `_ComponentRuntime`
+  conformance — a static `stateCells: [any AnyStateCell]` array, a
+  `bind(owner:scheduler:)` method, and private `runtimeOwner` /
+  `runtimeScheduler` storage. The framework iterates `stateCells`
+  instead of walking `Mirror.children`.
+- `HMRBridge.encodeStateMap` and `DevAPI.encodeStateForDisplay`
+  dropped their `Mirror.displayStyle` Optional-detection paths.
+  Task 5's macro normalizes Optional `.none` to `HMRNilSentinel` at
+  the source, so the encoders dispatch on the sentinel.
+- Release builds compile with `-Xswiftc -disable-reflection-metadata`.
+
+### Added
+- `_ComponentRuntime: Component` sub-protocol — the opt-in adoption
+  point for the framework-runtime members the `@Component` macro
+  emits. Hand-rolled `Component` conformances skip it (correct
+  default for code outside the macro's contract).
+- `AnyStateCell` protocol + `StateCell<Owner>` generic struct in
+  `Sources/Swiflow/Reactivity/StateCell.swift`. Macro-emitted closures
+  receive `Owner` directly with no `as!` casts in expansion output.
+- `StateCell` includes an `_hmrCoerce<T>(_:to:)` helper for the
+  Int↔Double bridge coercion the JS HMR path needs.
+- `HMRNilSentinel` elevated to `public` (it's referenced from
+  macro-emitted code in user modules).
+
+### Breaking
+- `@State` requires an explicit type annotation. `@State var x = 0`
+  no longer compiles; write `@State var x: Int = 0`. The macro
+  needs the static type to emit the matching `Binding<T>`
+  projection. Migration: add `: Type` to existing `@State`
+  declarations. (HelloWorld + project templates updated.)
+
+### Bundle-size impact
+- WASM: 46,059,478 → 5,084,775 raw (−88.96%); 18,165,326 → 1,797,205
+  gzipped (−90.11%).
+- JS runtime unchanged (55,847 raw / 11,578 gzipped).
+- Total gzipped: 18,176,904 → 1,808,783 (−90.05%).
+- See `docs/perf/2026-05-26-wasm-bundle-audit.md` for the full
+  per-step breakdown and the explanation of why the saving exceeded
+  the spec's 5% target by 18×.
+
+### Test changes
+- Deleted `Tests/SwiflowTests/Reactivity/StateTests.swift` (exercised
+  `State<T>` class internals that no longer exist). Coverage of the
+  new path lives in `ComponentRuntimeTests.swift`.
+- Migrated tests that constructed `State<T>` directly to use a small
+  `@MainActor @Component final class` test-host pattern.
+- Updated macro test fixtures from `@MacroState` → `@State` after
+  the rename in Task 6.
+
+### Migration
+- `@Component`-decorated classes: add `: T` to any `@State var x = …`
+  declarations missing an explicit type. No other source changes.
+- Hand-rolled `Component` conformances: zero changes required.
+  `Component`'s requirements are unchanged. To opt into HMR support,
+  conform to `_ComponentRuntime` and implement `stateCells` +
+  `bind(owner:scheduler:)`.
+
+---
+
 ## [Phase 14b — Track 3] — 2026-05-26
 
 **Stability:** Driver-side enhancement. No Swift API moves, no new
