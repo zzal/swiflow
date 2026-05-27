@@ -3,10 +3,10 @@
   "swift_version": "6.3",
   "wasm_sdk_version": "6.3-RELEASE",
   "measured_at": "2026-05-26",
-  "wasm_bytes": 46059478,
-  "wasm_gzip_bytes": 18165326,
+  "wasm_bytes": 5084775,
+  "wasm_gzip_bytes": 1797205,
   "js_bytes": 55847,
   "js_gzip_bytes": 11578,
-  "total_bytes": 46115325,
-  "total_gzip_bytes": 18176904
+  "total_bytes": 5140622,
+  "total_gzip_bytes": 1808783
 }

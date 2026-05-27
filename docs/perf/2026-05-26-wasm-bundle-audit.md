@@ -33,6 +33,7 @@ output) for function-level attribution. All essential data was captured.
 | With `-Osize` + `wasm-opt -Oz` | 45,872,738 | 18,154,129 | Task 4 **BLOCKED — savings below threshold.** Delta: −186,740 raw (−0.41%), −11,197 gzipped (−0.06%). PackageToJS already runs `wasm-opt -O` internally; a second pass at `-Oz` yields negligible gzip reduction. All other opt levels (`-O2`, `-O3`) and flag combos tested — none approached the 2% gzip threshold. Task 4 implementation skipped; wasm-opt dependency burden not warranted. |
 | With above + `wasm-strip` (name) | TBD (Task 5) | TBD (Task 5) | Measured at Task 5 |
 | With `-Osize -disable-reflection-metadata` | ~46,041,608 (est.) | ~18,158,362 (est.) | **Measurement only — binary crashes at runtime.** Processed via `wasm-opt --strip-debug -O` to match PackageToJS treatment. Delta: −44,791 gzipped bytes (−0.25%). Records the theoretical floor available if `@State` is redesigned (post-1.0). |
+| **Phase 15 — Mirror call sites removed + `-disable-reflection-metadata`** | **5,084,775** | **1,797,205** | **All Mirror call sites in Sources/ deleted (Task 6). `@State` rewritten as an attached macro. `@Component` macro emits `_ComponentRuntime.stateCells` for HMR snapshot/restore. Release builds compile with `-Xswiftc -disable-reflection-metadata` (Task 7). Delta vs Phase 14b Track 2: −40,974,703 raw (−89%), −16,368,121 gzipped (−90%). Far above the spec's 5% target and 15% stretch; ~10× bundle reduction.** |
 
 > **Baseline vs. plan:** The plan's stated baseline of 20.6 MB gzipped / 61.9 MB
 > raw refers to a pre-Phase-14a (pre-Track-1) measurement. The current
@@ -197,3 +198,36 @@ That redesign is on the post-1.0 punch list.
   artifact — confirmed by `wasm-objdump -h` showing no `name` section.
   Task 5's `wasm-strip` invocation has no effect on the shipped WASM and
   can be dropped from the plan or redirected to another target.
+
+---
+
+## Phase 15 outcome — 2026-05-26
+
+**Headline:** 18,176,904 → 1,808,783 gzipped total bytes (−90.05%). 46,115,325 → 5,140,622 raw total bytes (−88.85%). The Swiflow runtime bundle is now smaller than the average React app.
+
+### What landed
+
+- `@State` was a `final class State<Value>` property wrapper with a heap-allocated `Box<Value>`; it's now an attached Swift macro that expands inline on the component class. The class, `Box`, the `StateWireable` protocol, and all underscore-prefixed methods are deleted.
+- `@Component` macro now scans its class body for `@State` members and emits `_ComponentRuntime` conformance with a static `stateCells: [any AnyStateCell]` array. Framework iterates the array instead of walking `Mirror.children`.
+- `HMRBridge.encodeStateMap` and `DevAPI.encodeStateForDisplay` no longer use `Mirror.displayStyle` to detect Optionals — Task 5's macro normalizes Optional `.none` to `HMRNilSentinel` at the source, so the encoder dispatches on the sentinel.
+- `URLSanitizer.swift` and `HMR.swift` dropped their runtime `import Foundation`.
+- Release builds now compile with `-Xswiftc -disable-reflection-metadata`.
+
+### Why the saving exceeded expectations
+
+The audit baseline measured a flag-only flip (with Mirror calls left in source) at 0.25% gzipped — barely a ripple. The same flag with all Mirror references removed delivered 90% reduction. The difference is **what the linker can dead-strip when Mirror is genuinely unreachable**:
+
+- The Swift runtime's name demangler (`swift_getTypeName`, `_DebuggerSupport.printForDebuggerImpl`, `swift_demangle`)
+- The full reflection metadata table (per-type field descriptors + offsets)
+- The SIMD primitive `debugDescription` chain that Mirror's default reflection invokes
+- The `Mirror` type itself + all its support machinery
+
+These are pinned by ANY `Mirror(reflecting:)` call site. Phase 15 removed every call site, then the flag stripped the metadata; the linker then transitively dropped ~16 MB of dead support code.
+
+### Remaining levers (post-Phase-15)
+
+- **JavaScriptKit's bridge surface.** Still pulled in for `JSObject` interop. Replacing it with an ahead-of-time JS bridge is the multi-quarter post-1.0 project documented in the Phase 14b spec.
+- **Swift stdlib's residual size** — the 1.8 MB gzipped bundle is mostly stdlib functions Swiflow components transitively use (`String` interpolation, `Array` operations, `Optional` machinery). Hard to shrink without giving up Swift's expressiveness.
+- **Foundation surface still reachable** via the explicit `import Foundation` in `SwiflowRouter/Core/RouteMatching.swift` (uses `removingPercentEncoding`). Replacing that one API with a stdlib-only percent-decoder would let the linker drop more of Foundation. Small individual lever; deferred.
+
+The dominant cost of a Swiflow WASM bundle is now Swift stdlib itself — exactly where you'd want it to be.
