@@ -41,10 +41,10 @@ struct InitCommand: AsyncParsableCommand {
     @Option(
         name: .customLong("swiflow-source"),
         help: ArgumentHelp(
-            "Path the generated project uses for its Swiflow dependency.",
+            "Local path the generated project uses for its Swiflow dependency.",
             discussion: """
-                Required until Swiflow has a public release. Pass the absolute or \
-                relative path to your local Swiflow clone.
+                Override the default versioned URL dep with a path to a local Swiflow \
+                clone — for hacking on Swiflow itself, not for end-user projects.
                 Examples:
                   --swiflow-source /path/to/swiflow   (absolute)
                   --swiflow-source ../swiflow         (relative to the project parent dir)
@@ -56,33 +56,45 @@ struct InitCommand: AsyncParsableCommand {
     @Option(
         name: .customLong("swiflow-version"),
         help: ArgumentHelp(
-            "Version of Swiflow to depend on via URL (e.g. 1.0.0).",
+            "Override the Swiflow release the generated project pins to.",
             discussion: """
-                When provided, the generated Package.swift uses a versioned URL dependency \
-                on the official Swiflow GitHub release instead of a local path.
-                Example: --swiflow-version 1.0.0
+                Without this flag, the generated Package.swift pins to the version of \
+                this CLI binary. Use --swiflow-version to pin to a different published \
+                tag (e.g. an older release for compatibility, or a newer one when this \
+                CLI lags the framework).
+                Example: --swiflow-version 0.1.3
                 """
         )
     )
     var swiflowVersion: String?
 
     func run() async throws {
+        // Dep resolution precedence (most→least explicit):
+        //   1. --swiflow-version <v>                 → versioned URL dep
+        //   2. --swiflow-source / $SWIFLOW_SOURCE    → local path dep (dev mode)
+        //   3. neither                                → versioned URL dep pinned
+        //                                              to this CLI's own version
+        //
+        // Default (3) Just Works for end users once a release is published:
+        // `swiflow init my-app` generates a Package.swift pinned to the
+        // matching `swiflow` release tag. Contributors hacking on Swiflow
+        // itself pass --swiflow-source to point at their checkout.
+        // Treat an empty `--swiflow-source ""` or `SWIFLOW_SOURCE=""` as
+        // unset — otherwise a shell idiom like `SWIFLOW_SOURCE= swiflow init …`
+        // (commonly used to clear an inherited env var) would silently
+        // generate `.package(path: "")` instead of falling through to the
+        // default versioned URL.
+        let rawSource = swiflowSource
+            ?? ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"]
+        let source = (rawSource?.isEmpty == false) ? rawSource : nil
+
         let dep: SwiflowDep
         if let version = swiflowVersion {
             dep = .url(SwiflowDep.officialRepositoryURL, version: version)
-        } else if let source = swiflowSource ?? ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"] {
+        } else if let source {
             dep = .path(source)
         } else {
-            throw ValidationError("""
-                --swiflow-source is required. Swiflow has no public release yet.
-                Pass the path to your local Swiflow clone:
-                  swiflow init \(name) --swiflow-source /path/to/swiflow
-                Or set the SWIFLOW_SOURCE environment variable.
-
-                (--swiflow-version <version> is forward-looking infrastructure — it generates a
-                versioned URL dep, but won't resolve until the first public release lands.
-                Pre-release: use --swiflow-source.)
-                """)
+            dep = .url(SwiflowDep.officialRepositoryURL, version: SwiflowVersion.current)
         }
 
         // Resolve --path against CWD when relative (so `--path .` and a bare

@@ -189,13 +189,26 @@ struct InitCommandArgvTests {
         #expect(parsed.path == ".")
     }
 
-    @Test("Missing --swiflow-source surfaces a ValidationError")
-    func missingSwiflowSource() async throws {
-        let cmd = try InitCommand.parse(["demo"])
-        // run() checks swiflowSource before --path, so no valid dir needed
-        await #expect(throws: ValidationError.self) {
-            try await cmd.run()
-        }
+    @Test("Missing --swiflow-source defaults to a versioned URL dep on the official repo")
+    func missingFlagsDefaultsToVersionedURL() async throws {
+        let tmp = try InitCommandTests.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // No --swiflow-source, no --swiflow-version, no $SWIFLOW_SOURCE → must
+        // succeed and pin the generated Package.swift to the CLI's own version.
+        let cmd = try InitCommand.parse(["Demo", "--path", tmp.path])
+        try await cmd.run()
+
+        let pkg = try String(
+            contentsOf: tmp
+                .appendingPathComponent("Demo")
+                .appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        #expect(pkg.contains(SwiflowDep.officialRepositoryURL),
+                "expected official-repo URL in generated Package.swift")
+        #expect(pkg.contains(SwiflowVersion.current),
+                "expected CLI's own version in generated Package.swift")
     }
 
     @Test("Flags parse: --path, --swiflow-source")

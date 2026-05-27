@@ -59,7 +59,7 @@ requires an explicit type annotation as of 15.
 - **Component inspector / devtools** — Phase 9 (pending).
 - **`AsyncTestRenderer`** — for `task {}` lifecycle hooks (pre-1.0 follow-up).
 - **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
-- **Public release / Homebrew distribution** — infrastructure landed in 13e (`--swiflow-version` flag, URL-based `SwiflowDep`), waiting on a real GitHub release URL.
+- **Homebrew distribution** — not packaged yet. The CLI is installable today by cloning + `swift build -c release --product swiflow`; a Homebrew formula is a pre-1.0 polish item. Versioned GitHub releases (tags + release notes) ship with the framework as of 0.1.3.
 
 **Costs you should know:**
 - **WASM bundle (HelloWorld example, release):** ~5 MB raw / **~1.8 MB
@@ -130,13 +130,23 @@ Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
 # 1. Build the CLI.
 swift build -c release --product swiflow
 
-# 2. Scaffold a project.
-./.build/release/swiflow init my-app --swiflow-source $(pwd)
+# 2. Scaffold a project. The generated Package.swift pins to the matching
+#    Swiflow release (same version as this CLI binary) — no extra flags
+#    needed once 0.1.3+ is published.
+./.build/release/swiflow init my-app
 cd my-app
 
 # 3. Run the dev server — builds the WASM, serves on :3000, full-reload on save.
 ../.build/release/swiflow dev
 # Open http://localhost:3000
+```
+
+**Hacking on Swiflow itself?** Pass `--swiflow-source $(pwd)` to `init`
+so the generated project depends on your local clone instead of the
+published release:
+
+```bash
+./.build/release/swiflow init my-app --swiflow-source $(pwd)
 ```
 
 See [docs/guides/debugging.md](docs/guides/debugging.md) for Chrome DevTools setup and Swift source breakpoints.

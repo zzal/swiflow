@@ -30,10 +30,10 @@ enum SwiflowDep: Equatable {
 }
 
 extension SwiflowDep {
-    /// TODO(pre-release): Confirm Swiflow's GitHub org/repo before cutting the first release.
-    /// This is the URL used by `swiflow init --swiflow-version <v>` to generate a
-    /// versioned `.package(url:exact:)` dependency in the scaffolded Package.swift.
-    static let officialRepositoryURL = "https://github.com/swiflow/swiflow.git"
+    /// The repo `swiflow init` points generated `Package.swift` files at
+    /// when scaffolding a versioned URL dep. Bumped from the pre-release
+    /// placeholder to the real repo at the v0.1.3 release.
+    static let officialRepositoryURL = "https://github.com/zzal/swiflow.git"
 }
 
 enum Templates {
