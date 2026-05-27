@@ -203,9 +203,21 @@ swift test
 (cd js-driver && npm test)
 ```
 
-Playwright e2e (Counter + RouterDemo) lives in `Tests/playwright/` and is
-opt-in — see `Tests/playwright/playwright.config.ts` for the dev-server
-harness setup.
+Playwright e2e (Counter, Router, Progress, SW-cache) lives in
+`Tests/playwright/` and is opt-in. Four per-suite npm scripts target
+just one server each for fast local iteration:
+
+```bash
+cd Tests/playwright
+npm run test:counter   # @State + Counter, dev server on :3000   (~1 min)
+npm run test:router    # SwiflowRouter + Link + Back, on :3001   (~1 min)
+npm run test:sw        # service-worker cache + progress UI      (~5 min, release build)
+npm test               # all of the above + cross-server scenarios (~20 min)
+```
+
+See [`Tests/playwright/README.md`](Tests/playwright/README.md) for the
+full breakdown of what each spec covers and the rationale for the
+per-suite splits.
 
 ## License
 

@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:counter": "playwright test --config=playwright.counter.config.ts",
+    "test:router": "playwright test --config=playwright.router.config.ts",
     "test:sw": "playwright test --config=playwright.sw.config.ts",
     "install-browsers": "playwright install --with-deps chromium"
   },
