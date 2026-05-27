@@ -24,19 +24,38 @@ test.describe("progress attribute during WASM load", () => {
     // capture every value the attribute takes — including any
     // intermediate percents on a cold load.
     await page.addInitScript(() => {
-      (window as unknown as { __swiflowProgressLog: string[] }).__swiflowProgressLog = [];
-      const html = document.documentElement;
-      const obs = new MutationObserver(() => {
-        const v = html.dataset.swiflowProgress;
-        if (v != null) {
-          (window as unknown as { __swiflowProgressLog: string[] })
-            .__swiflowProgressLog.push(v);
-        }
-      });
-      obs.observe(html, {
-        attributes: true,
-        attributeFilter: ["data-swiflow-progress"],
-      });
+      // `addInitScript` runs BEFORE any HTML is parsed, so
+      // `document.documentElement` is null at this point — attaching the
+      // MO here directly throws (silently, inside PW's eval) and leaves
+      // the observer un-installed. Stash the log array on `window`
+      // (which DOES exist), then arm a one-shot observer on `document`
+      // that installs the real MO the moment `<html>` is parsed.
+      const w = window as unknown as { __swiflowProgressLog: string[] };
+      w.__swiflowProgressLog = [];
+
+      const attachProgressObserver = () => {
+        const html = document.documentElement;
+        const obs = new MutationObserver(() => {
+          const v = html.dataset.swiflowProgress;
+          if (v != null) w.__swiflowProgressLog.push(v);
+        });
+        obs.observe(html, {
+          attributes: true,
+          attributeFilter: ["data-swiflow-progress"],
+        });
+      };
+
+      if (document.documentElement) {
+        attachProgressObserver();
+      } else {
+        const waitForHtml = new MutationObserver(() => {
+          if (document.documentElement) {
+            waitForHtml.disconnect();
+            attachProgressObserver();
+          }
+        });
+        waitForHtml.observe(document, { childList: true });
+      }
     });
 
     await page.goto(`${SW_BASE}/`);
