@@ -231,3 +231,26 @@ These are pinned by ANY `Mirror(reflecting:)` call site. Phase 15 removed every 
 - **Foundation surface still reachable** via the explicit `import Foundation` in `SwiflowRouter/Core/RouteMatching.swift` (uses `removingPercentEncoding`). Replacing that one API with a stdlib-only percent-decoder would let the linker drop more of Foundation. Small individual lever; deferred.
 
 The dominant cost of a Swiflow WASM bundle is now Swift stdlib itself — exactly where you'd want it to be.
+
+
+## Phase 16 outcome — 2026-05-27
+
+**Headline:** −133 bytes gzipped, −0.0074%. The Swiflow runtime is now completely Foundation-free; a CI grep step enforces the invariant against future contributions.
+
+### What landed
+
+- `Sources/SwiflowRouter/Core/RouteMatching.swift` dropped `import Foundation`. `splitQuery(_:)` now decodes query keys and values via a private file-local `percentDecode(_:)` helper. Semantics match `String.removingPercentEncoding` exactly: returns `nil` on malformed `%XX` or invalid UTF-8, and the `?? original` fallback preserves prior behavior on invalid input. UTF-8 validation uses `Unicode.UTF8.ForwardParser` (stdlib, no platform gate) — the single-call equivalent `String(validating:as:)` is `@available(macOS 15+)` and `Package.swift` pins `.macOS(.v14)`.
+- `Sources/SwiflowWeb/HMR/HMRBridge.swift` dropped its vestigial `import Foundation` — the only reference to Foundation in the file was a comment explaining a JSObject cast.
+- A new `Verify Foundation-free runtime` step in the `test` job of `.github/workflows/ci.yml` greps for `^import Foundation$` in the three runtime module roots and fails the build on a hit. The check runs before the cache restore so violations fail in sub-second wall time.
+
+### Why the bundle barely moved
+
+Phase 15 already drained Foundation's transitive cost via Mirror removal. The two remaining `import Foundation` statements at the start of Phase 16 pinned only the small `String.removingPercentEncoding` method and (in HMRBridge) nothing at all. `Unicode.UTF8.ForwardParser` does not pin Foundation symbols. The honest framing of this phase is **architecture hygiene, not size**: the runtime is now provably Foundation-free, the invariant is grep-enforceable, and the 1.0 story is cleaner.
+
+### Remaining levers (post-Phase-16)
+
+Unchanged from Phase 15's audit:
+
+- **JavaScriptKit's bridge surface.** Multi-quarter post-1.0 project. Still the dominant residual cost.
+- **Swift stdlib's residual size.** Hard to shrink without giving up Swift's expressiveness.
+- **Foundation in host-side modules** (`SwiflowCLI`, `SwiflowMacrosPlugin`). These run on macOS/Linux only and never ship in the WASM binary; Foundation is appropriate there and out of scope for any size-focused work.

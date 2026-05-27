@@ -16,6 +16,45 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 16] — 2026-05-27
+
+**Foundation-free runtime.** The Swiflow runtime modules (`Swiflow`,
+`SwiflowRouter`, `SwiflowWeb`) no longer import Foundation. A new CI
+guard prevents reintroduction. No user-visible API changes; query
+percent-decoding semantics are byte-for-byte identical to the prior
+Foundation-backed implementation.
+
+### Changed
+- `Sources/SwiflowRouter/Core/RouteMatching.swift` `splitQuery(_:)` now
+  decodes URL query keys and values via a private file-local
+  `percentDecode(_:)` helper instead of `String.removingPercentEncoding`.
+  Returns `nil` on malformed `%XX` or invalid UTF-8 — same semantics as
+  Foundation. The `?? original` fallback in the call sites preserves
+  prior behavior on invalid input. UTF-8 validation uses
+  `Unicode.UTF8.ForwardParser` (stdlib, no platform gate).
+- `Sources/SwiflowWeb/HMR/HMRBridge.swift` dropped its vestigial
+  `import Foundation`.
+
+### Added
+- `.github/workflows/ci.yml` gains a `Verify Foundation-free runtime`
+  step in the `test` job. Greps for `^import Foundation$` in the three
+  runtime module roots; fails the build on any hit. Runs before the
+  cache restore so violations fail in sub-second wall time.
+- 8 regression-guard tests in `Tests/SwiflowRouterTests/RouteMatchingTests.swift`
+  pinning percent-decoding semantics (ASCII space, multi-byte UTF-8,
+  encoded '+', lowercase hex, encoded key, fallback on lone '%' / bad
+  hex, and the deliberate RFC 3986 choice to leave literal '+' as '+').
+
+### Bundle
+- Total gzipped: 1,808,783 → 1,808,650 bytes (−133 bytes / −0.0074%).
+  The win in this phase is architectural, not size — Phase 15 already
+  drained Foundation's transitive cost.
+
+### Stability
+- Stable for pre-1.0 usage. No user-facing breaking changes.
+
+---
+
 ## [Phase 15] — 2026-05-26
 
 **The dependency diet.** Release bundle gzipped: 18.17 MB → 1.81 MB

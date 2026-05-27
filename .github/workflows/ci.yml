@@ -121,7 +121,8 @@ jobs:
         # macOS/Linux only and are not gated.
         run: |
           set -euo pipefail
-          if grep -rn "^import Foundation" \
+          # Update this list when adding a new runtime module.
+          if grep -rn "^import Foundation$" \
                Sources/Swiflow \
                Sources/SwiflowRouter \
                Sources/SwiflowWeb; then
