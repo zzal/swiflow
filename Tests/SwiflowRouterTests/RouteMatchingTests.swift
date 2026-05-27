@@ -63,6 +63,82 @@ struct RouteMatchingTests {
         #expect(matchRoutes(routes, path: "/about?utm=foo") != nil)
     }
 
+    @Test("query percent-decoding: ASCII space")
+    func queryPercentDecodingASCIISpace() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=hello%20world")
+        #expect(captured?.query["q"] == "hello world")
+    }
+
+    @Test("query percent-decoding: multi-byte UTF-8")
+    func queryPercentDecodingUTF8() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=caf%C3%A9")
+        #expect(captured?.query["q"] == "café")
+    }
+
+    @Test("query percent-decoding: encoded plus round-trip")
+    func queryPercentDecodingEncodedPlus() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=swift%20%2B%20wasm")
+        #expect(captured?.query["q"] == "swift + wasm")
+    }
+
+    @Test("query percent-decoding: lowercase hex digits")
+    func queryPercentDecodingLowercaseHex() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=%c3%a9")
+        #expect(captured?.query["q"] == "é")
+    }
+
+    @Test("query percent-decoding: encoded key")
+    func queryPercentDecodingEncodedKey() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?caf%C3%A9=val")
+        #expect(captured?.query["café"] == "val")
+    }
+
+    // Malformed-escape fallback: Foundation's removingPercentEncoding returns
+    // nil on a lone trailing '%', and splitQuery falls back to the literal
+    // substring via `?? String(parts[1])`. The stdlib decoder in Task 2 must
+    // match this behavior so this assertion survives the swap.
+    @Test("query percent-decoding: lone trailing percent falls back to literal")
+    func queryPercentDecodingLoneTrailingPercent() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=hello%")
+        #expect(captured?.query["q"] == "hello%")
+    }
+
+    // Bad-hex fallback: '%2G' is not a valid percent escape; both Foundation
+    // and the Task 2 stdlib decoder return nil, and splitQuery falls back
+    // to the literal substring.
+    @Test("query percent-decoding: invalid hex falls back to literal")
+    func queryPercentDecodingInvalidHex() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=hello%2G")
+        #expect(captured?.query["q"] == "hello%2G")
+    }
+
+    // Deliberate semantic lock-in: RFC 3986 leaves '+' as a literal '+'.
+    // WHATWG URLSearchParams + HTML form encoding translate '+' to space;
+    // Swiflow follows Foundation (RFC 3986). If a future change wants to
+    // adopt WHATWG semantics, this assertion will fail loudly and the
+    // change will be deliberate.
+    @Test("query: literal plus stays literal (RFC 3986, not WHATWG)")
+    func queryPlusStaysLiteral() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?q=swift+wasm")
+        #expect(captured?.query["q"] == "swift+wasm")
+    }
+
     @Test("nested route matches child path")
     func nestedRouteMatchesChild() {
         let userList = leaf("/", result: .text("list"))
