@@ -28,7 +28,13 @@ test.describe("RouterDemo — hash-mode navigation", () => {
   });
 
   test("Back button returns to Home page and restores URL", async ({ page }) => {
-    await page.goto("/#/about");
+    // Navigate via Link rather than `page.goto("/#/about")` directly so the
+    // browser history contains a real prior entry — without it,
+    // `window.history.back()` lands on `about:blank` (Playwright's initial
+    // page) instead of bouncing within the app.
+    await page.goto("/");
+    await page.getByRole("link", { name: "Go to About" }).click();
+    await expect(page).toHaveURL(/#\/about$/);
     await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
 
     await page.getByRole("button", { name: "Back" }).click();
