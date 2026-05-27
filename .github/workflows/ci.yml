@@ -113,6 +113,24 @@ jobs:
       - name: Verify Swift version
         run: swift --version
 
+      - name: Verify Foundation-free runtime
+        # The runtime modules (Swiflow, SwiflowRouter, SwiflowWeb) ship in
+        # the WASM binary. Importing Foundation there risks pulling back
+        # the reflection / demangler / SIMD cost that Phase 15 cut by 90%.
+        # Host-side modules (SwiflowCLI, SwiflowMacrosPlugin) run on
+        # macOS/Linux only and are not gated.
+        run: |
+          set -euo pipefail
+          if grep -rn "^import Foundation" \
+               Sources/Swiflow \
+               Sources/SwiflowRouter \
+               Sources/SwiflowWeb; then
+            echo "::error::Runtime modules must not import Foundation."
+            echo "::error::See docs/superpowers/specs/2026-05-27-phase16-foundation-free-runtime-design.md"
+            exit 1
+          fi
+          echo "Runtime modules are Foundation-free."
+
       - name: Cache SwiftPM build + WASM SDK
         # Cache the slow-to-rebuild artifacts:
         #   - .build/                       — native + WASM compile outputs

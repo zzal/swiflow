@@ -13,7 +13,6 @@
 //     `HMRRestoreInstall.restore`.
 
 #if canImport(JavaScriptKit)
-import Foundation
 import JavaScriptKit
 import Swiflow
 
