@@ -22,6 +22,13 @@ let package = Package(
         // swift-syntax powers the @Component macro compiler plugin.
         // Pinned to upToNextMinor: 600.x covers Swift 6; 601+ may introduce breaking API changes.
         .package(url: "https://github.com/swiftlang/swift-syntax.git", .upToNextMinor(from: "600.0.0")),
+        // swift-crypto's `Crypto` module exposes SHA256 (and friends) with the
+        // same API as Apple's CryptoKit but builds on Linux too. We use it in
+        // `SwiflowCLI/BundleManifest.swift` to hash artifact bytes; CryptoKit
+        // on its own would break CI's Linux build. swift-crypto is already a
+        // transitive dependency via hummingbird / swift-certificates, so this
+        // declaration just makes the dependency edge explicit (no new graph).
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
     ],
     targets: [
         // Compiler plugin — runs on the macOS HOST at build time; never in the WASM binary.
@@ -55,6 +62,10 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
+                // Crypto: cross-platform SHA256 for `BundleManifest`. On Apple
+                // we'd just use CryptoKit; swift-crypto's `Crypto` module has
+                // an API-compatible SHA256 that also builds on Linux.
+                .product(name: "Crypto", package: "swift-crypto"),
             ],
             path: "Sources/SwiflowCLI",
             swiftSettings: [.swiftLanguageMode(.v6)]

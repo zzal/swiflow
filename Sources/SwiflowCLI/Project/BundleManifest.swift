@@ -1,5 +1,14 @@
 // Sources/SwiflowCLI/Project/BundleManifest.swift
+//
+// CryptoKit ships only on Apple platforms. swift-crypto's `Crypto` module
+// provides the same SHA256 API on Linux (Apple-published, API-compatible).
+// Prefer CryptoKit when it's available so we don't drag a redundant copy
+// of the same code into Apple builds.
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 import Foundation
 
 struct BundleManifest: Codable, Equatable {

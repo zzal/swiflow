@@ -54,7 +54,12 @@ function streamedResponse(chunks, contentLength) {
  * `Response.arrayBuffer()` works on the value returned by fetchWithProgress.
  */
 function setupDriver() {
+  // `url:` is required — without it jsdom defaults to about:blank, which is
+  // an *opaque* origin, and `Object.assign(globalThis, window)` below trips
+  // the `window.localStorage` getter with "localStorage is not available
+  // for opaque origins". Matches the helpers.js setupDriver shape.
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    url: "http://localhost:3000/",
     runScripts: "outside-only",
   });
   const win = dom.window;
