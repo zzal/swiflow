@@ -16,6 +16,104 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 17] — 2026-05-27
+
+**Lifecycle + DOM sync.** Two latent bugs that the Playwright router
+suite finally exposed: nested-component `onAppear` fires now (was
+root-only since the hook was introduced), and the diff syncs the DOM
+when a component swaps element types between frames (was previously
+updating the mount tree but leaving the DOM untouched, so routes /
+conditional UIs silently appeared frozen). No user-visible API changes;
+existing code that used `onAppear` on a non-root component just starts
+working, and any code that relied on the previous root-only behavior
+already had no body to depend on. CI also unblocked — first green
+build since 2026-05-26.
+
+### Changed
+- `Sources/SwiflowWeb/Renderer.swift` first-mount path now calls a new
+  `fireOnAppearTree(_:)` helper instead of `root.instance.onAppear()`.
+  The helper walks the mount tree children-first and fires `onAppear`
+  on every component anchor — matching React's `componentDidMount` and
+  SwiftUI's `.onAppear` ordering (a parent's hook sees its fully-mounted
+  subtree). Symmetric inverse of `destroy()`'s parent-first walk.
+- `Sources/Swiflow/Diff/Diff.swift` component-reuse and
+  environment-override update arms now splice
+  `removeChild`/`appendChild` patches around the recursive update when
+  the body's DOM identity changes. A new `domAncestorHandle(_:)` helper
+  walks up `mounted.parent` past structural anchors to the first
+  DOM-tracked ancestor; for the root-level case (anchors all the way
+  up) the Renderer emits a new `replaceMount(selector, newHandle)`
+  patch instead.
+- `examples/RouterDemo/index.html` dropped its inline
+  `<script type="module">` block that called PackageToJS `init()` a
+  second time. The driver script's IIFE handles init by itself; the
+  manual block was leftover from the pre-13e template migration and
+  was double-mounting RouterRoot into `#app`. HelloWorld's template
+  had the same fix applied earlier.
+- `Tests/playwright/router.spec.ts` Back-button test now navigates to
+  `/` and clicks the in-app Link to reach `/#/about` before testing
+  Back — the previous version used `page.goto("/#/about")` directly,
+  which left no in-app history, so `window.history.back()` took the
+  page out of the app.
+
+### Added
+- `Patch.replaceMount(selector: String, newHandle: Int)` opcode +
+  matching JS-driver handler. The driver tracks the currently-attached
+  root **Node reference** per selector (not handle) so the swap works
+  even if a preceding `destroyNode` has evicted the old root's handle
+  from the `nodes` map.
+- Two `node:test` cases in `js-driver/test/opcodes.test.js` covering
+  `replaceMount`'s happy path and the missing-selector error.
+- Three host-side tests in `Tests/SwiflowTests/Reactivity/RendererComponentTests.swift`:
+  `OnAppearTreeWalkTests` (children-first ordering), and
+  `ComponentTypeSwapTests` covering both the element-child path
+  (already handled by `IndexedChildrenDiff`, now regression-guarded)
+  and the env-override body path (new).
+- Per-suite Playwright configs (`playwright.counter.config.ts`,
+  `playwright.router.config.ts`) + `npm run test:counter` / `test:router`
+  scripts that spin up only the dev server their spec needs. Cuts
+  local iteration time from ~20 min (full `npm test`) to ~1 min per
+  suite. `Tests/playwright/README.md` documents the split.
+- `Tests/playwright/progress.spec.ts` fix: the `MutationObserver` is
+  now installed only after `<html>` is parsed. The previous version
+  called `obs.observe(html, ...)` from within `page.addInitScript`,
+  which runs BEFORE the HTML parser produces `documentElement`, so
+  the observe call threw silently and no progress events were ever
+  captured. With the fix, the test reliably sees the driver's
+  `data-swiflow-progress` writes.
+
+### Fixed (CI)
+- `Sources/SwiflowCLI/Project/BundleManifest.swift` switched from a
+  bare `import CryptoKit` (Apple-only) to a `#if canImport(CryptoKit)`
+  / `#else import Crypto` pair. The Linux `Test (ubuntu-22.04)` job
+  had failed at "Build library + WebTarget" with `no such module
+  'CryptoKit'` since Phase 14b Track 1's manifest landed
+  (commit bbd9a95, 2026-05-26). `swift-crypto`'s `Crypto` module
+  exposes an API-compatible `SHA256`; it was already a transitive
+  dependency via hummingbird / swift-certificates, so the fix is
+  a one-line conditional import plus declaring the edge explicitly
+  on `SwiflowCLI` in `Package.swift`.
+- `js-driver/test/progress.test.js` setupDriver now passes
+  `url: "http://localhost:3000/"` to its JSDOM ctor. Without it the
+  document had an opaque origin (`about:blank`), and the
+  `Object.assign(globalThis, window)` line below tripped jsdom's
+  `localStorage` getter (which rejects on opaque origins) on Node 20.
+  Local Node 24 happened to swallow the throw; the CI's pinned Node 20
+  surfaced it as a hard test failure.
+
+### CLI version
+- `swiflow --version` reports `0.1.3` (was `0.1.1`). Rolls Phase 16
+  and Phase 17 forward to a single release point.
+
+### Stability
+- Stable for pre-1.0 usage. No user-facing API changes — components
+  that already used `onAppear`, lifecycle hooks, the router, or
+  conditional rendering by component type all keep working; the
+  difference is that the latter two now behave correctly past the
+  initial mount.
+
+---
+
 ## [Phase 16] — 2026-05-27
 
 **Foundation-free runtime.** The Swiflow runtime modules (`Swiflow`,
