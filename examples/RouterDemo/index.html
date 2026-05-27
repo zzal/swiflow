@@ -6,10 +6,10 @@
   </head>
   <body>
     <div id="app"></div>
+
+    <!-- The Swiflow driver script owns WASM initialisation.
+         It dynamically imports the PackageToJS module and calls init()
+         so no <script type="module"> block is needed here. -->
     <script src="swiflow-driver.js"></script>
-    <script type="module">
-      import { init } from "./.build/plugins/PackageToJS/outputs/Package/index.js";
-      await init();
-    </script>
   </body>
 </html>
