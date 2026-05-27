@@ -27,6 +27,7 @@ struct BuildCommandArgvTests {
             "--swift-sdk", "swift-6.3-RELEASE_wasm",
             "-Xswiftc", "-Osize",
             "-Xswiftc", "-gnone",
+            "-Xswiftc", "-disable-reflection-metadata",
             "js",
             "--use-cdn",
             "--product", "App",
@@ -54,6 +55,35 @@ struct BuildCommandArgvTests {
         }
         #expect(followers.contains("-Osize"))
         #expect(followers.contains("-gnone"))
+    }
+
+    @Test("Release-mode invocation passes -disable-reflection-metadata via -Xswiftc")
+    func releaseDisablesReflectionMetadata() throws {
+        let invocation = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .release
+        )
+        let args = invocation.composeArguments()
+
+        let xSwiftcIndices = args.indices.filter { args[$0] == "-Xswiftc" }
+        let followers = xSwiftcIndices.map { args[args.index(after: $0)] }
+        #expect(followers.contains("-disable-reflection-metadata"))
+    }
+
+    @Test("Dev-mode invocation does NOT pass -disable-reflection-metadata")
+    func devKeepsReflectionMetadata() throws {
+        let invocation = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .dev
+        )
+        let args = invocation.composeArguments()
+        #expect(!args.contains("-disable-reflection-metadata"))
     }
 
     @Test("Dev-mode invocation does NOT pass -Osize or -gnone")

@@ -105,9 +105,14 @@ struct BuildInvocation {
             // do numerical compute. -gnone drops debug info in release (dev
             // still ships DWARF via --debug-info-format dwarf below).
             // -Xswiftc is a swift-package global option and must precede `js`.
+            // -disable-reflection-metadata: all Mirror call sites were removed in
+            // Phase 15 Task 6, so the linker can now dead-strip the demangler and
+            // SIMD debugDescription helpers that Mirror references pin. Dev builds
+            // keep reflection metadata for Phase 13b DWARF debugging.
             prePluginArgs.append(contentsOf: [
                 "-Xswiftc", "-Osize",
                 "-Xswiftc", "-gnone",
+                "-Xswiftc", "-disable-reflection-metadata",
             ])
             pluginArgs.append(contentsOf: ["-c", "release"])
         case .dev:
