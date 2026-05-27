@@ -96,7 +96,22 @@ private func percentDecode(_ s: String) -> String? {
             bytes.append(b)
         }
     }
-    return String(validating: bytes, as: UTF8.self)
+    // Validate UTF-8 strictly via Unicode.UTF8.ForwardParser (stdlib,
+    // no platform gate). The single-call equivalent
+    // `String(validating: bytes, as: UTF8.self)` is `@available(macOS 15+)`
+    // and Package.swift pins `.macOS(.v14)`, so we use the parser instead.
+    // Semantics are identical: `.error → nil`, `.emptyInput → String(decoding:as:)`.
+    var validator = Unicode.UTF8.ForwardParser()
+    var byteIter = bytes.makeIterator()
+    while true {
+        switch validator.parseScalar(from: &byteIter) {
+        case .valid: continue
+        case .emptyInput:
+            return String(decoding: bytes, as: UTF8.self)
+        case .error:
+            return nil
+        }
+    }
 }
 
 /// ASCII hex-digit nibble. `nil` for any non-hex byte.
@@ -112,7 +127,7 @@ private func hexDigit(_ b: UInt8) -> UInt8? {
 
 Notes:
 
-- `String(validating: bytes, as: UTF8.self)` (Swift 6.0+, available in 6.3) returns `nil` for invalid UTF-8. This is the strict-match behavior; `String(decoding: bytes, as: UTF8.self)` would substitute U+FFFD and never fail, which would diverge from Foundation.
+- `Unicode.UTF8.ForwardParser` is used instead of `String(validating: bytes, as: UTF8.self)` because the single-call validating initializer is `@available(macOS 15+)` (SE-0405) and `Package.swift` pins `.macOS(.v14)`. The parser path is stdlib, has no platform gate, and is behaviorally identical (returns `nil` on invalid UTF-8, returns the decoded string on success). Both diverge from `String(decoding: bytes, as: UTF8.self)`, which would substitute U+FFFD and never fail — that divergence would have left Foundation behavior unmatched.
 - `&+` (overflow-trapping arithmetic disabled) is used on the `b - 0x41 &+ 10` and `b - 0x61 &+ 10` paths because the inputs are pre-validated by the case range — overflow is impossible and `&+` matches the stdlib style for byte-twiddling hot paths.
 - `s.contains("%")` fast path is O(n) but avoids buffer allocation when the common case (no encoding) holds.
 
@@ -243,7 +258,7 @@ Explicitly **not** part of this phase:
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| `String(validating:as:)` API surface differs in the WASM 6.3 SDK vs. host Swift 6.3 | Low | The WASM SDK ships the same stdlib as the host; verify by running the regression tests via `swift test`, which already exercises stdlib-only paths used in WASM. |
+| `String(validating:as:)` is `@available(macOS 15+)` (SE-0405); host targets macOS 14 | Realized during Task 2 implementation | Substituted `Unicode.UTF8.ForwardParser` — stdlib, no platform gate, semantically identical (`.error → nil`, `.emptyInput → String(decoding:as:)`). Verified by all 8 regression-guard tests passing and the full 545-test project suite remaining green. |
 | `HMRBridge.swift` actually needs Foundation for a symbol grep missed (e.g., a `Date` formatter via type inference) | Low | Build fails immediately on import removal; root-cause and decide per §5. Worst case: keep the import with a one-line comment explaining why. |
 | The CI grep flags a legitimate `import Foundation` inside a comment or doc string | Very low | The anchor `^import Foundation` only matches lines that begin with the literal import statement, not commented or indented occurrences. |
 | Tests T6/T7 (fallback for malformed input) pass against current Foundation impl for the wrong reason — e.g., Foundation accepts something we don't | Low | The `?? original` fallback masks any divergence on the failure branch. If Foundation accepts a sequence our decoder rejects, the call still returns the original literal; behavior is identical to the user. Document this in the test comments. |
