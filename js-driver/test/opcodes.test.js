@@ -1,6 +1,6 @@
 // js-driver/test/opcodes.test.js
 //
-// Unit coverage for the driver's 18 opcodes. Each test starts with a
+// Unit coverage for the driver's 19 opcodes. Each test starts with a
 // fresh jsdom + driver via setupDriver().
 
 import { describe, test } from "node:test";

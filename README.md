@@ -13,16 +13,21 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 15 (Pre-1.0 Dependency Diet) — `@State` is now an
-attached Swift macro; the runtime no longer walks `Mirror` to
-discover state cells. Release builds drop reflection metadata,
-shrinking the bundle from 18.17 MB gzipped to **1.81 MB** (−90%).
-Track 1's service-worker cache still serves visit #2+ from local
-cache; combined first-visit cost is now the equivalent of loading
-a small React app. User-facing API essentially unchanged — `@State`
-now requires an explicit type annotation.
+**Status:** Phase 17 (Lifecycle + DOM Sync) — closes two latent
+bugs the Playwright router suite exposed: nested-component
+`onAppear` now fires (was root-only since the hook was introduced,
+which silently broke `Link`'s click handler), and the diff now
+emits the `removeChild` / `appendChild` patches needed to keep the
+DOM in sync when a component swaps element types between frames
+(a new `replaceMount` opcode handles the root-level case). All 3
+router.spec.ts e2e tests pass. Phase 16 (Foundation-Free Runtime)
+shipped just before: runtime modules no longer import Foundation;
+a CI grep guard enforces it. Phase 15's bundle headline still
+holds — **1.81 MB gzipped** (−90% vs the pre-15 baseline). User-
+facing API essentially unchanged across all three; `@State` still
+requires an explicit type annotation as of 15.
 
-**What works today (Phase 15):**
+**What works today (Phase 17):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -43,11 +48,12 @@ now requires an explicit type annotation.
   the driver plays the animation before DOM removal.
 - **`@Component` macro** — components declared with `@MainActor @Component final class Foo { ... }` automatically conform to `Component`. The macro removes the `: Component` boilerplate; the `@MainActor` is still required (Swift 6 doesn't propagate actor isolation retroactively through a macro-emitted conformance extension, so the class body needs its own isolation). `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
 - **`@Environment` / context DI** — typed `EnvironmentKey` protocol, `EnvironmentValues`, `Environment` property wrapper, plus both the `withEnvironment(\.key, value) { ... }` DSL and the postfix `.environment(\.key, value)` VNode modifier. `EnvironmentValues: Equatable` so the VNode diff detects environment changes.
-- **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`).
+- **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`, 3/3 passing); `Link`'s click handler attaches reliably now that nested components actually receive `onAppear`.
+- **Lifecycle hooks across the whole tree** — `onAppear`, `onChange`, `onDisappear` fire on every component in the mount tree, not just the root. Children-first ordering on mount (matches React's `componentDidMount` and SwiftUI's `.onAppear`) so a parent's hook sees its subtree fully mounted; parent-first on unmount so a parent can still read child state during teardown.
 - **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
 - **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 537 Swift tests across 106 suites + 30 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+- 548 Swift tests across 108 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
 **What's not in the box yet:**
 - **Component inspector / devtools** — Phase 9 (pending).
@@ -81,7 +87,33 @@ now requires an explicit type annotation.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 15 (Pre-1.0 Dependency Diet) complete — @State is now a Swift
+**Status:** Phase 17 (Lifecycle + DOM Sync Fixes) complete — two latent
+bugs the Playwright router suite finally exposed. First, `onAppear` fired
+only on the root component since the hook was introduced (`2601ad9`, well
+before the router demo's e2e was added). The mount-time walker now mirrors
+the existing destroy walker, firing `onAppear` children-first on every
+component anchor. Second, the diff's component-reuse and env-override
+update arms left the DOM out of sync on type swaps: destroy emitted
+`destroyNode` (handle-map cleanup only) without `removeChild`, and mount
+created the new subtree without a parent-level `appendChild`. Both arms
+now splice `removeChild` / `appendChild` patches around the recursive
+update using a new `domAncestorHandle(_:)` walker; when the swap is at
+the root (anchors all the way up), the Renderer instead emits a new
+`replaceMount(selector, newHandle)` patch — the JS driver tracks roots
+per-selector by Node reference (not handle) so the swap survives the
+preceding `destroyNode`. All 3 `router.spec.ts` e2e tests pass.
+Phase 16 (Foundation-Free Runtime) complete — `Sources/SwiflowRouter/Core/RouteMatching.swift`
+dropped `import Foundation` (queries are decoded by a stdlib
+`Unicode.UTF8.ForwardParser`-backed `percentDecode`),
+`Sources/SwiflowWeb/HMR/HMRBridge.swift` dropped its vestigial Foundation
+import, and a `Verify Foundation-free runtime` step in `.github/workflows/ci.yml`
+greps for `^import Foundation$` in the three runtime modules and fails
+fast on any hit (runs before the cache restore). Bundle delta was within
+noise (Phase 15 already drained Foundation's transitive cost); the win is
+architecture hygiene — `grep -rn '^import Foundation' Sources/Swiflow*`
+now returns zero, and the 1.0 story is structurally true rather than
+aspirational.
+Phase 15 (Pre-1.0 Dependency Diet) complete — @State is now a Swift
 attached macro; the framework iterates macro-emitted
 `_ComponentRuntime.stateCells` instead of walking `Mirror.children`;
 release builds compile with `-Xswiftc -disable-reflection-metadata`.
@@ -132,12 +164,14 @@ Run `swiflow doctor` after building the CLI to verify your toolchain is complete
 
 ## What's in the box
 
-- **`Swiflow`** — pure-Swift VDOM core: tagged-enum `VNode`, 16-opcode `Patch`,
+- **`Swiflow`** — pure-Swift VDOM core: tagged-enum `VNode`, 19-opcode `Patch`,
   hybrid keyed (LIS-based) + indexed children diff, `@resultBuilder` DSL.
 - **`Component` + `@State`** — reactive class-bound components. `@State` is an
   attached Swift macro that emits an accessor `didSet` calling into the
   per-frame `RAFScheduler` on mutation, plus a `$`-prefixed `Binding<T>`
-  projection. Lifecycle hooks: `onAppear`, `onChange()`, `onDisappear`.
+  projection. Lifecycle hooks (`onAppear`, `onChange`, `onDisappear`) fire on
+  every component in the mount tree — children-first on mount, parent-first
+  on unmount.
 - **Security** — `URLSanitizer` scrubs `javascript:` / `vbscript:` / `data:` /
   `blob:` from `href`, `src`, `action`, `formaction` at the DSL fold step.
   `VNode.rawHTML(_:)` is the named-loud escape hatch.
@@ -161,11 +195,11 @@ design exploration.
 ## Testing
 
 ```bash
-# Swift core: 537 tests across 106 suites.
+# Swift core: 548 tests across 108 suites.
 # WASM-SDK-gated E2E tests skip cleanly when no SDK is installed.
 swift test
 
-# JS driver: 30 jsdom-based unit tests covering driver opcodes, dev reload, and service worker.
+# JS driver: 32 jsdom-based unit tests covering driver opcodes, dev reload, and service worker.
 (cd js-driver && npm test)
 ```
 

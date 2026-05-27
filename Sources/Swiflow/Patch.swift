@@ -4,7 +4,7 @@
 /// the JS driver (in Phase 2). Patches reference DOM nodes by integer handles
 /// pre-allocated on the Swift side; the driver maintains a `Map<int, Node>`.
 ///
-/// The 18 opcodes are grouped:
+/// The 19 opcodes are grouped:
 /// - **Lifecycle**: create / destroy DOM nodes.
 /// - **Tree structure**: parent/child wiring.
 /// - **Per-bag mutations**: attribute / property / style / text.
