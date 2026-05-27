@@ -111,6 +111,13 @@ package enum PatchSerializer {
                 "handle": .int(handle),
                 "event": .string(event),
             ])
+
+        // MARK: Mount target
+        case .replaceMount(let selector, let newHandle):
+            return PatchPayload(op: "replaceMount", fields: [
+                "selector":  .string(selector),
+                "newHandle": .int(newHandle),
+            ])
         }
     }
 }

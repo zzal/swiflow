@@ -238,3 +238,180 @@ struct AppearChangeLifecycleTests {
         #expect(tracker.changeCallCount == 1)
     }
 }
+
+// MARK: - onAppear via tree walk
+
+/// Records ordering of onAppear calls across nested components.
+/// Class (not struct) so multiple components can share the same instance by reference.
+@MainActor
+private final class OnAppearLog {
+    var calls: [String] = []
+}
+
+@Suite("Lifecycle: onAppear fires on every component in the tree, children-first")
+@MainActor
+struct OnAppearTreeWalkTests {
+
+    /// Inner component, mounted as Outer's body. Appended "inner" to the log on appear.
+    final class Inner: Component {
+        fileprivate let log: OnAppearLog
+        fileprivate init(log: OnAppearLog) { self.log = log }
+        var body: VNode { .text("inner") }
+        func onAppear() { log.calls.append("inner") }
+    }
+
+    /// Outer component, embeds Inner. Appended "outer" to the log on appear.
+    final class Outer: Component {
+        fileprivate let log: OnAppearLog
+        fileprivate init(log: OnAppearLog) { self.log = log }
+        var body: VNode { embed { Inner(log: self.log) } }
+        func onAppear() { log.calls.append("outer") }
+    }
+
+    @Test("fireOnAppearTree fires onAppear on Outer AND Inner; Inner before Outer (children-first)")
+    func onAppearFiresChildrenFirst() {
+        let log = OnAppearLog()
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // Build a mount tree containing Outer → (componentBody) → Inner.
+        let v = VNode.component(.init(Outer.self) { Outer(log: log) })
+        let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+
+        // Sanity: confirm tree shape matches the destroy-nested test's precedent.
+        #expect(result.newMountTree.component != nil, "Outer anchor expected at the root")
+        #expect(result.newMountTree.componentBody?.component != nil, "Inner anchor expected as Outer's body")
+
+        // Pre-condition: no lifecycle hook has fired yet.
+        #expect(log.calls.isEmpty)
+
+        // Act.
+        fireOnAppearTree(result.newMountTree)
+
+        // Children-first ordering — symmetric inverse of destroy's parent-first.
+        // Matches React/SwiftUI: a parent's onAppear sees its subtree fully mounted.
+        #expect(log.calls == ["inner", "outer"])
+    }
+}
+
+// MARK: - Component type-swap → removeChild/appendChild patches
+
+/// Phase 17: when a component's body returns a different component type
+/// between renders, the diff must emit a removeChild + appendChild pair on
+/// the surrounding DOM ancestor so the JS driver detaches the old root and
+/// attaches the new one. Without this, the mount tree updates but the DOM
+/// stays stuck on the original component (and routers / conditional UIs
+/// silently appear frozen).
+@Suite("Component type-swap inside an element parent emits DOM-level swap patches")
+@MainActor
+struct ComponentTypeSwapTests {
+
+    final class PageA: Component {
+        var body: VNode { .text("A") }
+    }
+    final class PageB: Component {
+        var body: VNode { .text("B") }
+    }
+
+    @Test("Element child component swap emits removeChild + appendChild on the DOM ancestor")
+    func componentTypeSwapEmitsRemoveAndAppend() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // Mount: <div>{ PageA() }</div>
+        let elementVNode = VNode.element(ElementData(
+            tag: "div",
+            children: [.component(.init(PageA.self) { PageA() })]
+        ))
+        let first = diff(mounted: nil, next: elementVNode, handles: handles, handlers: handlers)
+
+        let divHandle = first.newMountTree.handle
+        let oldChildAnchor = first.newMountTree.children[0]
+        let oldChildDomHandle = oldChildAnchor.domHandle
+
+        // Re-render: <div>{ PageB() }</div> — different component type at the
+        // same child slot. IndexedChildrenDiff's existing remove/append logic
+        // covers this case (component anchors inside an element parent are
+        // tracked as children of that element).
+        let nextVNode = VNode.element(ElementData(
+            tag: "div",
+            children: [.component(.init(PageB.self) { PageB() })]
+        ))
+        let second = diff(mounted: first.newMountTree, next: nextVNode, handles: handles, handlers: handlers)
+
+        let newChildAnchor = second.newMountTree.children[0]
+        let newChildDomHandle = newChildAnchor.domHandle
+
+        // Must have a removeChild for the old child and an appendChild/insertBefore
+        // for the new child, both parented at the surrounding <div>.
+        let hasRemoveChild = second.patches.contains(where: {
+            if case .removeChild(let parent, let child) = $0 {
+                return parent == divHandle && child == oldChildDomHandle
+            }
+            return false
+        })
+        let hasAppendOrInsert = second.patches.contains(where: {
+            if case .appendChild(let parent, let child) = $0 {
+                return parent == divHandle && child == newChildDomHandle
+            }
+            if case .insertBefore(let parent, let child, _) = $0 {
+                return parent == divHandle && child == newChildDomHandle
+            }
+            return false
+        })
+        #expect(hasRemoveChild, "Expected removeChild(parent: div, child: oldChild) in diff patches")
+        #expect(hasAppendOrInsert, "Expected appendChild/insertBefore(parent: div, child: newChild) in diff patches")
+    }
+
+    @Test("EnvironmentOverride body type-swap emits DOM-level swap at the surrounding element")
+    func envOverrideBodyTypeSwapEmitsSwap() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // Mount: <div>{ withEnvironment(\.locale, "en") { PageA() } }</div>
+        // The env override's body is the component anchor. Across renders,
+        // we keep the same env override outer but swap the inner component
+        // type — the env-override arm must propagate the swap to the
+        // surrounding <div>.
+        let initial = VNode.element(ElementData(
+            tag: "div",
+            children: [.environmentOverride(
+                EnvironmentValues(),
+                .component(.init(PageA.self) { PageA() })
+            )]
+        ))
+        let first = diff(mounted: nil, next: initial, handles: handles, handlers: handlers)
+        let divHandle = first.newMountTree.handle
+        let envOverrideNode = first.newMountTree.children[0]
+        let oldBodyDomHandle = envOverrideNode.domHandle
+
+        // Same env-override outer, swapped inner component type.
+        let next = VNode.element(ElementData(
+            tag: "div",
+            children: [.environmentOverride(
+                EnvironmentValues(),
+                .component(.init(PageB.self) { PageB() })
+            )]
+        ))
+        let second = diff(mounted: first.newMountTree, next: next, handles: handles, handlers: handlers)
+        let updatedEnvNode = second.newMountTree.children[0]
+        let newBodyDomHandle = updatedEnvNode.domHandle
+
+        // Body identity changed; outer env-override node is preserved.
+        #expect(oldBodyDomHandle != newBodyDomHandle, "Inner body should have changed DOM handle on type swap")
+        let hasRemove = second.patches.contains(where: {
+            if case .removeChild(let parent, let child) = $0 {
+                return parent == divHandle && child == oldBodyDomHandle
+            }
+            return false
+        })
+        let hasAttach = second.patches.contains(where: {
+            if case .appendChild(let parent, let child) = $0 {
+                return parent == divHandle && child == newBodyDomHandle
+            }
+            return false
+        })
+        #expect(hasRemove, "EnvironmentOverride body swap must emit removeChild on the surrounding <div>")
+        #expect(hasAttach, "EnvironmentOverride body swap must emit appendChild on the surrounding <div>")
+    }
+}

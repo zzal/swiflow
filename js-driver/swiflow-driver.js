@@ -30,6 +30,12 @@
   /** Currently mounted CSS selector — set by `mount`, used by HMR. */
   let mountSelector = null;
 
+  /** Selector → DOM Node currently attached as the swiflow root for that
+   *  selector. We hold the Node ref directly (not the handle) so the
+   *  `replaceMount` op can detach the previous root even if a preceding
+   *  `destroyNode` already evicted it from the `nodes` map. */
+  const mountedRoots = new Map();
+
   /** Path to the PackageToJS-emitted WASM, relative to the page. */
   const WASM_URL = "./.build/plugins/PackageToJS/outputs/Package/App.wasm";
 
@@ -242,6 +248,33 @@
         return;
       }
 
+      case "replaceMount": {
+        // Root-swap counterpart to the initial `mount` op: emitted when the
+        // root component's body produces a different element type between
+        // frames (e.g. a router switching pages). The Swift side guarantees
+        // `nodes[newHandle]` is populated by preceding createElement patches.
+        //
+        // We track the old root by Node ref (not handle) in `mountedRoots`,
+        // so the detach works even if a preceding `destroyNode` already
+        // evicted the old root's handle from the `nodes` map. That decoupling
+        // is what lets the Renderer emit `replaceMount` at the END of the
+        // patch list without having to reorder the diff's output.
+        const target = document.querySelector(p.selector);
+        if (target === null) {
+          throw new Error(
+            "swiflow-driver: replaceMount target '" + p.selector + "' not found"
+          );
+        }
+        const oldNode = mountedRoots.get(p.selector);
+        if (oldNode !== undefined && oldNode.parentNode === target) {
+          target.removeChild(oldNode);
+        }
+        const newNode = nodes.get(p.newHandle);
+        mountedRoots.set(p.selector, newNode);
+        target.appendChild(newNode);
+        return;
+      }
+
       default:
         console.error("swiflow-driver: unknown opcode", p.op, p);
         return;
@@ -318,6 +351,7 @@
         );
       }
       mountSelector = selector;
+      mountedRoots.set(selector, nodes.get(rootHandle));
       target.appendChild(nodes.get(rootHandle));
     },
 

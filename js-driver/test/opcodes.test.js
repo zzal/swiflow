@@ -1,6 +1,6 @@
 // js-driver/test/opcodes.test.js
 //
-// Unit coverage for the driver's 17 opcodes. Each test starts with a
+// Unit coverage for the driver's 18 opcodes. Each test starts with a
 // fresh jsdom + driver via setupDriver().
 
 import { describe, test } from "node:test";
@@ -213,5 +213,38 @@ describe("driver opcodes", () => {
     swiflow.applyPatches([{ op: "removeHandler", handle: 1, event: "click" }]);
     btn.click();
     assert.equal(callCount, 1, "After removeHandler the listener should NOT fire");
+  });
+
+  test("replaceMount swaps the current root child of the selector target", () => {
+    const { swiflow, document } = setupDriver();
+    // First mount: handle 1 (HomePage div) under #app.
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "setAttribute", handle: 1, name: "class", value: "swiflow-HomePage" },
+    ]);
+    swiflow.mount(1, "#app");
+    assert.equal(document.querySelector("#app").firstElementChild.className, "swiflow-HomePage");
+
+    // Re-render swaps to handle 2 (AboutPage div). Per the contract, the
+    // new root's createElement patches precede replaceMount, and the old
+    // root's destroyNode patches follow.
+    swiflow.applyPatches([
+      { op: "createElement", handle: 2, tag: "div" },
+      { op: "setAttribute", handle: 2, name: "class", value: "swiflow-AboutPage" },
+      { op: "replaceMount", selector: "#app", newHandle: 2 },
+      { op: "destroyNode", handle: 1 },
+    ]);
+    const app = document.querySelector("#app");
+    assert.equal(app.children.length, 1);
+    assert.equal(app.firstElementChild.className, "swiflow-AboutPage");
+  });
+
+  test("replaceMount throws when selector target is missing", () => {
+    const { swiflow } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
+    assert.throws(
+      () => swiflow.applyPatches([{ op: "replaceMount", selector: "#missing", newHandle: 1 }]),
+      /replaceMount target '#missing' not found/
+    );
   });
 });

@@ -149,6 +149,16 @@ final class Renderer {
         }
 
         let renderStartMs = JSObject.global.performance.object?.now?().number ?? 0
+        // Capture the previously-mounted root's DOM handle before the diff
+        // mutates `mountTree.componentBody` in place. If a re-render swaps
+        // the root component's body to a different element type, the diff
+        // can't emit the parent-level removeChild/appendChild because the
+        // root's parent in DOM is the selector target (`#app`), which has
+        // no entry in the mount tree. We splice a `replaceMount` patch
+        // here at the Renderer level to cover that case; the JS driver
+        // detaches the previously-mounted node via `mountedRoots[selector]`
+        // and attaches the new root.
+        let preDiffRootDOMHandle = mountTree?.domHandle
         let result = diff(
             mounted: mountTree,
             next: nextVNode,
@@ -157,13 +167,24 @@ final class Renderer {
             scheduler: _schedulerBox.value,
             environment: .init()
         )
-        lastPatchCount = result.patches.count
+        var outgoingPatches = result.patches
+        if let preDOMHandle = preDiffRootDOMHandle,
+           preDOMHandle != result.newMountTree.domHandle {
+            // Root DOM identity changed across renders — emit a swap. Placed
+            // at the END of the patch list so all preceding createElement
+            // patches for the new root have populated `nodes[newHandle]`.
+            outgoingPatches.append(.replaceMount(
+                selector: selector,
+                newHandle: result.newMountTree.domHandle
+            ))
+        }
+        lastPatchCount = outgoingPatches.count
         renderCount += 1
         lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - renderStartMs
 
         // Encode patches to a JSArray and ship across the bridge.
         let jsArray = JSObject.global.Array.function!.new()
-        for (index, patch) in result.patches.enumerated() {
+        for (index, patch) in outgoingPatches.enumerated() {
             let payload = PatchSerializer.encode(patch)
             jsArray[index] = JSAdapter.toJSValue(payload)
         }
@@ -186,11 +207,12 @@ final class Renderer {
                 JSValue.number(Double(mountHandle)),
                 JSValue.string(selector)
             )
-            // Lifecycle: fire onAppear on the root component after patches
-            // have been shipped to the driver (DOM is now live).
-            if let root = rootComponent {
-                root.instance.onAppear()
-            }
+            // Lifecycle: walk the mount tree children-first and fire onAppear
+            // on every component anchor. Nested components (e.g. Link inside a
+            // Page inside RouterRoot) rely on onAppear to attach DOM listeners
+            // via Ref<JSObject>; firing only on the root would silently break
+            // them. Symmetric inverse of destroy()'s parent-first onDisappear.
+            fireOnAppearTree(result.newMountTree)
         } else {
             // Lifecycle: fire onChange on the root component.
             if let root = rootComponent {

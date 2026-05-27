@@ -381,6 +381,13 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
+        // Snapshot the body's DOM identity before the recursive update so we
+        // can detect a same-anchor / different-body-element swap (e.g. a
+        // route change inside an env-override inside this component) and
+        // emit the DOM-level removeChild+appendChild that the recursive
+        // default arm leaves to the caller.
+        let oldBodyDOMHandleForComponentArm = oldBody.domHandle
+        let bodyUpdateStartForComponentArm = patches.count
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
@@ -414,6 +421,19 @@ func update(
             path: path,
             environment: environment
         )
+        // If the body's DOM-level identity changed (type or tag swap),
+        // splice removeChild+appendChild patches into the parent's DOM
+        // ancestor. For a root-level swap (no DOM ancestor in the mount
+        // tree), the Renderer detects the root-handle change post-diff
+        // and emits a `replaceMount` patch covering the same job.
+        if newBodyMount.domHandle != oldBodyDOMHandleForComponentArm,
+           let domParentHandle = domAncestorHandle(of: mounted) {
+            patches.insert(
+                .removeChild(parent: domParentHandle, child: oldBodyDOMHandleForComponentArm),
+                at: bodyUpdateStartForComponentArm
+            )
+            patches.append(.appendChild(parent: domParentHandle, child: newBodyMount.domHandle))
+        }
         mounted.componentBody = newBodyMount
         // Commit the new vnode description so the next render's left-hand
         // side reflects the description that was actually diffed.
@@ -428,6 +448,12 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
+        // Snapshot — mirror of the Component reuse arm above. The env
+        // override is a structural-only anchor; if its body's DOM identity
+        // changes between frames, the surrounding DOM ancestor needs a
+        // removeChild + appendChild splice.
+        let oldBodyDOMHandleForEnvArm = oldBody.domHandle
+        let bodyUpdateStartForEnvArm = patches.count
         let merged = environment.merging(nextOverrides)
         let updatedBody = update(
             mounted: oldBody,
@@ -439,6 +465,14 @@ func update(
             path: path,
             environment: merged
         )
+        if updatedBody.domHandle != oldBodyDOMHandleForEnvArm,
+           let domParentHandle = domAncestorHandle(of: mounted) {
+            patches.insert(
+                .removeChild(parent: domParentHandle, child: oldBodyDOMHandleForEnvArm),
+                at: bodyUpdateStartForEnvArm
+            )
+            patches.append(.appendChild(parent: domParentHandle, child: updatedBody.domHandle))
+        }
         mounted.componentBody = updatedBody
         mounted.vnode = next
         return mounted
@@ -617,6 +651,63 @@ package func destroy(
         } else if node.handle != skipDestroyForHandle {
             patches.append(.destroyNode(handle: node.handle))
         }
+    }
+}
+
+/// Walks `node.parent` upward until a DOM-tracked ancestor is found, and
+/// returns its handle. Component anchors and environment-override nodes
+/// have **structural** handles (the JS driver never sees them via a
+/// `create*` patch), so they're skipped; the first ancestor whose handle
+/// is in the driver's `nodes` map is the one DOM ops like `removeChild` /
+/// `appendChild` should reference.
+///
+/// Returns `nil` when the walk reaches the mount-tree root without finding
+/// a DOM-tracked ancestor — which is the case for the root component's own
+/// body. The Renderer handles that case by emitting a `replaceMount` patch
+/// using the selector that the initial `mount` patch attached to.
+@MainActor
+package func domAncestorHandle(of node: MountNode) -> Int? {
+    var current = node.parent
+    while let candidate = current {
+        if candidate.component != nil {
+            // Component anchor — structural handle, skip.
+        } else if case .environmentOverride = candidate.vnode {
+            // Environment-override anchor — structural handle, skip.
+        } else {
+            // Element / text / rawHTML — handle is in the driver's nodes map.
+            return candidate.handle
+        }
+        current = candidate.parent
+    }
+    return nil
+}
+
+/// Walks `node` and its entire subtree, firing `onAppear()` on every
+/// component anchor in **children-first** order — each component's
+/// `onAppear` runs after its descendants' have completed.
+///
+/// Symmetric inverse of `destroy()`: destroy is parent-first so a parent's
+/// `onDisappear` can still read child state before children are torn down;
+/// `fireOnAppearTree` is children-first so a parent's `onAppear` observes a
+/// fully-mounted subtree (matching React's `componentDidMount` and SwiftUI's
+/// `.onAppear` convention).
+///
+/// Called from the Web renderer's first-mount path. Subsequent re-renders
+/// don't refire `onAppear` — instances persist across diffs; `onChange`
+/// is the per-render hook.
+@MainActor
+package func fireOnAppearTree(_ node: MountNode) {
+    // Descend first — symmetric with destroy()'s recursion order (componentBody
+    // before children) — so any onAppear at this level sees its subtree fully
+    // mounted and DOM-attached.
+    if let body = node.componentBody {
+        fireOnAppearTree(body)
+    }
+    for child in node.children {
+        fireOnAppearTree(child)
+    }
+    if let any = node.component {
+        any.instance.onAppear()
     }
 }
 

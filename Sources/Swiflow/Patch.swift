@@ -4,12 +4,14 @@
 /// the JS driver (in Phase 2). Patches reference DOM nodes by integer handles
 /// pre-allocated on the Swift side; the driver maintains a `Map<int, Node>`.
 ///
-/// The 17 opcodes are grouped:
+/// The 18 opcodes are grouped:
 /// - **Lifecycle**: create / destroy DOM nodes.
 /// - **Tree structure**: parent/child wiring.
 /// - **Per-bag mutations**: attribute / property / style / text.
 /// - **Events**: add / remove DOM event listeners (handlerId points into
 ///   `HandlerRegistry`).
+/// - **Mount target**: root swap when the root component renders a different
+///   element type between frames (e.g. a router switching pages).
 package enum Patch: Equatable, Sendable {
     // MARK: - Lifecycle
 
@@ -67,4 +69,23 @@ package enum Patch: Equatable, Sendable {
     case addHandler(handle: Int, event: String, handlerId: Int)
     /// Removes the listener previously registered for `event` on `handle`.
     case removeHandler(handle: Int, event: String)
+
+    // MARK: - Mount target
+
+    /// Swaps the root DOM child mounted at `selector`. Emitted by the
+    /// Renderer when a re-render's mount-tree root domHandle differs
+    /// from the previously mounted root (e.g. a router root component
+    /// whose body renders a different element type between frames).
+    ///
+    /// Driver semantics: the driver tracks the currently-mounted root
+    /// handle per selector (set by the initial `mount` JS-side path).
+    /// `replaceMount` detaches that node from the selector target if
+    /// it's still attached there, then `target.appendChild(nodes[newHandle])`
+    /// and updates the driver's tracked root.
+    ///
+    /// The new root's `createElement` patches MUST precede this patch
+    /// (so `nodes[newHandle]` exists); the old root's `destroyNode` patches
+    /// MUST follow (so the driver can locate the old node when this
+    /// patch runs).
+    case replaceMount(selector: String, newHandle: Int)
 }
