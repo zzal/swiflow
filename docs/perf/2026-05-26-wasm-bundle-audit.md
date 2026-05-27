@@ -249,7 +249,7 @@ Phase 15 already drained Foundation's transitive cost via Mirror removal. The tw
 
 ### Remaining levers (post-Phase-16)
 
-Unchanged from Phase 15's audit:
+Phase 15's list, minus the now-resolved RouteMatching Foundation entry:
 
 - **JavaScriptKit's bridge surface.** Multi-quarter post-1.0 project. Still the dominant residual cost.
 - **Swift stdlib's residual size.** Hard to shrink without giving up Swift's expressiveness.
