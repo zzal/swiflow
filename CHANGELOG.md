@@ -16,6 +16,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 19] — Component DevTools (Chrome panel, MVP)
+
+### Added
+- Chrome DevTools extension at `devtools/` — sideload via `chrome://extensions` → Load unpacked. Adds a "Swiflow" tab in DevTools that shows the live component tree and `@State` of any Swiflow app running in dev mode. Read-only MVP; DOM overlay, `@State` editing, perf graphs, and Web Store publication are explicitly deferred to later phases (19b/c/d/e). See `devtools/README.md` for usage.
+
+### Tests
+- New Swift unit test `DevAPIFormatterTreeStringTests` pins the exact output format of `DevAPIFormatter.treeString` — the indented string the panel parses. Format drift now fails Swift tests at the source.
+- New Playwright contract test `devtools-api.spec.ts` asserts the shape of `window.__swiflow.tree() / state() / perf() / handlers()` on the Counter demo. Catches integration drift in the API surface the panel depends on.
+
+### Internals
+- No production Swift code changes. No JS driver changes. No patch protocol changes. The extension consumes the `window.__swiflow` API surface shipped by Phase 9 as-is.
+
+---
+
 ## [Phase 18] — `onChange` for nested components
 
 ### Behavior changes

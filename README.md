@@ -55,8 +55,15 @@ requires an explicit type annotation as of 15.
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
 - 548 Swift tests across 108 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter + RouterDemo). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
+### Chrome DevTools panel
+
+A read-only Chrome DevTools extension at [`devtools/`](devtools/) shows
+the live component tree and `@State` of any Swiflow app running in dev
+mode. Sideload via `chrome://extensions` → **Load unpacked** →
+select `devtools/`. See [`devtools/README.md`](devtools/README.md) for
+the full smoke checklist.
+
 **What's not in the box yet:**
-- **Component inspector / devtools** — Phase 9 (pending).
 - **`AsyncTestRenderer`** — for `task {}` lifecycle hooks (pre-1.0 follow-up).
 - **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
 - **Homebrew distribution** — not packaged yet. The CLI is installable today by cloning + `swift build -c release --product swiflow`; a Homebrew formula is a pre-1.0 polish item. Versioned GitHub releases (tags + release notes) ship with the framework as of 0.1.3.
