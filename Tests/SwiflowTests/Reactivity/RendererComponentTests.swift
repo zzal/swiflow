@@ -248,7 +248,7 @@ private final class OnAppearLog {
     var calls: [String] = []
 }
 
-@Suite("Lifecycle: onAppear fires on every component in the tree, children-first")
+@Suite("Lifecycle: first-mount onAppear via firePostRenderLifecycle, children-first")
 @MainActor
 struct OnAppearTreeWalkTests {
 
@@ -268,7 +268,7 @@ struct OnAppearTreeWalkTests {
         func onAppear() { log.calls.append("outer") }
     }
 
-    @Test("fireOnAppearTree fires onAppear on Outer AND Inner; Inner before Outer (children-first)")
+    @Test("firePostRenderLifecycle with empty preExistingIDs fires onAppear on Outer AND Inner; Inner before Outer (children-first)")
     func onAppearFiresChildrenFirst() {
         let log = OnAppearLog()
         let handles = HandleAllocator()
@@ -285,8 +285,8 @@ struct OnAppearTreeWalkTests {
         // Pre-condition: no lifecycle hook has fired yet.
         #expect(log.calls.isEmpty)
 
-        // Act.
-        fireOnAppearTree(result.newMountTree)
+        // Act: empty preExistingIDs is the first-mount case — every component is "new".
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: [])
 
         // Children-first ordering — symmetric inverse of destroy's parent-first.
         // Matches React/SwiftUI: a parent's onAppear sees its subtree fully mounted.
