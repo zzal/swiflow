@@ -143,35 +143,31 @@ Swift file as a raw-string literal under the example's name.
 
 enum EmbeddedTemplates {
     struct Template {
+        let name: String
         /// Map of relative file path → raw (un-substituted) contents.
         let files: [String: String]
     }
 
-    static let helloWorld = Template(files: [
-        "Package.swift":             #"""..."""#,
-        "Sources/App/App.swift":     #"""..."""#,
-        "index.html":                #"""..."""#,
-        ".gitignore":                #"""..."""#,
-        "README.md":                 #"""..."""#,
-    ])
-
-    static let miniRouter = Template(files: [ /* … */ ])
-    static let routerDemo = Template(files: [ /* … */ ])
-
-    /// Lookup by user-facing template name. Order is insertion order
-    /// so the help text lists HelloWorld first.
-    static let byName: [(name: String, template: Template)] = [
-        ("HelloWorld", helloWorld),
-        ("MiniRouter", miniRouter),
-        ("RouterDemo", routerDemo),
+    static let all: [Template] = [
+        Template(name: "HelloWorld", files: [ /* … */ ]),
+        Template(name: "MiniRouter", files: [ /* … */ ]),
+        Template(name: "RouterDemo", files: [ /* … */ ]),
     ]
+
+    static func lookup(_ name: String) -> Template? {
+        return all.first(where: { $0.name == name })
+    }
+
+    static var availableNames: [String] {
+        return all.map(\.name)
+    }
 }
 ```
 
-`byName` is a `[(String, Template)]` rather than `[String: Template]` so
-iteration order is deterministic (drives the `--help` listing and the
-"available templates" error message). Lookups still go through a small
-helper.
+`all` is an array (not a dictionary) so iteration order stays deterministic —
+templates are sorted alphabetically by name at codegen time, which drives the
+`--help` listing and the unknown-template error message. Each `Template`
+carries its own `name`, so `lookup` and `availableNames` are one-liners.
 
 ## CLI Surface
 
