@@ -416,6 +416,90 @@ struct ComponentTypeSwapTests {
     }
 }
 
+// MARK: - firePostRenderLifecycle
+
+/// Records ordering + which hook fired across nested components for the
+/// firePostRenderLifecycle walker tests. Class so multiple components can
+/// share by reference.
+@MainActor
+private final class LifecycleLog {
+    var calls: [String] = []  // entries shaped like "outer.appear", "inner.change"
+}
+
+@Suite("firePostRenderLifecycle partitions components into onAppear (new) vs onChange (reused), children-first")
+@MainActor
+struct FirePostRenderLifecycleTests {
+
+    final class Inner: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let name: String
+        fileprivate init(log: LifecycleLog, name: String) { self.log = log; self.name = name }
+        var body: VNode { .text("inner") }
+        func onAppear() { log.calls.append("\(name).appear") }
+        func onChange() { log.calls.append("\(name).change") }
+    }
+
+    final class Outer: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let inner: Inner
+        fileprivate init(log: LifecycleLog, inner: Inner) { self.log = log; self.inner = inner }
+        var body: VNode { embed { self.inner } }
+        func onAppear() { log.calls.append("outer.appear") }
+        func onChange() { log.calls.append("outer.change") }
+    }
+
+    @Test("empty preExistingIDs (first-mount case) fires onAppear on every component, children-first")
+    func emptyPreExistingFiresOnAppearOnAll() {
+        let log = LifecycleLog()
+        let inner = Inner(log: log, name: "inner")
+        let outer = Outer(log: log, inner: inner)
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(Outer.self) { outer })
+        let r = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+
+        firePostRenderLifecycle(r.newMountTree, preExistingIDs: [])
+
+        #expect(log.calls == ["inner.appear", "outer.appear"])
+    }
+
+    @Test("preExistingIDs covering every component fires onChange on each, children-first; no onAppear")
+    func allReusedFiresOnChangeOnAll() {
+        let log = LifecycleLog()
+        let inner = Inner(log: log, name: "inner")
+        let outer = Outer(log: log, inner: inner)
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(Outer.self) { outer })
+        let r = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+        let allIDs = collectComponentIDs(r.newMountTree)
+
+        firePostRenderLifecycle(r.newMountTree, preExistingIDs: allIDs)
+
+        #expect(log.calls == ["inner.change", "outer.change"])
+    }
+
+    @Test("mixed tree: reused parent fires onChange, freshly-mounted child fires onAppear (child first)")
+    func mixedTreeFiresCorrectHookPerComponent() {
+        let log = LifecycleLog()
+        let inner = Inner(log: log, name: "inner")
+        let outer = Outer(log: log, inner: inner)
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(Outer.self) { outer })
+        let r = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+        // Only outer is "pre-existing" — inner is "new" (mid-render mount semantics).
+        let preIDs: Set<ObjectIdentifier> = [ObjectIdentifier(outer)]
+
+        firePostRenderLifecycle(r.newMountTree, preExistingIDs: preIDs)
+
+        #expect(log.calls == ["inner.appear", "outer.change"])
+    }
+}
+
 // MARK: - collectComponentIDs
 
 @Suite("collectComponentIDs walks the mount tree and gathers every live component instance ID")

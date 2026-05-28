@@ -711,6 +711,35 @@ package func fireOnAppearTree(_ node: MountNode) {
     }
 }
 
+/// Children-first walk over `node` and its entire subtree. For each component
+/// anchor encountered:
+///   - if its instance's `ObjectIdentifier` is in `preExistingIDs`, fire `onChange()`
+///   - otherwise, fire `onAppear()`
+///
+/// Children-first ordering means a parent's hook observes a fully
+/// mounted/committed subtree. Matches React's commit-phase invariant: a
+/// child's `componentDidMount` runs before its parent's `componentDidUpdate`.
+///
+/// `preExistingIDs == []` on first mount (no instances existed before this
+/// diff) reproduces the previous `fireOnAppearTree` behavior exactly: every
+/// component is treated as new and gets `onAppear`.
+@MainActor
+package func firePostRenderLifecycle(_ node: MountNode, preExistingIDs: Set<ObjectIdentifier>) {
+    if let body = node.componentBody {
+        firePostRenderLifecycle(body, preExistingIDs: preExistingIDs)
+    }
+    for child in node.children {
+        firePostRenderLifecycle(child, preExistingIDs: preExistingIDs)
+    }
+    if let any = node.component {
+        if preExistingIDs.contains(ObjectIdentifier(any.instance)) {
+            any.instance.onChange()
+        } else {
+            any.instance.onAppear()
+        }
+    }
+}
+
 /// Dispatches between the indexed and keyed children-diff strategies. If
 /// **any** child in the old or new lists carries a key, the keyed path is
 /// used (Task 17); otherwise pair-by-index (Task 16).
