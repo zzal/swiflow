@@ -609,6 +609,7 @@ struct NestedOnChangeTests {
     @Test("onChange(of:) convenience on a nested component fires perform only on actual value changes")
     func onChangeOfFiltersValueChangesOnNestedComponent() {
         let inner = FilteredInner()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(inner)) }
         let outer = FilteredOuter(inner: inner)
         let handles = HandleAllocator()
         let handlers = HandlerRegistry()
