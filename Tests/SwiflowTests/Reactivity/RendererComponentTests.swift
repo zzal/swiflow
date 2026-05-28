@@ -719,4 +719,44 @@ struct MidRenderMountTests {
         let innerChangeCount = log.calls.filter { $0 == "inner.change" }.count
         #expect(innerChangeCount == 0, "Inner was freshly mounted this render — it must fire onAppear, never onChange")
     }
+
+    /// Regression test for the Renderer snapshot-ordering bug: `diff()` mutates
+    /// the existing `MountNode` in-place when reusing a component (see
+    /// `Diff.swift` `update()` returning `mounted` after assigning to
+    /// `mounted.componentBody`). If callers capture `collectComponentIDs(_:)`
+    /// AFTER `diff()` runs, the snapshot sees the post-diff tree and
+    /// incorrectly includes mid-render-mounted components — defeating the
+    /// onAppear-vs-onChange partition.
+    ///
+    /// This test pins the invariant by demonstrating that the same
+    /// `MountNode` reference returns DIFFERENT ID sets pre- vs post-diff in a
+    /// mid-render-mount scenario.
+    @Test("collectComponentIDs MUST be captured pre-diff; in-place mutation makes post-diff snapshots wrong")
+    func collectComponentIDsMustBeCapturedPreDiff() {
+        let log = LifecycleLog()
+        let container = Container(log: log)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // First render: only Container is mounted.
+        let v1 = VNode.component(.init(Container.self) { container })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+
+        // Flip the flag so the next render mounts Inner mid-render.
+        container.showInner = true
+
+        // CORRECT: snapshot BEFORE diff().
+        let preIDsCorrect = collectComponentIDs(first.newMountTree)
+        #expect(preIDsCorrect.count == 1, "pre-diff: only Container is in the tree")
+
+        let v2 = VNode.component(.init(Container.self) { container })
+        _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+
+        // INCORRECT: snapshotting AFTER diff() would see the SAME reference
+        // (Container's MountNode) now containing the freshly-mounted Inner —
+        // in-place mutation via `mounted.componentBody = newBodyMount`.
+        let postDiffIDs = collectComponentIDs(first.newMountTree)
+        #expect(postDiffIDs.count == 2, "post-diff: the SAME reference now includes Inner — in-place mutation")
+        #expect(postDiffIDs != preIDsCorrect, "pre-diff and post-diff snapshots of the same reference differ — proving the ordering invariant matters")
+    }
 }

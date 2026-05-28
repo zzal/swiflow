@@ -159,6 +159,15 @@ final class Renderer {
         // detaches the previously-mounted node via `mountedRoots[selector]`
         // and attaches the new root.
         let preDiffRootDOMHandle = mountTree?.domHandle
+        // Snapshot the set of component instance IDs alive BEFORE this diff,
+        // so the lifecycle walker below can partition each anchor in the new
+        // tree into reused (→ onChange) vs freshly-mounted (→ onAppear). The
+        // diff mutates `mountTree`'s nodes in-place (see Diff.swift's update()
+        // returning `mounted` after mutating its componentBody/vnode), so this
+        // MUST be captured BEFORE `diff()` runs — otherwise nested components
+        // mounted mid-render would appear in the snapshot and incorrectly
+        // route to onChange instead of onAppear. Empty on first render.
+        let preExistingIDs = collectComponentIDs(mountTree)
         let result = diff(
             mounted: mountTree,
             next: nextVNode,
@@ -192,11 +201,6 @@ final class Renderer {
         let swiflowGlobal = JSObject.global.swiflow.object!
         _ = swiflowGlobal.applyPatches!(jsArray)
 
-        // Snapshot the set of component instance IDs alive BEFORE this diff,
-        // so the lifecycle walker below can partition each anchor in the new
-        // tree into reused (→ onChange) vs freshly-mounted (→ onAppear).
-        // Captured before mountTree is reassigned. Empty on first render.
-        let preExistingIDs = collectComponentIDs(mountTree)
         let isFirstMount = (mountTree == nil)
         mountTree = result.newMountTree
 
