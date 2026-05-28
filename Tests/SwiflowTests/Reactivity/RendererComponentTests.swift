@@ -760,3 +760,212 @@ struct MidRenderMountTests {
         #expect(postDiffIDs != preIDsCorrect, "pre-diff and post-diff snapshots of the same reference differ — proving the ordering invariant matters")
     }
 }
+
+// MARK: - 3-deep nesting (children-first ordering through multiple layers)
+
+@Suite("Nested onChange across 3 component layers fires children-first (grandchild → child → parent)")
+@MainActor
+struct NestedOnChange3DeepTests {
+
+    final class Grandchild: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate init(log: LifecycleLog) { self.log = log }
+        var body: VNode { .text("grandchild") }
+        func onChange() { log.calls.append("grandchild.change") }
+    }
+
+    final class Child: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let grandchild: Grandchild
+        fileprivate init(log: LifecycleLog, grandchild: Grandchild) {
+            self.log = log
+            self.grandchild = grandchild
+        }
+        var body: VNode { embed { self.grandchild } }
+        func onChange() { log.calls.append("child.change") }
+    }
+
+    final class Parent: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let child: Child
+        fileprivate init(log: LifecycleLog, child: Child) {
+            self.log = log
+            self.child = child
+        }
+        var body: VNode { embed { self.child } }
+        func onChange() { log.calls.append("parent.change") }
+    }
+
+    @Test("re-render of a 3-deep nested tree fires onChange in grandchild → child → parent order")
+    func reRenderFiresOnChangeChildrenFirst3Deep() {
+        let log = LifecycleLog()
+        let grandchild = Grandchild(log: log)
+        let child = Child(log: log, grandchild: grandchild)
+        let parent = Parent(log: log, child: child)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let v1 = VNode.component(.init(Parent.self) { parent })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+
+        let preIDs = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(Parent.self) { parent })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        #expect(log.calls == ["grandchild.change", "child.change", "parent.change"])
+    }
+}
+
+// MARK: - First-mount invariant (named suite, 3-deep)
+
+@Suite("First mount fires onAppear on every component, never onChange (3-deep invariant)")
+@MainActor
+struct FirstMountInvariantTests {
+
+    final class Tracked: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let name: String
+        fileprivate var appearCount: Int = 0
+        fileprivate var changeCount: Int = 0
+        fileprivate init(log: LifecycleLog, name: String) { self.log = log; self.name = name }
+        var body: VNode { .text(name) }
+        func onAppear() { appearCount += 1; log.calls.append("\(name).appear") }
+        func onChange() { changeCount += 1; log.calls.append("\(name).change") }
+    }
+
+    final class Middle: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let leaf: Tracked
+        fileprivate var appearCount: Int = 0
+        fileprivate var changeCount: Int = 0
+        fileprivate init(log: LifecycleLog, leaf: Tracked) { self.log = log; self.leaf = leaf }
+        var body: VNode { embed { self.leaf } }
+        func onAppear() { appearCount += 1; log.calls.append("middle.appear") }
+        func onChange() { changeCount += 1; log.calls.append("middle.change") }
+    }
+
+    final class Root: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let middle: Middle
+        fileprivate var appearCount: Int = 0
+        fileprivate var changeCount: Int = 0
+        fileprivate init(log: LifecycleLog, middle: Middle) { self.log = log; self.middle = middle }
+        var body: VNode { embed { self.middle } }
+        func onAppear() { appearCount += 1; log.calls.append("root.appear") }
+        func onChange() { changeCount += 1; log.calls.append("root.change") }
+    }
+
+    @Test("3-deep first mount fires onAppear once per instance (children-first) and onChange never")
+    func firstMount3DeepOnAppearOncePerInstanceNoOnChange() {
+        let log = LifecycleLog()
+        let leaf = Tracked(log: log, name: "leaf")
+        let middle = Middle(log: log, leaf: leaf)
+        let root = Root(log: log, middle: middle)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let v = VNode.component(.init(Root.self) { root })
+        let result = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: [])
+
+        // Children-first ordering across all three layers.
+        #expect(log.calls == ["leaf.appear", "middle.appear", "root.appear"])
+
+        // Per-instance invariant: every component sees onAppear exactly once, onChange never.
+        #expect(leaf.appearCount == 1 && leaf.changeCount == 0)
+        #expect(middle.appearCount == 1 && middle.changeCount == 0)
+        #expect(root.appearCount == 1 && root.changeCount == 0)
+    }
+}
+
+// MARK: - List growth (walker's .children branch + stress test)
+
+@Suite("List growth: new items fire onAppear, existing items fire onChange (exercises walker's .children branch)")
+@MainActor
+struct ListGrowthTests {
+
+    /// Lightweight item that records lifecycle hits by id. Counters used
+    /// instead of string-collecting so the large-list stress test stays cheap.
+    final class Item: Component {
+        fileprivate let id: Int
+        fileprivate var appearCount: Int = 0
+        fileprivate var changeCount: Int = 0
+        fileprivate init(id: Int) { self.id = id }
+        var body: VNode { .text("item-\(id)") }
+        func onAppear() { appearCount += 1 }
+        func onChange() { changeCount += 1 }
+    }
+
+    /// Parent whose body is a `<ul>` with one keyed component child per item.
+    /// Mutating `items` between renders drives the diffChildrenKeyed path.
+    final class ItemList: Component {
+        fileprivate var items: [Item]
+        fileprivate init(items: [Item]) { self.items = items }
+        var body: VNode {
+            let children = items.map { item in
+                VNode.component(.init(Item.self, key: "item-\(item.id)") { item })
+            }
+            return .element(ElementData(tag: "ul", children: children))
+        }
+    }
+
+    @Test("appending a keyed item: new item fires onAppear once, existing items fire onChange once")
+    func appendKeyedItemPartitionsLifecycleCorrectly() {
+        let a = Item(id: 1)
+        let b = Item(id: 2)
+        let list = ItemList(items: [a, b])
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let v1 = VNode.component(.init(ItemList.self) { list })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+
+        #expect(a.appearCount == 1 && b.appearCount == 1, "first mount: both items fire onAppear")
+        #expect(a.changeCount == 0 && b.changeCount == 0, "first mount: no onChange")
+
+        // Grow the list: append a third item, preserving the first two.
+        let c = Item(id: 3)
+        list.items = [a, b, c]
+        let preIDs = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(ItemList.self) { list })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        #expect(a.changeCount == 1 && b.changeCount == 1, "existing items: onChange fires once")
+        #expect(c.appearCount == 1 && c.changeCount == 0, "new item: onAppear once, no onChange")
+        // Existing items' appearCount must not have grown — they were reused, not remounted.
+        #expect(a.appearCount == 1 && b.appearCount == 1, "existing items: onAppear not refired")
+    }
+
+    @Test("large list reactivity stress: 1000 items, re-render reaches every leaf with onChange exactly once")
+    func largeListReactivityStress() {
+        let n = 1000
+        let items = (0..<n).map { Item(id: $0) }
+        let list = ItemList(items: items)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let v1 = VNode.component(.init(ItemList.self) { list })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+
+        // Sanity: every item saw exactly one onAppear on first mount.
+        #expect(items.allSatisfy { $0.appearCount == 1 && $0.changeCount == 0 })
+
+        // Re-render with the SAME 1000 items in the SAME order.
+        let preIDs = collectComponentIDs(first.newMountTree)
+        #expect(preIDs.count == n + 1, "snapshot contains all \(n) items plus the ItemList anchor")
+
+        let v2 = VNode.component(.init(ItemList.self) { list })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        // Reactivity at scale: every one of 1000 items saw onChange exactly once.
+        // No spurious onAppear refires; no missed onChange dispatches.
+        #expect(items.allSatisfy { $0.appearCount == 1 && $0.changeCount == 1 },
+                "every item must see appear:1 change:1 after re-render")
+    }
+}
