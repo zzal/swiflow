@@ -796,3 +796,21 @@ func hasAnyKey(_ nodes: [MountNode]) -> Bool {
     }
     return false
 }
+
+/// Collects the `ObjectIdentifier` of every live component instance reachable
+/// from `node`. Returns an empty set when `node` is nil — used to seed the
+/// first-mount case where no instances existed before this diff, so every
+/// component in the new tree is treated as freshly mounted.
+@MainActor
+package func collectComponentIDs(_ node: MountNode?) -> Set<ObjectIdentifier> {
+    var ids: Set<ObjectIdentifier> = []
+    func walk(_ n: MountNode) {
+        if let any = n.component {
+            ids.insert(ObjectIdentifier(any.instance))
+        }
+        if let body = n.componentBody { walk(body) }
+        for child in n.children { walk(child) }
+    }
+    if let node { walk(node) }
+    return ids
+}

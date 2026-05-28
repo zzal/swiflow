@@ -415,3 +415,42 @@ struct ComponentTypeSwapTests {
         #expect(hasAttach, "EnvironmentOverride body swap must emit appendChild on the surrounding <div>")
     }
 }
+
+// MARK: - collectComponentIDs
+
+@Suite("collectComponentIDs walks the mount tree and gathers every live component instance ID")
+@MainActor
+struct CollectComponentIDsTests {
+
+    final class A: Component { var body: VNode { .text("a") } }
+    final class B: Component { var body: VNode { embed { C() } } }
+    final class C: Component { var body: VNode { .text("c") } }
+
+    @Test("returns an empty set for nil input (used to seed the first-mount case)")
+    func nilReturnsEmpty() {
+        #expect(collectComponentIDs(nil) == Set<ObjectIdentifier>())
+    }
+
+    @Test("collects the root component anchor's instance ID")
+    func collectsRoot() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(A.self) { A() })
+        let r = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+        let instance = r.newMountTree.component!.instance
+        let ids = collectComponentIDs(r.newMountTree)
+        #expect(ids == [ObjectIdentifier(instance)])
+    }
+
+    @Test("collects every component anchor in a nested tree (parent and child)")
+    func collectsNested() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let v = VNode.component(.init(B.self) { B() })
+        let r = diff(mounted: nil, next: v, handles: handles, handlers: handlers)
+        let parent = r.newMountTree.component!.instance        // B
+        let child = r.newMountTree.componentBody!.component!.instance  // C
+        let ids = collectComponentIDs(r.newMountTree)
+        #expect(ids == [ObjectIdentifier(parent), ObjectIdentifier(child)])
+    }
+}
