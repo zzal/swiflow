@@ -66,6 +66,20 @@ class InspectedWindowDataSource extends DataSource {
 
 const dataSource = new InspectedWindowDataSource();
 
+// ── Error region ──────────────────────────────────────────────────────────────
+
+const errorRegion = document.getElementById("error-region");
+
+function showError(message) {
+  errorRegion.textContent = message;
+  errorRegion.hidden = false;
+}
+
+function clearError() {
+  errorRegion.textContent = "";
+  errorRegion.hidden = true;
+}
+
 // ── Tree parsing ──────────────────────────────────────────────────────────────
 //
 // __swiflow.tree() returns { selector: "indented\nstring", ... }. Each
@@ -157,6 +171,7 @@ function renderTree(treeData) {
         }
         el.classList.add("selected");
         selectedPath = row.path;
+        clearError();
         const selector = el.dataset.selector;
         try {
           const state = await dataSource.state(row.path);
@@ -164,7 +179,7 @@ function renderTree(treeData) {
           const perf = await dataSource.perf();
           renderFooter(perf, selector);
         } catch (err) {
-          console.error("[Swiflow DevTools]", err.message);
+          showError(err.message);
         }
       });
       rowsContainer.appendChild(el);
@@ -241,6 +256,7 @@ function renderFooter(perfData, activeSelector) {
 }
 
 document.getElementById("refresh-btn").addEventListener("click", async () => {
+  clearError();
   try {
     const tree = await dataSource.tree();
     renderTree(tree);
@@ -253,6 +269,17 @@ document.getElementById("refresh-btn").addEventListener("click", async () => {
       clearState();
     }
   } catch (err) {
-    console.error("[Swiflow DevTools]", err.message);
+    showError(err.message);
   }
+});
+
+// ── Auto-refresh on navigation ────────────────────────────────────────────────
+//
+// Re-fetch when the inspected page navigates. Without this, the panel
+// shows stale data from the previous URL. Selection is cleared because
+// the previous path may not exist in the new tree.
+chrome.devtools.network.onNavigated.addListener(() => {
+  selectedPath = null;
+  clearState();
+  document.getElementById("refresh-btn").click();
 });
