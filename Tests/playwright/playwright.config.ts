@@ -14,7 +14,12 @@ const SWIFLOW = join(REPO_ROOT, ".build", "release", "swiflow");
 // Scaffold a fresh demo project once per test session.
 const DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-e2e-"));
 const DEMO_PROJECT = join(DEMO_TMP, "demo");
-const ROUTER_DEMO_ROOT = join(REPO_ROOT, "examples", "RouterDemo");
+
+// RouterDemo e2e: scaffold via `swiflow init --template RouterDemo`
+// into its own temp dir. Dogfoods the --template flag and keeps the
+// e2e harness independent of any state in examples/RouterDemo/.
+const ROUTER_DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-router-e2e-"));
+const ROUTER_DEMO_PROJECT = join(ROUTER_DEMO_TMP, "demo");
 
 // SW cache e2e: scaffold a separate demo project and run a release build
 // so the service worker registers (SW is skipped in dev mode).
@@ -36,6 +41,12 @@ if (!existsSync(SWIFLOW)) {
 execFileSync(
   SWIFLOW,
   ["init", "demo", "--path", DEMO_TMP, "--swiflow-source", REPO_ROOT],
+  { stdio: "inherit" }
+);
+
+execFileSync(
+  SWIFLOW,
+  ["init", "demo", "--template", "RouterDemo", "--path", ROUTER_DEMO_TMP, "--swiflow-source", REPO_ROOT],
   { stdio: "inherit" }
 );
 
@@ -80,7 +91,7 @@ export default defineConfig({
     },
     {
       command: `'${SWIFLOW}' dev --port 3001`,
-      cwd: ROUTER_DEMO_ROOT,
+      cwd: ROUTER_DEMO_PROJECT,
       url: "http://127.0.0.1:3001",
       reuseExistingServer: false,
       timeout: 300_000,
