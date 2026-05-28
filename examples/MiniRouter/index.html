@@ -1,23 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MiniRouter — Swiflow Phase 11 Demo</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-    nav { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 1rem; }
-    nav a { text-decoration: none; color: #0070f3; }
-    nav a:hover { text-decoration: underline; }
-    button { padding: 0.4rem 1rem; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <div id="app"></div>
-  <script src="swiflow-driver.js"></script>
-  <script type="module">
-    import { init } from "./.build/plugins/PackageToJS/outputs/Package/index.js";
-    await init();
-  </script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <title>MiniRouter</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      nav { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 1rem; }
+      nav a { text-decoration: none; color: #0070f3; }
+      nav a:hover { text-decoration: underline; }
+      button { padding: 0.4rem 1rem; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- The Swiflow driver script owns WASM initialisation.
+         It dynamically imports the PackageToJS module and calls init()
+         so no <script type="module"> block is needed here. -->
+    <script src="swiflow-driver.js"></script>
+  </body>
 </html>
