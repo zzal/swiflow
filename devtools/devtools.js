@@ -9,7 +9,7 @@
 // doesn't receive a window argument.
 
 chrome.devtools.panels.create(
-  "Swiflow/",
+  "Swiflow",
   null,                // no icon path for MVP
   "panel.html",
   (panel) => {
