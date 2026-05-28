@@ -4,7 +4,7 @@
 // currently need to attach any cross-context listeners here; all data
 // flow happens inside panel.js via the chrome.devtools.inspectedWindow API.
 chrome.devtools.panels.create(
-  "𝕊𝔽 Devtool",
+  "Swiflow/",
   null,                // no icon path for MVP
   "panel.html",
   () => {

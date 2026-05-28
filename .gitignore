@@ -10,4 +10,4 @@ Tests/playwright/test-results/
 current-bundle.json
 .claude/
 .superpowers/
-.chrome/
+devtools/.chrome/

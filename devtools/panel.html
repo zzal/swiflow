@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en" class="platform-mac">
   <head>
     <meta charset="utf-8" />
     <title>Swiflow Panel</title>
@@ -14,19 +14,23 @@
        * adapt to Chrome's light/dark themes automatically.
        */
       :root {
-        font-family: var(--default-font-family);
-        font-size: var(--sys-size-7);
+        height: 100%;
+        overflow: hidden;
+        interpolate-size: allow-keywords;
       }
       html, body {
         margin: 0;
         padding: 0;
         height: 100%;
+        font-size-adjust: 0.5;
         background: var(--sys-color-cdt-base-container);
         color: var(--sys-color-on-surface);
       }
       body {
         display: flex;
         flex-direction: column;
+        font-family: var(--default-font-family);
+        font-size: var(--sys-size-6);
       }
       header {
         padding: 6px 10px;
