@@ -47,6 +47,7 @@ When the inspected page navigates, the panel auto-refreshes.
 - **Error region:** appears at the top in red if `window.__swiflow`
   is missing (non-Swiflow page, or production build with
   `SWIFLOW_DEV` unset) or if a page-side exception occurs.
+- **Live indicator (footer, left edge):** a small dot. **Green**: the panel is polling the inspected app and last poll succeeded. **Grey**: panel is paused (you're viewing a different DevTools tab). **Red**: polling failed (no Swiflow runtime, page navigated away, etc) — the manual ↻ Refresh button still works in this state and will surface the actual error.
 
 Multi-root apps render one section per mounted selector with a bold
 header.
@@ -55,8 +56,7 @@ header.
 
 ## Limitations (MVP)
 
-- **No automatic polling.** Click ↻ Refresh to update after a
-  `@State` change. Auto-refresh fires only on full page navigation.
+- **No state-change row highlight.** When a `@State` value changes between polls, the panel re-renders the row but doesn't visually flash it. A nice-to-have for a follow-up.
 - **No `@State` editing.** The panel is read-only.
 - **No DOM overlay / component picker.** You can't click a DOM
   element to find its owning component.

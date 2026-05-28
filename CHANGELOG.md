@@ -16,6 +16,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 19b] — Live DevTools panel (render-version push tick)
+
+### Added
+- The Chrome DevTools panel now auto-updates within ~250 ms of every Swiflow render. No more manual ↻ Refresh after every `@State` mutation.
+- Footer live indicator (small dot) surfaces panel status: **green** = polling live, **grey** = paused (panel hidden), **red** = poll failed (e.g. inspected tab navigated to a non-Swiflow page). The manual ↻ Refresh button remains as a fallback that always works.
+
+### Mechanism
+- Panel polls the existing `window.__swiflow.perf()` surface every 250 ms via the `chrome.devtools.inspectedWindow` API while the panel is visible (gated on `chrome.devtools.panels.Panel.onShown` / `onHidden`). Polls JSON-stringify the per-selector `renders` count map as a stable signature; on change, the existing refresh path runs. Poll-time errors are silent — only manual ↻ Refresh failures surface in the error region.
+
+### Internals
+- Zero Swift code changes. `Renderer.renderCount` already incremented on every render (Phase 9) and is already exposed as `__swiflow.perf()[selector].renders` — Phase 19b just teaches the panel to poll it.
+
+---
+
 ## [Phase 19] — Component DevTools (Chrome panel, MVP)
 
 ### Added
