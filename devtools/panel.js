@@ -151,23 +151,107 @@ function renderTree(treeData) {
       if (row.path === selectedPath) {
         el.classList.add("selected");
       }
-      el.addEventListener("click", () => {
+      el.addEventListener("click", async () => {
         for (const prev of treePane.querySelectorAll(".tree-row.selected")) {
           prev.classList.remove("selected");
         }
         el.classList.add("selected");
         selectedPath = row.path;
-        // Task 6 wires state-pane refresh here.
+        const selector = el.dataset.selector;
+        try {
+          const state = await dataSource.state(row.path);
+          renderState(state);
+          const perf = await dataSource.perf();
+          renderFooter(perf, selector);
+        } catch (err) {
+          console.error("[Swiflow DevTools]", err.message);
+        }
       });
       rowsContainer.appendChild(el);
     }
   }
 }
 
+// ── State pane ────────────────────────────────────────────────────────────────
+
+const statePane = document.getElementById("state-pane");
+
+function renderState(stateObj) {
+  statePane.replaceChildren();
+  if (stateObj === null || stateObj === undefined) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "No @State on this component.";
+    statePane.appendChild(empty);
+    return;
+  }
+  const entries = Object.entries(stateObj);
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "No @State on this component.";
+    statePane.appendChild(empty);
+    return;
+  }
+  for (const [key, value] of entries) {
+    const row = document.createElement("div");
+    row.style.padding = "2px 4px";
+    const k = document.createElement("span");
+    k.className = "state-key";
+    k.textContent = `${key}: `;
+    const v = document.createElement("span");
+    v.className = "state-value";
+    v.textContent = JSON.stringify(value);
+    row.appendChild(k);
+    row.appendChild(v);
+    statePane.appendChild(row);
+  }
+}
+
+function clearState() {
+  statePane.replaceChildren();
+  const empty = document.createElement("div");
+  empty.className = "empty-state";
+  empty.textContent = "Select a component to view its @State.";
+  statePane.appendChild(empty);
+}
+
+// ── Footer (perf summary) ─────────────────────────────────────────────────────
+
+const footer = document.getElementById("footer");
+
+function renderFooter(perfData, activeSelector) {
+  footer.replaceChildren();
+  if (!perfData || Object.keys(perfData).length === 0) {
+    footer.textContent = "";
+    return;
+  }
+  // Spec: show perf for the selector containing the currently-selected
+  // tree node. When no node is selected, show the first selector
+  // returned by perf() (insertion order matches multi-root render order).
+  const selector = activeSelector || Object.keys(perfData)[0];
+  const entry = perfData[selector];
+  if (!entry) {
+    footer.textContent = "";
+    return;
+  }
+  footer.textContent =
+    `Selector: ${selector} | Renders: ${entry.renders} ` +
+    `| LastPatch: ${entry.lastPatchCount} | LastRenderMs: ${entry.lastRenderMs.toFixed(2)}`;
+}
+
 document.getElementById("refresh-btn").addEventListener("click", async () => {
   try {
     const tree = await dataSource.tree();
     renderTree(tree);
+    const perf = await dataSource.perf();
+    renderFooter(perf, null);
+    if (selectedPath !== null) {
+      const state = await dataSource.state(selectedPath);
+      renderState(state);
+    } else {
+      clearState();
+    }
   } catch (err) {
     console.error("[Swiflow DevTools]", err.message);
   }
