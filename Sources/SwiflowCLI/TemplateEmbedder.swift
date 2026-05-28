@@ -11,6 +11,17 @@
 
 import Foundation
 
+enum TemplateEmbedderError: Error, CustomStringConvertible {
+    case missingTrailingNewline(URL)
+
+    var description: String {
+        switch self {
+        case .missingTrailingNewline(let url):
+            return "example file does not end with a newline: \(url.path) — add a trailing \\n so the codegen round-trip stays exact"
+        }
+    }
+}
+
 enum TemplateEmbedder {
 
     /// File / directory names excluded from every template.
@@ -102,6 +113,9 @@ enum TemplateEmbedder {
 
             let rel = Self.relativePath(from: dir, to: url)
             let raw = try String(contentsOf: url, encoding: .utf8)
+            guard raw.hasSuffix("\n") else {
+                throw TemplateEmbedderError.missingTrailingNewline(url)
+            }
             let normalized = normalize(raw, exampleName: exampleName, relativePath: rel)
             results.append((rel, normalized))
         }
@@ -118,13 +132,19 @@ enum TemplateEmbedder {
     /// Produces the Swift source for `EmbeddedTemplates.swift`.
     ///
     /// Layout: `enum EmbeddedTemplates { struct Template; static let all: [Template]; lookup; availableNames }`.
-    /// File contents are emitted as `#"""..."""#` raw-string literals with
-    /// the closing `"""#` at column 0 — Swift then strips zero indentation,
-    /// preserving each file's contents byte-for-byte. The leading `\n` after
-    /// `#"""` and the trailing `\n` before `"""#` are stripped by Swift's
-    /// multi-line rules, which is why we wrap as `\n{contents}\n`: the file
-    /// contents already end in `\n`, and that final `\n` is preserved (it's
-    /// the `\n` after that — the one we emit — that gets stripped).
+    /// File contents are emitted as `##"""..."""##` raw-string literals with
+    /// the closing `"""##` at column 0 — Swift then strips zero indentation,
+    /// preserving each file's contents byte-for-byte. Two hashes are used
+    /// because the example files are Swift source and commonly contain
+    /// one-hash raw-string literals (`#"""..."""#`); using a one-hash wrapper
+    /// would prematurely close the generated literal, silently truncating the
+    /// embedded contents. `##"""..."""##` is safe as long as no example file
+    /// contains `"""##`, which is enforced by inspection. The leading `\n`
+    /// after `##"""` and the trailing `\n` before `"""##` are stripped by
+    /// Swift's multi-line rules, which is why we wrap as `\n{contents}\n`:
+    /// the file contents already end in `\n`, and that final `\n` is
+    /// preserved (it's the `\n` after that — the one we emit — that gets
+    /// stripped). `collectFiles` enforces the trailing-newline invariant.
     static func swiftSource(examplesRoot: URL) throws -> String {
         let templates = try collect(examplesRoot: examplesRoot)
 
@@ -151,7 +171,7 @@ enum TemplateEmbedder {
             out += "            name: \"\(t.name)\",\n"
             out += "            files: [\n"
             for (path, contents) in t.files {
-                out += "                \"\(path)\": #\"\"\"\n\(contents)\n\"\"\"#,\n"
+                out += "                \"\(path)\": ##\"\"\"\n\(contents)\n\"\"\"##,\n"
             }
             out += "            ]\n"
             out += "        ),\n"
