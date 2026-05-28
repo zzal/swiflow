@@ -43,7 +43,7 @@ struct InitCommand: AsyncParsableCommand {
         help: ArgumentHelp(
             "Which embedded template to scaffold. Defaults to HelloWorld.",
             discussion: """
-                Run `swiflow init --help` for the current list of available templates.
+                Available: \(EmbeddedTemplates.availableNames.joined(separator: ", ")).
                 Each name maps to a directory under examples/ in the Swiflow repo.
                 """
         )
