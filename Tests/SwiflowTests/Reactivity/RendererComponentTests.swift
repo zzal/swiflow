@@ -538,3 +538,102 @@ struct CollectComponentIDsTests {
         #expect(ids == [ObjectIdentifier(parent), ObjectIdentifier(child)])
     }
 }
+
+// MARK: - Nested onChange (end-to-end via diff() instance reuse)
+
+@Suite("Nested onChange fires on every reused component anchor after re-render, children-first")
+@MainActor
+struct NestedOnChangeTests {
+
+    final class Inner: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate init(log: LifecycleLog) { self.log = log }
+        var body: VNode { .text("inner") }
+        func onChange() { log.calls.append("inner.change") }
+    }
+
+    final class Outer: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate let inner: Inner
+        fileprivate init(log: LifecycleLog, inner: Inner) { self.log = log; self.inner = inner }
+        var body: VNode { embed { self.inner } }
+        func onChange() { log.calls.append("outer.change") }
+    }
+
+    @Test("re-render of an unchanged nested tree fires onChange on Inner AND Outer (Inner first)")
+    func reRenderFiresOnChangeNestedChildrenFirst() {
+        let log = LifecycleLog()
+        let inner = Inner(log: log)
+        let outer = Outer(log: log, inner: inner)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // First render — mounts Outer → Inner.
+        let v1 = VNode.component(.init(Outer.self) { outer })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+
+        // Snapshot pre-existing instances, then re-render with the SAME outer
+        // instance (factory returns the same reference, so diff's reuse arm
+        // keeps Outer's instance and re-runs its body, which re-embeds inner).
+        let preIDs = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(Outer.self) { outer })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        #expect(log.calls == ["inner.change", "outer.change"])
+    }
+
+    /// Sanity check that `onChange(of:_:perform:)` (the existing
+    /// `OnChangeStorage`-backed convenience extension) still works correctly
+    /// when invoked from a NESTED component's `onChange()` override. Pre-Phase-18
+    /// no nested component's `onChange()` fired at all, so this code path was
+    /// silently dead for nested usage.
+    final class FilteredInner: Component {
+        fileprivate var trackedValue: Int = 0
+        fileprivate var performCalls: [Int] = []
+        var body: VNode { .text("filtered") }
+        func onChange() {
+            onChange(of: trackedValue) { newValue in
+                performCalls.append(newValue)
+            }
+        }
+    }
+
+    final class FilteredOuter: Component {
+        fileprivate let inner: FilteredInner
+        fileprivate init(inner: FilteredInner) { self.inner = inner }
+        var body: VNode { embed { self.inner } }
+    }
+
+    @Test("onChange(of:) convenience on a nested component fires perform only on actual value changes")
+    func onChangeOfFiltersValueChangesOnNestedComponent() {
+        let inner = FilteredInner()
+        let outer = FilteredOuter(inner: inner)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // First render. inner.trackedValue == 0; onChange does not fire on
+        // first mount (only onAppear), so performCalls stays empty.
+        let v1 = VNode.component(.init(FilteredOuter.self) { outer })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+        #expect(inner.performCalls == [], "first mount fires onAppear, not onChange")
+
+        // Re-render with trackedValue unchanged. onChange fires (nested!), but
+        // onChange(of:) sees no diff vs seeded value → perform does not run.
+        let preIDs1 = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(FilteredOuter.self) { outer })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs1)
+        #expect(inner.performCalls == [], "value unchanged — perform suppressed by onChange(of:) filter")
+
+        // Mutate then re-render. onChange fires; onChange(of:) sees 0 → 42; perform runs.
+        inner.trackedValue = 42
+        let preIDs2 = collectComponentIDs(second.newMountTree)
+        let v3 = VNode.component(.init(FilteredOuter.self) { outer })
+        let third = diff(mounted: second.newMountTree, next: v3, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(third.newMountTree, preExistingIDs: preIDs2)
+        #expect(inner.performCalls == [42], "value changed 0 → 42 — perform fires once with the new value")
+    }
+}
