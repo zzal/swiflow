@@ -222,7 +222,12 @@ function renderState(stateObj) {
     statePane.appendChild(empty);
     return;
   }
-  const entries = Object.entries(stateObj);
+  // Sort alphabetically by field name. __swiflow.state() returns an object
+  // whose key order reflects the Swift-side dictionary iteration order,
+  // which isn't stable across renders. Without this sort, the field rows
+  // shuffle between refreshes — distracting, and makes value-change
+  // spotting harder.
+  const entries = Object.entries(stateObj).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
