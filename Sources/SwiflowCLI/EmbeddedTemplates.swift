@@ -44,10 +44,11 @@ import PackageDescription
 
 let package = Package(
     name: "{{NAME}}",
-    // Required because this app links SwiflowWeb, which transitively pulls
-    // Hummingbird 2.x (macOS 14+). Without this floor, `swift build` fails
-    // with "executable 'App' requires macos 10.13, but depends on the
-    // product 'SwiflowWeb' which requires macos 14.0".
+    // Inherited from the parent Swiflow package, which sets this floor
+    // because its SwiflowCLI executable depends on Hummingbird 2.x.
+    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // need macOS 14; SwiftPM just propagates the package-level platform
+    // floor to every consumer, regardless of which product they import.
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "App", targets: ["App"]),

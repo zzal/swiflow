@@ -26,7 +26,7 @@ guard fm.fileExists(atPath: examplesRoot.path) else {
 }
 
 let blacklist: Set<String> = [
-    ".build", ".DS_Store", "Package.resolved",
+    ".build", ".swiftpm", ".DS_Store", "Package.resolved",
     "swiflow-driver.js", "swiflow-sw.js", "swiflow-manifest.json",
 ]
 

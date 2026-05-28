@@ -25,13 +25,15 @@ enum TemplateEmbedderError: Error, CustomStringConvertible {
 enum TemplateEmbedder {
 
     /// File / directory names excluded from every template.
-    /// - `.build`, `Package.resolved`, `.DS_Store`: build artifacts and OS files.
+    /// - `.build`, `.swiftpm`, `Package.resolved`, `.DS_Store`: build artifacts,
+    ///   SwiftPM/Xcode user-state directories, and OS files.
     /// - `swiflow-driver.js`, `swiflow-sw.js`, `swiflow-manifest.json`:
     ///   the JS driver + service worker come from EmbeddedDriver (which is
     ///   itself codegen'd from js-driver/). Keeping them out of the template
     ///   avoids two paths for the same canonical bytes.
     static let blacklist: Set<String> = [
         ".build",
+        ".swiftpm",
         ".DS_Store",
         "Package.resolved",
         "swiflow-driver.js",
