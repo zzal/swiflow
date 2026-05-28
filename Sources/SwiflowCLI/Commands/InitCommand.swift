@@ -39,6 +39,18 @@ struct InitCommand: AsyncParsableCommand {
     var path: String = "."
 
     @Option(
+        name: .customLong("template"),
+        help: ArgumentHelp(
+            "Which embedded template to scaffold. Defaults to HelloWorld.",
+            discussion: """
+                Run `swiflow init --help` for the current list of available templates.
+                Each name maps to a directory under examples/ in the Swiflow repo.
+                """
+        )
+    )
+    var template: String = "HelloWorld"
+
+    @Option(
         name: .customLong("swiflow-source"),
         help: ArgumentHelp(
             "Local path the generated project uses for its Swiflow dependency.",
@@ -107,10 +119,15 @@ struct InitCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: InitCommandError.parentPathNotFound(parentURL)))
         }
 
+        guard let chosenTemplate = EmbeddedTemplates.lookup(template) else {
+            let names = EmbeddedTemplates.availableNames.joined(separator: ", ")
+            throw ValidationError(#"unknown template "\#(template)" — available: \#(names)"#)
+        }
+
         do {
             try ProjectWriter.writeProject(
                 name: name,
-                template: EmbeddedTemplates.lookup("HelloWorld")!,
+                template: chosenTemplate,
                 into: parentURL,
                 swiflowDep: dep,
                 jsDriverSource: EmbeddedDriver.javascriptSource,

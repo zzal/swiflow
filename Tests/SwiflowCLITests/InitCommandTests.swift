@@ -235,6 +235,18 @@ struct InitCommandArgvTests {
         let names = Swiflow.configuration.subcommands.map { $0.configuration.commandName }
         #expect(names.contains("init"))
     }
+
+    @Test("Default: --template is HelloWorld")
+    func defaultTemplate() throws {
+        let parsed = try InitCommand.parse(["demo"])
+        #expect(parsed.template == "HelloWorld")
+    }
+
+    @Test("--template parses")
+    func parsesTemplate() throws {
+        let parsed = try InitCommand.parse(["demo", "--template", "MiniRouter"])
+        #expect(parsed.template == "MiniRouter")
+    }
 }
 
 @Suite("InitCommand run()")
@@ -278,6 +290,21 @@ struct InitCommandRunTests {
         let desc = String(describing: error)
         #expect(desc.contains("does not exist"))
         #expect(desc.contains("/does/not/exist"))
+    }
+
+    @Test("Unknown --template surfaces a ValidationError listing available templates")
+    func unknownTemplateValidates() async throws {
+        let tmp = try InitCommandTests.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let cmd = try InitCommand.parse([
+            "Demo",
+            "--path", tmp.path,
+            "--template", "DoesNotExist",
+            "--swiflow-source", "/abs/path/to/swiflow",
+        ])
+        await #expect(throws: ValidationError.self) {
+            try await cmd.run()
+        }
     }
 }
 
