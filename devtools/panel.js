@@ -172,7 +172,9 @@ function renderTree(treeData) {
         el.classList.add("selected");
         selectedPath = row.path;
         clearError();
-        const selector = el.dataset.selector;
+        // `selector` is the closed-over loop variable from the enclosing
+        // `for (const selector of selectors)`. const + for...of give each
+        // iteration its own binding, so this closure captures the right one.
         try {
           const state = await dataSource.state(row.path);
           renderState(state);
