@@ -44,6 +44,10 @@ enum ProjectWriter {
         _testFailDuringWrites: Bool = false
     ) throws {
         let fm = FileManager.default
+        // Use `isDirectory: false` so the URL we construct (and surface in
+        // errors) doesn't sprout a trailing slash if the path already exists
+        // on disk as a directory — keeping it equal to the URL a caller would
+        // pre-compute via the same plain `appendingPathComponent(name)` call.
         let project = parent.appendingPathComponent(name, isDirectory: false)
 
         if fm.fileExists(atPath: project.path) {
