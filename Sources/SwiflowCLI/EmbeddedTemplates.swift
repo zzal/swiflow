@@ -503,14 +503,22 @@ final class NavBar: Component {
                 "Sources/App/Pages/AboutPage.swift": ##"""
 import Swiflow
 import SwiflowWeb
+import SwiflowRouter
 import JavaScriptKit
 
 final class AboutPage: Component {
+    @Environment(\.router) var router
+
     var body: VNode {
-        div {
+        // Capture router.back inside body where AmbientEnvironment.current is set.
+        // Accessing self.router from a click handler (outside body) would see the
+        // default no-op.
+        let back = router.back
+        return div {
             embed { NavBar() }
             h1("About")
             p("This demo exercises RouterRoot, Route, Link, and programmatic navigation.")
+            button("Back", .on(.click) { _ in back() })
         }
     }
 }
@@ -574,139 +582,6 @@ final class UsersPage: Component {
       nav a:hover { text-decoration: underline; }
       button { padding: 0.4rem 1rem; cursor: pointer; }
     </style>
-  </head>
-  <body>
-    <div id="app"></div>
-
-    <!-- The Swiflow driver script owns WASM initialisation.
-         It dynamically imports the PackageToJS module and calls init()
-         so no <script type="module"> block is needed here. -->
-    <script src="swiflow-driver.js"></script>
-  </body>
-</html>
-
-"""##,
-            ]
-        ),
-        Template(
-            name: "RouterDemo",
-            files: [
-                ".gitignore": ##"""
-.DS_Store
-.build/
-.swiftpm/
-
-"""##,
-                "Package.swift": ##"""
-// swift-tools-version: 6.0
-import PackageDescription
-
-let package = Package(
-    name: "{{NAME}}",
-    platforms: [.macOS(.v14)],
-    products: [
-        .executable(name: "App", targets: ["App"]),
-    ],
-    dependencies: [
-        {{SWIFLOW_DEP}},
-        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
-    ],
-    targets: [
-        .executableTarget(
-            name: "App",
-            dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
-                .product(name: "SwiflowRouter", package: "Swiflow"),
-            ],
-            path: "Sources/App"
-        ),
-    ]
-)
-
-"""##,
-                "README.md": ##"""
-# {{NAME}}
-
-A Swiflow project demonstrating client-side routing with `SwiflowRouter`.
-
-## Build
-
-```bash
-swiflow build
-```
-
-This wraps `swift package js --use-cdn --product App -c release` after
-probing for an installed WASM SDK. The output lands at
-`.build/plugins/PackageToJS/outputs/Package/`.
-
-## Serve
-
-Any static HTTP server works:
-
-```bash
-python3 -m http.server 3000
-```
-
-Then open <http://localhost:3000>.
-
-## What you should see
-
-- The router renders the `/` route from `Sources/App/App.swift`.
-- Navigating to `/about` or `/users/:id` swaps the page content via
-  the `Route` declarations.
-
-"""##,
-                "Sources/App/App.swift": ##"""
-// Sources/App/App.swift
-import Swiflow
-import SwiflowWeb
-import SwiflowRouter
-import JavaScriptKit
-
-final class HomePage: Component {
-    var body: VNode {
-        div {
-            h1("Home")
-            p("You are on the home page.")
-            embed { Link("/about", "Go to About") }
-        }
-    }
-}
-
-final class AboutPage: Component {
-    @Environment(\.router) var router
-
-    var body: VNode {
-        // Capture router.back inside body where AmbientEnvironment.current is set.
-        let back = router.back
-        return div {
-            h1("About")
-            p("You are on the about page.")
-            button("Back", .on(.click) { _ in back() })
-        }
-    }
-}
-
-@main
-struct App {
-    @MainActor
-    static func main() {
-        Swiflow.render(into: "#app") {
-            RouterRoot(mode: .hash) {
-                Route("/") { HomePage() }
-                Route("/about") { AboutPage() }
-            }
-        }
-    }
-}
-
-"""##,
-                "index.html": ##"""
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>{{NAME}}</title>
   </head>
   <body>
     <div id="app"></div>

@@ -1,7 +1,7 @@
 // Tests/playwright/router.spec.ts
 import { test, expect, type ConsoleMessage } from "@playwright/test";
 
-test.describe("RouterDemo — hash-mode navigation", () => {
+test.describe("MiniRouter — hash-mode navigation", () => {
   test.use({ baseURL: "http://127.0.0.1:3001" });
 
   test("Home page renders on load", async ({ page }) => {
@@ -17,7 +17,9 @@ test.describe("RouterDemo — hash-mode navigation", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Go to About" }).click();
+    // The NavBar renders Link("/about", "About"); MiniRouter has no explicit
+    // "Go to About" link.
+    await page.getByRole("link", { name: "About" }).click();
 
     // URL hash must change to /about
     await expect(page).toHaveURL(/#\/about$/);
@@ -33,7 +35,7 @@ test.describe("RouterDemo — hash-mode navigation", () => {
     // `window.history.back()` lands on `about:blank` (Playwright's initial
     // page) instead of bouncing within the app.
     await page.goto("/");
-    await page.getByRole("link", { name: "Go to About" }).click();
+    await page.getByRole("link", { name: "About" }).click();
     await expect(page).toHaveURL(/#\/about$/);
     await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
 

@@ -15,9 +15,9 @@ const SWIFLOW = join(REPO_ROOT, ".build", "release", "swiflow");
 const DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-e2e-"));
 const DEMO_PROJECT = join(DEMO_TMP, "demo");
 
-// RouterDemo e2e: scaffold via `swiflow init --template RouterDemo`
+// MiniRouter e2e: scaffold via `swiflow init --template MiniRouter`
 // into its own temp dir. Dogfoods the --template flag and keeps the
-// e2e harness independent of any state in examples/RouterDemo/.
+// e2e harness independent of any state in examples/MiniRouter/.
 const ROUTER_DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-router-e2e-"));
 const ROUTER_DEMO_PROJECT = join(ROUTER_DEMO_TMP, "demo");
 
@@ -46,14 +46,14 @@ execFileSync(
 
 execFileSync(
   SWIFLOW,
-  ["init", "demo", "--template", "RouterDemo", "--path", ROUTER_DEMO_TMP, "--swiflow-source", REPO_ROOT],
+  ["init", "demo", "--template", "MiniRouter", "--path", ROUTER_DEMO_TMP, "--swiflow-source", REPO_ROOT],
   { stdio: "inherit" }
 );
 
 // ── SW cache e2e setup ────────────────────────────────────────────────────────
 // NOTE: this block is duplicated in playwright.sw.config.ts so that local
 // dev can run `npm run test:sw` without spinning up the Counter or
-// RouterDemo dev servers. Keep both copies in sync.
+// MiniRouter dev servers. Keep both copies in sync.
 // Service workers only register in release builds (dev mode skips registration
 // to avoid fighting HMR). We scaffold a separate demo and run `swiflow build`;
 // the build writes swiflow-manifest.json directly to the project root, where

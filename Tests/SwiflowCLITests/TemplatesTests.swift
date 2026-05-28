@@ -50,7 +50,7 @@ struct TemplatesTests {
     }
 
     @Test("Every template renders byte-identical to its examples/<name>/ tree",
-          arguments: ["HelloWorld", "MiniRouter", "RouterDemo"])
+          arguments: ["HelloWorld", "MiniRouter"])
     func templateRoundTrip(name: String) throws {
         let template = try #require(EmbeddedTemplates.lookup(name),
                                     "EmbeddedTemplates.lookup(\(name)) returned nil")
@@ -68,7 +68,7 @@ struct TemplatesTests {
     }
 
     @Test("Every non-blacklisted file under examples/<name>/ appears in the corresponding template",
-          arguments: ["HelloWorld", "MiniRouter", "RouterDemo"])
+          arguments: ["HelloWorld", "MiniRouter"])
     func templateCoversAllOnDiskFiles(name: String) throws {
         let template = try #require(EmbeddedTemplates.lookup(name))
         let exampleRoot = Self.repoRoot.appendingPathComponent("examples").appendingPathComponent(name)

@@ -1,7 +1,7 @@
 // Tests/playwright/playwright.router.config.ts
 //
 // Router-only Playwright config. Runs ONLY router.spec.ts against ONLY
-// the RouterDemo dev server on :3001 — skips the Counter (:3000) dev
+// the MiniRouter dev server on :3001 — skips the Counter (:3000) dev
 // server and the SW release demo (:3002). Use this for fast local
 // iteration on `SwiflowRouter` / `Link` / hash-mode navigation.
 //
@@ -9,10 +9,10 @@
 //     # or directly:
 //     npx playwright test --config=playwright.router.config.ts
 //
-// The RouterDemo demo is scaffolded fresh into a temp dir via
-// `swiflow init demo --template RouterDemo`. That dogfoods the
+// The MiniRouter demo is scaffolded fresh into a temp dir via
+// `swiflow init demo --template MiniRouter`. That dogfoods the
 // --template flag end-to-end and keeps the e2e harness independent
-// of any state in examples/RouterDemo/.
+// of any state in examples/MiniRouter/.
 //
 // CI continues to use the default playwright.config.ts, which runs ALL
 // servers and ALL specs.
@@ -41,7 +41,7 @@ if (!existsSync(SWIFLOW)) {
 
 execFileSync(
   SWIFLOW,
-  ["init", "demo", "--template", "RouterDemo", "--path", ROUTER_DEMO_TMP, "--swiflow-source", REPO_ROOT],
+  ["init", "demo", "--template", "MiniRouter", "--path", ROUTER_DEMO_TMP, "--swiflow-source", REPO_ROOT],
   { stdio: "inherit" }
 );
 

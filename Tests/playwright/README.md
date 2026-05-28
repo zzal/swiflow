@@ -17,7 +17,7 @@ npx playwright install --with-deps chromium
 ## Running each suite
 
 The default `npm test` runs everything — three webServers come up
-(Counter on :3000, RouterDemo on :3001, SW release demo served by
+(Counter on :3000, MiniRouter on :3001, SW release demo served by
 python3 on :3002) and all four specs execute. Cold runs take ~20 min
 because the SW release build is expensive (`swiflow build` ships a
 full WASM release).
@@ -28,7 +28,7 @@ purpose-built config that spins up only the server its spec needs:
 | Command | Spec | Server | Mode | Wall-clock (cold) |
 |---|---|---|---|---|
 | `npm run test:counter` | `counter.spec.ts` | `swiflow dev` on :3000 (scaffolded Counter demo) | dev | ~1 min |
-| `npm run test:router` | `router.spec.ts` | `swiflow dev --port 3001` against `examples/RouterDemo/` | dev | ~1 min |
+| `npm run test:router` | `router.spec.ts` | `swiflow dev --port 3001` (scaffolded MiniRouter demo) | dev | ~1 min |
 | `npm run test:sw` | `sw-cache.spec.ts` + `progress.spec.ts` | `python3 -m http.server 3002` against a scaffolded release build | release | ~5 min (release WASM build) |
 | `npm test` | all four specs | all three of the above | mixed | ~20 min |
 

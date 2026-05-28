@@ -1,7 +1,7 @@
 // Tests/playwright/playwright.counter.config.ts
 //
 // Counter-only Playwright config. Runs ONLY counter.spec.ts against ONLY
-// the Counter dev server on :3000 — skips the RouterDemo (:3001) dev
+// the Counter dev server on :3000 — skips the MiniRouter (:3001) dev
 // server and the SW release demo (:3002). Use this for fast local
 // iteration on the Counter / `@State` / HMR happy path.
 //

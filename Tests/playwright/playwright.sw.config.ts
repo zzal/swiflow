@@ -2,7 +2,7 @@
 //
 // SW-only Playwright config. Runs ONLY sw-cache.spec.ts against ONLY the
 // release-mode static server on :3002 — skips the Counter (:3000) and
-// RouterDemo (:3001) dev servers entirely. Use this for fast local
+// MiniRouter (:3001) dev servers entirely. Use this for fast local
 // iteration on the SW caching behaviour.
 //
 //     npx playwright test --config=playwright.sw.config.ts

@@ -21,7 +21,7 @@ phases (19c, 19d, 19b respectively).
 The extension activates whenever Chrome DevTools is open. To use it:
 
 1. Open a Swiflow app running in dev mode (e.g.
-   `cd examples/RouterDemo && swiflow dev`).
+   `cd examples/MiniRouter && swiflow dev`).
 2. Open Chrome DevTools (⌥⌘I on macOS, Ctrl-Shift-I elsewhere).
 3. Click the **Swiflow** tab in the DevTools tab bar (it may be hidden
    behind the » overflow menu — drag tabs to reorder).
@@ -71,7 +71,7 @@ After sideloading, walk through this once to confirm everything works:
 
 1. [ ] Open `chrome://extensions`, confirm "Swiflow DevTools" loaded
    with no errors.
-2. [ ] Start a dev server: `cd examples/RouterDemo && swiflow dev`
+2. [ ] Start a dev server: `cd examples/MiniRouter && swiflow dev`
    (port 3001).
 3. [ ] Open `http://127.0.0.1:3001` in Chrome, open DevTools, switch
    to the **Swiflow** tab.
