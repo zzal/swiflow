@@ -69,3 +69,64 @@ struct TemplateEmbedderTests {
         #expect(generated.contains(trickyContents))
     }
 }
+
+extension TemplateEmbedderTests {
+
+    /// Repo root resolved relative to this test file's location.
+    static var repoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // SwiflowCLITests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+    }
+
+    @Test("EmbeddedTemplates.swift is bit-for-bit what TemplateEmbedder would produce")
+    func embeddedTemplatesIsFresh() throws {
+        let examplesRoot = Self.repoRoot.appendingPathComponent("examples")
+        let embeddedURL = Self.repoRoot.appendingPathComponent("Sources/SwiflowCLI/EmbeddedTemplates.swift")
+
+        let expected = try TemplateEmbedder.swiftSource(examplesRoot: examplesRoot)
+        let actual = try String(contentsOf: embeddedURL, encoding: .utf8)
+
+        #expect(actual == expected, """
+            EmbeddedTemplates.swift drifted from TemplateEmbedder.swiftSource output. \
+            Regenerate by running, from the repo root:
+                swift scripts/embed-templates.swift
+            then commit Sources/SwiflowCLI/EmbeddedTemplates.swift.
+            """)
+    }
+
+    @Test("EmbeddedTemplates.all is non-empty and contains HelloWorld")
+    func embeddedTemplatesContainsHelloWorld() {
+        #expect(!EmbeddedTemplates.all.isEmpty)
+        #expect(EmbeddedTemplates.availableNames.contains("HelloWorld"))
+    }
+
+    @Test("EmbeddedTemplates.lookup returns nil for an unknown name")
+    func embeddedTemplatesLookupMissing() {
+        #expect(EmbeddedTemplates.lookup("DoesNotExist") == nil)
+    }
+
+    @Test("HelloWorld template contains Package.swift, App.swift, index.html, README, .gitignore")
+    func helloWorldTemplateShape() throws {
+        let t = try #require(EmbeddedTemplates.lookup("HelloWorld"))
+        #expect(t.files["Package.swift"] != nil)
+        #expect(t.files["Sources/App/App.swift"] != nil)
+        #expect(t.files["index.html"] != nil)
+        #expect(t.files[".gitignore"] != nil)
+        #expect(t.files["README.md"] != nil)
+        // Driver / SW must NOT be in the template — they come from EmbeddedDriver.
+        #expect(t.files["swiflow-driver.js"] == nil)
+        #expect(t.files["swiflow-sw.js"] == nil)
+    }
+
+    @Test("Package.swift template uses {{NAME}} and {{SWIFLOW_DEP}} placeholders")
+    func helloWorldPackageSwiftPlaceholders() throws {
+        let t = try #require(EmbeddedTemplates.lookup("HelloWorld"))
+        let pkg = try #require(t.files["Package.swift"])
+        #expect(pkg.contains(#"name: "{{NAME}}""#))
+        #expect(pkg.contains("{{SWIFLOW_DEP}}"))
+        #expect(!pkg.contains("HelloWorld"))
+        #expect(!pkg.contains(#".package(path: "../..")"#))
+    }
+}
