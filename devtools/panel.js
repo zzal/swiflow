@@ -8,6 +8,26 @@
 // All page-side calls go through DataSource so a future event-driven
 // impl (Phase 19b) can swap in without touching the rendering layer.
 
+// ── OS color-scheme detection ─────────────────────────────────────────────────
+//
+// The bundled Chromium tokens (design_system_tokens.css) trigger their
+// dark variants via the `theme-with-dark-background` class on <html>,
+// not via @media (prefers-color-scheme). Without that class the file's
+// :root block stays in light mode regardless of OS preference. This
+// IIFE adds the class when the OS prefers dark and listens for changes
+// so the panel re-themes live if the user toggles their OS theme.
+// Runs as early as possible (top of the only external script the panel
+// loads); MV3 CSP forbids inline <script> so an HTML-level pre-paint
+// hook isn't available — a brief FOUC of light theme on cold load is
+// acceptable.
+(() => {
+  const html = document.documentElement;
+  const mq = matchMedia("(prefers-color-scheme: dark)");
+  const apply = () => html.classList.toggle("theme-with-dark-background", mq.matches);
+  apply();
+  mq.addEventListener("change", apply);
+})();
+
 /**
  * Abstract source of devtools data. Methods resolve to documented
  * shapes or null on failure. Errors are surfaced via the returned
