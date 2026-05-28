@@ -682,34 +682,6 @@ package func domAncestorHandle(of node: MountNode) -> Int? {
     return nil
 }
 
-/// Walks `node` and its entire subtree, firing `onAppear()` on every
-/// component anchor in **children-first** order — each component's
-/// `onAppear` runs after its descendants' have completed.
-///
-/// Symmetric inverse of `destroy()`: destroy is parent-first so a parent's
-/// `onDisappear` can still read child state before children are torn down;
-/// `fireOnAppearTree` is children-first so a parent's `onAppear` observes a
-/// fully-mounted subtree (matching React's `componentDidMount` and SwiftUI's
-/// `.onAppear` convention).
-///
-/// Called from the Web renderer's first-mount path. Subsequent re-renders
-/// don't refire `onAppear` — instances persist across diffs; `onChange`
-/// is the per-render hook.
-@MainActor
-package func fireOnAppearTree(_ node: MountNode) {
-    // Descend first — symmetric with destroy()'s recursion order (componentBody
-    // before children) — so any onAppear at this level sees its subtree fully
-    // mounted and DOM-attached.
-    if let body = node.componentBody {
-        fireOnAppearTree(body)
-    }
-    for child in node.children {
-        fireOnAppearTree(child)
-    }
-    if let any = node.component {
-        any.instance.onAppear()
-    }
-}
 
 /// Children-first walk over `node` and its entire subtree. For each component
 /// anchor encountered:
