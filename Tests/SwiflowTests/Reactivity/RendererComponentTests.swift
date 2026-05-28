@@ -638,3 +638,85 @@ struct NestedOnChangeTests {
         #expect(inner.performCalls == [42], "value changed 0 → 42 — perform fires once with the new value")
     }
 }
+
+// MARK: - Mid-render mount (conditional reveal)
+
+@Suite("Component mounted mid-render fires onAppear (not onChange) on that render; reused parent fires onChange")
+@MainActor
+struct MidRenderMountTests {
+
+    final class Inner: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate init(log: LifecycleLog) { self.log = log }
+        var body: VNode { .text("inner") }
+        func onAppear() { log.calls.append("inner.appear") }
+        func onChange() { log.calls.append("inner.change") }
+    }
+
+    /// Container whose body conditionally embeds Inner. The flag is mutated
+    /// directly between renders — no @State / scheduler — so the test can
+    /// drive the lifecycle path without involving the WASM-only Renderer.
+    final class Container: Component {
+        fileprivate let log: LifecycleLog
+        fileprivate var showInner: Bool = false
+        fileprivate init(log: LifecycleLog) { self.log = log }
+        var body: VNode {
+            if showInner {
+                return embed { Inner(log: self.log) }
+            } else {
+                return .text("hidden")
+            }
+        }
+        func onAppear() { log.calls.append("container.appear") }
+        func onChange() { log.calls.append("container.change") }
+    }
+
+    @Test("conditional reveal: Inner fires onAppear once, Container fires onChange once, both in the same re-render")
+    func conditionalRevealFiresAppearOnNewAndChangeOnReused() {
+        let log = LifecycleLog()
+        let container = Container(log: log)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        // First render: showInner == false, no Inner mounted.
+        let v1 = VNode.component(.init(Container.self) { container })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+        #expect(log.calls == ["container.appear"], "first mount: only Container fires onAppear")
+
+        // Flip the flag — Container's next body returns embed { Inner }.
+        container.showInner = true
+        log.calls.removeAll()
+
+        // Re-render: same Container instance reused; Inner is newly mounted.
+        let preIDs = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(Container.self) { container })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        // Children-first → Inner's appear runs before Container's change.
+        #expect(log.calls == ["inner.appear", "container.change"])
+    }
+
+    @Test("conditional reveal: Inner does NOT fire onChange on the render it was mounted")
+    func newlyMountedInnerDoesNotFireOnChange() {
+        let log = LifecycleLog()
+        let container = Container(log: log)
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+
+        let v1 = VNode.component(.init(Container.self) { container })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+
+        container.showInner = true
+        log.calls.removeAll()
+        let preIDs = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(Container.self) { container })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs)
+
+        let innerChangeCount = log.calls.filter { $0 == "inner.change" }.count
+        #expect(innerChangeCount == 0, "Inner was freshly mounted this render — it must fire onAppear, never onChange")
+    }
+}
