@@ -192,6 +192,11 @@ final class Renderer {
         let swiflowGlobal = JSObject.global.swiflow.object!
         _ = swiflowGlobal.applyPatches!(jsArray)
 
+        // Snapshot the set of component instance IDs alive BEFORE this diff,
+        // so the lifecycle walker below can partition each anchor in the new
+        // tree into reused (→ onChange) vs freshly-mounted (→ onAppear).
+        // Captured before mountTree is reassigned. Empty on first render.
+        let preExistingIDs = collectComponentIDs(mountTree)
         let isFirstMount = (mountTree == nil)
         mountTree = result.newMountTree
 
@@ -207,18 +212,15 @@ final class Renderer {
                 JSValue.number(Double(mountHandle)),
                 JSValue.string(selector)
             )
-            // Lifecycle: walk the mount tree children-first and fire onAppear
-            // on every component anchor. Nested components (e.g. Link inside a
-            // Page inside RouterRoot) rely on onAppear to attach DOM listeners
-            // via Ref<JSObject>; firing only on the root would silently break
-            // them. Symmetric inverse of destroy()'s parent-first onDisappear.
-            fireOnAppearTree(result.newMountTree)
-        } else {
-            // Lifecycle: fire onChange on the root component.
-            if let root = rootComponent {
-                root.instance.onChange()
-            }
         }
+
+        // Lifecycle: walk the post-diff tree children-first. On first mount
+        // preExistingIDs is empty so every anchor fires onAppear (matches the
+        // prior fireOnAppearTree behavior). On re-render, anchors whose
+        // instance survived from the previous tree fire onChange; anchors
+        // freshly created during this diff fire onAppear (closes the
+        // mid-render-mount lifecycle gap).
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
     }
 
     /// Destroys the mounted tree, emits remove patches to the JS driver,
