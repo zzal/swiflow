@@ -84,6 +84,18 @@
         font-size: 11px;
         color: var(--sys-color-on-surface-subtle);
       }
+      .live-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+        background: var(--sys-color-on-surface-subtle);
+      }
+      .live-indicator--green { background: var(--sys-color-primary); }
+      .live-indicator--grey  { background: var(--sys-color-on-surface-subtle); }
+      .live-indicator--red   { background: var(--sys-color-error); }
       .tree-row {
         white-space: pre;
         cursor: pointer;
@@ -127,7 +139,10 @@
         <div class="empty-state">Select a component to view its @State.</div>
       </div>
     </main>
-    <footer id="footer"></footer>
+    <footer>
+      <span id="live-indicator" class="live-indicator live-indicator--grey" title="Paused"></span>
+      <span id="footer"></span>
+    </footer>
     <script src="panel.js"></script>
   </body>
 </html>
