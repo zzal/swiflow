@@ -16,6 +16,43 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [v0.1.3] — 2026-05-27
+
+**First public GitHub release.** Tags the Phase 16 + Phase 17 work as
+[v0.1.3](https://github.com/zzal/swiflow/releases/tag/v0.1.3) and flips
+`swiflow init` so users can scaffold a project without local-path
+workarounds: the generated `Package.swift` now pins to the matching
+Swiflow release on github.com/zzal/swiflow.
+
+### Changed
+- `swiflow init my-app` no longer requires `--swiflow-source`. With no
+  flags it generates a versioned URL dep on the official repo pinned to
+  the CLI's own version (read from a new `SwiflowVersion.current`
+  constant — single source of truth for `--version` and the init
+  default). `--swiflow-source` is preserved as the "hacking on Swiflow
+  itself" escape hatch; `--swiflow-version <v>` still lets users pin
+  to any other published tag.
+- `SwiflowDep.officialRepositoryURL` flipped from the pre-release
+  placeholder `swiflow/swiflow` to the real `zzal/swiflow`. The
+  scaffolded `Package.swift` line now reads
+  `.package(url: "https://github.com/zzal/swiflow.git", exact: "<version>")`.
+- Empty `--swiflow-source ""` / `SWIFLOW_SOURCE=` (the shell idiom for
+  "clear an inherited env var") is now treated as unset. The previous
+  behavior silently generated `.package(path: "")` in user code.
+
+### Added
+- `Sources/SwiflowCLI/SwiflowVersion.swift` — single-source-of-truth
+  constant for the CLI's semver. Bumped in lockstep with each GitHub
+  release tag.
+
+### Stability
+- This release establishes versioned distribution. Future bug-fix
+  releases will land as `v0.1.x` tags; behaviour changes that ripple
+  through user code will be called out in the Stability section of the
+  corresponding Phase entry.
+
+---
+
 ## [Phase 17] — 2026-05-27
 
 **Lifecycle + DOM sync.** Two latent bugs that the Playwright router
