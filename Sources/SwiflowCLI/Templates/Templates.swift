@@ -40,6 +40,17 @@ enum Templates {
 
     // MARK: - Public rendering API
 
+    /// Applies the two scaffold-time substitutions to a raw template file's
+    /// contents. Used by `ProjectWriter` to render each file in a template.
+    ///
+    /// - `{{NAME}}` ← `name`
+    /// - `{{SWIFLOW_DEP}}` ← `swiflowDep.packageFragment`
+    static func render(_ raw: String, name: String, swiflowDep: SwiflowDep) -> String {
+        return raw
+            .replacingOccurrences(of: "{{NAME}}", with: name)
+            .replacingOccurrences(of: "{{SWIFLOW_DEP}}", with: swiflowDep.packageFragment)
+    }
+
     static func packageSwift(name: String, swiflowDep: SwiflowDep) -> String {
         return rawPackageSwift
             .replacingOccurrences(of: "{{NAME}}", with: name)

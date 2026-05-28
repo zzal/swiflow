@@ -146,4 +146,25 @@ struct TemplatesTests {
         #expect(!pkg.contains("{{SWIFLOW_SOURCE}}"),
                 "Placeholder must be substituted; if not, the template's .package(path:) literal changed.")
     }
+
+    @Test("render substitutes {{NAME}} and {{SWIFLOW_DEP}}")
+    func renderSubstitutesBothTokens() {
+        let raw = #"""
+        name: "{{NAME}}", deps: [
+            {{SWIFLOW_DEP}},
+        ]
+        """#
+        let out = Templates.render(raw, name: "MyApp", swiflowDep: .path("/abs/swiflow"))
+        #expect(out.contains(#"name: "MyApp""#))
+        #expect(out.contains(#".package(path: "/abs/swiflow")"#))
+        #expect(!out.contains("{{NAME}}"))
+        #expect(!out.contains("{{SWIFLOW_DEP}}"))
+    }
+
+    @Test("render with URL dep produces .package(url:exact:)")
+    func renderUrlDep() {
+        let raw = "{{SWIFLOW_DEP}}"
+        let out = Templates.render(raw, name: "Demo", swiflowDep: .url("https://example.com/repo.git", version: "1.2.3"))
+        #expect(out == #".package(url: "https://example.com/repo.git", exact: "1.2.3")"#)
+    }
 }
