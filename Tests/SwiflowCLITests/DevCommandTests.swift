@@ -76,6 +76,7 @@ struct DevCommandIntegrationTests {
         // 1. Scaffold a project pointing at this checkout.
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path(BuildCommandIntegrationTests.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource,

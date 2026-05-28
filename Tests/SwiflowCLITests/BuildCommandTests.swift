@@ -259,6 +259,7 @@ struct BuildCommandIntegrationTests {
         // 1. Init into the temp dir, pointing at this checkout.
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path(Self.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource,
@@ -309,6 +310,7 @@ struct BuildCommandIntegrationTests {
         // 1. Scaffold a project pointing at this checkout.
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path(Self.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource,

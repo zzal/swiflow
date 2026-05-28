@@ -110,6 +110,7 @@ struct InitCommand: AsyncParsableCommand {
         do {
             try ProjectWriter.writeProject(
                 name: name,
+                template: EmbeddedTemplates.lookup("HelloWorld")!,
                 into: parentURL,
                 swiflowDep: dep,
                 jsDriverSource: EmbeddedDriver.javascriptSource,

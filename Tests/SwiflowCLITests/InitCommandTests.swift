@@ -13,6 +13,7 @@ struct InitCommandTests {
 
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path("../.."),
             jsDriverSource: "// fake driver\n",
@@ -40,6 +41,7 @@ struct InitCommandTests {
         let driver = "// custom driver payload\nconsole.log('hi');\n"
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path("../.."),
             jsDriverSource: driver,
@@ -59,6 +61,7 @@ struct InitCommandTests {
         let sw = "// custom sw payload\nself.addEventListener('install', () => {});\n"
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path("../.."),
             jsDriverSource: "// fake driver\n",
@@ -82,6 +85,7 @@ struct InitCommandTests {
         #expect(throws: ProjectWriterError.targetExists(collision)) {
             try ProjectWriter.writeProject(
                 name: "Demo",
+                template: EmbeddedTemplates.lookup("HelloWorld")!,
                 into: tmp,
                 swiflowDep: .path("../.."),
                 jsDriverSource: "// driver\n",
@@ -103,6 +107,7 @@ struct InitCommandTests {
         do {
             try ProjectWriter.writeProject(
                 name: "Demo",
+                template: EmbeddedTemplates.lookup("HelloWorld")!,
                 into: tmp,
                 swiflowDep: .path("/abs/path/to/swiflow"),
                 jsDriverSource: "// driver\n",
@@ -128,6 +133,7 @@ struct InitCommandTests {
 
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path("/abs/path/to/swiflow"),
             jsDriverSource: "// driver\n",
@@ -148,6 +154,7 @@ struct InitCommandTests {
 
         try ProjectWriter.writeProject(
             name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
             into: tmp,
             swiflowDep: .path("../.."),
             jsDriverSource: "// driver\n",
