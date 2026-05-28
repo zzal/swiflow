@@ -377,6 +377,29 @@ struct App {
         Template(
             name: "MiniRouter",
             files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
                 "Package.swift": ##"""
 // swift-tools-version: 6.0
 import PackageDescription
@@ -402,6 +425,39 @@ let package = Package(
         ),
     ]
 )
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+A Swiflow project demonstrating client-side routing with `SwiflowRouter`.
+
+## Build
+
+```bash
+swiflow build
+```
+
+This wraps `swift package js --use-cdn --product App -c release` after
+probing for an installed WASM SDK. The output lands at
+`.build/plugins/PackageToJS/outputs/Package/`.
+
+## Serve
+
+Any static HTTP server works:
+
+```bash
+python3 -m http.server 3000
+```
+
+Then open <http://localhost:3000>.
+
+## What you should see
+
+- A navbar with **Home**, **About**, and **Users** links.
+- Clicking a link swaps the page content without a full reload — the
+  router renders the matching `Route` from `Sources/App/App.swift`.
+- `/users/:id` shows a dynamic `:id` segment via `ctx.params["id"]`.
 
 """##,
                 "Sources/App/App.swift": ##"""
@@ -566,6 +622,38 @@ let package = Package(
         ),
     ]
 )
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+A Swiflow project demonstrating client-side routing with `SwiflowRouter`.
+
+## Build
+
+```bash
+swiflow build
+```
+
+This wraps `swift package js --use-cdn --product App -c release` after
+probing for an installed WASM SDK. The output lands at
+`.build/plugins/PackageToJS/outputs/Package/`.
+
+## Serve
+
+Any static HTTP server works:
+
+```bash
+python3 -m http.server 3000
+```
+
+Then open <http://localhost:3000>.
+
+## What you should see
+
+- The router renders the `/` route from `Sources/App/App.swift`.
+- Navigating to `/about` or `/users/:id` swaps the page content via
+  the `Route` declarations.
 
 """##,
                 "Sources/App/App.swift": ##"""
