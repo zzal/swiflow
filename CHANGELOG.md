@@ -16,6 +16,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 18] — `onChange` for nested components
+
+### Behavior changes
+- `Component.onChange()` now fires on **every** component in the tree after each re-render, not just the root. Components that override `onChange()` on a nested component will now see the hook fire as documented (the prior root-only behavior was a bug). React `componentDidUpdate` semantics: fires once per reused instance per render, regardless of whether body output changed. Users who want value-aware filtering should use the existing `onChange(of:_:perform:)` convenience extension from inside their `onChange()` override.
+- `Component.onAppear()` now fires on components mounted **mid-render** (e.g. revealed by a conditional `if/else` branch flip, or appended to a list during a re-render). Previously `onAppear` only fired on the components present at first mount; mid-render new mounts silently skipped it.
+
+### Internals
+- New helpers `collectComponentIDs(_:)` and `firePostRenderLifecycle(_:preExistingIDs:)` in `Sources/Swiflow/Diff/Diff.swift` partition components per render into reused (→ `onChange`) vs freshly mounted (→ `onAppear`). The Renderer's two-branch lifecycle dispatch collapsed into a single call. `fireOnAppearTree` removed (replaced by `firePostRenderLifecycle(_, preExistingIDs: [])`).
+- No public API changes. No JS driver changes. No patch protocol changes.
+
 ## [v0.1.3] — 2026-05-27
 
 **First public GitHub release.** Tags the Phase 16 + Phase 17 work as
