@@ -277,8 +277,14 @@ function renderFooter(perfData, activeSelector) {
     `| LastPatch: ${entry.lastPatchCount} | LastRenderMs: ${entry.lastRenderMs.toFixed(2)}`;
 }
 
-document.getElementById("refresh-btn").addEventListener("click", async () => {
-  clearError();
+// ── Refresh ───────────────────────────────────────────────────────────────────
+//
+// Single source of truth for "re-fetch everything and re-render". Called
+// by the ↻ Refresh button (user-driven), the navigation handler, and the
+// poll loop. `surfaceErrors` controls whether failures bubble to the
+// error region (true for user-initiated, false for poll-driven).
+
+async function refreshAll(surfaceErrors) {
   try {
     const tree = await dataSource.tree();
     renderTree(tree);
@@ -291,7 +297,19 @@ document.getElementById("refresh-btn").addEventListener("click", async () => {
       clearState();
     }
   } catch (err) {
-    showError(err.message);
+    if (surfaceErrors) {
+      showError(err.message);
+    }
+    throw err;
+  }
+}
+
+document.getElementById("refresh-btn").addEventListener("click", async () => {
+  clearError();
+  try {
+    await refreshAll(true);
+  } catch (_) {
+    // Error already surfaced via showError inside refreshAll.
   }
 });
 
@@ -305,3 +323,75 @@ chrome.devtools.network.onNavigated.addListener(() => {
   clearState();
   document.getElementById("refresh-btn").click();
 });
+
+// ── Live polling (Phase 19b) ──────────────────────────────────────────────────
+//
+// Polls __swiflow.perf() every POLL_INTERVAL_MS while the panel is visible.
+// On a change in any selector's `renders` count, runs refreshAll(). Poll-time
+// errors are silent — they only paint the live indicator red. Visibility
+// gating is driven externally by devtools.js calling swiflowStart/swiflowStop.
+
+const POLL_INTERVAL_MS = 250;
+const liveIndicator = document.getElementById("live-indicator");
+
+let pollHandle = null;
+let lastPerfSignature = null;
+
+function setLiveIndicator(state, tooltip) {
+  liveIndicator.classList.remove(
+    "live-indicator--green",
+    "live-indicator--grey",
+    "live-indicator--red"
+  );
+  liveIndicator.classList.add(`live-indicator--${state}`);
+  liveIndicator.title = tooltip;
+}
+
+function computePerfSignature(perf) {
+  if (!perf) return "";
+  const keys = Object.keys(perf).sort();
+  const compact = {};
+  for (const k of keys) compact[k] = perf[k].renders;
+  return JSON.stringify(compact);
+}
+
+async function pollTick() {
+  try {
+    const perf = await dataSource.perf();
+    setLiveIndicator("green", "Live");
+    const signature = computePerfSignature(perf);
+    if (signature !== lastPerfSignature) {
+      lastPerfSignature = signature;
+      // refreshAll(false): poll-driven, suppress error-region surfacing.
+      // If the refresh itself fails, swallow — pollTick's own catch
+      // (below) covers it on the next tick.
+      try {
+        await refreshAll(false);
+      } catch (_) {
+        // Silent — handled by the outer catch on the next poll.
+      }
+    }
+  } catch (err) {
+    setLiveIndicator("red", `Connection lost: ${err.message}`);
+    // Preserve lastPerfSignature: when polling recovers, the next
+    // successful tick will see whatever state moved during the outage
+    // and trigger a single recovery refresh.
+  }
+}
+
+window.swiflowStart = () => {
+  if (pollHandle !== null) return; // already running
+  setLiveIndicator("green", "Live");
+  // Kick an immediate refresh so onShown doesn't wait 250ms to populate.
+  // lastPerfSignature stays null here; the immediate poll will detect
+  // "different" and run refreshAll on the first tick.
+  pollHandle = setInterval(pollTick, POLL_INTERVAL_MS);
+  pollTick();  // immediate first poll
+};
+
+window.swiflowStop = () => {
+  if (pollHandle === null) return;
+  clearInterval(pollHandle);
+  pollHandle = null;
+  setLiveIndicator("grey", "Paused (panel hidden)");
+};
