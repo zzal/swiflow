@@ -13,21 +13,23 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 17 (Lifecycle + DOM Sync) — closes two latent
-bugs the Playwright router suite exposed: nested-component
-`onAppear` now fires (was root-only since the hook was introduced,
-which silently broke `Link`'s click handler), and the diff now
-emits the `removeChild` / `appendChild` patches needed to keep the
-DOM in sync when a component swaps element types between frames
-(a new `replaceMount` opcode handles the root-level case). All 3
-router.spec.ts e2e tests pass. Phase 16 (Foundation-Free Runtime)
-shipped just before: runtime modules no longer import Foundation;
-a CI grep guard enforces it. Phase 15's bundle headline still
-holds — **1.81 MB gzipped** (−90% vs the pre-15 baseline). User-
-facing API essentially unchanged across all three; `@State` still
-requires an explicit type annotation as of 15.
+**Status:** Phase 19b (Live DevTools) — the Chrome DevTools panel
+introduced in Phase 19 now auto-updates within ~250 ms of every
+render (no manual ↻ Refresh after each `@State` mutation), with a
+footer dot showing polling status (green = live, grey = paused,
+red = failed). Zero Swift-side changes — the panel polls the
+existing `__swiflow.perf()` counter via `chrome.devtools.inspectedWindow`.
+Phase 19 shipped the read-only panel itself (tree + per-node
+`@State`) as a sideloadable MV3 extension at `devtools/`.
+Phase 18 closed the remaining lifecycle gaps: `onChange` now
+fires on **every** component per re-render (was root-only, same
+bug shape as Phase 17's `onAppear`), and `onAppear` now fires on
+components mounted **mid-render** (revealed branches, list
+grows). Phase 17's bundle / runtime / router headlines all hold;
+Phase 15's **1.81 MB gzipped** WASM bundle (−90% vs pre-15) is
+still the baseline.
 
-**What works today (Phase 17):**
+**What works today (Phase 19b):**
 - **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
   every save. `@State` survives, the page doesn't reload, and
   the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
@@ -49,19 +51,22 @@ requires an explicit type annotation as of 15.
 - **`@Component` macro** — components declared with `@MainActor @Component final class Foo { ... }` automatically conform to `Component`. The macro removes the `: Component` boilerplate; the `@MainActor` is still required (Swift 6 doesn't propagate actor isolation retroactively through a macro-emitted conformance extension, so the class body needs its own isolation). `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
 - **`@Environment` / context DI** — typed `EnvironmentKey` protocol, `EnvironmentValues`, `Environment` property wrapper, plus both the `withEnvironment(\.key, value) { ... }` DSL and the postfix `.environment(\.key, value)` VNode modifier. `EnvironmentValues: Equatable` so the VNode diff detects environment changes.
 - **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`, 3/3 passing); `Link`'s click handler attaches reliably now that nested components actually receive `onAppear`.
-- **Lifecycle hooks across the whole tree** — `onAppear`, `onChange`, `onDisappear` fire on every component in the mount tree, not just the root. Children-first ordering on mount (matches React's `componentDidMount` and SwiftUI's `.onAppear`) so a parent's hook sees its subtree fully mounted; parent-first on unmount so a parent can still read child state during teardown.
+- **Lifecycle hooks across the whole tree** — `onAppear`, `onChange`, `onDisappear` fire on every component in the mount tree, not just the root. Children-first ordering on mount (matches React's `componentDidMount` and SwiftUI's `.onAppear`) so a parent's hook sees its subtree fully mounted; parent-first on unmount so a parent can still read child state during teardown. As of Phase 18, `onChange` fires per re-render on every reused component (React `componentDidUpdate` semantics) and `onAppear` fires on components mounted mid-render (revealed by `if`/`else` flips or list growth), not just at first mount.
 - **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
 - **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 548 Swift tests across 108 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter + MiniRouter). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+- 571 Swift tests across 117 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter, MiniRouter, progress overlay, SW cache, DevTools API contract). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
 ### Chrome DevTools panel
 
 A read-only Chrome DevTools extension at [`devtools/`](devtools/) shows
 the live component tree and `@State` of any Swiflow app running in dev
-mode. Sideload via `chrome://extensions` → **Load unpacked** →
-select `devtools/`. See [`devtools/README.md`](devtools/README.md) for
-the full smoke checklist.
+mode. As of Phase 19b the panel auto-updates within ~250 ms of every
+render (no manual refresh needed); a footer indicator dot reports
+polling status (green = live, grey = paused, red = poll failed).
+Sideload via `chrome://extensions` → **Load unpacked** → select
+`devtools/`. See [`devtools/README.md`](devtools/README.md) for the
+full smoke checklist.
 
 **What's not in the box yet:**
 - **`AsyncTestRenderer`** — for `task {}` lifecycle hooks (pre-1.0 follow-up).
@@ -94,21 +99,56 @@ the full smoke checklist.
 Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
 Run the same commands locally to calibrate for your hardware.
 
-**Status:** Phase 17 (Lifecycle + DOM Sync Fixes) complete — two latent
-bugs the Playwright router suite finally exposed. First, `onAppear` fired
-only on the root component since the hook was introduced (`2601ad9`, well
-before the router demo's e2e was added). The mount-time walker now mirrors
-the existing destroy walker, firing `onAppear` children-first on every
-component anchor. Second, the diff's component-reuse and env-override
-update arms left the DOM out of sync on type swaps: destroy emitted
-`destroyNode` (handle-map cleanup only) without `removeChild`, and mount
-created the new subtree without a parent-level `appendChild`. Both arms
-now splice `removeChild` / `appendChild` patches around the recursive
-update using a new `domAncestorHandle(_:)` walker; when the swap is at
-the root (anchors all the way up), the Renderer instead emits a new
-`replaceMount(selector, newHandle)` patch — the JS driver tracks roots
-per-selector by Node reference (not handle) so the swap survives the
-preceding `destroyNode`. All 3 `router.spec.ts` e2e tests pass.
+**Status:** Phase 19b (Render-Version Push Tick) complete — the
+DevTools panel now auto-updates within ~250 ms of every Swiflow
+render with zero Swift code changes. The panel polls
+`window.__swiflow.perf()` via `chrome.devtools.inspectedWindow.eval`
+every 250 ms while visible, compares per-selector `renders` counts to
+the last snapshot, and triggers its existing refresh path on any
+increase. Polling pauses on `panel.onHidden` and resumes on
+`panel.onShown`. A footer dot reports state (green = polling live;
+grey = paused; red = poll failed — e.g. inspected tab navigated to a
+non-Swiflow page) and the manual ↻ Refresh button remains the
+always-works fallback that still surfaces errors. The mechanism reuses
+`Renderer.renderCount` (already exposed since Phase 9) — no driver,
+patch protocol, or runtime changes. Phase 19 (Component DevTools MVP)
+shipped just before: a Chrome MV3 extension at `devtools/` adds a
+"Swiflow" tab in DevTools showing the live component tree and per-node
+`@State`. Read-only; DOM overlay, `@State` editing, and perf graphs
+are explicitly deferred (19c/d/e). Two contract tests pin the surfaces
+the panel parses: a Swift unit test for `DevAPIFormatter.treeString`
+output format, and a Playwright `devtools-api.spec.ts` for the
+`window.__swiflow.tree() / state() / perf() / handlers()` shape.
+Phase 18 (`onChange` for Nested Components) complete — `Component.onChange()`
+now fires on every reused component after each re-render (React
+`componentDidUpdate` semantics), not just the root; the same shape of
+bug Phase 17 fixed for `onAppear`. The sibling gap also closed:
+`onAppear()` now fires on components mounted mid-render (revealed by
+`if`/`else` branch flips, or appended to a list during a re-render),
+where previously only first-mount components saw it. Both come from a
+single new primitive: per-render the diff partitions component IDs
+into reused (→ `onChange`) vs freshly mounted (→ `onAppear`) via
+`collectComponentIDs(_:)` + `firePostRenderLifecycle(_:preExistingIDs:)`
+in `Sources/Swiflow/Diff/Diff.swift`. No public API changes, no JS
+driver changes, no patch protocol changes. Coverage closed with
+3-deep nesting, first-mount invariant, list-growth, and 1000-item
+stress tests. Phase 17 (Lifecycle + DOM Sync Fixes) complete — two
+latent bugs the Playwright router suite finally exposed. First,
+`onAppear` fired only on the root component since the hook was
+introduced (`2601ad9`, well before the router demo's e2e was added).
+The mount-time walker now mirrors the existing destroy walker, firing
+`onAppear` children-first on every component anchor. Second, the
+diff's component-reuse and env-override update arms left the DOM out
+of sync on type swaps: destroy emitted `destroyNode` (handle-map
+cleanup only) without `removeChild`, and mount created the new
+subtree without a parent-level `appendChild`. Both arms now splice
+`removeChild` / `appendChild` patches around the recursive update
+using a new `domAncestorHandle(_:)` walker; when the swap is at the
+root (anchors all the way up), the Renderer instead emits a new
+`replaceMount(selector, newHandle)` patch — the JS driver tracks
+roots per-selector by Node reference (not handle) so the swap
+survives the preceding `destroyNode`. All 3 `router.spec.ts` e2e
+tests pass.
 Phase 16 (Foundation-Free Runtime) complete — `Sources/SwiflowRouter/Core/RouteMatching.swift`
 dropped `import Foundation` (queries are decoded by a stdlib
 `Unicode.UTF8.ForwardParser`-backed `percentDecode`),
