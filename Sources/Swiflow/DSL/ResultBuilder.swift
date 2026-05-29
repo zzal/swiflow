@@ -20,6 +20,12 @@ public enum ChildrenBuilder {
 
     /// Passes through a `[VNode]` expression (e.g. a spread of pre-built
     /// children).
+    ///
+    /// NOTE: a raw `[VNode]` spread is flattened, NOT wrapped in a stable slot
+    /// (unlike `if`/`for`, which become one `.fragment` slot each). If the array
+    /// is dynamically sized and has siblings, a length change will shift those
+    /// siblings — wrap it in a `for` loop (and `.key(...)` the items) so the
+    /// slot stays positionally stable.
     public static func buildExpression(_ expression: [VNode]) -> [VNode] {
         expression
     }
@@ -31,11 +37,15 @@ public enum ChildrenBuilder {
     }
 
     /// The `if` branch of an `if/else` — one stable slot holding the branch.
+    /// The slot occupies the same child index whichever branch is active, so a
+    /// condition flip updates the one fragment in place and never shifts later
+    /// siblings.
     public static func buildEither(first component: [VNode]) -> [VNode] {
         [.fragment(component)]
     }
 
     /// The `else` branch of an `if/else` — one stable slot holding the branch.
+    /// Same index as the `if` branch (see `buildEither(first:)`).
     public static func buildEither(second component: [VNode]) -> [VNode] {
         [.fragment(component)]
     }
