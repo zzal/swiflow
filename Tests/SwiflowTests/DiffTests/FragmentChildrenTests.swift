@@ -98,4 +98,25 @@ struct FragmentChildrenTests {
         // No createElement — both keyed <li>s are reused (their handles preserved).
         #expect(!u.patches.contains { if case .createElement = $0 { return true }; return false })
     }
+
+    @Test("Keyed list with TWO fragment siblings: keyed reorder re-mounts neither fragment's child")
+    func keyedListWithTwoFragmentSiblings() {
+        // ul > [ li#a, fragmentA[span], fragmentB[b], li#c ]  → swap the keyed li's.
+        // The two fragments are positionally stable and must each be reused
+        // (their children span/b NOT recreated). Before the position-stable
+        // bucket key they collide on "__noKey_structural" and one is re-mounted.
+        func tree(_ order: [String]) -> VNode {
+            .element(ElementData(tag: "ul", children: [
+                .element(ElementData(tag: "li", key: order[0])),
+                .fragment([.element(ElementData(tag: "span"))]),
+                .fragment([.element(ElementData(tag: "b"))]),
+                .element(ElementData(tag: "li", key: order[1])),
+            ]))
+        }
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let m = diff(mounted: nil, next: tree(["a", "c"]), handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: tree(["c", "a"]), handles: handles, handlers: handlers)
+        #expect(!u.patches.contains { if case .createElement = $0 { return true }; return false })
+    }
 }

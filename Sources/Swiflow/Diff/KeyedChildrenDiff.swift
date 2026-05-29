@@ -203,7 +203,7 @@ func diffChildrenKeyed(
     // across configurations.
     var keyToOldIndex: [String: Int] = [:]
     for i in oldStart...oldEnd {
-        keyToOldIndex[keyOf(mounted.children[i])] = i
+        keyToOldIndex[bucketKey(mounted.children[i], offset: i)] = i
     }
 
     // For each position in the new middle, record either the old index it
@@ -215,7 +215,7 @@ func diffChildrenKeyed(
 
     for i in 0..<newMiddleCount {
         let newChild = newChildren[newStart + i]
-        let key = keyOf(newChild)
+        let key = bucketKey(newChild, offset: newStart + i)
         let childPath = parentPath.isEmpty ? String(newStart + i) : "\(parentPath).\(newStart + i)"
         if let oldIndex = keyToOldIndex.removeValue(forKey: key) {
             let reused = mounted.children[oldIndex]
@@ -380,6 +380,29 @@ func longestIncreasingSubsequenceIndices(_ input: [Int]) -> [Int] {
         cursor = prev[cursor]
     }
     return result.reversed()
+}
+
+/// True for structural VNode kinds (no DOM node of their own).
+private func isStructuralKind(_ vnode: VNode) -> Bool {
+    switch vnode {
+    case .fragment, .environmentOverride: return true
+    default: return false
+    }
+}
+
+/// Position-stabilized bucket key for the map-middle phase ONLY. A structural
+/// slot (fragment / env-override) is positionally stable by construction, so
+/// folding its middle index disambiguates multiple structural siblings that
+/// would otherwise share `"__noKey_structural"` and collide (last-write-wins in
+/// the bucket). Keyed and unkeyed-element nodes are unaffected — they delegate
+/// to `keyOf`. NOT used by the prefix/suffix scans, which must keep the
+/// position-free `keyOf` so a fragment still matches a fragment at the same
+/// position there.
+func bucketKey(_ node: MountNode, offset: Int) -> String {
+    isStructuralKind(node.vnode) ? "__noKey_structural#\(offset)" : keyOf(node)
+}
+func bucketKey(_ vnode: VNode, offset: Int) -> String {
+    isStructuralKind(vnode) ? "__noKey_structural#\(offset)" : keyOf(vnode)
 }
 
 /// Returns the key of a `MountNode` for keyed-diff bucketing.
