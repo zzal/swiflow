@@ -160,4 +160,16 @@ struct CSSSheetTests {
         #expect(result.contains("@property --accent {"))
         #expect(!result.contains("swiflow-T"))
     }
+
+    @Test("CSSSheet + concatenates entries in order")
+    func sheetPlusConcatenates() {
+        let a = css { rule(".a") { color("red") } }
+        let b = css { rule(".b") { color("blue") } }
+        let combined = a + b
+        let result = combined.cssString(scopeClass: "swiflow-T")
+        let aIdx = result.range(of: ".a")?.lowerBound
+        let bIdx = result.range(of: ".b")?.lowerBound
+        #expect(aIdx != nil && bIdx != nil)
+        #expect(aIdx! < bIdx!)
+    }
 }
