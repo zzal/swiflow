@@ -46,6 +46,29 @@ public func right(_ value: String) -> CSSDeclaration { .init("right", value) }
 public func bottom(_ value: String) -> CSSDeclaration { .init("bottom", value) }
 public func zIndex(_ value: String) -> CSSDeclaration { .init("z-index", value) }
 
+// MARK: - Modern HTML/CSS surfaces (added with HelloWorld elevation)
+public func positionAnchor(_ value: String) -> CSSDeclaration { .init("position-anchor", value) }
+public func positionArea(_ value: String) -> CSSDeclaration { .init("position-area", value) }
+public func anchorName(_ value: String) -> CSSDeclaration { .init("anchor-name", value) }
+public func viewTransitionName(_ value: String) -> CSSDeclaration { .init("view-transition-name", value) }
+public func interpolateSize(_ value: String) -> CSSDeclaration { .init("interpolate-size", value) }
+public func accentColor(_ value: String) -> CSSDeclaration { .init("accent-color", value) }
+public func colorScheme(_ value: String) -> CSSDeclaration { .init("color-scheme", value) }
+public func inset(_ value: String) -> CSSDeclaration { .init("inset", value) }
+public func insetBlockEnd(_ value: String) -> CSSDeclaration { .init("inset-block-end", value) }
+public func insetInline(_ value: String) -> CSSDeclaration { .init("inset-inline", value) }
+public func placeItems(_ value: String) -> CSSDeclaration { .init("place-items", value) }
+public func placeContent(_ value: String) -> CSSDeclaration { .init("place-content", value) }
+public func marginInline(_ value: String) -> CSSDeclaration { .init("margin-inline", value) }
+public func backdropFilter(_ value: String) -> CSSDeclaration { .init("backdrop-filter", value) }
+public func transitionBehavior(_ value: String) -> CSSDeclaration { .init("transition-behavior", value) }
+public func containerType(_ value: String) -> CSSDeclaration { .init("container-type", value) }
+public func background(_ value: String) -> CSSDeclaration { .init("background", value) }
+public func pointerEvents(_ value: String) -> CSSDeclaration { .init("pointer-events", value) }
+public func flexWrap(_ value: String) -> CSSDeclaration { .init("flex-wrap", value) }
+public func flex(_ value: String) -> CSSDeclaration { .init("flex", value) }
+public func listStyle(_ value: String) -> CSSDeclaration { .init("list-style", value) }
+
 // Escape hatches
 public func property(_ name: String, _ value: String) -> CSSDeclaration { .init(name, value) }
 public func cssVar(_ name: String, _ value: String) -> CSSDeclaration { .init(name, value) }
