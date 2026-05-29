@@ -814,13 +814,12 @@ func diffChildren(
     }
 }
 
-/// Returns true if any element in `vnodes` is an `.element` with a non-nil
-/// key.
+/// Returns true if any element in `vnodes` is an `.element` or `.component`
+/// with a non-nil key.
 func hasAnyKey(_ vnodes: [VNode]) -> Bool {
     for v in vnodes {
-        if case .element(let data) = v, data.key != nil {
-            return true
-        }
+        if case .element(let data) = v, data.key != nil { return true }
+        if case .component(let desc) = v, desc.key != nil { return true }
     }
     return false
 }
@@ -828,9 +827,8 @@ func hasAnyKey(_ vnodes: [VNode]) -> Bool {
 /// Same predicate, for `MountNode` (whose `.vnode` carries the key).
 func hasAnyKey(_ nodes: [MountNode]) -> Bool {
     for n in nodes {
-        if case .element(let data) = n.vnode, data.key != nil {
-            return true
-        }
+        if case .element(let data) = n.vnode, data.key != nil { return true }
+        if case .component(let desc) = n.vnode, desc.key != nil { return true }
     }
     return false
 }

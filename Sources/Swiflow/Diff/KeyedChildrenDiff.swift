@@ -49,6 +49,14 @@ func diffChildrenKeyed(
     }
     #endif
 
+    // A fragment/anchor parent has no DOM node of its own — its children attach
+    // to the nearest DOM-tracked ancestor. nil is unreachable for a child slot;
+    // fail loud in debug, no-op in release.
+    guard let domParentHandle = domParentHandle(of: mounted) else {
+        assertionFailure("diffChildrenKeyed on a structural node with no DOM ancestor")
+        return
+    }
+
     var oldStart = 0
     var newStart = 0
     var oldEnd = mounted.children.count - 1
@@ -59,7 +67,7 @@ func diffChildrenKeyed(
           keyOf(mounted.children[oldStart]) == keyOf(newChildren[newStart])
     {
         let oldChild = mounted.children[oldStart]
-        let oldHandle = oldChild.domHandle
+        let oldRoots = collectDOMRoots(oldChild)
         let updatePatchStart = patches.count
         let childPath = parentPath.isEmpty ? String(newStart) : "\(parentPath).\(newStart)"
         let updated = update(
@@ -80,26 +88,14 @@ func diffChildrenKeyed(
             // then drops the handle from its Map. The replacement still
             // sits at oldStart in mounted.children, so no insertBefore is
             // needed here — but the node IS already detached on the JS
-            // side, so we re-attach via insertBefore against the next
-            // sibling (or appendChild if it's the tail).
-            patches.insert(
-                .removeChild(parent: mounted.handle, child: oldHandle),
-                at: updatePatchStart
-            )
-            mounted.replaceChild(at: oldStart, with: updated)
-            if oldStart + 1 < mounted.children.count {
-                let beforeSibling = mounted.children[oldStart + 1]
-                patches.append(.insertBefore(
-                    parent: mounted.handle,
-                    child: updated.domHandle,
-                    beforeChild: beforeSibling.domHandle
-                ))
-            } else {
-                patches.append(.appendChild(
-                    parent: mounted.handle,
-                    child: updated.domHandle
-                ))
+            // side, so we re-attach via placeRoots against the next
+            // sibling (or append if it's the tail).
+            for root in oldRoots {
+                patches.insert(.removeChild(parent: domParentHandle, child: root), at: updatePatchStart)
             }
+            mounted.replaceChild(at: oldStart, with: updated)
+            let anchor = nextDOMAnchor(after: updated)
+            placeRoots(of: updated, parent: domParentHandle, before: anchor, into: &patches)
         }
         oldStart += 1
         newStart += 1
@@ -110,7 +106,7 @@ func diffChildrenKeyed(
           keyOf(mounted.children[oldEnd]) == keyOf(newChildren[newEnd])
     {
         let oldChild = mounted.children[oldEnd]
-        let oldHandle = oldChild.domHandle
+        let oldRoots = collectDOMRoots(oldChild)
         let updatePatchStart = patches.count
         let childPath = parentPath.isEmpty ? String(newEnd) : "\(parentPath).\(newEnd)"
         let updated = update(
@@ -127,24 +123,12 @@ func diffChildrenKeyed(
             // Cross-kind replacement in the suffix scan. Same fix as the
             // prefix scan: detach the old DOM node before its handle is
             // forgotten, then re-attach the fresh one at the same slot.
-            patches.insert(
-                .removeChild(parent: mounted.handle, child: oldHandle),
-                at: updatePatchStart
-            )
-            mounted.replaceChild(at: oldEnd, with: updated)
-            if oldEnd + 1 < mounted.children.count {
-                let beforeSibling = mounted.children[oldEnd + 1]
-                patches.append(.insertBefore(
-                    parent: mounted.handle,
-                    child: updated.domHandle,
-                    beforeChild: beforeSibling.domHandle
-                ))
-            } else {
-                patches.append(.appendChild(
-                    parent: mounted.handle,
-                    child: updated.domHandle
-                ))
+            for root in oldRoots {
+                patches.insert(.removeChild(parent: domParentHandle, child: root), at: updatePatchStart)
             }
+            mounted.replaceChild(at: oldEnd, with: updated)
+            let anchor = nextDOMAnchor(after: updated)
+            placeRoots(of: updated, parent: domParentHandle, before: anchor, into: &patches)
         }
         oldEnd -= 1
         newEnd -= 1
@@ -157,12 +141,11 @@ func diffChildrenKeyed(
 
     // 4. Pure inserts (old range exhausted, new range has work).
     if oldStart > oldEnd {
-        // Anchor is the first node in the stable suffix (which sits at
-        // mounted.children[oldStart], because the suffix scan didn't touch
-        // the front and oldEnd has now slipped below oldStart).
-        let beforeHandle: Int? = (oldStart < mounted.children.count)
-            ? mounted.children[oldStart].domHandle
-            : nil
+        // Anchor: the first real DOM node of the stable suffix (if any).
+        // We compute the anchor once. After each insert, nextDOMAnchor
+        // would re-scan, but because inserts go left-to-right and the
+        // suffix is already fixed, the same suffix anchor applies to all
+        // new items in this block.
         var insertIndex = oldStart
         for i in newStart...newEnd {
             let childPath = parentPath.isEmpty ? String(insertIndex) : "\(parentPath).\(insertIndex)"
@@ -175,12 +158,9 @@ func diffChildrenKeyed(
                 path: childPath,
                 environment: environment
             )
-            if let before = beforeHandle {
-                patches.append(.insertBefore(parent: mounted.handle, child: child.domHandle, beforeChild: before))
-            } else {
-                patches.append(.appendChild(parent: mounted.handle, child: child.domHandle))
-            }
             mounted.insertChild(child, at: insertIndex)
+            let anchor = nextDOMAnchor(after: child)
+            placeRoots(of: child, parent: domParentHandle, before: anchor, into: &patches)
             insertIndex += 1
         }
         return
@@ -194,15 +174,17 @@ func diffChildrenKeyed(
                let anim = type(of: comp.instance).exitAnimation {
                 let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
                 patches.append(.animateExit(
-                    handle: removed.domHandle,
-                    parentHandle: mounted.handle,
+                    handle: removed.domHandle,  // domHandle ok: component body is single-rooted (MountTree.domHandle invariant).
+                    parentHandle: domParentHandle,
                     animation: anim,
                     durationMs: durMs
                 ))
                 destroy(removed, into: &patches, handlers: handlers,
                         skipDestroyForHandle: removed.domHandle)
             } else {
-                patches.append(.removeChild(parent: mounted.handle, child: removed.domHandle))
+                for root in collectDOMRoots(removed) {
+                    patches.append(.removeChild(parent: domParentHandle, child: root))
+                }
                 destroy(removed, into: &patches, handlers: handlers)
             }
             mounted.removeChild(at: i)
@@ -236,6 +218,7 @@ func diffChildrenKeyed(
         let childPath = parentPath.isEmpty ? String(newStart + i) : "\(parentPath).\(newStart + i)"
         if let oldIndex = keyToOldIndex.removeValue(forKey: key) {
             let reused = mounted.children[oldIndex]
+            let oldRoots = collectDOMRoots(reused)
             let updatePatchStart = patches.count
             let updated = update(
                 mounted: reused,
@@ -254,20 +237,18 @@ func diffChildrenKeyed(
                 // from its parent. Insert removeChild ahead of the destroy
                 // patches — same fix the prefix/suffix scans already got in
                 // Phase 2b.1.
-                patches.insert(
-                    .removeChild(parent: mounted.handle, child: reused.domHandle),
-                    at: updatePatchStart
-                )
+                for root in oldRoots {
+                    patches.insert(.removeChild(parent: domParentHandle, child: root), at: updatePatchStart)
+                }
                 newSlice[i] = updated
                 newToOldIndex[i] = -1   // explicit: treated as fresh mount by LIS/placement loop (see comment above)
                 // Critical: leave newToOldIndex[i] == -1 so the LIS /
                 // placement loop below treats this slot as a fresh mount.
                 // The new node's handle was never attached anywhere — it
-                // MUST be placed via insertBefore/appendChild like any
-                // other fresh mount. Marking it as "reused"
-                // (newToOldIndex[i] = oldIndex) would let the LIS decide
-                // "in correct position, no patch" and the new node would
-                // never appear in the DOM.
+                // MUST be placed via placeRoots like any other fresh mount.
+                // Marking it as "reused" (newToOldIndex[i] = oldIndex) would
+                // let the LIS decide "in correct position, no patch" and the
+                // new node would never appear in the DOM.
                 reusedOldIndices.insert(oldIndex)
             } else {
                 newSlice[i] = updated
@@ -296,15 +277,17 @@ func diffChildrenKeyed(
            let anim = type(of: comp.instance).exitAnimation {
             let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
             patches.append(.animateExit(
-                handle: leftover.domHandle,
-                parentHandle: mounted.handle,
+                handle: leftover.domHandle,  // domHandle ok: component body is single-rooted (MountTree.domHandle invariant).
+                parentHandle: domParentHandle,
                 animation: anim,
                 durationMs: durMs
             ))
             destroy(leftover, into: &patches, handlers: handlers,
                     skipDestroyForHandle: leftover.domHandle)
         } else {
-            patches.append(.removeChild(parent: mounted.handle, child: leftover.domHandle))
+            for root in collectDOMRoots(leftover) {
+                patches.append(.removeChild(parent: domParentHandle, child: root))
+            }
             destroy(leftover, into: &patches, handlers: handlers)
         }
     }
@@ -316,41 +299,9 @@ func diffChildrenKeyed(
     let lisIndices = longestIncreasingSubsequenceIndices(newToOldIndex)
     let lisSet = Set(lisIndices)
 
-    // 9. Walk the new middle right-to-left so we always have a known anchor
-    //    (the new-position to the right is already in its final spot, or
-    //    sits inside the stable suffix).
-    for i in stride(from: newMiddleCount - 1, through: 0, by: -1) {
-        let node = newSlice[i]!
-        // Anchor = handle of the next new-middle node (already placed) or
-        // the first node of the stable suffix, or nil → appendChild.
-        let anchor: Int?
-        if i + 1 < newMiddleCount {
-            anchor = newSlice[i + 1]!.domHandle
-        } else if oldEnd + 1 < mounted.children.count {
-            anchor = mounted.children[oldEnd + 1].domHandle
-        } else {
-            anchor = nil
-        }
-
-        if newToOldIndex[i] == -1 {
-            // Fresh mount: always insert.
-            if let before = anchor {
-                patches.append(.insertBefore(parent: mounted.handle, child: node.domHandle, beforeChild: before))
-            } else {
-                patches.append(.appendChild(parent: mounted.handle, child: node.domHandle))
-            }
-        } else if !lisSet.contains(i) {
-            // Reused but out of LIS → must move.
-            if let before = anchor {
-                patches.append(.insertBefore(parent: mounted.handle, child: node.domHandle, beforeChild: before))
-            } else {
-                patches.append(.appendChild(parent: mounted.handle, child: node.domHandle))
-            }
-        }
-        // else: in LIS → already in correct relative position, no patch.
-    }
-
-    // 10. Splice mounted.children: [prefix] + newSlice + [suffix].
+    // 9a. Splice mounted.children BEFORE the placement loop so that
+    //     nextDOMAnchor(after:) sees the final sibling order when computing
+    //     anchors during the right-to-left placement walk.
     let prefix = Array(mounted.children[0..<oldStart])
     let suffix = Array(mounted.children[(oldEnd + 1)..<mounted.children.count])
     let merged = prefix + newSlice.compactMap { $0 } + suffix
@@ -360,6 +311,25 @@ func diffChildrenKeyed(
     }
     for child in merged {
         mounted.addChild(child)
+    }
+
+    // 9b. Walk the new middle right-to-left so we always have a known anchor
+    //     (the new-position to the right is already in its final spot, or
+    //     sits inside the stable suffix). nextDOMAnchor works correctly here
+    //     because mounted.children was already rebuilt above (step 9a).
+    for i in stride(from: newMiddleCount - 1, through: 0, by: -1) {
+        let node = newSlice[i]!
+
+        if newToOldIndex[i] == -1 {
+            // Fresh mount or cross-kind replacement: always insert.
+            let anchor = nextDOMAnchor(after: node)
+            placeRoots(of: node, parent: domParentHandle, before: anchor, into: &patches)
+        } else if !lisSet.contains(i) {
+            // Reused but out of LIS → must move.
+            let anchor = nextDOMAnchor(after: node)
+            placeRoots(of: node, parent: domParentHandle, before: anchor, into: &patches)
+        }
+        // else: in LIS → already in correct relative position, no patch.
     }
 }
 
@@ -428,8 +398,18 @@ func longestIncreasingSubsequenceIndices(_ input: [Int]) -> [Int] {
 /// child a key — using `.key(String(i))` from the loop index is sufficient
 /// to opt every child into stable matching.
 func keyOf(_ node: MountNode) -> String {
-    if case .element(let data) = node.vnode, let key = data.key {
-        return key
+    switch node.vnode {
+    case .element(let data): if let k = data.key { return k }
+    case .component(let desc): if let k = desc.key { return k }
+    // Structural nodes (fragments, env-overrides, component anchors) have no
+    // user-supplied key. Give them the same sentinel as incoming VNode fragments
+    // so they can be matched positionally when there is only one such node among
+    // keyed siblings. Two unkeyed structural siblings of the same kind would
+    // share a key and only the last would win in the bucket — an edge case the
+    // Phase-4 positional-key work will address; for now the common cases
+    // (a single fragment sibling alongside keyed elements) work correctly.
+    case .fragment, .environmentOverride: return "__noKey_structural"
+    default: break
     }
     return "__noKey_\(node.handle)"
 }
@@ -437,8 +417,14 @@ func keyOf(_ node: MountNode) -> String {
 /// Returns the key of an incoming VNode for keyed-diff bucketing. See the
 /// `keyOf(_: MountNode)` doc for the mixed-keyed/unkeyed re-mount caveat.
 func keyOf(_ vnode: VNode) -> String {
-    if case .element(let data) = vnode, let key = data.key {
-        return key
+    switch vnode {
+    case .element(let data): if let k = data.key { return k }
+    case .component(let desc): if let k = desc.key { return k }
+    // Structural VNodes (fragments, env-overrides) use the same sentinel as
+    // the MountNode overload so they can be matched across renders. See the
+    // MountNode overload for the caveat about multiple structural siblings.
+    case .fragment, .environmentOverride: return "__noKey_structural"
+    default: break
     }
     return "__noKey_unkeyed"
 }

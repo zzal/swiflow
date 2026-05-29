@@ -80,4 +80,22 @@ struct FragmentChildrenTests {
             .insertBefore(parent: 0, child: 3, beforeChild: 2),
         ])
     }
+
+    @Test("Keyed list with a fragment sibling: reordering keyed elements keeps handles")
+    func keyedListWithFragmentSibling() {
+        // ul > [ li#a(key a), fragment[li x], li#b(key b) ] → swap a and b
+        func tree(_ order: [String]) -> VNode {
+            .element(ElementData(tag: "ul", children: [
+                .element(ElementData(tag: "li", key: order[0])),
+                .fragment([.element(ElementData(tag: "li"))]),
+                .element(ElementData(tag: "li", key: order[1])),
+            ]))
+        }
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let m = diff(mounted: nil, next: tree(["a", "b"]), handles: handles, handlers: handlers)
+        let u = diff(mounted: m.newMountTree, next: tree(["b", "a"]), handles: handles, handlers: handlers)
+        // No createElement — both keyed <li>s are reused (their handles preserved).
+        #expect(!u.patches.contains { if case .createElement = $0 { return true }; return false })
+    }
 }
