@@ -17,9 +17,19 @@ public enum CSSEntry: Sendable {
     package func cssString(scopeClass: String) -> String {
         switch self {
         case .rule(let selector, let declarations):
-            let effectiveSelector = shouldScope(selector)
-                ? ".\(scopeClass) \(selector)"
-                : selector
+            let effectiveSelector: String
+            if !shouldScope(selector) {
+                effectiveSelector = selector
+            } else if selector.hasPrefix(".") {
+                // Class-leading selector: emit both the compound form (matches the
+                // scope-class root element when it carries this class) and the
+                // descendant form (matches nested elements).
+                let compound = ".\(scopeClass)\(selector)"
+                let descendant = ".\(scopeClass) \(selector)"
+                effectiveSelector = "\(compound), \(descendant)"
+            } else {
+                effectiveSelector = ".\(scopeClass) \(selector)"
+            }
             let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
             return "\(effectiveSelector) {\n\(decls)\n}"
         case .keyframes(let name, let stops):

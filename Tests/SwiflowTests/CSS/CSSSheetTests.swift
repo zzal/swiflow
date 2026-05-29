@@ -108,4 +108,33 @@ struct CSSSheetTests {
         let sheet = css {}
         #expect(sheet.cssString(scopeClass: "swiflow-T") == "")
     }
+
+    @Test("class-leading selector emits dual (compound + descendant) selector")
+    func classLeadingDualSelector() {
+        let sheet = css { rule(".card") { padding("1rem") } }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.contains(".swiflow-Counter.card, .swiflow-Counter .card {"))
+    }
+
+    @Test("class selector with combinator keeps dual emit on the leading class only")
+    func classSelectorWithCombinator() {
+        let sheet = css { rule(".card .count") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.contains(".swiflow-Counter.card .count, .swiflow-Counter .card .count {"))
+    }
+
+    @Test("class-pseudo selector preserves dual emit")
+    func classPseudoDualSelector() {
+        let sheet = css { rule(".card:hover") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.contains(".swiflow-Counter.card:hover, .swiflow-Counter .card:hover {"))
+    }
+
+    @Test("non-class leading selector unchanged (descendant only)")
+    func nonClassLeadingUnchanged() {
+        let sheet = css { rule("button") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.contains(".swiflow-Counter button {"))
+        #expect(!result.contains(".swiflow-Counterbutton"))
+    }
 }
