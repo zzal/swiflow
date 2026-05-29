@@ -14,6 +14,11 @@ public enum CSSEntry: Sendable {
     case rule(selector: String, declarations: [CSSDeclaration])
     case keyframes(name: String, stops: [KeyframeStop])
     case host(declarations: [CSSDeclaration])
+    /// A conditional at-rule (`@container`, `@media`, …) wrapping nested
+    /// entries. `prefix` is the full at-rule header (e.g. `@container (max-width: 380px)`);
+    /// the nested entries are scoped with the same `scopeClass` and indented,
+    /// so the wrapper participates in scoping instead of reaching around it.
+    case group(prefix: String, entries: [CSSEntry])
     case raw(String)
 
     package func cssString(scopeClass: String) -> String {
@@ -46,6 +51,15 @@ public enum CSSEntry: Sendable {
         case .host(let declarations):
             let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
             return ".\(scopeClass) {\n\(decls)\n}"
+        case .group(let prefix, let entries):
+            // Render nested entries with the same scope, then indent one level
+            // and wrap in the at-rule. Blank lines stay blank (no trailing space).
+            let body = entries.map { $0.cssString(scopeClass: scopeClass) }.joined(separator: "\n")
+            let indented = body
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.isEmpty ? "" : "  " + $0 }
+                .joined(separator: "\n")
+            return "\(prefix) {\n\(indented)\n}"
         case .raw(let text):
             return text
         }

@@ -67,8 +67,19 @@ struct CSSSheetTests {
         #expect(!result.contains("swiflow-T"))
     }
 
-    @Test("cssVar() emits custom property declaration")
-    func cssVarDeclaration() {
+    @Test("property() emits custom property declaration")
+    func customPropertyDeclaration() {
+        let sheet = css {
+            rule(":root") {
+                property("--primary", "#4a90e2")
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        #expect(result.contains("--primary: #4a90e2;"))
+    }
+
+    @Test("cssVar() aliases property for custom properties")
+    func cssVarAliasesProperty() {
         let sheet = css {
             rule(":root") {
                 cssVar("--primary", "#4a90e2")
@@ -159,6 +170,61 @@ struct CSSSheetTests {
         let result = sheet.cssString(scopeClass: "swiflow-T")
         #expect(result.contains("@property --accent {"))
         #expect(!result.contains("swiflow-T"))
+    }
+
+    @Test("container(...) wraps nested rules in @container and scopes them")
+    func containerScopesNestedRules() {
+        let sheet = css {
+            container("(max-width: 380px)") {
+                rule(".actions") { flexDirection("column") }
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.hasPrefix("@container (max-width: 380px) {"))
+        // Nested rule is scoped via the normal dual-selector path — no
+        // hand-pasted scope class required.
+        #expect(result.contains(".swiflow-Counter.actions, .swiflow-Counter .actions {"))
+        #expect(result.contains("flex-direction: column;"))
+        #expect(result.hasSuffix("}"))
+    }
+
+    @Test("media(...) wraps nested rules in @media and scopes them")
+    func mediaScopesNestedRules() {
+        let sheet = css {
+            media("(max-width: 600px)") {
+                rule(".card") { padding("1rem") }
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.hasPrefix("@media (max-width: 600px) {"))
+        #expect(result.contains(".swiflow-Counter.card, .swiflow-Counter .card {"))
+    }
+
+    @Test("group nested entries are indented one level")
+    func groupIndentsNestedEntries() {
+        let sheet = css {
+            container("(max-width: 380px)") {
+                rule(".x") { color("red") }
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        // The nested selector line is indented two spaces beneath the at-rule.
+        #expect(result.contains("\n  .swiflow-T.x, .swiflow-T .x {"))
+        // Declarations are indented a further level (4 spaces total).
+        #expect(result.contains("\n    color: red;"))
+    }
+
+    @Test("outline / outlineOffset emit typed declarations")
+    func outlineHelpers() {
+        let sheet = css {
+            rule("button:focus-visible") {
+                outline("2px solid var(--accent)")
+                outlineOffset("2px")
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        #expect(result.contains("outline: 2px solid var(--accent);"))
+        #expect(result.contains("outline-offset: 2px;"))
     }
 
     @Test("CSSSheet + concatenates entries in order")

@@ -29,8 +29,8 @@ extension SignIn {
             accentColor("CanvasText")
         }
         rule("input:focus-visible") {
-            property("outline", "2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            property("outline-offset", "2px")
+            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
+            outlineOffset("2px")
         }
         rule(".error") {
             margin("0.125rem 0 0 0")
@@ -55,8 +55,8 @@ extension SignIn {
             fontSize("0.9375rem")
         }
         rule("button:focus-visible") {
-            property("outline", "2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            property("outline-offset", "2px")
+            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
+            outlineOffset("2px")
         }
         rule(".secondary") {
             background("transparent")

@@ -48,6 +48,20 @@ public func host(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> CSSEntry 
 
 public func raw(_ css: String) -> CSSEntry { .raw(css) }
 
+/// A `@container` query whose nested rules are scoped like any other entry.
+/// Pass the query text after the keyword, e.g. `container("(max-width: 380px)")`
+/// or `container("sidebar (min-width: 20rem)")`.
+public func container(_ query: String, @CSSSheetBuilder _ content: () -> [CSSEntry]) -> CSSEntry {
+    .group(prefix: "@container \(query)", entries: content())
+}
+
+/// A `@media` query whose nested rules are scoped like any other entry.
+/// Pass the query text after the keyword, e.g. `media("(max-width: 600px)")`
+/// or `media("screen and (prefers-reduced-motion: reduce)")`.
+public func media(_ query: String, @CSSSheetBuilder _ content: () -> [CSSEntry]) -> CSSEntry {
+    .group(prefix: "@media \(query)", entries: content())
+}
+
 public func from(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> KeyframeStop {
     KeyframeStop(position: "from", declarations: content())
 }

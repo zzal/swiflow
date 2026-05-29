@@ -147,16 +147,16 @@ extension Counter {
             color("var(--text)")
         }
         rule("button:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
         rule("input:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
         rule(".checkbox-row:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
 
         // <dialog> + ::backdrop styling. view-transition-name lets
@@ -192,13 +192,20 @@ extension Counter {
         }
     }
 
-    // ---- responsive (container query via raw escape hatch) ----
+    // ---- responsive ----
+    // `container(...)` scopes its nested rules through the normal pipeline, so
+    // there's no hand-pasted `.swiflow-Counter` prefix and no coupling to the
+    // scope-class naming scheme — the framework owns that.
     static let responsive = css {
-        raw("""
-            @container (max-width: 380px) {
-              .swiflow-Counter .actions { flex-direction: column; align-items: stretch; }
-              .swiflow-Counter .card { padding: 1.25rem; gap: 0.75rem; }
+        container("(max-width: 380px)") {
+            rule(".actions") {
+                flexDirection("column")
+                alignItems("stretch")
             }
-            """)
+            rule(".card") {
+                padding("1.25rem")
+                gap("0.75rem")
+            }
+        }
     }
 }

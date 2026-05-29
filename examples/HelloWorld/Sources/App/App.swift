@@ -15,7 +15,7 @@ import JavaScriptKit
 /// - Popover API + anchor positioning for About (declarative — no Swift handler).
 /// - `<details>` disclosure with animated open/close via `interpolate-size`.
 /// - `color-mix` + `light-dark` system colors — auto-themes from OS.
-/// - `@container` query on the card via the `raw(...)` escape hatch.
+/// - `@container` query on the card via the scoped `container(...)` primitive.
 /// - `@property --accent` registered custom property, animated on increment.
 @MainActor @Component
 final class Counter {

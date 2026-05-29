@@ -190,7 +190,7 @@ import JavaScriptKit
 /// - Popover API + anchor positioning for About (declarative — no Swift handler).
 /// - `<details>` disclosure with animated open/close via `interpolate-size`.
 /// - `color-mix` + `light-dark` system colors — auto-themes from OS.
-/// - `@container` query on the card via the `raw(...)` escape hatch.
+/// - `@container` query on the card via the scoped `container(...)` primitive.
 /// - `@property --accent` registered custom property, animated on increment.
 @MainActor @Component
 final class Counter {
@@ -467,16 +467,16 @@ extension Counter {
             color("var(--text)")
         }
         rule("button:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
         rule("input:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
         rule(".checkbox-row:focus-visible") {
-            property("outline", "2px solid var(--accent)")
-            property("outline-offset", "2px")
+            outline("2px solid var(--accent)")
+            outlineOffset("2px")
         }
 
         // <dialog> + ::backdrop styling. view-transition-name lets
@@ -512,14 +512,21 @@ extension Counter {
         }
     }
 
-    // ---- responsive (container query via raw escape hatch) ----
+    // ---- responsive ----
+    // `container(...)` scopes its nested rules through the normal pipeline, so
+    // there's no hand-pasted `.swiflow-Counter` prefix and no coupling to the
+    // scope-class naming scheme — the framework owns that.
     static let responsive = css {
-        raw("""
-            @container (max-width: 380px) {
-              .swiflow-Counter .actions { flex-direction: column; align-items: stretch; }
-              .swiflow-Counter .card { padding: 1.25rem; gap: 0.75rem; }
+        container("(max-width: 380px)") {
+            rule(".actions") {
+                flexDirection("column")
+                alignItems("stretch")
             }
-            """)
+            rule(".card") {
+                padding("1.25rem")
+                gap("0.75rem")
+            }
+        }
     }
 }
 
@@ -556,8 +563,8 @@ extension SignIn {
             accentColor("CanvasText")
         }
         rule("input:focus-visible") {
-            property("outline", "2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            property("outline-offset", "2px")
+            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
+            outlineOffset("2px")
         }
         rule(".error") {
             margin("0.125rem 0 0 0")
@@ -582,8 +589,8 @@ extension SignIn {
             fontSize("0.9375rem")
         }
         rule("button:focus-visible") {
-            property("outline", "2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            property("outline-offset", "2px")
+            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
+            outlineOffset("2px")
         }
         rule(".secondary") {
             background("transparent")

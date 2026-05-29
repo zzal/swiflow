@@ -45,6 +45,8 @@ public func left(_ value: String) -> CSSDeclaration { .init("left", value) }
 public func right(_ value: String) -> CSSDeclaration { .init("right", value) }
 public func bottom(_ value: String) -> CSSDeclaration { .init("bottom", value) }
 public func zIndex(_ value: String) -> CSSDeclaration { .init("z-index", value) }
+public func outline(_ value: String) -> CSSDeclaration { .init("outline", value) }
+public func outlineOffset(_ value: String) -> CSSDeclaration { .init("outline-offset", value) }
 
 // MARK: - Modern HTML/CSS surfaces (added with HelloWorld elevation)
 public func positionAnchor(_ value: String) -> CSSDeclaration { .init("position-anchor", value) }
@@ -69,6 +71,13 @@ public func flexWrap(_ value: String) -> CSSDeclaration { .init("flex-wrap", val
 public func flex(_ value: String) -> CSSDeclaration { .init("flex", value) }
 public func listStyle(_ value: String) -> CSSDeclaration { .init("list-style", value) }
 
-// Escape hatches
+// Escape hatch — any property name/value pair. "property" mirrors MDN's "CSS
+// property"; it sits in a different syntactic position than the element-layer
+// `Attribute.property`/`.prop` (a DOM/IDL property), so there is no collision.
 public func property(_ name: String, _ value: String) -> CSSDeclaration { .init(name, value) }
-public func cssVar(_ name: String, _ value: String) -> CSSDeclaration { .init(name, value) }
+
+/// Define a CSS custom property (`cssVar("--accent", "…")`). An intent-revealing
+/// alias over `property` for the `--x` case — and the same verb as the
+/// element-layer `Attribute.cssVar`, so "cssVar" means the identical thing
+/// whether you're writing a sheet or an inline style.
+public func cssVar(_ name: String, _ value: String) -> CSSDeclaration { property(name, value) }
