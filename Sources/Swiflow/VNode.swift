@@ -15,6 +15,8 @@
 ///   subtree. Phase 3+.
 /// - `environmentOverride`: overrides one or more environment values for a
 ///   subtree. Created by `withEnvironment(_:_:content:)`. Phase 10+.
+/// - `fragment`: a transparent child slot with no DOM node of its own — the
+///   runtime form of a builder `if`/`for`. Holds its position even when empty.
 ///
 /// **Sendable:** `VNode` and `ElementData` deliberately do *not* conform to
 /// `Sendable` in Phase 1. They transitively hold `EventHandler`, which wraps

@@ -35,7 +35,10 @@ func collectDOMRoots(_ node: MountNode) -> [Int] {
 }
 
 /// First real DOM-node handle of a subtree, or nil if it contributes none
-/// (e.g. an empty fragment). Short-circuits without building the full list.
+/// (e.g. an empty fragment). Short-circuits without building the full list —
+/// semantically `collectDOMRoots(node).first`, kept separate to avoid the
+/// allocation on the hot placement path. Keep its structural-descent cases in
+/// lock-step with `collectDOMRoots`.
 @MainActor
 func firstDOMHandle(_ node: MountNode) -> Int? {
     switch node.vnode {
@@ -62,6 +65,8 @@ func firstDOMHandle(_ node: MountNode) -> Int? {
 func nextDOMAnchor(after node: MountNode) -> Int? {
     var current = node
     while let parent = current.parent {
+        // O(siblings) per ascent — acceptable because sibling counts are small;
+        // revisit only if profiling flags it on very large keyed lists.
         guard let idx = parent.children.firstIndex(where: { $0 === current }) else { return nil }
         var i = idx + 1
         while i < parent.children.count {

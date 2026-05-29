@@ -56,6 +56,13 @@ package final class MountNode {
     /// Use this whenever building a patch that references the DOM-side node
     /// (`appendChild`, `insertBefore`, `removeChild`). The plain `handle`
     /// is structural identity used by the diff; the DOM never sees it.
+    ///
+    /// ⚠️ Does NOT descend through `.fragment` nodes — a fragment maps to 0..N
+    /// DOM nodes, so a single handle can't represent it. For any child whose
+    /// kind might be a fragment, route placement/removal through
+    /// `collectDOMRoots` / `firstDOMHandle` / `nextDOMAnchor` (DOMAnchors.swift),
+    /// never `domHandle`. `domHandle` is only valid for single-rooted nodes
+    /// (element/text/rawHTML and component/env bodies, which stay single-rooted).
     package var domHandle: Int {
         componentBody?.domHandle ?? handle
     }
