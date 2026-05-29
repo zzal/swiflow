@@ -46,6 +46,8 @@ public func host(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> CSSEntry 
     .host(declarations: content())
 }
 
+public func raw(_ css: String) -> CSSEntry { .raw(css) }
+
 public func from(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> KeyframeStop {
     KeyframeStop(position: "from", declarations: content())
 }

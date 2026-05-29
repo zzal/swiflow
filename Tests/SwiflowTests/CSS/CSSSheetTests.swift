@@ -150,4 +150,14 @@ struct CSSSheetTests {
         // Must NOT emit a descendant form.
         #expect(!result.contains(".swiflow-Toast .swiflow-Toast"))
     }
+
+    @Test("raw(...) emits string verbatim with no scoping")
+    func rawEntry() {
+        let sheet = css {
+            raw("@property --accent { syntax: \"<color>\"; inherits: true; initial-value: oklch(.6 .15 250); }")
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        #expect(result.contains("@property --accent {"))
+        #expect(!result.contains("swiflow-T"))
+    }
 }

@@ -14,6 +14,7 @@ public enum CSSEntry: Sendable {
     case rule(selector: String, declarations: [CSSDeclaration])
     case keyframes(name: String, stops: [KeyframeStop])
     case host(declarations: [CSSDeclaration])
+    case raw(String)
 
     package func cssString(scopeClass: String) -> String {
         switch self {
@@ -45,6 +46,8 @@ public enum CSSEntry: Sendable {
         case .host(let declarations):
             let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
             return ".\(scopeClass) {\n\(decls)\n}"
+        case .raw(let text):
+            return text
         }
     }
 
