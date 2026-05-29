@@ -383,6 +383,12 @@ func longestIncreasingSubsequenceIndices(_ input: [Int]) -> [Int] {
 }
 
 /// True for structural VNode kinds (no DOM node of their own).
+///
+/// NOTE: deliberately distinct from `DOMAnchors.isStructural(_: MountNode)`,
+/// which ALSO treats component anchors as structural (they have no own DOM
+/// node either). Here `.component` is intentionally excluded — a keyed
+/// component IS keyable, so it must bucket by its key, not by position. Do not
+/// "consolidate" the two; their differing treatment of `.component` is load-bearing.
 private func isStructuralKind(_ vnode: VNode) -> Bool {
     switch vnode {
     case .fragment, .environmentOverride: return true
@@ -398,6 +404,14 @@ private func isStructuralKind(_ vnode: VNode) -> Bool {
 /// to `keyOf`. NOT used by the prefix/suffix scans, which must keep the
 /// position-free `keyOf` so a fragment still matches a fragment at the same
 /// position there.
+///
+/// CAVEAT: the offset is the absolute child index, so this disambiguates
+/// structural siblings only while their index is unchanged — which the DSL
+/// always guarantees (fragment slots are statically positioned). A structural
+/// node that genuinely *changes* index (reachable only via hand-built VNodes)
+/// falls out of its bucket and re-mounts its children; placement stays correct,
+/// just non-minimal. A structural slot has no stable identity to preserve, so
+/// that's acceptable.
 func bucketKey(_ node: MountNode, offset: Int) -> String {
     isStructuralKind(node.vnode) ? "__noKey_structural#\(offset)" : keyOf(node)
 }
