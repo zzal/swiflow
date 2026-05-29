@@ -3,15 +3,19 @@ import Swiflow
 import SwiflowWeb
 import JavaScriptKit
 
-/// Counter — the Phase 12a styling/animation demo component.
+/// Counter — the HelloWorld showcase root.
 ///
-/// Showcases:
-/// - `static var scopedStyles: CSSSheet?` with `css { }` builder
-/// - `keyframes` enter animation scoped to the component
-/// - `Toast` child component with `exitAnimation` / `exitDuration`
-/// - `if showToast { embed { Toast(...) } }` conditional embedding
-///
-/// Phase 7 features (two-way bindings, Ref) are preserved from prior work.
+/// Wires the framework primitives + a curated set of modern HTML/CSS
+/// surfaces. See the design spec for the full picture; in summary:
+/// - `host { }` + Task-1 dual-selector class rules so scoped CSS hits the root.
+/// - `view-transition-name` on `.count` + `document.startViewTransition` for
+///   a morphing increment in supporting browsers.
+/// - Native `<dialog>` for Sign In: focus trap, Escape-to-close, ::backdrop.
+/// - Popover API + anchor positioning for About (declarative — no Swift handler).
+/// - `<details>` disclosure with animated open/close via `interpolate-size`.
+/// - `color-mix` + `light-dark` system colors — auto-themes from OS.
+/// - `@container` query on the card via the `raw(...)` escape hatch.
+/// - `@property --accent` registered custom property, animated on increment.
 @MainActor @Component
 final class Counter {
     @State var count: Int = 0
@@ -20,45 +24,32 @@ final class Counter {
     @State var showToast: Bool = false
     @State var showSignIn: Bool = false
     let greetingInput = Ref<JSObject>()
-
-    static var scopedStyles: CSSSheet? = css {
-        keyframes("counter-in") {
-            from { opacity("0"); transform("translateY(-6px)") }
-            to   { opacity("1"); transform("translateY(0)") }
-        }
-        rule(".container") {
-            maxWidth("480px")
-            margin("2rem auto")
-            padding("2rem")
-            fontFamily("-apple-system, BlinkMacSystemFont, sans-serif")
-            animation("counter-in 0.3s ease forwards")
-        }
-        rule(".count") {
-            fontSize("1.5rem")
-            fontWeight("600")
-            color("#1a202c")
-        }
-        rule(".greeting-row") {
-            display("flex")
-            gap("0.5rem")
-            alignItems("center")
-            marginTop("1rem")
-        }
-        rule(".checkbox-row") {
-            display("flex")
-            gap("0.5rem")
-            alignItems("center")
-            marginTop("0.75rem")
-            cursor("pointer")
-        }
-    }
+    let signInDialog = Ref<JSObject>()
+    // Retain View Transitions closure so JS can still call it.
+    private var vtClosure: JSClosure?
 
     var body: VNode {
-        div(.class("container")) {
-            h1("Hello, \(greeting)!\(celebrate ? " \u{1F389}" : "")")
-            p("Count: \(count)", .class("count"))
-            button("Increment", .on(.click) { self.count += 1 })
-            button("Show toast", .on(.click) { self.showToast = true })
+        div(.class("card")) {
+            header(.class("header")) {
+                h1("Hello, \(greeting)!\(celebrate ? " \u{1F389}" : "")",
+                   .class("greeting-heading"))
+                button("ⓘ",
+                       .class("info-trigger"),
+                       .attr("popovertarget", "about-popover"),
+                       .attr("aria-label", "About Swiflow"))
+            }
+
+            p("Count: \(count)",
+              .class("count"),
+              .attr("aria-live", "polite"))
+
+            div(.class("actions")) {
+                button("Increment", .on(.click) { self.increment() })
+                button("Show toast", .class("secondary"),
+                       .on(.click) { self.showToast = true })
+                button("Sign in…", .class("secondary"),
+                       .on(.click) { self.openSignIn() })
+            }
 
             div(.class("greeting-row")) {
                 label("Greeting:", .attr("for", "g"))
@@ -70,24 +61,63 @@ final class Counter {
                 text(" Celebrate")
             }
 
+            details(.class("inspector")) {
+                summary("What's running here?")
+                ul(.class("inspector-list")) {
+                    li(".count text — animates via the View Transitions API on increment.")
+                    li("Sign in… — opens a native <dialog>.")
+                    li("ⓘ — opens an `auto` popover anchored via CSS Anchor Positioning.")
+                    li("Show toast — mounts a `manual` popover with a 2.5s auto-dismiss.")
+                }
+            }
+
             if showToast {
                 embed { Toast(message: "Saved!", onDone: { self.showToast = false }) }
             }
 
-            div(.style(name: "margin-top", value: "2rem"),
-                .style(name: "border-top", value: "1px solid #eee"),
-                .style(name: "padding-top", value: "1.5rem")) {
-                button(showSignIn ? "Hide Sign In" : "Show Sign In demo",
-                       .on(.click) { self.showSignIn.toggle() })
+            embed { AboutPopover() }
+
+            dialog(.ref(signInDialog),
+                   .class("signin-dialog"),
+                   .on(.click) { self.closeSignIn() }) {
                 if showSignIn {
-                    embed { SignIn() }
+                    embed { SignIn(onClose: { self.closeSignIn() }) }
                 }
             }
         }
     }
 
     func onAppear() {
-        if let el = greetingInput.wrappedValue { _ = el.focus!() }
+        if let el = greetingInput.wrappedValue { _ = el.focus?() }
+    }
+
+    func increment() {
+        guard let document = JSObject.global.document.object else {
+            count += 1
+            return
+        }
+        let startVT = document.startViewTransition
+        if startVT == .undefined {
+            count += 1
+            return
+        }
+        // Retain the closure on self so JS can invoke it before ARC frees it.
+        let cb = JSClosure { _ in
+            MainActor.assumeIsolated { self.count += 1 }
+            return .undefined
+        }
+        vtClosure = cb
+        _ = document.startViewTransition!(cb)
+    }
+
+    func openSignIn() {
+        showSignIn = true
+        if let el = signInDialog.wrappedValue { _ = el.showModal?() }
+    }
+
+    func closeSignIn() {
+        if let el = signInDialog.wrappedValue { _ = el.close?() }
+        showSignIn = false
     }
 }
 
