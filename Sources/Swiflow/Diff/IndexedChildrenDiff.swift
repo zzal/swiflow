@@ -6,7 +6,7 @@
 /// `mounted.children` in place.
 ///
 /// Fragment-aware: all DOM placement and removal routes through
-/// `collectDOMRoots` / `firstDOMHandle` / `nextDOMAnchor` (DOMAnchors.swift)
+/// `collectDOMRoots` / `nextDOMAnchor` (DOMAnchors.swift)
 /// so that structural nodes (fragments, component anchors) are never
 /// referenced directly in `removeChild` / `insertBefore` patches.
 @MainActor
@@ -20,14 +20,14 @@ func diffChildrenIndexed(
     parentPath: String = "",
     environment: EnvironmentValues = .init()
 ) {
-    // When `mounted` itself is a structural node (e.g. a fragment slot whose
-    // children are being reconciled), the real DOM parent is the first
-    // non-structural ancestor — not `mounted.handle`, which is never sent to
-    // the driver.  For ordinary element parents, `mounted.handle` is the
-    // correct DOM parent and `domAncestorHandle` is not called.
-    let domParentHandle: Int = isStructural(mounted)
-        ? (domAncestorHandle(of: mounted) ?? mounted.handle)
-        : mounted.handle
+    // A fragment/anchor has no DOM node of its own — its children attach to the
+    // nearest DOM-tracked ancestor. nil is unreachable here (the only structural
+    // node the child-diff runs on is a fragment child slot, which always has an
+    // element/component ancestor); fail loud in debug, no-op in release.
+    guard let domParentHandle = domParentHandle(of: mounted) else {
+        assertionFailure("diffChildrenIndexed on a structural node with no DOM ancestor")
+        return
+    }
 
     let oldCount = mounted.children.count
     let newCount = newChildren.count
@@ -55,13 +55,7 @@ func diffChildrenIndexed(
             }
             mounted.replaceChild(at: i, with: newChild)
             let anchor = nextDOMAnchor(after: newChild)
-            for root in collectDOMRoots(newChild) {
-                if let before = anchor {
-                    patches.append(.insertBefore(parent: domParentHandle, child: root, beforeChild: before))
-                } else {
-                    patches.append(.appendChild(parent: domParentHandle, child: root))
-                }
-            }
+            placeRoots(of: newChild, parent: domParentHandle, before: anchor, into: &patches)
         }
     }
 
@@ -76,13 +70,7 @@ func diffChildrenIndexed(
             )
             mounted.addChild(childMount)
             let anchor = nextDOMAnchor(after: childMount)
-            for root in collectDOMRoots(childMount) {
-                if let before = anchor {
-                    patches.append(.insertBefore(parent: domParentHandle, child: root, beforeChild: before))
-                } else {
-                    patches.append(.appendChild(parent: domParentHandle, child: root))
-                }
-            }
+            placeRoots(of: childMount, parent: domParentHandle, before: anchor, into: &patches)
         }
     }
 
@@ -92,6 +80,8 @@ func diffChildrenIndexed(
     if oldCount > newCount {
         for _ in newCount..<oldCount {
             let removed = mounted.children[newCount]
+            // animateExit targets a single component body, which is single-rooted
+            // by invariant (MountTree.domHandle), so domHandle is correct here.
             if let comp = removed.component,
                let anim = type(of: comp.instance).exitAnimation {
                 let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000

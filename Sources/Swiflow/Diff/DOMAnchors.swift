@@ -83,3 +83,27 @@ func nextDOMAnchor(after node: MountNode) -> Int? {
     }
     return nil
 }
+
+/// The DOM-tracked parent that `node`'s children attach to. For a real element
+/// it's the element's own handle; for a structural node (fragment / component
+/// anchor / env override) it's the nearest DOM-tracked ancestor. Returns nil
+/// ONLY for a structural node with no element ancestor (a root-level structural
+/// node) — not reachable for a fragment child slot, which is the only structural
+/// node the child-diff runs on. Callers must handle nil explicitly.
+@MainActor
+func domParentHandle(of node: MountNode) -> Int? {
+    isStructural(node) ? domAncestorHandle(of: node) : node.handle
+}
+
+/// Place every DOM root of `node` (in document order) before `anchor`, or
+/// append when `anchor` is nil. Single-rooted nodes emit exactly one patch.
+@MainActor
+func placeRoots(of node: MountNode, parent: Int, before anchor: Int?, into patches: inout [Patch]) {
+    for root in collectDOMRoots(node) {
+        if let before = anchor {
+            patches.append(.insertBefore(parent: parent, child: root, beforeChild: before))
+        } else {
+            patches.append(.appendChild(parent: parent, child: root))
+        }
+    }
+}
