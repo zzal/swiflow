@@ -91,50 +91,6 @@ final class Counter {
     }
 }
 
-/// Toast — demonstrates `exitAnimation` and `exitDuration`.
-///
-/// When the user clicks the toast (or the parent sets `showToast = false`),
-/// the framework plays the `toast-out` keyframe for `exitDuration` seconds
-/// before removing the DOM node — a smooth exit with zero JS glue.
-@MainActor @Component
-final class Toast {
-    let message: String
-    let onDone: () -> Void
-
-    init(message: String, onDone: @escaping () -> Void) {
-        self.message = message
-        self.onDone = onDone
-    }
-
-    static var scopedStyles: CSSSheet? = css {
-        keyframes("toast-in") {
-            from { opacity("0"); transform("translateY(8px)") }
-            to   { opacity("1"); transform("translateY(0)") }
-        }
-        keyframes("toast-out") {
-            to { opacity("0"); transform("translateY(8px)") }
-        }
-        rule(".root") {
-            backgroundColor("#323232")
-            color("#fff")
-            padding("0.75rem 1.25rem")
-            borderRadius("8px")
-            marginTop("1rem")
-            animation("toast-in 0.2s ease forwards")
-            cursor("pointer")
-        }
-    }
-
-    static var exitAnimation: String? = "toast-out 0.25s ease forwards"
-    static var exitDuration: Double?  = 0.25
-
-    var body: VNode {
-        div(.class("root"), .on(.click) { self.onDone() }) {
-            text(message)
-        }
-    }
-}
-
 /// SignIn — Phase 12b form validation demo.
 ///
 /// Showcases:
