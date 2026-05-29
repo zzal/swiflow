@@ -92,6 +92,11 @@ struct MountTreeConsistencyTests {
             // This case should never appear in a committed mount tree until
             // Task 4 adds environment threading to the update() arm.
             fatalError("committedVNode encountered .environmentOverride; this should not happen in mount-only scenarios")
+        case .fragment:
+            // A fragment's children are stored in node.children; reconstruct the
+            // fragment VNode from their committed vnodes.
+            let kids = node.children.map(committedVNode)
+            return .fragment(kids)
         }
     }
 

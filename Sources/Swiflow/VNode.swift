@@ -36,6 +36,13 @@ public indirect enum VNode {
     /// environment values and the child node; when only the env values change
     /// the diff detects the difference and re-merges the subtree.
     case environmentOverride(EnvironmentValues, VNode)
+    /// A transparent grouping of children with no DOM element of its own — the
+    /// runtime form of a builder `if` / `if-else` / `for`. It occupies exactly
+    /// one stable child slot among its siblings (so toggling/looping never
+    /// shifts a sibling) while its children render directly into the nearest
+    /// real DOM ancestor. Produced only by `ChildrenBuilder`; pure-virtual
+    /// (emits no create/destroy patch — like `.environmentOverride`).
+    case fragment([VNode])
 }
 
 /// The payload of an `.element` VNode. Four separate bags model the four
@@ -182,6 +189,7 @@ extension VNode: Equatable {
         case (.component(let a), .component(let b)): return a == b
         case (.environmentOverride(let envA, let a), .environmentOverride(let envB, let b)):
             return envA == envB && a == b
+        case (.fragment(let a), .fragment(let b)): return a == b
         default: return false
         }
     }

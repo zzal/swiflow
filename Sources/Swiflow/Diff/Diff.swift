@@ -66,6 +66,7 @@ func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
     case .component(let desc): return (desc.key, true)
     case .text, .rawHTML: return (nil, false)
     case .environmentOverride(_, let child): return diagKeyAndIsKeyable(child)
+    case .fragment: return (nil, false)
     }
 }
 
@@ -194,10 +195,12 @@ func mount(
                 path: childPath,
                 environment: environment
             )
-            // domHandle (not handle): if the child is a component anchor,
-            // the anchor's own handle has no DOM counterpart — we need
-            // the body's handle instead. See MountNode.domHandle.
-            patches.append(.appendChild(parent: h, child: childMount.domHandle))
+            // Use collectDOMRoots so a fragment child appends all its real DOM
+            // roots (there may be zero, one, or many). For an ordinary element
+            // or text this is equivalent to the previous single-handle append.
+            for root in collectDOMRoots(childMount) {
+                patches.append(.appendChild(parent: h, child: root))
+            }
             mountNode.addChild(childMount)
         }
 
@@ -285,6 +288,19 @@ func mount(
             environment: merged
         )
         return MountNode(handle: h, vnode: vnode, componentBody: childMount)
+
+    case .fragment(let children):
+        let h = handles.next()                       // structural handle (never sent to driver)
+        let node = MountNode(handle: h, vnode: vnode)
+        for (i, childVNode) in children.enumerated() {
+            let childPath = path.isEmpty ? String(i) : "\(path).\(i)"
+            let childMount = mount(
+                childVNode, into: &patches, handles: handles, handlers: handlers,
+                scheduler: scheduler, depth: depth, path: childPath, environment: environment
+            )
+            node.addChild(childMount)
+        }
+        return node
     }
 }
 
@@ -477,6 +493,23 @@ func update(
         mounted.vnode = next
         return mounted
 
+    // Fragment → fragment: reconcile the held children. The fragment itself is
+    // a structural slot with no DOM node, so there is nothing to patch at this
+    // level; child placement flows through the DOM-anchor primitives.
+    case (.fragment, .fragment(let newChildren)):
+        diffChildren(
+            mounted: mounted,
+            newChildren: newChildren,
+            handles: handles,
+            handlers: handlers,
+            into: &patches,
+            scheduler: scheduler,
+            parentPath: path,
+            environment: environment
+        )
+        mounted.vnode = next
+        return mounted
+
     // Any other transition: destroy the old subtree and mount fresh.
     default:
         destroy(mounted, into: &patches, handlers: handlers)
@@ -648,6 +681,8 @@ package func destroy(
     if node.component == nil {
         if case .environmentOverride = node.vnode {
             // Structural handle — no destroyNode patch.
+        } else if case .fragment = node.vnode {
+            // Structural handle — no destroyNode patch; children handled below.
         } else if node.handle != skipDestroyForHandle {
             patches.append(.destroyNode(handle: node.handle))
         }
@@ -673,6 +708,8 @@ package func domAncestorHandle(of node: MountNode) -> Int? {
             // Component anchor — structural handle, skip.
         } else if case .environmentOverride = candidate.vnode {
             // Environment-override anchor — structural handle, skip.
+        } else if case .fragment = candidate.vnode {
+            // Fragment — structural handle, skip.
         } else {
             // Element / text / rawHTML — handle is in the driver's nodes map.
             return candidate.handle
