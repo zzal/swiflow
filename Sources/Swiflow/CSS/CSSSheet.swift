@@ -20,6 +20,9 @@ public enum CSSEntry: Sendable {
             let effectiveSelector: String
             if !shouldScope(selector) {
                 effectiveSelector = selector
+        // TODO: Comma-separated selector lists (e.g. ".a, .b") are not split here;
+        // only the first selector token gets the dual treatment, the rest are
+        // emitted as-is and end up unscoped. Add a list-splitter when this surfaces.
             } else if selector.hasPrefix(".") {
                 // Class-leading selector: emit both the compound form (matches the
                 // scope-class root element when it carries this class) and the
