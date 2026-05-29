@@ -183,9 +183,10 @@ import JavaScriptKit
 /// Wires the framework primitives + a curated set of modern HTML/CSS
 /// surfaces. See the design spec for the full picture; in summary:
 /// - `host { }` + Task-1 dual-selector class rules so scoped CSS hits the root.
-/// - `view-transition-name` on `.count` + `document.startViewTransition` for
-///   a morphing increment in supporting browsers.
 /// - Native `<dialog>` for Sign In: focus trap, Escape-to-close, ::backdrop.
+/// - `view-transition-name` on `.signin-dialog` + `document.startViewTransition`
+///   wrapping `openSignIn` / `closeSignIn` for a morphing open/close in
+///   supporting browsers. (Increment was tried but throttled rapid clicks.)
 /// - Popover API + anchor positioning for About (declarative — no Swift handler).
 /// - `<details>` disclosure with animated open/close via `interpolate-size`.
 /// - `color-mix` + `light-dark` system colors — auto-themes from OS.
@@ -219,7 +220,7 @@ final class Counter {
               .attr("aria-live", "polite"))
 
             div(.class("actions")) {
-                button("Increment", .on(.click) { self.increment() })
+                button("Increment", .on(.click) { self.count += 1 })
                 button("Show toast", .class("secondary"),
                        .on(.click) { self.showToast = true })
                 button("Sign in…", .class("secondary"),
@@ -239,8 +240,7 @@ final class Counter {
             details(.class("inspector")) {
                 summary("What's running here?")
                 ul(.class("inspector-list")) {
-                    li(".count text — animates via the View Transitions API on increment.")
-                    li("Sign in… — opens a native <dialog>.")
+                    li("Sign in… — opens a native <dialog>, morphing via the View Transitions API.")
                     li("ⓘ — opens an `auto` popover anchored via CSS Anchor Positioning.")
                     li("Show toast — mounts a `manual` popover with a 2.5s auto-dismiss.")
                 }
@@ -269,37 +269,42 @@ final class Counter {
         if let el = greetingInput.wrappedValue { _ = el.focus?() }
     }
 
-    func increment() {
-        guard let document = JSObject.global.document.object else {
-            count += 1
+    func openSignIn() {
+        withViewTransition {
+            self.showSignIn = true
+            if let el = self.signInDialog.wrappedValue { _ = el.showModal?() }
+        }
+    }
+
+    func closeSignIn() {
+        withViewTransition {
+            if let el = self.signInDialog.wrappedValue { _ = el.close?() }
+            self.showSignIn = false
+        }
+    }
+
+    /// Run `mutate` inside `document.startViewTransition` when the browser
+    /// supports it; otherwise apply the mutation directly. The dialog's
+    /// `view-transition-name` ties the morph to the .signin-dialog element.
+    ///
+    /// `vtClosure` retains the callback so JS can invoke it before ARC frees
+    /// it. Reassigning drops the prior reference; JavaScriptKit's current
+    /// JSClosure no longer needs explicit release() — ARC reclaim is
+    /// sufficient. Same pattern as SwiflowWeb/HMRBridge.swift's snapshotClosure
+    /// slot. openSignIn and closeSignIn are never concurrent, so they can
+    /// share the same slot.
+    func withViewTransition(_ mutate: @escaping @MainActor () -> Void) {
+        guard let document = JSObject.global.document.object,
+              document.startViewTransition != .undefined else {
+            mutate()
             return
         }
-        let startVT = document.startViewTransition
-        if startVT == .undefined {
-            count += 1
-            return
-        }
-        // Retain on self so JS can invoke it before ARC frees it. Reassigning
-        // drops the prior reference; JavaScriptKit's current JSClosure no
-        // longer needs an explicit release() (it's deprecated as of recent
-        // versions — ARC reclaim is sufficient). Same pattern as
-        // SwiflowWeb/HMRBridge.swift's snapshotClosure slot.
         let cb = JSClosure { _ in
-            MainActor.assumeIsolated { self.count += 1 }
+            MainActor.assumeIsolated { mutate() }
             return .undefined
         }
         vtClosure = cb
         _ = document.startViewTransition!(cb)
-    }
-
-    func openSignIn() {
-        showSignIn = true
-        if let el = signInDialog.wrappedValue { _ = el.showModal?() }
-    }
-
-    func closeSignIn() {
-        if let el = signInDialog.wrappedValue { _ = el.close?() }
-        showSignIn = false
     }
 }
 
@@ -446,7 +451,6 @@ extension Counter {
             fontSize("1.6rem")
             fontWeight("600")
             color("var(--accent)")
-            viewTransitionName("count-value")
             transition("--accent .25s ease")
         }
         rule("button") {
@@ -475,8 +479,11 @@ extension Counter {
             property("outline-offset", "2px")
         }
 
-        // <dialog> + ::backdrop styling.
+        // <dialog> + ::backdrop styling. view-transition-name lets
+        // document.startViewTransition (in openSignIn/closeSignIn) morph
+        // the dialog independently of the rest of the page.
         rule(".signin-dialog") {
+            viewTransitionName("signin-dialog")
             border("0")
             borderRadius("16px")
             padding("0")

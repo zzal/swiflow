@@ -58,15 +58,15 @@ test.describe("Counter demo", () => {
     expect(errors.map((e) => e.text()), "console.error during rapid clicks").toHaveLength(0);
   });
 
-  test("View Transitions API attached to .count", async ({ page }) => {
+  test("View Transitions API attached to .signin-dialog", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("Count: 0")).toBeVisible();
-    // The .count element declares view-transition-name so animated swaps
-    // run in supporting browsers; older browsers see the fallback.
+    // The .signin-dialog element declares view-transition-name so
+    // openSignIn / closeSignIn morph the dialog in supporting browsers;
+    // older browsers see an instant open/close.
     const vtName = await page
-      .locator(".count")
+      .locator(".signin-dialog")
       .evaluate((el) => getComputedStyle(el).viewTransitionName);
-    expect(vtName).toBe("count-value");
+    expect(vtName).toBe("signin-dialog");
   });
 
   test("Toast mounts as a popover and auto-dismisses", async ({ page }) => {

@@ -131,7 +131,6 @@ extension Counter {
             fontSize("1.6rem")
             fontWeight("600")
             color("var(--accent)")
-            viewTransitionName("count-value")
             transition("--accent .25s ease")
         }
         rule("button") {
@@ -160,8 +159,11 @@ extension Counter {
             property("outline-offset", "2px")
         }
 
-        // <dialog> + ::backdrop styling.
+        // <dialog> + ::backdrop styling. view-transition-name lets
+        // document.startViewTransition (in openSignIn/closeSignIn) morph
+        // the dialog independently of the rest of the page.
         rule(".signin-dialog") {
+            viewTransitionName("signin-dialog")
             border("0")
             borderRadius("16px")
             padding("0")
