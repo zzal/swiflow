@@ -63,16 +63,14 @@ final class Counter {
             details(.class("inspector")) {
                 summary("What's running here?")
                 ul(.class("inspector-list")) {
-                    li("Sign in… — opens a native <dialog>, morphing via the View Transitions API.")
+                    li("Sign in… — opens a native <dialog> with a CSS open/close animation.")
                     li("ⓘ — opens an `auto` popover anchored via CSS Anchor Positioning.")
                     li("Show toast — mounts a `manual` popover with a 2.5s auto-dismiss.")
                 }
             }
 
-            if showToast {
-                embed { Toast(message: "Saved!", onDone: { self.showToast = false }) }
-            }
-
+            // AboutPopover and the dialog are unconditional, so they hold fixed
+            // child indices.
             embed { AboutPopover() }
 
             // Dismissal paths: Escape (native <dialog> behavior), Cancel /
@@ -84,6 +82,20 @@ final class Counter {
                 if showSignIn {
                     embed { SignIn(onClose: { self.closeSignIn() }) }
                 }
+            }
+
+            // The toast is the ONLY conditional sibling here, and it is kept
+            // LAST on purpose. Child reconciliation pairs by index (the list is
+            // unkeyed — and component children like `embed` can't be matched by
+            // key today anyway), so a conditional child in the *middle* would
+            // shift every later sibling's index when it unmounts. That
+            // recreates the following nodes — and a recreated modal <dialog>
+            // loses its top-layer state and vanishes while `showSignIn` is
+            // still true. Keeping the only optional child at the tail means its
+            // 2.5s auto-dismiss never disturbs the dialog. (Top-layer overlays
+            // render independently of DOM order, so this costs nothing visually.)
+            if showToast {
+                embed { Toast(message: "Saved!", onDone: { self.showToast = false }) }
             }
         }
     }

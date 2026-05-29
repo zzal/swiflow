@@ -94,6 +94,25 @@ test.describe("Counter demo", () => {
     await expect(dialog).not.toHaveAttribute("open", "");
   });
 
+  test("Toast auto-dismiss does not close an open dialog", async ({ page }) => {
+    await page.goto("/");
+    // Regression: the toast is a conditional child. When its 2.5s timer
+    // unmounts it, index-based child diffing must not shift/recreate the
+    // dialog (a recreated modal <dialog> drops its top-layer state and
+    // vanishes). Open the dialog, fire the toast, wait past the auto-dismiss,
+    // and assert the dialog is still open.
+    await page.getByRole("button", { name: "Show toast" }).click();
+    await page.getByRole("button", { name: "Sign in…" }).click();
+    const dialog = page.locator("dialog.signin-dialog");
+    await expect(dialog).toHaveAttribute("open", "");
+    // Wait for the toast to mount and then auto-dismiss (2.5s + exit).
+    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4_000 });
+    // The dialog must have survived the toast's removal.
+    await expect(dialog).toHaveAttribute("open", "");
+    await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
+  });
+
   test("About popover opens via popovertarget and closes on Escape", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "About Swiflow" }).click();
