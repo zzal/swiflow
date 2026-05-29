@@ -42,6 +42,10 @@ public func keyframes(_ name: String, @CSSKeyframeBuilder _ content: () -> [Keyf
     .keyframes(name: name, stops: content())
 }
 
+public func host(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> CSSEntry {
+    .host(declarations: content())
+}
+
 public func from(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> KeyframeStop {
     KeyframeStop(position: "from", declarations: content())
 }

@@ -137,4 +137,17 @@ struct CSSSheetTests {
         #expect(result.contains(".swiflow-Counter button {"))
         #expect(!result.contains(".swiflow-Counterbutton"))
     }
+
+    @Test("host { } emits scope-class-only selector")
+    func hostEntry() {
+        let sheet = css {
+            host { padding("1rem"); display("flex") }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-Toast")
+        #expect(result.contains(".swiflow-Toast {"))
+        #expect(result.contains("padding: 1rem;"))
+        #expect(result.contains("display: flex;"))
+        // Must NOT emit a descendant form.
+        #expect(!result.contains(".swiflow-Toast .swiflow-Toast"))
+    }
 }

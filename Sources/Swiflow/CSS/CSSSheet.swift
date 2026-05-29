@@ -13,6 +13,7 @@ public struct CSSSheet: Sendable {
 public enum CSSEntry: Sendable {
     case rule(selector: String, declarations: [CSSDeclaration])
     case keyframes(name: String, stops: [KeyframeStop])
+    case host(declarations: [CSSDeclaration])
 
     package func cssString(scopeClass: String) -> String {
         switch self {
@@ -41,6 +42,9 @@ public enum CSSEntry: Sendable {
                 return "  \(stop.position) {\n\(decls)\n  }"
             }.joined(separator: "\n")
             return "@keyframes \(name) {\n\(stopsStr)\n}"
+        case .host(let declarations):
+            let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
+            return ".\(scopeClass) {\n\(decls)\n}"
         }
     }
 
