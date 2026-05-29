@@ -141,11 +141,12 @@ func diffChildrenKeyed(
 
     // 4. Pure inserts (old range exhausted, new range has work).
     if oldStart > oldEnd {
-        // Anchor: the first real DOM node of the stable suffix (if any).
-        // We compute the anchor once. After each insert, nextDOMAnchor
-        // would re-scan, but because inserts go left-to-right and the
-        // suffix is already fixed, the same suffix anchor applies to all
-        // new items in this block.
+        // Each new item is inserted just before the stable suffix, left-to-right.
+        // nextDOMAnchor(after:) is re-evaluated per item but returns the same
+        // value every pass — the suffix's first DOM handle — because the suffix
+        // is already fixed and each insert lands ahead of it. The per-iteration
+        // re-scan is on a cold path (pure inserts into an exhausted old range),
+        // so it's left as-is rather than hoisted.
         var insertIndex = oldStart
         for i in newStart...newEnd {
             let childPath = parentPath.isEmpty ? String(insertIndex) : "\(parentPath).\(insertIndex)"
@@ -401,13 +402,20 @@ func keyOf(_ node: MountNode) -> String {
     switch node.vnode {
     case .element(let data): if let k = data.key { return k }
     case .component(let desc): if let k = desc.key { return k }
-    // Structural nodes (fragments, env-overrides, component anchors) have no
-    // user-supplied key. Give them the same sentinel as incoming VNode fragments
-    // so they can be matched positionally when there is only one such node among
-    // keyed siblings. Two unkeyed structural siblings of the same kind would
-    // share a key and only the last would win in the bucket — an edge case the
-    // Phase-4 positional-key work will address; for now the common cases
-    // (a single fragment sibling alongside keyed elements) work correctly.
+    // Structural nodes (fragments, env-overrides) carry no user key. They share
+    // one sentinel so a SINGLE structural sibling matches itself across renders
+    // (reused, not destroyed+remounted). CAVEAT: two structural siblings of the
+    // same kind collide — last-write-wins in keyToOldIndex evicts one, forcing a
+    // (non-catastrophic) re-mount of its children. Same class as the unkeyed-
+    // element caveat above. Today this is DSL-unreachable because
+    // ChildrenBuilder.buildOptional/buildArray flatten if/for to []; once the
+    // builder emits .fragment, `parent { li(key:"x"); if a; if b }` reaches it.
+    // FIX THEN (map-middle only): fold the bucketing index into the sentinel —
+    // both the keyToOldIndex build and the new-side keyOf call have the index in
+    // scope, so a position-stable structural key applies at the call site
+    // without adding a position parameter to keyOf (the prefix/suffix pairwise
+    // scans must keep the position-free sentinel so a fragment still matches a
+    // fragment at the same position there).
     case .fragment, .environmentOverride: return "__noKey_structural"
     default: break
     }
