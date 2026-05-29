@@ -261,6 +261,64 @@ public func mainElement(
     .element(applyAttributes(tag: "main", attributes, children: children()))
 }
 
+/// HTML `<dialog>` — native modal/non-modal. Open via `el.showModal!()` /
+/// `el.show!()` and close via `el.close!()` from Swift (use `Ref<JSObject>`).
+/// The `::backdrop` pseudo-element can be styled via the scoped sheet.
+public func dialog(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "dialog", attributes, children: children()))
+}
+
+/// HTML `<details>` — disclosure widget. Pair with `summary(...)` for the
+/// always-visible label.
+public func details(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "details", attributes, children: children()))
+}
+
+/// HTML `<summary>` — the label child of a `<details>`.
+public func summary(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "summary", attributes, children: children()))
+}
+
+/// Text-only convenience for `<summary>`.
+public func summary(_ text: String, _ attributes: Attribute...) -> VNode {
+    .element(applyAttributes(tag: "summary", attributes, children: [.text(text)]))
+}
+
+/// HTML `<aside>` landmark.
+public func aside(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "aside", attributes, children: children()))
+}
+
+/// HTML `<output>` — form result element.
+public func output(
+    _ attributes: Attribute...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    .element(applyAttributes(tag: "output", attributes, children: children()))
+}
+
+/// Text-only convenience for `<output>`.
+public func output(_ text: String, _ attributes: Attribute...) -> VNode {
+    .element(applyAttributes(tag: "output", attributes, children: [.text(text)]))
+}
+
+/// HTML `<hr>` — void thematic break.
+public func hr(_ attributes: Attribute...) -> VNode {
+    .element(applyAttributes(tag: "hr", attributes))
+}
+
 // MARK: - Text node builders
 public func text(_ string: String) -> VNode { .text(string) }
 public func text(_ value: Int) -> VNode { .text(String(value)) }

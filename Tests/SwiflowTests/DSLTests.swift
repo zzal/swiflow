@@ -252,6 +252,63 @@ struct ElementFactoryTests {
     }
 }
 
+@Suite("DSL — additional element factories")
+struct AdditionalElementFactoryTests {
+
+    @Test("dialog factory emits <dialog> with attributes and children")
+    func dialogFactory() {
+        let node = dialog(.id("d")) { p("hi") }
+        let expected = VNode.element(ElementData(
+            tag: "dialog",
+            attributes: ["id": "d"],
+            children: [.element(ElementData(tag: "p", children: [.text("hi")]))]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("details + summary factories emit correct tags")
+    func detailsSummaryFactories() {
+        let node = details {
+            summary("More")
+            p("body")
+        }
+        let expected = VNode.element(ElementData(
+            tag: "details",
+            children: [
+                .element(ElementData(tag: "summary", children: [.text("More")])),
+                .element(ElementData(tag: "p", children: [.text("body")])),
+            ]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("aside factory emits <aside>")
+    func asideFactory() {
+        let node = aside { p("note") }
+        let expected = VNode.element(ElementData(
+            tag: "aside",
+            children: [.element(ElementData(tag: "p", children: [.text("note")]))]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("output text-only convenience emits <output> with text child")
+    func outputFactory() {
+        let node = output("42")
+        let expected = VNode.element(ElementData(
+            tag: "output",
+            children: [.text("42")]
+        ))
+        #expect(node == expected)
+    }
+
+    @Test("hr factory emits void <hr> with no children")
+    func hrFactory() {
+        let node = hr()
+        #expect(node == .element(ElementData(tag: "hr")))
+    }
+}
+
 @Suite("DSL — rawHTML escape hatch")
 struct RawHTMLDSLTests {
     @Test("rawHTML produces a VNode.rawHTML case")
