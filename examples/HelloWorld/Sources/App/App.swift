@@ -101,7 +101,11 @@ final class Counter {
             count += 1
             return
         }
-        // Retain the closure on self so JS can invoke it before ARC frees it.
+        // Retain on self so JS can invoke it before ARC frees it. Reassigning
+        // drops the prior reference; JavaScriptKit's current JSClosure no
+        // longer needs an explicit release() (it's deprecated as of recent
+        // versions — ARC reclaim is sufficient). Same pattern as
+        // SwiflowWeb/HMRBridge.swift's snapshotClosure slot.
         let cb = JSClosure { _ in
             MainActor.assumeIsolated { self.count += 1 }
             return .undefined
