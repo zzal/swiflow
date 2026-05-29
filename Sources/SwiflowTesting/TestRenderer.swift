@@ -71,6 +71,8 @@ final class TestRenderer {
             return s
         case .element:
             return node.children.map { textContent(of: $0) }.joined()
+        case .fragment:
+            return node.children.map { textContent(of: $0) }.joined()
         case .component:
             return node.componentBody.map { textContent(of: $0) } ?? ""
         case .environmentOverride:
@@ -98,6 +100,10 @@ final class TestRenderer {
                     results.append((node, data))
                 }
             }
+            for child in node.children {
+                results += findElements(tag: tag, text: text, in: child)
+            }
+        case .fragment:
             for child in node.children {
                 results += findElements(tag: tag, text: text, in: child)
             }

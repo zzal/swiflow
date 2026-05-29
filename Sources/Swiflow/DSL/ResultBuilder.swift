@@ -24,24 +24,26 @@ public enum ChildrenBuilder {
         expression
     }
 
-    /// Resolves an `if`-without-`else` branch: present children, or none.
+    /// An `if`-without-`else` is one stable slot: its content, or an empty
+    /// fragment when false (the slot persists so siblings never shift).
     public static func buildOptional(_ component: [VNode]?) -> [VNode] {
-        component ?? []
+        [.fragment(component ?? [])]
     }
 
-    /// Resolves the `if` branch of an `if/else`.
+    /// The `if` branch of an `if/else` — one stable slot holding the branch.
     public static func buildEither(first component: [VNode]) -> [VNode] {
-        component
+        [.fragment(component)]
     }
 
-    /// Resolves the `else` branch of an `if/else`.
+    /// The `else` branch of an `if/else` — one stable slot holding the branch.
     public static func buildEither(second component: [VNode]) -> [VNode] {
-        component
+        [.fragment(component)]
     }
 
-    /// Flattens children produced by a `for` loop into a single array.
+    /// A `for` loop is one stable slot holding all its items. Key items with
+    /// `.key(...)` so they keep identity across reorders.
     public static func buildArray(_ children: [[VNode]]) -> [VNode] {
-        children.flatMap { $0 }
+        [.fragment(children.flatMap { $0 })]
     }
 
     @available(*, unavailable, message: "Use text(\"...\") to display a String")

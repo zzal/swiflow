@@ -59,21 +59,27 @@ struct ChildrenBuilderTests {
         #expect(multiple() == [.text("a"), .text("b"), .text("c")])
     }
 
-    @Test("Optional branch is included or skipped based on condition")
+    @Test("Optional branch wraps in one stable fragment slot")
     func optionalIncludesWhenTrue() {
-        #expect(conditional(true) == [.text("always"), .text("conditionally")])
-        #expect(conditional(false) == [.text("always")])
+        // `if` (without else) now produces a single .fragment slot so the sibling
+        // at that position is stable across true/false renders.
+        #expect(conditional(true) == [.text("always"), .fragment([.text("conditionally")])])
+        #expect(conditional(false) == [.text("always"), .fragment([])])
     }
 
-    @Test("Either branch picks one side")
+    @Test("Either branch wraps in one stable fragment slot")
     func eitherPicksBranch() {
-        #expect(eitherOr(true) == [.text("yes")])
-        #expect(eitherOr(false) == [.text("no")])
+        // `if/else` produces a single .fragment slot regardless of which branch
+        // is active; the slot position never shifts when the condition flips.
+        #expect(eitherOr(true) == [.fragment([.text("yes")])])
+        #expect(eitherOr(false) == [.fragment([.text("no")])])
     }
 
-    @Test("For-loop produces all iterations")
+    @Test("For-loop produces one fragment slot holding all iterations")
     func forLoopProducesAll() {
-        #expect(arrayLiteral() == [.text("x"), .text("y"), .text("z")])
+        // `for` produces a single .fragment slot wrapping all iterations so the
+        // slot is stable even when the loop count changes.
+        #expect(arrayLiteral() == [.fragment([.text("x"), .text("y"), .text("z")])])
     }
 }
 
@@ -225,6 +231,8 @@ struct ElementFactoryTests {
 
     @Test("ul with mapped children")
     func ulMappedChildren() {
+        // A `for` loop inside a builder block produces one .fragment slot
+        // holding all the generated children.
         let items = ["a", "b", "c"]
         let node = ul {
             for item in items {
@@ -233,9 +241,11 @@ struct ElementFactoryTests {
         }
         let expected = VNode.element(ElementData(
             tag: "ul",
-            children: items.map { i in
-                .element(ElementData(tag: "li", children: [.text(i)]))
-            }
+            children: [
+                .fragment(items.map { i in
+                    .element(ElementData(tag: "li", children: [.text(i)]))
+                })
+            ]
         ))
         #expect(node == expected)
     }
