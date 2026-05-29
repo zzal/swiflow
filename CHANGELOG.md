@@ -16,6 +16,22 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `swiflow init --template <name>` — scaffold from any example under `examples/`. Default `HelloWorld` preserves prior zero-flag behaviour; `--template MiniRouter` is the canonical router demo. `swiflow init --help` lists available template names dynamically. The embedded set is codegen'd from `examples/*/` by `scripts/embed-templates.swift` → `Sources/SwiflowCLI/EmbeddedTemplates.swift`; a freshness test pins the script's output against the in-process equivalent (`Sources/SwiflowCLI/TemplateEmbedder.swift`) so drift fails the build.
+- DevTools panel ships bundled Chromium-derived design tokens (`devtools/colors.css`, `devtools/application_tokens.css`) so the panel picks up the host DevTools theme, including dark mode.
+
+### Changed
+- `examples/RouterDemo` removed. `examples/MiniRouter` — richer page set, now with a `Back` button via `router.back` on `AboutPage` — is the canonical router example. Playwright `router.spec.ts` and both Playwright configs (`playwright.config.ts`, `playwright.router.config.ts`) scaffold via `--template MiniRouter`. Top-level `README.md`, `Tests/playwright/README.md`, and `devtools/README.md` swept to match.
+- DevTools state pane `@State` rows are now sorted alphabetically (previously Swift-side dictionary iteration order, which shuffled between refreshes and made it hard to spot which value actually changed).
+- `TemplateEmbedder.blacklist` now includes `.swiftpm` so the codegen no longer chokes on Xcode-generated user-state files (xcuserstate) when someone opens an example in Xcode.
+
+### Stability
+- Stable for pre-1.0 usage. `--template` is additive; `swiflow init my-app` without flags still produces the same HelloWorld scaffold.
+
+---
+
 ## [Phase 19b] — Live DevTools panel (render-version push tick)
 
 ### Added
