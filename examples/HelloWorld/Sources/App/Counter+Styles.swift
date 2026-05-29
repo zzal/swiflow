@@ -159,11 +159,12 @@ extension Counter {
             outlineOffset("2px")
         }
 
-        // <dialog> + ::backdrop styling. view-transition-name lets
-        // document.startViewTransition (in openSignIn/closeSignIn) morph
-        // the dialog independently of the rest of the page.
+        // <dialog> + ::backdrop styling, animated entirely in CSS — no JS, no
+        // View Transition. A modal <dialog> moves through the top layer, so we
+        // transition `overlay` and `display` with `allow-discrete` to keep the
+        // element painted through its exit animation; `@starting-style` (below)
+        // supplies the values it animates *from* on open.
         rule(".signin-dialog") {
-            viewTransitionName("signin-dialog")
             border("0")
             borderRadius("16px")
             padding("0")
@@ -171,6 +172,13 @@ extension Counter {
             color("var(--text)")
             boxShadow("0 24px 48px -16px rgb(0 0 0 / .45)")
             maxWidth("min(90vw, 420px)")
+            opacity("0")
+            transform("translateY(8px) scale(.98)")
+            transition("opacity .2s ease, transform .2s ease, overlay .2s ease allow-discrete, display .2s ease allow-discrete")
+        }
+        rule(".signin-dialog[open]") {
+            opacity("1")
+            transform("translateY(0) scale(1)")
         }
         rule(".signin-dialog .signin") {
             padding("1.5rem")
@@ -178,6 +186,22 @@ extension Counter {
         rule(".signin-dialog::backdrop") {
             background("color-mix(in oklab, Canvas 30%, transparent)")
             backdropFilter("blur(6px)")
+            opacity("0")
+            transition("opacity .2s ease, overlay .2s ease allow-discrete, display .2s ease allow-discrete")
+        }
+        rule(".signin-dialog[open]::backdrop") {
+            opacity("1")
+        }
+        // Entry animation origin: without these, the dialog would pop in at full
+        // opacity instead of fading/sliding from the closed state.
+        startingStyle {
+            rule(".signin-dialog[open]") {
+                opacity("0")
+                transform("translateY(8px) scale(.98)")
+            }
+            rule(".signin-dialog[open]::backdrop") {
+                opacity("0")
+            }
         }
     }
 

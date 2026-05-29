@@ -62,6 +62,14 @@ public func media(_ query: String, @CSSSheetBuilder _ content: () -> [CSSEntry])
     .group(prefix: "@media \(query)", entries: content())
 }
 
+/// A `@starting-style` block whose nested rules are scoped like any other
+/// entry. Supplies the pre-open values an element transitions *from* when it
+/// first renders (e.g. a `<dialog>[open]` fading in), so CSS can animate
+/// entry without JavaScript.
+public func startingStyle(@CSSSheetBuilder _ content: () -> [CSSEntry]) -> CSSEntry {
+    .group(prefix: "@starting-style", entries: content())
+}
+
 public func from(@CSSRuleBuilder _ content: () -> [CSSDeclaration]) -> KeyframeStop {
     KeyframeStop(position: "from", declarations: content())
 }

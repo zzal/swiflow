@@ -214,6 +214,19 @@ struct CSSSheetTests {
         #expect(result.contains("\n    color: red;"))
     }
 
+    @Test("startingStyle(...) wraps nested rules in @starting-style and scopes them")
+    func startingStyleScopesNestedRules() {
+        let sheet = css {
+            startingStyle {
+                rule(".signin-dialog[open]") { opacity("0") }
+            }
+        }
+        let result = sheet.cssString(scopeClass: "swiflow-Counter")
+        #expect(result.hasPrefix("@starting-style {"))
+        #expect(result.contains(".swiflow-Counter.signin-dialog[open], .swiflow-Counter .signin-dialog[open] {"))
+        #expect(result.contains("opacity: 0;"))
+    }
+
     @Test("outline / outlineOffset emit typed declarations")
     func outlineHelpers() {
         let sheet = css {

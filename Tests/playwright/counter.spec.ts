@@ -58,15 +58,18 @@ test.describe("Counter demo", () => {
     expect(errors.map((e) => e.text()), "console.error during rapid clicks").toHaveLength(0);
   });
 
-  test("View Transitions API attached to .signin-dialog", async ({ page }) => {
+  test("Sign in dialog animates open/close via CSS, not a View Transition", async ({ page }) => {
     await page.goto("/");
-    // The .signin-dialog element declares view-transition-name so
-    // openSignIn / closeSignIn morph the dialog in supporting browsers;
-    // older browsers see an instant open/close.
-    const vtName = await page
-      .locator(".signin-dialog")
-      .evaluate((el) => getComputedStyle(el).viewTransitionName);
-    expect(vtName).toBe("signin-dialog");
+    // The dialog fades/slides via CSS: `transition-behavior: allow-discrete`
+    // on overlay/display keeps it painted through the exit animation, and
+    // there is deliberately NO view-transition-name (that approach glitched
+    // the top-layer dialog when transitions were interrupted).
+    const styles = await page.locator(".signin-dialog").evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { transitionBehavior: cs.transitionBehavior, viewTransitionName: cs.viewTransitionName };
+    });
+    expect(styles.transitionBehavior).toContain("allow-discrete");
+    expect(styles.viewTransitionName).toBe("none");
   });
 
   test("Toast mounts as a popover and auto-dismisses", async ({ page }) => {
