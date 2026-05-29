@@ -162,7 +162,6 @@ extension Counter {
 
         // <dialog> + ::backdrop styling.
         rule(".signin-dialog") {
-            pointerEvents("none")
             border("0")
             borderRadius("16px")
             padding("0")
@@ -172,7 +171,6 @@ extension Counter {
             maxWidth("min(90vw, 420px)")
         }
         rule(".signin-dialog .signin") {
-            pointerEvents("auto")
             padding("1.5rem")
         }
         rule(".signin-dialog::backdrop") {

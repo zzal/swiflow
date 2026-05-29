@@ -252,9 +252,12 @@ final class Counter {
 
             embed { AboutPopover() }
 
-            dialog(.ref(signInDialog),
-                   .class("signin-dialog"),
-                   .on(.click) { self.closeSignIn() }) {
+            // Dismissal paths: Escape (native <dialog> behavior), Cancel /
+            // Sign out / Close buttons inside SignIn. Backdrop-click-to-close
+            // is omitted because EventInfo doesn't expose `event.target`
+            // identity, and a generic .on(.click) on the dialog catches
+            // every click that bubbles up from the form content.
+            dialog(.ref(signInDialog), .class("signin-dialog")) {
                 if showSignIn {
                     embed { SignIn(onClose: { self.closeSignIn() }) }
                 }
@@ -474,7 +477,6 @@ extension Counter {
 
         // <dialog> + ::backdrop styling.
         rule(".signin-dialog") {
-            pointerEvents("none")
             border("0")
             borderRadius("16px")
             padding("0")
@@ -484,7 +486,6 @@ extension Counter {
             maxWidth("min(90vw, 420px)")
         }
         rule(".signin-dialog .signin") {
-            pointerEvents("auto")
             padding("1.5rem")
         }
         rule(".signin-dialog::backdrop") {

@@ -77,9 +77,12 @@ final class Counter {
 
             embed { AboutPopover() }
 
-            dialog(.ref(signInDialog),
-                   .class("signin-dialog"),
-                   .on(.click) { self.closeSignIn() }) {
+            // Dismissal paths: Escape (native <dialog> behavior), Cancel /
+            // Sign out / Close buttons inside SignIn. Backdrop-click-to-close
+            // is omitted because EventInfo doesn't expose `event.target`
+            // identity, and a generic .on(.click) on the dialog catches
+            // every click that bubbles up from the form content.
+            dialog(.ref(signInDialog), .class("signin-dialog")) {
                 if showSignIn {
                     embed { SignIn(onClose: { self.closeSignIn() }) }
                 }
