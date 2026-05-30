@@ -17,7 +17,21 @@
 - **Component shape:** `@MainActor @Component final class TrapN_Name { @State var …; var body: VNode { section(.data("testid", "trapN")) { h2("N. <title>"); /* controls */; /* trap structure */; /* sentinel */ } } }`. Types start with a letter (`Trap1CondBeforeFocus`), files match (`Trap1CondBeforeFocus.swift`).
 - **Addressability:** section `data-testid="trapN"`; controls `trapN-<verb>` (e.g. `trap1-toggle`); sentinels `trapN-sentinel` / `trapN-input`.
 - **Sentinels are UNCONTROLLED** (`input(.attr("type", "text"), .data("testid", …))` with NO value binding) — a controlled input would be re-set from state on re-render and mask recreation. We type into them from Playwright and check survival.
-- **Detection (Playwright):** focus → `el === document.activeElement` + `el.value`; details → `open` attribute; tagged node → set `el.__tag = n` via `evaluate`, re-query, assert persists; child `@State` → a visible counter that resets to 0 on recreation; visibility → `getBoundingClientRect()` non-zero when state says visible.
+- **Detection (Playwright) — value + tagged node, NOT focus.** ⚠️ Do NOT assert `toBeFocused()` after clicking a control: a button click moves focus to the button, so the assertion fails regardless of node identity (this produced a false "bug" in Task 1). The reliable identity signals are: typed **value** survives (an uncontrolled input loses it on recreation) + a **tagged DOM property** survives (a fresh node won't have it). The committed `edgecases.spec.ts` defines two helpers — use them for every sentinel-survival check:
+  ```ts
+  async function seedSentinel(page, testid, value, tag) {           // type value + stamp the node
+    const input = page.getByTestId(testid);
+    await input.fill(value);
+    await input.evaluate((el, t) => { (el as any).__tag = t; }, tag);
+    return input;
+  }
+  async function expectSurvived(input, value, tag) {                // prove same node + value
+    await expect(input).toHaveValue(value);
+    expect(await input.evaluate((el) => (el as any).__tag)).toBe(tag);
+  }
+  ```
+  Other valid signals (no focus needed): `<details open>` attribute (Trap 4); a child `@State` counter that resets to 0 on recreation (Trap 7); exact child `toHaveCount` for no-leak (Trap 8); `getBoundingClientRect()` non-zero when state says visible.
+  **The per-trap test snippets in Tasks 2–6 below predate this rule: replace any `focusType`/`toBeFocused` usage with `seedSentinel`/`expectSurvived`. Value/tag survival is the assertion; focus is never asserted after a control click.**
 - **Build/test loop:** the example builds in-place; the e2e command is `npm run test:edgecases` (added in Task 1). Filter SwiftPM noise in shell with `| grep -v "Internal Error: DecodingError"`. IGNORE stale SourceKit diagnostics — trust `swiflow build`/the e2e run. Port 3003 must be free for the e2e.
 - **Commits** MUST end with the trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` (use `git commit -F -`).
 
