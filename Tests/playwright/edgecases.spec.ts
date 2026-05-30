@@ -105,4 +105,31 @@ test.describe("EdgeCases reconciliation traps", () => {
     // y's input still exists with value + identity (state moved with the item).
     await expectSurvived(page.getByTestId("trap9-input-y"), "Y-data", "t9");
   });
+
+  test("trap10: raw spread — separate-element sentinel unaffected; no crash", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+    await page.goto("/");
+    const input = await seedSentinel(page, "trap10-input", "safe", "t10");
+    await page.getByTestId("trap10-grow").click();
+    await page.getByTestId("trap10-grow").click();
+    // The documented limitation shifts the in-element END marker, but the
+    // sentinel input lives in a SEPARATE element and must be unaffected.
+    await expectSurvived(input, "safe", "t10");
+    await expect(page.getByTestId("trap10-spread")).toContainText("END");
+    expect(errors, "no console errors from the raw spread").toHaveLength(0);
+  });
+
+  test("trap11: bulk add/remove/swap — existing rows reused (identity + value survive)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("trap11-add1-back").click();   // seed 1 row
+    const firstTestid = await page.getByTestId("trap11-list").locator("li input").first().getAttribute("data-testid");
+    const typed = await seedSentinel(page, firstTestid!, "ANCHOR", "t11");
+    await page.getByTestId("trap11-add100-front").click(); // prepend 100 (the stressor)
+    await expect(page.getByTestId("trap11-count")).toHaveText("101");
+    // The original row was NOT recreated: same node (tag persists) + value.
+    await expectSurvived(typed, "ANCHOR", "t11");
+    await page.getByTestId("trap11-swap").click();          // swap ends
+    await expectSurvived(page.getByTestId(firstTestid!), "ANCHOR", "t11");
+  });
 });

@@ -20,6 +20,8 @@ final class EdgeLab {
             embed { Trap7ComponentLifecycle() }
             embed { Trap8RapidCycle() }
             embed { Trap9KeyedItemsInnerState() }
+            embed { Trap10RawSpread() }
+            embed { Trap11DynamicList() }
         }
     }
 }
