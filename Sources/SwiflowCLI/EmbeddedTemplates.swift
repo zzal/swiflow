@@ -13,6 +13,527 @@ enum EmbeddedTemplates {
 
     static let all: [Template] = [
         Template(
+            name: "EdgeCases",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        {{SWIFLOW_DEP}},
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowWeb", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "Sources/App/App.swift": ##"""
+// Sources/App/App.swift
+import Swiflow
+import SwiflowWeb
+
+/// EdgeLab — adversarial reconciliation stress harness. Each embedded trap is a
+/// self-contained <section data-testid="trapN"> exercising one nesting/identity
+/// edge case, with a sentinel that only survives if the reconciler reuses nodes
+/// rather than recreating them. See the design spec.
+@MainActor @Component
+final class EdgeLab {
+    var body: VNode {
+        div(.class("lab")) {
+            h2("Swiflow reconciliation traps")
+            embed { Trap1CondBeforeFocus() }
+            embed { Trap2ForOfIf() }
+            embed { Trap3ForIfFor() }
+            embed { Trap4LoopInCond() }
+            embed { Trap5KeyedWithFragments() }
+            embed { Trap6TwoAdjacentConds() }
+            embed { Trap7ComponentLifecycle() }
+            embed { Trap8RapidCycle() }
+            embed { Trap9KeyedItemsInnerState() }
+            embed { Trap10RawSpread() }
+            embed { Trap11DynamicList() }
+        }
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { EdgeLab() }
+    }
+}
+
+"""##,
+                "Sources/App/EdgeLab+Styles.swift": ##"""
+// Sources/App/EdgeLab+Styles.swift
+import Swiflow
+
+extension EdgeLab {
+    static var scopedStyles: CSSSheet? = css {
+        host { display("block"); maxWidth("760px"); margin("1.5rem auto"); padding("0 1rem") }
+        rule("section") {
+            border("1px solid color-mix(in oklab, CanvasText 15%, transparent)")
+            borderRadius("8px"); padding("0.75rem 1rem"); margin("0 0 1rem 0")
+        }
+        rule("h2") { fontSize("1rem"); margin("0 0 0.5rem 0") }
+        rule("button") {
+            margin("0 0.35rem 0.35rem 0"); padding("0.3rem 0.7rem")
+            border("1px solid color-mix(in oklab, CanvasText 25%, transparent)")
+            borderRadius("6px"); background("Canvas"); color("CanvasText"); cursor("pointer")
+        }
+        rule("input") {
+            padding("0.25rem 0.5rem"); border("1px solid color-mix(in oklab, CanvasText 25%, transparent)")
+            borderRadius("6px"); background("Canvas"); color("CanvasText")
+        }
+        rule(".row") { display("flex"); gap("0.4rem"); alignItems("center"); flexWrap("wrap") }
+        rule(".tag") { fontFamily("ui-monospace, monospace"); fontSize("0.8rem"); color("var(--text-dim, GrayText)") }
+    }
+}
+
+"""##,
+                "Sources/App/Trap10RawSpread.swift": ##"""
+// Sources/App/Trap10RawSpread.swift
+import Swiflow
+
+/// Trap 10 (KNOWN LIMITATION): a raw [VNode] spread — NOT wrapped in if/for —
+/// is flattened, so changing its length shifts the following sibling (the
+/// documented buildExpression([VNode]) footgun). This trap asserts the
+/// framework doesn't crash and a sentinel in a SEPARATE element is unaffected.
+@MainActor @Component
+final class Trap10RawSpread {
+    @State var n: Int = 1
+
+    private var spread: [VNode] {
+        (0..<n).map { i in span(.class("tag")) { text("s\(i) ") } }
+    }
+
+    var body: VNode {
+        section(.data("testid", "trap10")) {
+            h2("10. raw [VNode] spread (known limitation)")
+            button("grow", .data("testid", "trap10-grow"), .on(.click) { self.n += 1 })
+            div(.data("testid", "trap10-spread")) {
+                spread
+                span(.class("tag")) { text("END") }
+            }
+            div(.class("row")) {
+                input(.attr("type", "text"), .data("testid", "trap10-input"))
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap11DynamicList.swift": ##"""
+// Sources/App/Trap11DynamicList.swift
+import Swiflow
+
+/// Trap 11: dynamic keyed list with Add +1 / +100 (front and back), Remove,
+/// Clear, Swap. Bulk front-insertion stresses insertBefore + LIS; existing rows
+/// must NOT be recreated (their typed values + node identity survive), which
+/// also proves the diff is minimal (not re-placing the whole list).
+@MainActor @Component
+final class Trap11DynamicList {
+    @State var rows: [Int] = []
+    @State var nextId: Int = 0
+
+    private func add(_ count: Int, front: Bool) {
+        let ids = (0..<count).map { _ -> Int in let id = nextId; nextId += 1; return id }
+        if front { rows.insert(contentsOf: ids, at: 0) } else { rows.append(contentsOf: ids) }
+    }
+
+    var body: VNode {
+        section(.data("testid", "trap11")) {
+            h2("11. dynamic keyed list (add/remove/swap)")
+            div(.class("row")) {
+                button("+1 front", .data("testid", "trap11-add1-front"), .on(.click) { self.add(1, front: true) })
+                button("+100 front", .data("testid", "trap11-add100-front"), .on(.click) { self.add(100, front: true) })
+                button("+1 back", .data("testid", "trap11-add1-back"), .on(.click) { self.add(1, front: false) })
+                button("remove first", .data("testid", "trap11-removefirst"),
+                       .on(.click) { if !self.rows.isEmpty { self.rows.removeFirst() } })
+                button("swap ends", .data("testid", "trap11-swap"),
+                       .on(.click) { if self.rows.count >= 2 { self.rows.swapAt(0, self.rows.count - 1) } })
+                button("clear", .data("testid", "trap11-clear"), .on(.click) { self.rows = [] })
+                span(.data("testid", "trap11-count")) { text("\(rows.count)") }
+            }
+            ul(.data("testid", "trap11-list")) {
+                for id in rows {
+                    li(.key("r-\(id)"), .class("row")) {
+                        span(.class("tag")) { text("#\(id) ") }
+                        input(.attr("type", "text"), .data("testid", "trap11-input-\(id)"))
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap1CondBeforeFocus.swift": ##"""
+// Sources/App/Trap1CondBeforeFocus.swift
+import Swiflow
+
+/// Trap 1: a conditional rendered BEFORE a focused sibling input. Toggling the
+/// conditional must not recreate the input (focus + typed value must survive).
+/// This is the generalized form of the dialog/toast bug.
+@MainActor @Component
+final class Trap1CondBeforeFocus {
+    @State var showFirst: Bool = false
+
+    var body: VNode {
+        section(.data("testid", "trap1")) {
+            h2("1. Conditional before a focused input")
+            div(.class("row")) {
+                button("Toggle conditional", .data("testid", "trap1-toggle"),
+                       .on(.click) { self.showFirst.toggle() })
+            }
+            if showFirst {
+                p("conditional content is showing")
+            }
+            div(.class("row")) {
+                label("Type here:")
+                input(.attr("type", "text"), .data("testid", "trap1-input"))
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap2ForOfIf.swift": ##"""
+// Sources/App/Trap2ForOfIf.swift
+import Swiflow
+
+/// Trap 2: `for` of `if`. Each list item conditionally renders an inner node.
+/// Toggling one item's flag must not recreate a sibling item's input.
+@MainActor @Component
+final class Trap2ForOfIf {
+    @State var flags: [Bool] = [false, false, false]
+
+    var body: VNode {
+        section(.data("testid", "trap2")) {
+            h2("2. for-of-if")
+            for i in 0..<3 {
+                div(.class("row"), .key("item-\(i)")) {
+                    button("toggle \(i)", .data("testid", "trap2-toggle-\(i)"),
+                           .on(.click) { self.flags[i].toggle() })
+                    if flags[i] { span(.class("tag")) { text("[on]") } }
+                    input(.attr("type", "text"), .data("testid", "trap2-input-\(i)"))
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap3ForIfFor.swift": ##"""
+// Sources/App/Trap3ForIfFor.swift
+import Swiflow
+
+/// Trap 3: three-level imbrication — outer keyed list, per-item conditional,
+/// inner keyed sub-list. Mutating one item's inner list must leave the other
+/// outer items' inputs untouched.
+@MainActor @Component
+final class Trap3ForIfFor {
+    @State var counts: [Int] = [1, 1]
+
+    var body: VNode {
+        section(.data("testid", "trap3")) {
+            h2("3. for-of-if-of-for")
+            for outer in 0..<2 {
+                div(.class("row"), .key("outer-\(outer)")) {
+                    input(.attr("type", "text"), .data("testid", "trap3-input-\(outer)"))
+                    button("inner+1", .data("testid", "trap3-add-\(outer)"),
+                           .on(.click) { self.counts[outer] += 1 })
+                    if counts[outer] > 0 {
+                        ul {
+                            for inner in 0..<counts[outer] {
+                                li(.key("inner-\(outer)-\(inner)")) { text("• row \(inner)") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap4LoopInCond.swift": ##"""
+// Sources/App/Trap4LoopInCond.swift
+import Swiflow
+
+/// Trap 4: a loop nested inside a conditional, with a <details open> sentinel
+/// AFTER it. Toggling the whole loop on/off must not recreate the details
+/// (its open state must survive), and refilled items appear before it.
+@MainActor @Component
+final class Trap4LoopInCond {
+    @State var showList: Bool = true
+
+    var body: VNode {
+        section(.data("testid", "trap4")) {
+            h2("4. loop inside a conditional")
+            button("toggle list", .data("testid", "trap4-toggle"),
+                   .on(.click) { self.showList.toggle() })
+            if showList {
+                ul {
+                    for i in 0..<3 { li(.key("l-\(i)")) { text("loop item \(i)") } }
+                }
+            }
+            details(.data("testid", "trap4-details")) {
+                summary("sentinel disclosure")
+                p("the open state here must survive toggling the loop above")
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap5KeyedWithFragments.swift": ##"""
+// Sources/App/Trap5KeyedWithFragments.swift
+import Swiflow
+
+/// Trap 5: keyed elements interspersed with fragments. Swapping the keyed
+/// items and toggling the conditional must reuse the keyed inputs (identity
+/// preserved), with the fragments holding their positions.
+@MainActor @Component
+final class Trap5KeyedWithFragments {
+    @State var order: [String] = ["a", "b"]
+    @State var showX: Bool = false
+
+    var body: VNode {
+        section(.data("testid", "trap5")) {
+            h2("5. keyed reorder with interspersed fragments")
+            div(.class("row")) {
+                button("swap", .data("testid", "trap5-swap"),
+                       .on(.click) { self.order.reverse() })
+                button("toggle x", .data("testid", "trap5-togglex"),
+                       .on(.click) { self.showX.toggle() })
+            }
+            div {
+                input(.attr("type", "text"), .data("testid", "trap5-input-\(order[0])"), .key("k-\(order[0])"))
+                if showX { span(.class("tag"), .key("frag-x")) { text("[x]") } }
+                input(.attr("type", "text"), .data("testid", "trap5-input-\(order[1])"), .key("k-\(order[1])"))
+                for i in 0..<2 { span(.class("tag"), .key("f-\(i)")) { text(" f\(i) ") } }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap6TwoAdjacentConds.swift": ##"""
+// Sources/App/Trap6TwoAdjacentConds.swift
+import Swiflow
+
+/// Trap 6: two adjacent conditionals before a sentinel input, inside a div that
+/// also has a keyed sibling (forces the keyed path → exercises the structural-
+/// sibling bucketKey fix). The input must survive all four a/b combinations.
+@MainActor @Component
+final class Trap6TwoAdjacentConds {
+    @State var a: Bool = false
+    @State var b: Bool = false
+
+    var body: VNode {
+        section(.data("testid", "trap6")) {
+            h2("6. two adjacent conditionals (bucketKey)")
+            div(.class("row")) {
+                button("toggle a", .data("testid", "trap6-a"), .on(.click) { self.a.toggle() })
+                button("toggle b", .data("testid", "trap6-b"), .on(.click) { self.b.toggle() })
+            }
+            div {
+                span(.class("tag"), .key("anchor")) { text("keyed-anchor ") }
+                if a { span(.class("tag"), .key("cond-a")) { text("[a]") } }
+                if b { span(.class("tag"), .key("cond-b")) { text("[b]") } }
+                input(.attr("type", "text"), .data("testid", "trap6-input"), .key("sentinel"))
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap7ComponentLifecycle.swift": ##"""
+// Sources/App/Trap7ComponentLifecycle.swift
+import Swiflow
+import SwiflowWeb
+import JavaScriptKit
+
+/// A child whose mount/unmount bumps shared counters via callbacks, so the test
+/// can assert onAppear/onDisappear fire exactly once per toggle.
+@MainActor @Component
+final class LifecycleChild {
+    let onUp: () -> Void
+    let onDown: () -> Void
+    init(onUp: @escaping () -> Void, onDown: @escaping () -> Void) {
+        self.onUp = onUp; self.onDown = onDown
+    }
+    var body: VNode { span(.class("tag")) { text("child-mounted") } }
+    func onAppear() { onUp() }
+    func onDisappear() { onDown() }
+}
+
+/// A sibling component holding its OWN @State counter. If the reconciler
+/// recreates it while the LifecycleChild churns, this counter resets to 0.
+@MainActor @Component
+final class Keeper {
+    @State var n: Int = 0
+    var body: VNode {
+        div(.class("row")) {
+            button("keeper+1", .data("testid", "trap7-keeper-inc"), .on(.click) { self.n += 1 })
+            span(.data("testid", "trap7-keeper-count")) { text("\(n)") }
+        }
+    }
+}
+
+/// Trap 7: a component inside an emptying fragment, beside a stateful sibling
+/// component. Toggling the child off/on must fire onDisappear/onAppear exactly
+/// once each and must NOT reset the sibling Keeper's @State.
+@MainActor @Component
+final class Trap7ComponentLifecycle {
+    @State var showChild: Bool = false
+    @State var appears: Int = 0
+    @State var disappears: Int = 0
+
+    var body: VNode {
+        section(.data("testid", "trap7")) {
+            h2("7. component in an emptying fragment + lifecycle")
+            div(.class("row")) {
+                button("toggle child", .data("testid", "trap7-toggle"),
+                       .on(.click) { self.showChild.toggle() })
+                span(.data("testid", "trap7-appears")) { text("up:\(appears)") }
+                span(.data("testid", "trap7-disappears")) { text("down:\(disappears)") }
+            }
+            if showChild {
+                embed { LifecycleChild(onUp: { self.appears += 1 }, onDown: { self.disappears += 1 }) }
+            }
+            embed { Keeper() }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap8RapidCycle.swift": ##"""
+// Sources/App/Trap8RapidCycle.swift
+import Swiflow
+
+/// Trap 8: rapid empty→full→empty cycling of a fragment. After N toggles the
+/// sentinel after it must be intact and the child count must match parity (no
+/// duplicated/leaked children).
+@MainActor @Component
+final class Trap8RapidCycle {
+    @State var show: Bool = false
+
+    var body: VNode {
+        section(.data("testid", "trap8")) {
+            h2("8. empty→full→empty rapid cycle")
+            button("toggle", .data("testid", "trap8-toggle"), .on(.click) { self.show.toggle() })
+            if show {
+                ul(.data("testid", "trap8-list")) {
+                    for i in 0..<3 { li(.key("c-\(i)")) { text("cycle item \(i)") } }
+                }
+            }
+            input(.attr("type", "text"), .data("testid", "trap8-input"))
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Trap9KeyedItemsInnerState.swift": ##"""
+// Sources/App/Trap9KeyedItemsInnerState.swift
+import Swiflow
+
+/// Trap 9: a keyed list whose items each contain their own conditional + input.
+/// Expanding one item and typing in it, then reordering the list, must move the
+/// expanded state + typed value WITH the item (identity preserved, not stranded).
+@MainActor @Component
+final class Trap9KeyedItemsInnerState {
+    @State var order: [String] = ["x", "y", "z"]
+    @State var expanded: [String: Bool] = ["x": false, "y": false, "z": false]
+
+    var body: VNode {
+        section(.data("testid", "trap9")) {
+            h2("9. keyed items with inner if/for + state")
+            button("rotate", .data("testid", "trap9-rotate"),
+                   .on(.click) { self.order = Array(self.order.dropFirst()) + self.order.prefix(1) })
+            ul {
+                for id in order {
+                    li(.key("row-\(id)"), .class("row")) {
+                        button("expand \(id)", .data("testid", "trap9-expand-\(id)"),
+                               .on(.click) { self.expanded[id, default: false].toggle() })
+                        if expanded[id, default: false] {
+                            input(.attr("type", "text"), .data("testid", "trap9-input-\(id)"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{NAME}}</title>
+    <style>
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: Canvas; color: CanvasText; font: 16px/1.4 system-ui, sans-serif; z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
+        Template(
             name: "HelloWorld",
             files: [
                 ".gitignore": ##"""
