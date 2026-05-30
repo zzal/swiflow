@@ -12,6 +12,9 @@ final class EdgeLab {
         div(.class("lab")) {
             h2("Swiflow reconciliation traps")
             embed { Trap1CondBeforeFocus() }
+            embed { Trap2ForOfIf() }
+            embed { Trap3ForIfFor() }
+            embed { Trap4LoopInCond() }
         }
     }
 }
