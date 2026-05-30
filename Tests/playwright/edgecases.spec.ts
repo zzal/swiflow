@@ -58,4 +58,34 @@ test.describe("EdgeCases reconciliation traps", () => {
     await page.getByTestId("trap4-toggle").click();           // show loop again
     await expect(details).toHaveAttribute("open", "");        // still open ⇒ not recreated
   });
+
+  test("trap5: keyed reorder with fragments — keyed input reused on swap", async ({ page }) => {
+    await page.goto("/");
+    await seedSentinel(page, "trap5-input-a", "valueA", "t5");
+    await page.getByTestId("trap5-togglex").click();   // toggle interspersed fragment
+    await page.getByTestId("trap5-swap").click();       // reorder keyed inputs
+    // The keyed input "a" moved position but kept identity + value.
+    await expectSurvived(page.getByTestId("trap5-input-a"), "valueA", "t5");
+  });
+
+  test("trap6: two adjacent conditionals — sentinel survives all 4 combos", async ({ page }) => {
+    await page.goto("/");
+    await seedSentinel(page, "trap6-input", "combo", "t6");
+    for (const id of ["trap6-a", "trap6-b", "trap6-a", "trap6-b"]) {
+      await page.getByTestId(id).click();
+      await expectSurvived(page.getByTestId("trap6-input"), "combo", "t6");
+    }
+  });
+
+  test("trap7: component lifecycle — onAppear/onDisappear once each; sibling @State survives", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("trap7-keeper-inc").click();
+    await page.getByTestId("trap7-keeper-inc").click();
+    await expect(page.getByTestId("trap7-keeper-count")).toHaveText("2");
+    await page.getByTestId("trap7-toggle").click();  // show child → up 1
+    await page.getByTestId("trap7-toggle").click();  // hide child → down 1
+    await expect(page.getByTestId("trap7-appears")).toHaveText("up:1");
+    await expect(page.getByTestId("trap7-disappears")).toHaveText("down:1");
+    await expect(page.getByTestId("trap7-keeper-count")).toHaveText("2"); // sibling @State survived
+  });
 });

@@ -15,6 +15,9 @@ final class EdgeLab {
             embed { Trap2ForOfIf() }
             embed { Trap3ForIfFor() }
             embed { Trap4LoopInCond() }
+            embed { Trap5KeyedWithFragments() }
+            embed { Trap6TwoAdjacentConds() }
+            embed { Trap7ComponentLifecycle() }
         }
     }
 }
