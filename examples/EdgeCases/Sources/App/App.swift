@@ -18,6 +18,8 @@ final class EdgeLab {
             embed { Trap5KeyedWithFragments() }
             embed { Trap6TwoAdjacentConds() }
             embed { Trap7ComponentLifecycle() }
+            embed { Trap8RapidCycle() }
+            embed { Trap9KeyedItemsInnerState() }
         }
     }
 }

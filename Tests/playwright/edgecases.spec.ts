@@ -88,4 +88,21 @@ test.describe("EdgeCases reconciliation traps", () => {
     await expect(page.getByTestId("trap7-disappears")).toHaveText("down:1");
     await expect(page.getByTestId("trap7-keeper-count")).toHaveText("2"); // sibling @State survived
   });
+
+  test("trap8: rapid cycle — sentinel intact, no leaked children", async ({ page }) => {
+    await page.goto("/");
+    const input = await seedSentinel(page, "trap8-input", "stable", "t8");
+    for (let i = 0; i < 7; i++) await page.getByTestId("trap8-toggle").click(); // odd ⇒ ends shown
+    await expect(page.getByTestId("trap8-list").locator("li")).toHaveCount(3);   // exactly 3, no dups
+    await expectSurvived(input, "stable", "t8");
+  });
+
+  test("trap9: keyed items carry inner state across reorder", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("trap9-expand-y").click();          // expand item y
+    await seedSentinel(page, "trap9-input-y", "Y-data", "t9");
+    await page.getByTestId("trap9-rotate").click();            // x,y,z → y,z,x
+    // y's input still exists with value + identity (state moved with the item).
+    await expectSurvived(page.getByTestId("trap9-input-y"), "Y-data", "t9");
+  });
 });
