@@ -132,4 +132,38 @@ test.describe("EdgeCases reconciliation traps", () => {
     await page.getByTestId("trap11-swap").click();          // swap ends
     await expectSurvived(page.getByTestId(firstTestid!), "ANCHOR", "t11");
   });
+
+  // Trap 12 is the complement of every trap above: those use UNCONTROLLED inputs
+  // to prove a node was *preserved* (typed value survives ⇒ not recreated). This
+  // one uses a CONTROLLED input (value bound to @State) to prove the other path —
+  // when state changes, the reconciler must PATCH the live .value of the SAME node.
+  test("trap12: controlled input — state mutation patches the live value in place", async ({ page }) => {
+    await page.goto("/");
+    const input = page.getByTestId("trap12-input");
+    await expect(input).toHaveValue("alpha");              // initial value comes from @State
+    // Stamp the live node so we can prove the patch reuses it, never recreates it.
+    await input.evaluate((el) => { (el as unknown as Record<string, unknown>).__tag = "t12"; });
+
+    await page.getByTestId("trap12-set-beta").click();      // @State := "beta"
+    await expect(input).toHaveValue("beta");                // update path: live .value patched
+    await page.getByTestId("trap12-upper").click();         // @State := state.uppercased()
+    await expect(input).toHaveValue("BETA");                // patched again, same node
+    expect(await input.evaluate((el) => (el as unknown as Record<string, unknown>).__tag)).toBe("t12");
+  });
+
+  test("trap12: typing flows to @State; controlled input survives a sibling toggle", async ({ page }) => {
+    await page.goto("/");
+    const input = page.getByTestId("trap12-input");
+    await input.evaluate((el) => { (el as unknown as Record<string, unknown>).__tag = "t12b"; });
+    await input.fill("typed");                              // two-way binding: flows into @State
+    await page.getByTestId("trap12-upper").click();         // uppercase reads @State…
+    await expect(input).toHaveValue("TYPED");               // …proving the typed text reached state
+    // Toggle a conditional that sits BEFORE the input, twice.
+    await page.getByTestId("trap12-toggle").click();
+    await page.getByTestId("trap12-toggle").click();
+    await expect(input).toHaveValue("TYPED");
+    // For a controlled input, value alone CAN'T prove reuse (state would restore it
+    // on recreation); the stamped tag is the only reliable identity signal here.
+    expect(await input.evaluate((el) => (el as unknown as Record<string, unknown>).__tag)).toBe("t12b");
+  });
 });

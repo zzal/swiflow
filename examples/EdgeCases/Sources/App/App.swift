@@ -22,6 +22,7 @@ final class EdgeLab {
             embed { Trap9KeyedItemsInnerState() }
             embed { Trap10RawSpread() }
             embed { Trap11DynamicList() }
+            embed { Trap12ControlledValuePatch() }
         }
     }
 }
