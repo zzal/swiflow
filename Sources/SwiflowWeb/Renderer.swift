@@ -44,6 +44,11 @@ final class Renderer {
     /// the first render.
     var mountTree: MountNode?
 
+    /// Owns this root's in-flight `.task` runs (Phase 20). Installed as
+    /// `SwiflowTaskRuntime.currentScope` around each render so tasks started by
+    /// this root's diff are tracked here, isolated from other roots.
+    let taskScope = TaskScope()
+
     /// Cumulative count of `renderOnce()` calls since this Renderer was created.
     /// Read by `DevAPI` to populate `__swiflow.perf().renders`.
     private(set) var renderCount: Int = 0
@@ -118,7 +123,11 @@ final class Renderer {
     /// hooks on the root component when applicable.
     func renderOnce() {
         _currentRenderingRenderer = self
-        defer { _currentRenderingRenderer = nil }
+        SwiflowTaskRuntime.currentScope = taskScope
+        defer {
+            _currentRenderingRenderer = nil
+            SwiflowTaskRuntime.currentScope = nil
+        }
 
         let nextVNode: VNode
 

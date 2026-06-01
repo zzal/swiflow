@@ -35,7 +35,9 @@ private final class Profile {
 @Suite(.serialized)
 struct AsyncTaskTests {
 
-    init() { SwiflowTaskRuntime._resetForTesting() }
+    // No global reset: each `AsyncTestHarness` owns its `TestRenderer`'s
+    // `TaskScope`, so `settle()` only ever awaits this test's own tasks —
+    // isolated from sibling suites that share the process-global runtime.
 
     @Test func settleDrivesTaskToSuccess() async throws {
         let h = AsyncTestHarness(Profile(userID: 1) { id in "User#\(id)" })

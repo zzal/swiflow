@@ -5,19 +5,31 @@ import Testing
 @Suite(.serialized)
 struct TaskDiffTests {
 
-    init() { SwiflowTaskRuntime._resetForTesting() }
+    // Each test owns a TaskScope; `inScope` installs it around the synchronous
+    // diff/start calls (re-installing before each one, since `currentScope` is a
+    // process-global ambient that a concurrently-running suite may have moved
+    // during an `await`). This isolates these tests from sibling suites without
+    // any global reset.
+    let scope = TaskScope()
+
+    @discardableResult
+    private func inScope<T>(_ body: () -> T) -> T {
+        SwiflowTaskRuntime.withScope(scope) { body() }
+    }
 
     private func drain() async {
-        for t in SwiflowTaskRuntime.inFlightTasks() { await t.value }
+        for t in scope.inFlightTasks() { await t.value }
     }
 
     @Test func startTasksSpawnsOnePerBinding() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var ran = 0
-        startTasks(on: node, [
-            TaskBinding(dependency: nil, body: { ran += 1 }),
-            TaskBinding(dependency: AnyEquatableBox(1), body: { ran += 1 }),
-        ])
+        inScope {
+            startTasks(on: node, [
+                TaskBinding(dependency: nil, body: { ran += 1 }),
+                TaskBinding(dependency: AnyEquatableBox(1), body: { ran += 1 }),
+            ])
+        }
         #expect(node.taskSlots.count == 2)
         await drain()
         #expect(ran == 2)
@@ -26,17 +38,17 @@ struct TaskDiffTests {
     @Test func reconcileRerunsOnlyWhenDependencyChanges() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
-        startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
+        inScope { startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })]) }
         await drain()
         #expect(runs == 1)
 
         // Same dependency -> no rerun.
-        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
+        inScope { reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })]) }
         await drain()
         #expect(runs == 1)
 
         // Changed dependency -> rerun.
-        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(2), body: { runs += 1 })])
+        inScope { reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(2), body: { runs += 1 })]) }
         await drain()
         #expect(runs == 2)
     }
@@ -44,17 +56,17 @@ struct TaskDiffTests {
     @Test func gainingOrLosingDependencyReruns() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
-        startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })])
+        inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })]) }
         await drain()
         #expect(runs == 1)
 
         // nil -> value: reruns (the (nil, value) switch arm).
-        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
+        inScope { reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })]) }
         await drain()
         #expect(runs == 2)
 
         // value -> nil: reruns (the (value, nil) switch arm).
-        reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })])
+        inScope { reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })]) }
         await drain()
         #expect(runs == 3)
     }
@@ -62,26 +74,26 @@ struct TaskDiffTests {
     @Test func bareTaskNeverReruns() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
-        startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })])
+        inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })]) }
         await drain()
-        reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })])
+        inScope { reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })]) }
         await drain()
         #expect(runs == 1)   // bare task ran once, never again
     }
 
     @Test func cancelTasksTearsDownSlots() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
-        startTasks(on: node, [TaskBinding(dependency: nil, body: { try? await Task.sleep(nanoseconds: 1_000_000_000) })])
+        inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { try? await Task.sleep(nanoseconds: 1_000_000_000) })]) }
         #expect(node.taskSlots.count == 1)
         cancelTasks(on: node)
         #expect(node.taskSlots.isEmpty)
         await drain()   // cancelled task completes
-        #expect(SwiflowTaskRuntime.inFlightTasks().isEmpty)
+        #expect(scope.inFlightTasks().isEmpty)
     }
 
     @Test func changingTaskCountFiresDiagnostic() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
-        startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: {})])
+        inScope { startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: {})]) }
         await drain()
 
         var captured: [String] = []
@@ -90,9 +102,11 @@ struct TaskDiffTests {
         defer { _swiflowDiagnosticOverride = prior }
 
         // New render declares two tasks where there was one — stable-slot violation.
-        reconcileTasks(on: node,
-                       new: [TaskBinding(dependency: AnyEquatableBox(1), body: {}),
-                             TaskBinding(dependency: nil, body: {})])
+        inScope {
+            reconcileTasks(on: node,
+                           new: [TaskBinding(dependency: AnyEquatableBox(1), body: {}),
+                                 TaskBinding(dependency: nil, body: {})])
+        }
         await drain()
         #expect(captured.contains { $0.contains("`.task` count") })
         // The grow path still ran past the diagnostic and started the extra slot.
@@ -102,7 +116,7 @@ struct TaskDiffTests {
     @Test func mountStartsTasksDeclaredInBody() async {
         var ran = false
         let node = VNode.element(ElementData(tag: "div")).task { ran = true }
-        let result = diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry())
+        let result = inScope { diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()) }
         #expect(result.newMountTree.taskSlots.count == 1)
         await drain()
         #expect(ran == true)
@@ -112,13 +126,13 @@ struct TaskDiffTests {
         var node = VNode.element(ElementData(tag: "div")).task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
-        let mounted = diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()).newMountTree
-        #expect(SwiflowTaskRuntime.inFlightTasks().count == 1)
+        let mounted = inScope { diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()) }.newMountTree
+        #expect(scope.inFlightTasks().count == 1)
 
         // Replace the whole tree with a different tag -> old subtree destroyed.
         node = .element(ElementData(tag: "section"))
-        _ = diff(mounted: mounted, next: node, handles: HandleAllocator(), handlers: HandlerRegistry())
+        inScope { _ = diff(mounted: mounted, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()) }
         await drain()
-        #expect(SwiflowTaskRuntime.inFlightTasks().isEmpty)
+        #expect(scope.inFlightTasks().isEmpty)
     }
 }

@@ -1332,5 +1332,23 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Notes for the implementer
 
 - **Verify-first risks (from the spec).** Tasks 2 (`tokenPropagatesAcrossAwait`) and 5 (`stateWriteIsRevertedUnderStaleToken`) are the two linchpin verifications — `@TaskLocal` propagation across `await`, and the macro-emitted revert. If either fails on the WASM cross-compile specifically (host tests should pass), fall back to gating only `markDirty` (drops the stale re-render) plus a documented value-staleness note, and escalate before proceeding.
-- **Global state in tests.** `SwiflowTaskRuntime` holds process-global maps. Every task-runtime test suite must be `@Suite(.serialized)` and call `SwiflowTaskRuntime._resetForTesting()` in `init()`.
+- **Global state in tests.** `SwiflowTaskRuntime` holds a process-global generation map, but the *in-flight* set is scoped per render root (`TaskScope`) as of Task 12 — so test suites isolate by each owning their own scope rather than by resetting global state. Do NOT call `_resetForTesting()` from a suite `init()` (its global `liveGenerations` clear would race a concurrently-running suite). See Task 12.
 - **macOS link caveat.** If `swift test` fails to link locally due to the known macOS Swift-package `swift_static` omission, run the suite via the Linux/WASM toolchain path the project uses for CI.
+
+---
+
+## Task 12: Per-context task scoping (parallel-test isolation, root-cause fix)
+
+**Why:** The original runtime kept a single process-global `inFlight` set, so `settle()`/`drain()` awaited *every* in-flight task in the process and `_resetForTesting()` wiped *everyone's* state. Under parallel `swift test`, the `@MainActor` suites interleave at `await` points and pollute each other (3 tests flaked: `settleDrivesTaskToSuccess`, `settleThrowsOnRunawayLoop`, `cancelledSlotDropsLateWrite`) — the same class as the pre-existing `OnChangeStorage` flake. This task fixes it at the source: the in-flight set is owned per render root.
+
+**Key safety property:** the diff pass is **synchronous**, so the `currentScope` ambient is only read/written within one un-suspended main-actor run; a task captures *its* scope at spawn time. Concurrent roots interleave only at `await` (never mid-diff), so there is no cross-scope clobbering. `liveGenerations` (the write guard) stays global — already correct because slot IDs are globally unique.
+
+**Files:**
+- `Sources/Swiflow/Reactivity/SwiflowTaskRuntime.swift`: add `package final class TaskScope` (owns `inFlight` + `inFlightTasks()`); add `package static var currentScope` + `package static func withScope(_:_:)` (synchronous) + a `fallbackScope`; `start` captures `currentScope ?? fallbackScope`; remove the global `inFlight`/`inFlightTasks()`; `_resetForTesting()` no longer the isolation mechanism.
+- `Sources/SwiflowWeb/Renderer.swift`: add `let taskScope = TaskScope()`; set `SwiflowTaskRuntime.currentScope = taskScope` around `renderOnce()`'s diff (next to `_currentRenderingRenderer`).
+- `Sources/SwiflowTesting/TestRenderer.swift`: add `let taskScope = TaskScope()`; install it around the init diff (set ambient directly — a `withScope` closure would capture `self` pre-init) and around `rerender`.
+- `Sources/SwiflowTesting/AsyncTestHarness.swift`: `settle()` awaits `renderer.taskScope.inFlightTasks()`.
+- `Tests/SwiflowTests/TaskRuntimeTests.swift`, `TaskDiffTests.swift`: each test owns a `TaskScope`; install it (`withScope`/`inScope`) around the synchronous `start`/`startTasks`/`reconcileTasks`/`diff` calls; drain via the scope. Drop the `_resetForTesting()` inits.
+- `Tests/SwiflowTestingTests/AsyncTaskTests.swift`: drop the `_resetForTesting()` init (isolation now comes from the harness's `TaskScope`).
+
+**Verification:** all Phase 20 suites pass in isolation AND the full parallel `swift test` no longer flakes on the 3 runtime tests.

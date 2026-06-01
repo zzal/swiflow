@@ -59,6 +59,20 @@ package final class TaskSlot {
     package init(id: Int) { self.id = id }
 }
 
+/// Owns the in-flight `.task` runs for ONE render root — a `Renderer` in
+/// production, a `TestRenderer` in tests. Scoping the in-flight set per root is
+/// what lets `AsyncTestHarness.settle()` await only ITS tasks, so concurrent
+/// roots (including parallel test suites that share the process) never await,
+/// cancel, or reset one another's tasks.
+@MainActor
+package final class TaskScope {
+    package init() {}
+    /// runID -> in-flight task. A run self-removes its entry on completion.
+    var inFlight: [Int: Task<Void, Never>] = [:]
+    /// Snapshot of this scope's in-flight task handles, for draining/settling.
+    package func inFlightTasks() -> [Task<Void, Never>] { Array(inFlight.values) }
+}
+
 /// Global task registry + the superseded-/dead-task write guard.
 @MainActor
 public enum SwiflowTaskRuntime {
@@ -77,11 +91,35 @@ public enum SwiflowTaskRuntime {
     /// @MainActor (via `@MainActor @Component`), but the compiler cannot prove
     /// this statically across macro expansion boundaries.
     nonisolated(unsafe) static var liveGenerations: [Int: Int] = [:]
-    /// All in-flight tasks keyed by a unique task-run ID (not slotID), so
-    /// superseded and cancelled tasks remain awaitable until they complete.
-    static var inFlight: [Int: Task<Void, Never>] = [:]
+
+    /// The scope that tasks spawned during the current render belong to. A
+    /// renderer sets this around its diff pass via `withScope`; `start` captures
+    /// it into each spawned task. The diff is SYNCHRONOUS, so this ambient is
+    /// only ever read/written within a single un-suspended main-actor run —
+    /// concurrent roots (and parallel test suites) interleave only at `await`
+    /// points, which never occur mid-diff, so there is no cross-scope clobbering.
+    ///
+    /// `package`: set by `Renderer` (SwiflowWeb) and `TestRenderer`
+    /// (SwiflowTesting), both separate modules in this package.
+    package static var currentScope: TaskScope?
+
+    /// Tasks spawned with no active render scope land here (defensive; a real
+    /// render always sets one) so nothing is silently untracked.
+    static let fallbackScope = TaskScope()
+
     private static var nextSlotID = 0
     private static var nextRunID = 0
+
+    /// Run a SYNCHRONOUS render/diff pass with `scope` active, so any `.task`s it
+    /// starts register in `scope`. Restores the prior scope. Must wrap only
+    /// synchronous work — never `await` while a scope is installed.
+    @discardableResult
+    package static func withScope<T>(_ scope: TaskScope, _ body: () -> T) -> T {
+        let prev = currentScope
+        currentScope = scope
+        defer { currentScope = prev }
+        return body()
+    }
 
     static func allocateSlotID() -> Int {
         defer { nextSlotID += 1 }
@@ -123,14 +161,18 @@ public enum SwiflowTaskRuntime {
         let id = slot.id
         let gen = slot.generation
         let runID = allocateRunID()
+        // Capture the scope active at spawn time (synchronously, mid-diff) so
+        // the task registers/self-removes in the right root's set even after
+        // `currentScope` has moved on to another render.
+        let scope = currentScope ?? fallbackScope
         liveGenerations[id] = gen
         let token = SwiflowTaskToken(slotID: id, generation: gen)
         let task = Task { @MainActor in
             await SwiflowTaskLocal.$current.withValue(token) { await body() }
-            inFlight[runID] = nil
+            scope.inFlight[runID] = nil
         }
         slot.handle = task
-        inFlight[runID] = task
+        scope.inFlight[runID] = task
     }
 
     /// Cancel `slot`'s task and tear down its generation so any late write
@@ -139,20 +181,19 @@ public enum SwiflowTaskRuntime {
         slot.handle?.cancel()
         slot.handle = nil
         liveGenerations[slot.id] = nil
-        // Note: the task handle remains in inFlight so the test harness can
-        // await its completion; it will self-remove when it finishes.
+        // Note: the task handle remains in its scope's `inFlight` so a settler
+        // can await its completion; it self-removes from that scope when it finishes.
     }
 
-    /// Snapshot of all in-flight task handles, for `AsyncTestHarness.settle()`.
-    /// `package` (not `internal`) so the separate `SwiflowTesting` module can
-    /// reach it without `@testable`.
-    package static func inFlightTasks() -> [Task<Void, Never>] { Array(inFlight.values) }
-
     #if DEBUG
-    /// Test hook: clear global state between tests to avoid cross-test bleed.
+    /// Test hook: clears the global generation map + the fallback scope. NOT the
+    /// per-test isolation mechanism — that comes from each renderer/test owning
+    /// its own `TaskScope`; tests should not need to call this (and must not call
+    /// it from a concurrently-running suite, since `liveGenerations` is global).
     public static func _resetForTesting() {
         liveGenerations.removeAll()
-        inFlight.removeAll()
+        fallbackScope.inFlight.removeAll()
+        currentScope = nil
         nextSlotID = 0
         nextRunID = 0
     }

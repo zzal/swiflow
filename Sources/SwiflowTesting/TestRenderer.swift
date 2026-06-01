@@ -16,6 +16,11 @@ final class TestRenderer {
     /// Kept alive so @State's weak `_owner` reference doesn't dangle.
     let rootComponent: AnyComponent
 
+    /// Owns this renderer's in-flight `.task` runs (Phase 20), so `settle()`
+    /// awaits only this root's tasks — isolated from other (e.g. concurrently
+    /// running) test renderers that share the process-global runtime.
+    let taskScope = TaskScope()
+
     init<C: Component>(_ instance: C) {
         let relay = RerenderRelay()
         self.handles = HandleAllocator()
@@ -29,7 +34,13 @@ final class TestRenderer {
         self.rootComponent = anyComponent
         wireState(on: anyComponent, scheduler: self.scheduler)
         _testAmbientHandlers = self.handlers
-        defer { _testAmbientHandlers = nil }
+        // Set the scope directly (not via the `withScope` closure) so we don't
+        // capture `self` in a closure before all members are initialized.
+        SwiflowTaskRuntime.currentScope = taskScope
+        defer {
+            _testAmbientHandlers = nil
+            SwiflowTaskRuntime.currentScope = nil
+        }
         let result = diff(
             mounted: nil,
             next: instance.body,
@@ -43,7 +54,11 @@ final class TestRenderer {
 
     func rerender(_ component: AnyComponent) {
         _testAmbientHandlers = self.handlers
-        defer { _testAmbientHandlers = nil }
+        SwiflowTaskRuntime.currentScope = taskScope
+        defer {
+            _testAmbientHandlers = nil
+            SwiflowTaskRuntime.currentScope = nil
+        }
         if ObjectIdentifier(component.instance) == rootID {
             let result = diff(
                 mounted: mountTree,

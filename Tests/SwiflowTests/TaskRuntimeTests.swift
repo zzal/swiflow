@@ -2,10 +2,25 @@ import Testing
 @testable import Swiflow
 
 @MainActor
-@Suite(.serialized)   // global registry state — run serially, reset between tests
+@Suite(.serialized)
 struct TaskRuntimeTests {
 
-    init() { SwiflowTaskRuntime._resetForTesting() }
+    // Each test gets its own TaskScope (swift-testing makes a fresh suite
+    // instance per test). In-flight tasks register here, isolated from other
+    // suites sharing the process — no global reset needed: slot IDs are
+    // globally unique so `liveGenerations` keys never collide across tests.
+    let scope = TaskScope()
+
+    /// Spawn a task in this test's scope — mirrors how a renderer installs its
+    /// scope around the synchronous diff pass that calls `start`.
+    private func start(_ slot: TaskSlot, _ body: @escaping TaskBody) {
+        SwiflowTaskRuntime.withScope(scope) { SwiflowTaskRuntime.start(slot, body: body) }
+    }
+
+    /// Await this scope's in-flight tasks to completion.
+    private func drain() async {
+        for t in scope.inFlightTasks() { await t.value }
+    }
 
     @Test func noTokenMeansWriteIsKept() {
         #expect(SwiflowTaskRuntime.shouldDropWrite() == false)
@@ -14,11 +29,11 @@ struct TaskRuntimeTests {
     @Test func tokenPropagatesAcrossAwait() async {
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())
         var sawTokenAfterAwait = false
-        SwiflowTaskRuntime.start(slot) {
+        start(slot) {
             await Task.yield()
             sawTokenAfterAwait = (SwiflowTaskLocal.current?.slotID == slot.id)
         }
-        for t in SwiflowTaskRuntime.inFlightTasks() { await t.value }
+        await drain()
         #expect(sawTokenAfterAwait == true)
     }
 
@@ -27,15 +42,15 @@ struct TaskRuntimeTests {
         var staleSawDrop = false
         var freshSawKeep = false
         // First run captures generation 1.
-        SwiflowTaskRuntime.start(slot) {
+        start(slot) {
             await Task.yield()                       // suspend so the restart below wins
             staleSawDrop = SwiflowTaskRuntime.shouldDropWrite()   // expect true: superseded
         }
         // Restart (generation 2) — simulates a rerunOn change.
-        SwiflowTaskRuntime.start(slot) {
+        start(slot) {
             freshSawKeep = (SwiflowTaskRuntime.shouldDropWrite() == false) // expect kept
         }
-        for t in SwiflowTaskRuntime.inFlightTasks() { await t.value }
+        await drain()
         #expect(staleSawDrop == true)
         #expect(freshSawKeep == true)
     }
@@ -43,12 +58,12 @@ struct TaskRuntimeTests {
     @Test func cancelledSlotDropsLateWrite() async {
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())
         var sawDrop = false
-        SwiflowTaskRuntime.start(slot) {
+        start(slot) {
             await Task.yield()
             sawDrop = SwiflowTaskRuntime.shouldDropWrite()   // slot torn down -> true
         }
         SwiflowTaskRuntime.cancel(slot)                      // dead slot
-        for t in SwiflowTaskRuntime.inFlightTasks() { await t.value }
+        await drain()
         #expect(sawDrop == true)
     }
 

@@ -15,14 +15,16 @@ public struct AsyncTestHarness {
         self.harness = TestHarness(r)
     }
 
-    /// Await every in-flight `.task`, flush resulting re-renders, and repeat
-    /// until no task is in flight. Throws `SettleError` if it cannot reach a
-    /// fixed point within `maxRounds` (a task that reruns every render, or two
-    /// tasks that retrigger each other).
+    /// Await every in-flight `.task` *for this harness's render root*, flush
+    /// resulting re-renders, and repeat until none remain. Throws `SettleError`
+    /// if it cannot reach a fixed point within `maxRounds` (a task that reruns
+    /// every render, or two tasks that retrigger each other). Scoping to this
+    /// root's `TaskScope` keeps `settle()` from awaiting tasks owned by other
+    /// (e.g. concurrently running) test renderers in the same process.
     public func settle(maxRounds: Int = 100) async throws {
         var rounds = 0
         while true {
-            let tasks = SwiflowTaskRuntime.inFlightTasks()
+            let tasks = renderer.taskScope.inFlightTasks()
             if tasks.isEmpty { break }
             rounds += 1
             if rounds > maxRounds { throw SettleError.exceededMaxRounds(maxRounds) }
