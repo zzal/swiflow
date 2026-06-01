@@ -52,6 +52,7 @@ let package = Package(
             dependencies: [
                 "Swiflow",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
             path: "Sources/SwiflowWeb",
             swiftSettings: [.swiftLanguageMode(.v6)]

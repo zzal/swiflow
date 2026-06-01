@@ -8,6 +8,7 @@
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit
+import JavaScriptEventLoop
 @_exported import Swiflow
 
 // `Swiflow` namespace is declared here (Phase 1 deleted the core placeholder).
@@ -28,6 +29,10 @@ nonisolated(unsafe) var _currentRenderingRenderer: Renderer?
 /// driver's `nodes` Map never has collisions.
 nonisolated(unsafe) let sharedHandleAllocator = HandleAllocator()
 
+/// Guards `JavaScriptEventLoop.installGlobalExecutor()` so multi-root apps
+/// (multiple `render(into:)` calls) and HMR re-imports install it exactly once.
+nonisolated(unsafe) var _swiflowExecutorInstalled = false
+
 public extension Swiflow {
     /// Mounts a Component tree into the DOM node matched by `selector`.
     ///
@@ -45,6 +50,10 @@ public extension Swiflow {
         into selector: String,
         _ factory: @escaping @MainActor () -> C
     ) {
+        if !_swiflowExecutorInstalled {
+            JavaScriptEventLoop.installGlobalExecutor()
+            _swiflowExecutorInstalled = true
+        }
         precondition(
             renderers[selector] == nil,
             "Swiflow.render(into: \"\(selector)\") was already called. " +
