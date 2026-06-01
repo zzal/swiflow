@@ -1,13 +1,14 @@
 # EdgeCases stress-harness — triage report
 
 **Date:** 2026-05-30
+**Updated:** 2026-05-31 — Trap 12 (controlled-value patch) added on `main` (commit `14490e4`); harness now 12 traps.
 **Branch:** `feat/edgecases-stress`
-**Harness:** `examples/EdgeCases/` (11 traps) + `Tests/playwright/edgecases.spec.ts` (run: `npm run test:edgecases`, builds in-place on :3003)
+**Harness:** `examples/EdgeCases/` (12 traps) + `Tests/playwright/edgecases.spec.ts` (run: `npm run test:edgecases`, builds in-place on :3003)
 **Spec:** `docs/superpowers/specs/2026-05-30-edgecases-reconciliation-stress-harness-design.md`
 
 ## Headline
 
-**11/11 traps pass. No reconciler correctness bugs found.** Across an adversarial sweep of nested fragments, loops, conditionals, keyed reorders, component lifecycle, bulk add/remove, and the raw-spread limitation, the stable-child-slots reconciler preserved node identity / sibling state in every case. A holistic review confirmed **every trap is genuine** (none vacuously green): each builds the nested shape it claims and each assertion would fail under spurious recreation.
+**12/12 traps pass. No reconciler correctness bugs found.** Across an adversarial sweep of nested fragments, loops, conditionals, keyed reorders, component lifecycle, bulk add/remove, and the raw-spread limitation, the stable-child-slots reconciler preserved node identity / sibling state in every case. Traps 1–11 probe the *preserve* path (an uncontrolled node must survive a sibling mutation); **Trap 12 adds the complementary *update* path** — a controlled input bound to `@State` must have its live `.value` patched onto the **same** reused node when state changes. A holistic review confirmed **every trap is genuine** (none vacuously green): each builds the nested shape it claims and each assertion would fail under spurious recreation.
 
 ## Per-trap results
 
@@ -24,8 +25,9 @@
 | 9 | keyed items carrying inner `if`/state across reorder | pass | yes |
 | 10 | raw `[VNode]` spread (known limitation) | pass | yes — no-crash / no-cross-container guard |
 | 11 | dynamic keyed list: Add +1/+100 front&back, Remove, Swap, Clear | pass | yes — bulk-churn identity preserved |
+| 12 | controlled input (`.value($state)`): state-change value patch + two-way typing | pass | yes — only trap on the *update* path; `__tag` proves in-place patch, not recreate |
 
-Detection method: typed value + a stamped `__tag` DOM property (a reused node keeps both; a recreated node loses both), plus `<details open>` (Trap 4) and child-`@State` counters (Trap 7).
+Detection method: typed value + a stamped `__tag` DOM property (a reused node keeps both; a recreated node loses both), plus `<details open>` (Trap 4) and child-`@State` counters (Trap 7). Trap 12 inverts the value signal — because a controlled input's value is restored from `@State` on recreation, the typed value *can't* prove reuse there, so the stamped `__tag` is the sole identity signal while the value asserts the state→DOM patch landed.
 
 ## Findings (non-correctness)
 
