@@ -63,6 +63,14 @@ package final class TaskSlot {
 @MainActor
 public enum SwiflowTaskRuntime {
     /// slotID -> live generation. A write whose token generation != this is dropped.
+    ///
+    /// Lifecycle: an entry is written on every `start` (the slot's current
+    /// generation) and removed on `cancel` (unmount or — via the diff —
+    /// teardown). A task that completes *normally* does NOT remove its entry;
+    /// the sentinel persists until the owning node is cancelled. That is
+    /// intentional, not a leak: the live set is bounded by (live nodes ×
+    /// tasks-per-node), and the entry is what lets a late, superseded write
+    /// from the same slot be recognised as stale.
     static var liveGenerations: [Int: Int] = [:]
     /// All in-flight tasks keyed by a unique task-run ID (not slotID), so
     /// superseded and cancelled tasks remain awaitable until they complete.
@@ -118,7 +126,9 @@ public enum SwiflowTaskRuntime {
     }
 
     /// Snapshot of all in-flight task handles, for `AsyncTestHarness.settle()`.
-    static func inFlightTasks() -> [Task<Void, Never>] { Array(inFlight.values) }
+    /// `package` (not `internal`) so the separate `SwiflowTesting` module can
+    /// reach it without `@testable`.
+    package static func inFlightTasks() -> [Task<Void, Never>] { Array(inFlight.values) }
 
     #if DEBUG
     /// Test hook: clear global state between tests to avoid cross-test bleed.
