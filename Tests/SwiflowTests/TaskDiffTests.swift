@@ -98,4 +98,27 @@ struct TaskDiffTests {
         // The grow path still ran past the diagnostic and started the extra slot.
         #expect(node.taskSlots.count == 2)
     }
+
+    @Test func mountStartsTasksDeclaredInBody() async {
+        var ran = false
+        let node = VNode.element(ElementData(tag: "div")).task { ran = true }
+        let result = diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry())
+        #expect(result.newMountTree.taskSlots.count == 1)
+        await drain()
+        #expect(ran == true)
+    }
+
+    @Test func destroyCancelsTasks() async {
+        var node = VNode.element(ElementData(tag: "div")).task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        let mounted = diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()).newMountTree
+        #expect(SwiflowTaskRuntime.inFlightTasks().count == 1)
+
+        // Replace the whole tree with a different tag -> old subtree destroyed.
+        node = .element(ElementData(tag: "section"))
+        _ = diff(mounted: mounted, next: node, handles: HandleAllocator(), handlers: HandlerRegistry())
+        await drain()
+        #expect(SwiflowTaskRuntime.inFlightTasks().isEmpty)
+    }
 }

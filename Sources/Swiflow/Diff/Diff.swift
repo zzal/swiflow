@@ -154,6 +154,7 @@ func mount(
             vnode: vnode,
             handlerIds: handlerIds
         )
+        startTasks(on: mountNode, data.taskBindings)
 
         // Diagnostic: validate children key consistency on initial mount.
         // (On re-render, diffChildren/diffChildrenKeyed carry these checks.)
@@ -356,6 +357,7 @@ func update(
         for binding in newData.refBindings {
             binding.setHandle(mounted.handle)
         }
+        reconcileTasks(on: mounted, new: newData.taskBindings)
         diffAttributes(handle: mounted.handle, old: oldData.attributes, new: newData.attributes, into: &patches)
         diffProperties(handle: mounted.handle, old: oldData.properties, new: newData.properties, into: &patches)
         diffStyle(handle: mounted.handle, old: oldData.style, new: newData.style, into: &patches)
@@ -646,6 +648,10 @@ package func destroy(
         MountedInstances.unregister(any.instance)
         #endif
     }
+
+    // Cancel any `.task` effects on this node before tearing it down so late
+    // writes from in-flight tasks are dropped (dead-slot guard).
+    cancelTasks(on: node)
 
     // Symmetric with mount: clear every Ref binding so post-unmount
     // `wrappedValue` reads return nil. Done BEFORE recursing into
