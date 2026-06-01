@@ -25,8 +25,9 @@ Then open <http://localhost:3000>.
 ## What you should see
 
 - A heading: **Async fetch demo**
-- A paragraph: **Status: idle** on first load, then immediately **Status: loading…**
-  as the `.task` fires for `userID = 1`, then after ~400 ms: **Status: loaded user #1**.
-- A button: **Load user 1** (then 2, 3, …) — each click increments `userID`,
-  cancels the previous task, and re-runs the effect: status goes `loading…` then
-  `loaded user #N`.
+- A paragraph that starts at **Status: idle** for one frame, flips to
+  **Status: loading…** as the `.task` fires for `userID = 1`, then after ~400 ms
+  shows **Status: loaded user #1**.
+- A button: **Load next user** — each click increments `userID` (the `.task`'s
+  `rerunOn:` dependency), which cancels the in-flight task and re-runs the effect:
+  status goes `loading…` then `loaded user #N`.
