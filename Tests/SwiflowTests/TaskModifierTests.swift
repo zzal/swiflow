@@ -34,8 +34,8 @@ struct TaskModifierTests {
         let bs = bindings(of: node)
         #expect(bs.count == 1)
         #expect(bs[0].dependency != nil)
-        #expect(bs[0].dependency!.equals(AnyEquatableBox(7)))
-        #expect(bs[0].dependency!.equals(AnyEquatableBox(8)) == false)
+        #expect(bs[0].dependency?.equals(AnyEquatableBox(7)) == true)
+        #expect(bs[0].dependency?.equals(AnyEquatableBox(8)) == false)
     }
 
     @Test func multipleTasksStackInOrder() {

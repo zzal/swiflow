@@ -6,8 +6,10 @@
 
 public extension VNode {
     /// Run an async effect once when this node mounts; cancel it when the node
-    /// unmounts. Never restarts. Declared in `body` but run later by the
-    /// runtime on the main actor — `body` itself stays pure.
+    /// unmounts. Never restarts. The component's `body` stays synchronous and
+    /// side-effect-free — this closure is *declared* there but run later, on
+    /// the main actor, outside the render cycle; it is where the async work
+    /// (and any `@State` mutation) happens.
     func task(_ body: @escaping TaskBody) -> VNode {
         appendTask(TaskBinding(dependency: nil, body: body))
     }
@@ -26,7 +28,7 @@ public extension VNode {
             data.taskBindings.append(binding)
             return .element(data)
         }
-        swiflowDiagnostic("`.task` applied to a non-element VNode. Tasks attach to an element — e.g. `div { … }.task { … }`. The modifier is ignored.")
+        swiflowDiagnostic("Postfix `.task` applied to a non-element VNode — this is a programmer error. Tasks attach to an element (e.g. `div { … }.task { … }`). The modifier is silently ignored.")
         return self
     }
 }
