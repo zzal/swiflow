@@ -1,9 +1,19 @@
 # Swiflow Query Core — Design Spec
 
 **Date:** 2026-06-01
-**Status:** Approved (brainstorm complete) — ready for implementation plan
-**Foundation:** Builds directly on Phase 20 async `.task` effects
+**Status:** Approved (brainstorm complete; hardened by swift-innovator-expert review) — ready for implementation plan
+**Foundation:** Builds on Phase 20 async `.task` effects
 (`docs/superpowers/specs/2026-06-01-phase20-async-tasks-design.md`).
+
+> **Revision 2** folds in a stern design review. Material changes from the
+> first draft: typed `QueryKeyComponent` enum (was `[AnyHashable]`); owner read
+> off `self` via a `package` accessor (was a new ambient current-component);
+> an explicit refetch **trigger model** so `.zero` staleTime does not storm;
+> per-render subscription **reconciliation** (was subscribe-until-unmount with a
+> lingering leak); a per-entry generation guard with pinned capture/compare
+> points; a monotonic `Duration` clock; `QueryState` is no longer `Equatable`.
+> The spec no longer claims `query()` reuses `.task`'s mechanism — it is a
+> distinct component-level mechanism, argued on its own merits.
 
 ---
 
@@ -21,14 +31,14 @@ let user = query(UserByID(id: userID, api: api))   // QueryState<User>
 This is **sub-project #1 of three**. Mutations and the background/lifecycle
 layer are separate, later specs (see §12).
 
-### What the Phase 20 foundation already provides
+### What the Phase 20 foundation provides
 
 `.task(rerunOn:)` already solves the hardest *per-component* problems —
-lifecycle-bound async, cancellation, and stale-write dropping. Query Core adds
-the parts that live **above** a single component: a shared cache, request
-deduplication, stale-while-revalidate, and cross-component invalidation. The
-architectural seam is `scheduler.markDirty(owner)` — the same re-render hook
-`@State` uses.
+lifecycle-bound async, cancellation, and stale-write dropping, re-running only
+on key change. Query Core adds the parts that live **above** a single
+component: a shared cache, request deduplication, stale-while-revalidate, and
+cross-component invalidation. The re-render seam is `scheduler.markDirty(owner)`
+— the same hook `@State` uses.
 
 ### In scope
 
@@ -37,55 +47,82 @@ architectural seam is `scheduler.markDirty(owner)` — the same re-render hook
 - A shared `QueryClient` cache with per-key subscription → re-render.
 - Request **deduplication** (concurrent identical keys share one in-flight
   fetch).
-- **Stale-while-revalidate** with a single `staleTime` timer (default `.zero`).
+- **Stale-while-revalidate** with a single `staleTime` timer (default `.zero`)
+  and an explicit refetch **trigger model** (§5).
 - **Invalidation**: hierarchical key-prefix cascade **plus** cross-cutting
   tags. Both stateless functions of the current cache contents.
 - `query(_:)` consumption as a `Component` method returning `QueryState<Value>`.
-- Environment-injected client + injected clock for deterministic testing.
+- Environment-injected client + injected monotonic clock for deterministic
+  testing.
 
 ### Out of scope (explicitly deferred)
 
 - Mutations, optimistic updates, auto-invalidation-on-mutation.
 - Background refetch (window-focus, reconnect, polling interval).
-- Garbage collection / eviction of unused entries; persistence
-  (localStorage/IndexedDB).
+- Garbage collection / eviction of unused entries; persistence.
 - `select` (cached-value → derived-return-value transform).
 - Automatic retry/backoff on failed fetches.
-- Object **subset** matching inside a key component (object key components are
-  matched by full equality; see §6).
+- Object/struct key components and object **subset** matching (v1 keys are
+  string/int paths; see §3.1, §6).
 
 ---
 
 ## 2. Module & dependencies
 
 A new module **`SwiflowQuery`**, a peer to `SwiflowRouter`, depending on the
-`Swiflow` core module. Components import `SwiflowQuery` (or it is re-exported
-from `SwiflowWeb`, decided in the plan) to get the `query(_:)` method and the
-query types.
-
-`Package.swift` gains a `SwiflowQuery` target and a corresponding test target
-`SwiflowQueryTests`. Cross-module access to core internals uses `package`
-visibility (the established pattern — `SwiflowQuery` is in the same Swift
-package, so `package` declarations in `Swiflow` are visible to it).
+`Swiflow` core module. `Package.swift` gains a `SwiflowQuery` target and a
+`SwiflowQueryTests` test target. Cross-module access to core internals uses
+`package` visibility (the established pattern — `SwiflowQuery` is in the same
+Swift package, so `package` declarations in `Swiflow` are visible to it).
 
 ---
 
 ## 3. Core types
 
-### 3.1 `Query`
-
-The key **is** the query: one value carries identity, data type, and how to
-fetch.
+### 3.1 `QueryKey` — a typed hierarchical path
 
 ```swift
-public typealias QueryKey = [AnyHashable]   // hierarchical path; ["users"] is the 1-element case
-public typealias QueryTag = String
+public enum QueryKeyComponent: Hashable, Sendable {
+    case string(String)
+    case int(Int)
+}
+extension QueryKeyComponent: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) { self = .string(value) }
+}
+extension QueryKeyComponent: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) { self = .int(value) }
+}
 
-public protocol Query: Sendable {
+public typealias QueryKey = [QueryKeyComponent]
+public typealias QueryTag = String
+```
+
+A closed, `Sendable`, `Hashable` enum rather than `[AnyHashable]`. This fixes
+three problems `[AnyHashable]` carries: it is a **Sendable hole** (`AnyHashable`
+is not `Sendable`); it is a **type-confusion footgun** (`1` `Int` vs `Int64`
+vs `"1"` silently fail to match); and it is **opaque in a debugger**. The enum
+keeps the cascade (it is still an ordered, prefix-matchable, `Hashable` array
+usable directly as a dictionary key) and stays ergonomic via literal
+conformances:
+
+```swift
+let k: QueryKey = ["users", 1]        // literals: string + int
+var queryKey: QueryKey { ["users", .int(id)] }   // a variable Int needs `.int(id)`
+```
+
+Non-`String`/`Int` identity (bools, enums, structs) is encoded into a `.string`
+or `.int` component by the query (`["sort", .string(order.rawValue)]`).
+Arbitrary struct ("object") components and object-subset matching are deferred
+(§6, §12).
+
+### 3.2 `Query` — the key *is* the query
+
+```swift
+public protocol Query {
     associatedtype Value: Equatable & Sendable
 
     /// Hierarchical identity. Determines cache slot and prefix-cascade matching.
-    /// Excludes captured dependencies (see §3.4).
+    /// Excludes captured dependencies (§3.5).
     var queryKey: QueryKey { get }
 
     /// Cross-cutting invalidation families. Stateless — computed by the query
@@ -93,12 +130,14 @@ public protocol Query: Sendable {
     var tags: Set<QueryTag> { get }
 
     /// Freshness window measured from the last successful fetch. Defaults to
-    /// `.zero` (always background-revalidate on access).
+    /// `.zero` (a *trigger* always revalidates; see §5 — this does NOT mean
+    /// every render refetches).
     var staleTime: Duration { get }
 
-    /// Fetch the value. Cancellation is cooperative via the surrounding Task
-    /// (no explicit signal parameter — `URLSession` et al. honor Task
-    /// cancellation natively). Captured deps are stored properties (§3.4).
+    /// Fetch the value. Run by the client inside a `@MainActor` Task, so
+    /// captured deps and `Value` never cross an isolation boundary (the WASM
+    /// runtime is single-threaded anyway). Cancellation is cooperative via the
+    /// surrounding Task — no explicit signal parameter.
     func fetch() async throws -> Value
 }
 
@@ -108,24 +147,26 @@ public extension Query {
 }
 ```
 
-`QueryKey = [AnyHashable]` is the Swift-native form of TanStack's `unknown[]`:
-strings, ints, and any `Hashable` struct ("object" components) all drop in, and
-the whole array is `Hashable`, so it is the cache map's key directly. A bare
-`"users"` is simply `["users"]`.
+`Query` is intentionally **not** `Sendable`: it may capture a non-`Sendable`
+dependency (e.g. a class-based API client). Because the client both stores and
+invokes the query on the `@MainActor`, nothing is sent across actors, so
+`Sendable` would be a needless constraint on app dependencies. Only `Value` is
+`Sendable` (it may return across the `await` in `fetch`).
 
-### 3.2 `QueryState<Value>`
+### 3.3 `QueryState<Value>` — what the component sees
 
-What the component sees. A **struct**, not an enum, because stale-while-
-revalidate has two orthogonal axes an enum cannot hold simultaneously — *do we
-have data* and *is a fetch in flight right now*:
+A **struct**, not an enum, because stale-while-revalidate has two orthogonal
+axes an enum cannot hold simultaneously — *do we have data* and *is a fetch in
+flight right now*:
 
 ```swift
-public struct QueryState<Value: Equatable>: Equatable {
+public struct QueryState<Value> {
     /// Last successful value. RETAINED across refetch — this is what makes SWR
     /// work (show old data while revalidating).
     public var data: Value?
 
-    /// Last fetch error, if the most recent fetch failed.
+    /// Last fetch error, if the most recent fetch failed. Read-only data the
+    /// component may display.
     public var error: (any Error)?
 
     /// True iff there is no data yet AND a fetch is in flight (first load).
@@ -136,22 +177,28 @@ public struct QueryState<Value: Equatable>: Equatable {
     public var isFetching: Bool
 
     public var isSuccess: Bool { data != nil }
-
-    // Equality is hand-written: compares `data`, `isLoading`, `isFetching`,
-    // and the *presence + localizedDescription* of `error`. The raw `any Error`
-    // is excluded from `==` (it is not Equatable) — the same technique
-    // `ElementData ==` uses to skip non-Equatable fields.
-    public static func == (lhs: Self, rhs: Self) -> Bool { /* see plan */ }
 }
 ```
 
-### 3.3 `QueryClient` and `QueryClock`
+`QueryState` is **not** `Equatable` — it is never on the re-render path
+(`query()` returns a fresh value each render; re-render is driven by the client
+calling `markDirty`, not by comparing `QueryState`s). Dropping the conformance
+removes both the need to compare `data` (handled elsewhere; see below) and the
+problem of comparing a non-`Equatable` `any Error`.
+
+The **change-detection** that matters lives in the client: when a fetch
+resolves, the client compares the new `Value` against the entry's old `Value`
+using the `Equatable` witness from `Query.Value: Equatable`, and only calls
+`markDirty` if it actually changed — so an identical background revalidation
+causes no re-render.
+
+### 3.4 `QueryClient` and the clock
 
 ```swift
 public protocol QueryClock: Sendable {
-    /// Current time in seconds since an arbitrary fixed epoch. Monotonic
-    /// enough for freshness comparison.
-    func now() -> Double
+    /// Monotonic time elapsed since an arbitrary fixed origin. Monotonic so a
+    /// wall-clock adjustment can never make a fresh entry look stale.
+    func now() -> Duration
 }
 
 @MainActor
@@ -164,41 +211,47 @@ public final class QueryClient {
     /// mount.
     public func invalidate(_ key: QueryKey, exact: Bool = false)
 
-    /// Cross-cutting cascade. Same effect, matching entries whose `tags`
-    /// contain `tag`.
+    /// Cross-cutting cascade — matching entries whose `tags` contain `tag`.
     public func invalidate(tag: QueryTag)
 
-    // Internal state (detailed in the plan):
-    //   entries[QueryKey]      -> Entry  (value, error, lastFetched, inFlight Task, generation, last-seen Query value, tags)
-    //   subscribers[QueryKey]  -> set of weak (owner: AnyComponent, scheduler: Scheduler)
+    // Internal (detailed in the plan):
+    //   entries[QueryKey] -> Entry { value, error, lastFetched: Duration,
+    //                                inFlight: Task?, generation: Int,
+    //                                lastQuery: any Query, tags, equals: (Any,Any)->Bool }
+    //   subscribers[QueryKey] -> set of weak (owner: AnyComponent, scheduler: Scheduler)
+    //   observed[ObjectIdentifier(owner)] -> Set<QueryKey>   // for per-render reconciliation
 }
 ```
 
-`SystemQueryClock` reads JS time in the browser (`Date.now() / 1000`) and a
-host clock under host-Swift tests. Tests inject a manual clock (§9).
+`SystemQueryClock` uses **`performance.now()`** in the browser (monotonic,
+millisecond resolution, immune to wall-clock jumps), converted to `Duration`,
+and a monotonic host clock under host-Swift tests. Tests inject a `ManualClock`
+they advance explicitly (§10). Freshness is `now() - entry.lastFetched`
+compared against `staleTime`, all `Duration` arithmetic; `.zero` makes the
+comparison always-stale (but see §5 — staleness only matters at a *trigger*).
 
-### 3.4 Dependencies as non-identity key properties
+### 3.5 Dependencies as non-identity key properties
 
-`fetch()` runs *after* render commit (like `.task`), so it cannot read
-`@Environment`. Dependencies are therefore ordinary **stored properties on the
-key, excluded from `queryKey`**, injected at the component boundary and
-defaulted for clean app call sites:
+`fetch()` runs *after* render commit, so it cannot read `@Environment`
+(`AmbientEnvironment.current` is set only during `body`). Dependencies are
+therefore ordinary **stored properties on the key, excluded from `queryKey`**,
+injected at the component boundary and defaulted for clean app call sites:
 
 ```swift
 struct UserByID: Query {
     let id: Int
     let api: API                                  // dependency — NOT in queryKey
-    var queryKey: QueryKey { ["users", id] }      // identity excludes `api`
+    var queryKey: QueryKey { ["users", .int(id)] }
     func fetch() async throws -> User { try await api.get("/users/\(id)") }
 
     init(id: Int, api: API = .live) { self.id = id; self.api = api }
 }
 ```
 
-A key is thus three things: **identity** (`queryKey`), **behavior** (`fetch`),
-and **captured deps** (stored properties excluded from identity). Caching and
-dedup key off `queryKey` only, so a real vs fake `api` never changes the cache
-slot. Tests inject a fake `api` at the component's `init` — the Phase 20
+A key is three things: **identity** (`queryKey`), **behavior** (`fetch`), and
+**captured deps** (stored properties excluded from identity). Caching and dedup
+key off `queryKey` only, so a real vs fake `api` never changes the cache slot.
+Tests inject a fake `api` at the component's `init` — the Phase 20
 `fetch:`-injection pattern, one level out.
 
 **Contract (same as TanStack):** equal `queryKey`s must denote equivalent
@@ -235,120 +288,169 @@ final class Profile {
 }
 ```
 
+`query()` reads the owner+scheduler off `self` (§7.1), reads the injected
+client from `@Environment(\.queryClient)` (valid because it is called during
+`body`), returns the current cached snapshot, and records that this component
+observed this key this render (§7.2). It performs **no** fetch or subscription
+mutation during `body`; those happen at post-commit reconciliation.
+
 **Why a method, not a `@Query` property wrapper:** dynamic keys come for free
-(the key is computed inline from live `@State` — exactly where SwiftData's
-`@Query` macro gets awkward); subscriptions key off the query key, not call
-order, so there is no React-style "rules of hooks" ordering constraint; and it
-reuses the component's existing runtime wiring rather than adding a new macro.
+(the key is computed inline from live `@State` — where SwiftData's `@Query`
+macro gets awkward); subscriptions key off the query key, not call order, so
+there is no React-style "rules of hooks" ordering constraint; and it needs no
+new macro.
 
 ---
 
-## 5. Data flow & freshness
+## 5. Data flow, freshness & the refetch trigger model
 
-On each `query(key)` call during `body`:
+### Reading (during `body`, pure)
 
-1. The client returns the **current snapshot** synchronously (a pure read).
-2. **No entry** → snapshot is `isLoading = true`; a fetch is scheduled.
-3. **Fresh entry** (`now − lastFetched < staleTime`) → snapshot carries `data`;
-   no network.
-4. **Stale entry** (default, since `staleTime == .zero` ⇒ always stale) →
-   snapshot carries the existing `data` with `isFetching = true`; a background
-   fetch is scheduled (**stale-while-revalidate**).
+`query(key)` returns the current snapshot synchronously:
 
-**Deduplication:** at most one in-flight `Task` per key. A second request for a
-key already fetching attaches to the existing `Task` rather than starting a new
-one.
+- **Absent** → `isLoading = true`, no `data`.
+- **Present** → carries `data`; `isFetching = true` iff a fetch is currently in
+  flight for that key.
 
-When a scheduled fetch resolves, the client writes the result into the entry
-and calls `scheduler.markDirty(owner)` for each live subscriber → normal
+It also records `(owner, key)` in this render's observation set. No side effects.
+
+### Refetch triggers (at post-commit reconciliation — NOT every render)
+
+A re-render is **not** a refetch trigger. This is the crucial correction that
+keeps `.zero` staleTime from storming: `query()` runs on every `body` eval, but
+a fetch is started only on an actual trigger, each gated by staleness:
+
+1. **A component observes a key it was not observing in the previous render** —
+   i.e. mount, or the key changed (the `[old keys] → [new keys]` set diff from
+   §7.2). Gated by staleness: a *fresh* present entry serves without network; an
+   *absent* or *stale* entry fetches (stale → SWR: serve old `data` +
+   `isFetching`, fetch in background).
+2. **`invalidate(...)`** — forces matching entries stale and refetches the
+   currently-mounted subscribers now.
+
+A component re-observing the **same** key across consecutive renders is **not** a
+trigger and never fetches, even though `.zero` marks it stale. `staleTime` only
+decides whether a *triggered* observation revalidates (fresh) or serves cached
+data (stale → revalidate). With `.zero`, every trigger revalidates; plain
+re-renders still do not. This mirrors TanStack's real semantics (triggers =
+mount, key-change, invalidate, focus/reconnect) and the `.task(rerunOn:)`
+foundation (re-run on key change only).
+
+### Deduplication
+
+At most one in-flight `Task` per key. A trigger for a key already fetching
+attaches to the existing `Task` instead of starting another.
+
+### Completion
+
+When a fetch resolves, the client passes the generation guard (§7.4), writes
+the result into the entry, and — only if the new `Value` differs from the old
+(§3.3) — calls `scheduler.markDirty(owner)` for each live subscriber → normal
 re-render → `body` re-reads the fresh snapshot.
-
-`staleTime` is `Duration`; freshness compares `clock.now()` (seconds) against
-the entry's `lastFetched`, converting `Duration` to seconds. `.zero` makes
-every access stale ⇒ background revalidation on every mount/key-change, with
-instant cached paint via SWR and at most one fetch via dedup.
 
 ---
 
 ## 6. Invalidation
 
 ```swift
-client.invalidate(["users"])              // cascade → UserByID(any), UserPosts(any), …
-client.invalidate(["users", 1])           // → UserByID(1), UserPosts(userID: 1)
-client.invalidate(["users", 1], exact: true)  // → ONLY UserByID(1)
-client.invalidate(tag: "team:3")          // cross-cutting family
+client.invalidate(["users"])                    // cascade → UserByID(any), UserPosts(any), …
+client.invalidate(["users", 1])                 // → UserByID(1), UserPosts(userID: 1)
+client.invalidate(["users", 1], exact: true)    // → ONLY UserByID(1)
+client.invalidate(tag: "team:3")                // cross-cutting family
 ```
 
 **Prefix match (positional cascade):** an entry matches `invalidate(prefix)` iff
 its key starts with `prefix` — `Array(entryKey.prefix(prefix.count)) == prefix`.
-`exact: true` requires full equality.
+`exact: true` requires full equality. (Trivial and total over the typed
+components.)
 
 **Tag match (cross-cutting cascade):** an entry matches `invalidate(tag:)` iff
 its `tags` set contains `tag`. Tags are computed by each query about itself
 (stateless, like the key) — capturing relational families (e.g. every `user`
 on `team 3`) without a maintained parent-child edge graph.
 
-**Effect of a match:** the entry is forced stale; currently-mounted subscribers
-refetch immediately (background fetch + `markDirty`); unmounted matches refetch
-on next mount. Both matchers are pure functions of the present cache contents —
-they never reach entries the client does not currently hold.
+**Effect of a match:** force the entry stale; currently-mounted subscribers
+refetch immediately (background fetch + change-gated `markDirty`); unmounted
+matches refetch on next mount. Both matchers are pure functions of the present
+cache contents — they never reach entries the client does not currently hold.
 
-**Object components matched by equality (v1):** a `Hashable` struct used as a
-key component (e.g. a `Filter`) matches by full equality, not subset. TanStack's
-object-subset matching (`{a:1}` ⊆ `{a:1,b:2}`) is deferred; in practice the
-hierarchy lives in the array levels, which prefix-matching fully covers.
+Object/struct key components and TanStack's object-subset matching are deferred
+(v1 components are `.string`/`.int`, matched by equality; the hierarchy lives in
+the array levels, which prefix-matching fully covers).
 
 ---
 
 ## 7. Lifecycle & re-render wiring
 
-This section defines the contract with the `Swiflow` core. Three small core
-changes are required (§11).
+This section defines the contract with the `Swiflow` core. The required core
+changes are in §11.
 
-### 7.1 Ambient current component
+### 7.1 Owner identity from `self`
 
-The diff sets an **ambient current `(component, scheduler)`** around each
-component's `body` evaluation — the same shape as `AmbientEnvironment.current`
-and `TaskScope.currentScope`, at `package` visibility. `query()` reads this to
-learn whom to subscribe and whom to `markDirty`.
+`query()` is a `Component` extension method, so inside `body` `self` *is* the
+component. It reads that component's owner + scheduler — which every component
+already receives via `bind(owner:scheduler:)` on the `public _ComponentRuntime`
+protocol — through a small `package` accessor (§11). **No ambient
+current-component is introduced.** This is robust and avoids a real bug an
+ambient would create: the diff already saves/restores `AmbientEnvironment.current`
+around `embed { Child() }`, so an ambient *component* set the same way could
+leave a parent's later `query()` calls attributing to the child. Reading off
+`self` sidesteps this entirely.
 
-### 7.2 Collect-during-body, act-after-commit
+### 7.2 Collect-during-body, reconcile-at-commit (a distinct mechanism)
 
-`query()` during `body` performs only a pure read of the current snapshot and
-**records interest** (the key + the ambient owner/scheduler) into a per-render
-scratch list. After the render commits, a post-commit hook hands the collected
-interests to the client, which then **subscribes** the owner and **schedules any
-needed fetch**. This is the same discipline `.task` uses (collect closures
-during body, spawn after commit), keeping `body` side-effect-free.
+This is **not** how `.task` works — `.task` closures are attached to element
+`VNode`s and slot-reconciled by the diff (`DiffTasks.swift`). Queries are a
+*component-level* concern, so they use a different mechanism:
 
-### 7.3 Subscribe-on-use, unsubscribe-on-unmount
+- During `body`, each `query(key)` call appends `key` to a per-render
+  observation set for the current component (a pure read otherwise).
+- After the render commits, a post-commit hook hands that set to the client,
+  which **reconciles** it against the component's previous observation set:
+  - **new keys** (observed now, not before) → subscribe + apply the §5 trigger
+    (fetch if absent/stale);
+  - **dropped keys** (observed before, not now) → unsubscribe;
+  - **retained keys** → no-op (no trigger).
 
-A component is subscribed to a key the first time it `query()`s it; it is
-unsubscribed when it unmounts (the diff's destroy path notifies the client).
+This single per-render diff drives both the trigger model (§5) and subscription
+cleanup (§7.3) — one mechanism, no leak.
 
-When a component's key changes (e.g. `userID` 1→2), the old key's subscription
-**lingers harmlessly** until unmount — benign over-subscription (at most a
-spurious re-render if the old key is later invalidated, which `body`'s re-read
-absorbs). This avoids per-render subscription reconciliation entirely; the
-deferred GC layer will sweep lingering subscriptions/entries.
+### 7.3 No lingering subscriptions
 
-### 7.4 Cache-level generation guard (stale-result dropping)
+Because §7.2 unsubscribes dropped keys every render, a component that cycles
+through keys (`userID` 1→2→…→N) holds only its *current* subscriptions — not an
+unbounded, never-swept accumulation. (The earlier "benign lingering
+subscription" idea was a real leak given GC is deferred; per-render
+reconciliation replaces it.) On unmount, the diff's destroy path notifies the
+client to drop the component's remaining subscriptions and observation record
+(§11).
 
-Each scheduled fetch carries a monotonically-increasing **generation** stamped
-on its entry. When a fetch resolves, the client commits its result only if the
-entry's live generation still matches; a fetch superseded by a newer fetch or
-by an invalidation is dropped before it can touch the entry. Cancellation is
-cooperative: the client cancels the in-flight `Task`, and `fetch()`'s `await`s
-unwind. This is the cache-level echo of Phase 20's `@State` write-guard —
-correctness in the bedrock, not at the call site. `fetch()` therefore needs no
-`isCancelled` ceremony and no `signal` parameter.
+### 7.4 Per-entry generation guard (stale-result dropping)
+
+Each cache `Entry` holds a monotonically-increasing `generation`. A fetch
+**captures** the entry's generation when it is spawned. When it resolves — back
+on the `@MainActor`, *after* the `await` returns and *before* committing — it
+**compares** the captured generation against the entry's current one and commits
+only if they match. A supersede (a newer trigger) or an `invalidate` bumps the
+generation, so a stale or cancelled fetch's result is dropped before it can
+touch the entry. Cancellation is additionally cooperative: the client cancels
+the in-flight `Task`, unwinding `fetch()`'s `await`s.
+
+This is a **separate, per-entry counter owned by the client** — *not* a reuse of
+`SwiflowTaskRuntime.liveGenerations`, which is keyed by `.task` `slotID` and
+belongs to a different concern. It is the same *idea* as Phase 20's write-guard
+(drop superseded work in the bedrock, not at the call site), implemented where
+it belongs. There is no data race (all on `@MainActor`); the guard closes the
+*logical* race at the `await` suspension point.
 
 ### 7.5 Concurrency
 
-`QueryClient`, components, scheduler, and diff are all `@MainActor`, matching
-the rest of the runtime. The fetch `Task` is `@MainActor` (as Phase 20's
-`TaskBody` is); `await`ed network work suspends off the main actor and results
-are applied on it. `Value: Sendable` covers the suspension boundary.
+`QueryClient`, components, scheduler, and diff are all `@MainActor`. The client
+spawns each fetch as a `@MainActor` `Task` capturing the (non-`Sendable`) query
+value from `@MainActor` context — no actor crossing, so deps need not be
+`Sendable`. The `await`ed network work suspends (the WASM runtime is
+single-threaded; suspension does not block); `Value: Sendable` covers the value
+returning across the suspension.
 
 ---
 
@@ -358,71 +460,69 @@ are applied on it. `Value: Sendable` covers the suspension boundary.
 
 The client is read via `@Environment(\.queryClient)`. A default `QueryClient`
 is created at the render root if none is injected; tests inject their own client
-(with a manual clock). No global singleton — the Phase 20 isolation lesson
+(with a `ManualClock`). No global singleton — the Phase 20 isolation lesson
 (per-root scope, nothing process-global to pollute across tests/roots).
-
-Because `query()` is called during `body`, `AmbientEnvironment.current` is set,
-so reading `\.queryClient` there is valid.
 
 ### 8.2 Manual refetch
 
-There is no `refetch` closure on `QueryState` (that would break its clean
-`Equatable`). To refresh imperatively (e.g. a "Refresh" button), the component
-**captures the client during `body`** (the standard "capture during body"
-pattern, since event handlers run outside the render cycle) and calls
-`client.invalidate(key)` from the handler. `invalidate` forces the entry stale
-and refetches the mounted observer.
+There is no `refetch` closure on `QueryState`. To refresh imperatively (e.g. a
+"Refresh" button), the component **captures the client during `body`** (the
+standard "capture during body" pattern, since event handlers run outside the
+render cycle) and calls `client.invalidate(key)` from the handler.
 
 ---
 
 ## 9. Error handling
 
-A failed `fetch()` sets `QueryState.error` (and leaves any prior `data` in
-place — a failed revalidation does not erase good data). There is **no automatic
-retry in v1**; the app retries via `invalidate`/refetch. Retry/backoff belongs
-with the background/resilience layer.
-
-`error` is `(any Error)?`; `QueryState`'s hand-written `==` compares error
-presence and `localizedDescription`, not error identity.
+A failed `fetch()` sets `QueryState.error` and **leaves any prior `data` in
+place** (a failed revalidation does not erase good data). There is **no
+automatic retry in v1**; the app retries via `invalidate`/refetch. Retry/backoff
+belongs with the background/resilience layer (§12). `error` is `(any Error)?`,
+surfaced as read-only data for the component to display.
 
 ---
 
 ## 10. Testing strategy
 
-- **Cache + freshness:** construct a `QueryClient(clock: ManualClock())`,
-  advance the clock to cross `staleTime` boundaries deterministically — no
+- **Cache + freshness:** construct `QueryClient(clock: ManualClock())` and
+  advance the clock across `staleTime` boundaries deterministically — no
   sleeping.
-- **Component integration:** `AsyncTestHarness` (from Phase 20) with an injected
+- **Component integration:** `AsyncTestHarness` (Phase 20) with an injected
   `QueryClient`. `settle()` drives in-flight fetches and flushes re-renders to a
-  fixed point. Inject fake fetch behavior via the component's defaulted dep
-  (`Profile(userID: 1, api: FakeAPI())`).
-- **Dedup:** assert that N concurrent `query()` calls for one key produce one
-  `fetch()` invocation (a counting fake).
-- **Invalidation:** assert prefix cascade, `exact` narrowing, and tag matching
-  each refetch the right mounted observers and leave non-matches untouched.
+  fixed point; its `maxRounds` cap turns a pathological unstable-key loop (§13
+  S5) into a clear test failure rather than a hang. Inject fake fetch behavior
+  via the component's defaulted dep (`Profile(userID: 1, api: FakeAPI())`).
+- **Trigger model:** assert that a plain re-render (same key) does **not**
+  refetch, while a key change and an `invalidate` **do**.
+- **Dedup:** N concurrent observations of one key produce one `fetch()` (a
+  counting fake).
+- **Invalidation:** prefix cascade, `exact` narrowing, and tag matching each
+  refetch the right mounted observers and leave non-matches untouched.
 - **Generation guard:** a superseded slow fetch must not clobber a newer fast
-  fetch's result (the cache-level analogue of Phase 20's superseded-write test).
+  fetch's result.
+- **Reconciliation:** a component that changes its key unsubscribes from the old
+  key (asserted via subscriber count / no refetch on old-key invalidation).
 
-A `ManualClock` test double lives in the query test support (or `SwiflowTesting`,
-decided in the plan).
+`ManualClock` lives in the query test support (or `SwiflowTesting` — decided in
+the plan).
 
 ---
 
 ## 11. Required core changes (`Swiflow`)
 
-Small, surgical, all consistent with existing ambient/lifecycle patterns:
+1. **`package` accessor for the runtime handles on `_ComponentRuntime`** — the
+   macro already emits `private runtimeOwner`/`runtimeScheduler` and a `public
+   bind(...)`; add a `package` getter (e.g. `var _runtimeHandles: (AnyComponent,
+   Scheduler)?`) emitted by the macro and declared on the protocol, so
+   `query()` can read the owner off `self`. *No diff change.*
+2. **Post-commit reconciliation hook in the render path** (`Renderer.renderOnce`
+   and `TestRenderer`) — after each component's render commits, hand its
+   per-render observation set to the client for reconciliation (§7.2).
+3. **Destroy-path unsubscribe notification** — when a component's node unmounts,
+   the diff's destroy path notifies the client to drop its subscriptions and
+   observation record.
 
-1. **Ambient current `(component, scheduler)`** set by the diff around each
-   `body` eval, at `package` visibility (mirrors `AmbientEnvironment.current` /
-   `TaskScope.currentScope`).
-2. **Post-commit interest-flush hook** in the render path (`Renderer.renderOnce`
-   and `TestRenderer`), so collected `query()` interests are handed to the
-   client after the diff commits.
-3. **Destroy-path unsubscribe notification**, so the client drops a component's
-   subscriptions when its node unmounts.
-
-These mirror exactly how Phase 20 wired `TaskScope` (currentScope around the
-diff; cancel on destroy), so the integration surface is well-trodden.
+(The first draft's "ambient current-component" core change is removed — §7.1.)
 
 ---
 
@@ -431,11 +531,10 @@ diff; cancel on destroy), so the integration surface is well-trodden.
 - **#2 Mutations** — a `Mutation` analogue, optimistic updates with rollback,
   auto-invalidation of affected query keys/tags on success.
 - **#3 Background & lifecycle** — refetch on window-focus / reconnect /
-  polling interval; GC of unused entries (which also sweeps lingering
-  subscriptions from §7.3); optional persistence.
+  polling interval; GC of unused entries; optional persistence.
 - **Refinements** — `select` (with subscriber-level change-detection for the
-  expensive-`body` case); object-subset key matching; auto-retry/backoff;
-  variadic `query()` dependency composition.
+  expensive-`body` case); object/struct key components + object-subset matching;
+  auto-retry/backoff; variadic `query()` dependency composition.
 
 ---
 
@@ -446,21 +545,37 @@ diff; cancel on destroy), so the integration surface is well-trodden.
   client can refetch/dedup/invalidate any key it holds. Deps-as-non-identity
   props preserve testability without splitting the definition across a
   registration step.
-- **`[AnyHashable]` hierarchical key + prefix cascade + tags** (over an opaque
-  Hashable struct identity, and over a relational parent-child edge graph): the
-  prefix cascade gives TanStack's headline ergonomic; tags give relational
+- **Typed `QueryKeyComponent` enum** (over `[AnyHashable]`): `Sendable`,
+  type-safe (`Int` vs `Int64` vs `String` can't silently miss), debuggable, and
+  still prefix-cascadable, with literal ergonomics. Arbitrary-struct components
+  deferred — and they were the only thing `[AnyHashable]` bought.
+- **`[component]` prefix cascade + tags** (over a relational parent-child edge
+  graph): the cascade gives TanStack's headline ergonomic; tags give relational
   ("everything on team 3") cascade *statelessly*. A maintained edge graph was
   rejected — a query cache holds only a transient, partial working set, so a
   graph pays cycle-detection + edge-lifecycle costs to reach exactly the same
   "currently-known entries" a stateless matcher already reaches.
-- **`staleTime` default `.zero`** (over a non-zero default): correct-by-default
-  freshness; SWR + dedup keep the cost to one background fetch with instant
-  cached paint.
-- **Shape B `query()` method returning a struct** (over a `@Query` property
-  wrapper, over a `.query()`-into-`@State` modifier): free dynamic keys, no
-  rules-of-hooks ordering, no new macro, and the struct carries SWR's two axes
-  an enum cannot.
+- **`staleTime` default `.zero` + an explicit trigger model** (over treating
+  every render as a refetch): correct-by-default freshness *without* a refetch
+  storm — triggers are mount/key-change/invalidate, gated by staleness; plain
+  re-renders never fetch.
+- **Owner from `self`** (over an ambient current-component): robust, no
+  wrong-owner bug near `embed{}`, and no diff change — every component already
+  holds its owner via `bind(...)`.
+- **Per-render subscription reconciliation** (over subscribe-until-unmount):
+  with GC deferred, the lingering-subscription approach was an unbounded leak;
+  the per-render set-diff also *is* the trigger mechanism, so it costs little.
+- **Per-entry generation guard owned by the client** (over reusing
+  `SwiflowTaskRuntime.liveGenerations`): the task registry is slot-keyed and
+  belongs to `.task`; the cache needs its own per-entry counter, with capture at
+  spawn and compare-before-commit pinned.
+- **Shape B `query()` method returning a non-`Equatable` struct** (over a
+  `@Query` property wrapper; over an `Equatable` struct): free dynamic keys, no
+  rules-of-hooks ordering, no new macro; `QueryState` is never on the re-render
+  path so it needs no `Equatable` (which also dodges comparing `any Error`).
+  Change-detection lives in the client via `Value: Equatable`.
 - **`select` deferred**: in Shape B you transform inline, and Swiflow's VNode
   diff already absorbs the no-op re-renders React needs `select` to prevent. The
   only genuine win (skipping an expensive `body`) needs subscriber-memoization
   machinery — out of scope for v1.
+```
