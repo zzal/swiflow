@@ -190,12 +190,14 @@ public enum SwiflowTaskRuntime {
     /// per-test isolation mechanism — that comes from each renderer/test owning
     /// its own `TaskScope`; tests should not need to call this (and must not call
     /// it from a concurrently-running suite, since `liveGenerations` is global).
+    ///
+    /// The slot/run ID counters are intentionally NOT reset: their global
+    /// uniqueness is load-bearing for the per-slot write guard across parallel
+    /// tests, so zeroing them could alias a live slot from another suite.
     public static func _resetForTesting() {
         liveGenerations.removeAll()
         fallbackScope.inFlight.removeAll()
         currentScope = nil
-        nextSlotID = 0
-        nextRunID = 0
     }
     #endif
 }

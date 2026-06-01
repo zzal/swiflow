@@ -247,8 +247,6 @@ private final class Profile {
 @MainActor
 struct ProfileTests {
 
-    init() { SwiflowTaskRuntime._resetForTesting() }
-
     @Test func fetchDisplaysName() async throws {
         let h = AsyncTestHarness(Profile(userID: 1) { id in "User#\(id)" })
         try await h.settle()
@@ -293,23 +291,26 @@ rather than a hang.
 
 The full worked suite is `Tests/SwiflowTestingTests/AsyncTaskTests.swift`.
 
-### Reset between tests
+### Test isolation
 
-`AsyncTestHarness` shares the global `SwiflowTaskRuntime` registry. Call
-`SwiflowTaskRuntime._resetForTesting()` in your suite's `init()` to clear
-cross-test state:
+Each `AsyncTestHarness` owns its render root's `TaskScope`, so `settle()` awaits
+only *its own* tasks. Suites are isolated from one another even under parallel
+`swift test`, with no global state to reset — just build a harness per test:
 
 ```swift
-@Suite(.serialized)
-@MainActor
+@Suite @MainActor
 struct MyAsyncTests {
-    init() { SwiflowTaskRuntime._resetForTesting() }
-    …
+    @Test func loads() async throws {
+        let h = AsyncTestHarness(MyComponent())
+        try await h.settle()
+        #expect(h.allText.contains("…"))
+    }
 }
 ```
 
-Mark the suite `.serialized` when its tests mutate the global registry — the
-runtime is `@MainActor` but the slot IDs are global monotonic counters.
+Do **not** call `SwiflowTaskRuntime._resetForTesting()` from a suite `init()`:
+it clears the process-global generation map, which would race a concurrently
+running suite. Isolation comes from per-harness scopes, not global resets.
 
 ## Example
 
