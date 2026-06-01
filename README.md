@@ -13,7 +13,17 @@ Swiflow is **pre-1.0**. The DX uplift plan
 ([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
 drives the roadmap to 1.0 across phases 6 through 13.
 
-**Status:** Phase 19b (Live DevTools) — the Chrome DevTools panel
+**Status:** Phase 20 (Async task effects) — `.task { }` and
+`.task(rerunOn:)` postfix `VNode` modifiers declare lifecycle-bound async
+effects with correct-by-default cancellation. Stale writes from
+superseded or dead tasks are dropped by the runtime before they reach
+`@State` storage, so call sites need only their domain `do/catch`.
+`JavaScriptEventLoop.installGlobalExecutor()` is now wired into
+`Swiflow.render(into:)` automatically. `AsyncTestHarness.settle()` and
+`flush()` in `SwiflowTesting` make async component tests deterministic.
+See [`docs/guides/async-tasks.md`](docs/guides/async-tasks.md) and
+`examples/AsyncFetch/` for the full picture.
+Phase 19b (Live DevTools) — the Chrome DevTools panel
 introduced in Phase 19 now auto-updates within ~250 ms of every
 render (no manual ↻ Refresh after each `@State` mutation), with a
 footer dot showing polling status (green = live, grey = paused,
@@ -53,7 +63,8 @@ still the baseline.
 - **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`, 3/3 passing); `Link`'s click handler attaches reliably now that nested components actually receive `onAppear`.
 - **Lifecycle hooks across the whole tree** — `onAppear`, `onChange`, `onDisappear` fire on every component in the mount tree, not just the root. Children-first ordering on mount (matches React's `componentDidMount` and SwiftUI's `.onAppear`) so a parent's hook sees its subtree fully mounted; parent-first on unmount so a parent can still read child state during teardown. As of Phase 18, `onChange` fires per re-render on every reused component (React `componentDidUpdate` semantics) and `onAppear` fires on components mounted mid-render (revealed by `if`/`else` flips or list growth), not just at first mount.
 - **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
-- **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. See [testing guide](docs/guides/testing.md).
+- **Async task effects** — `.task { }` / `.task(rerunOn: someEquatable) { }` postfix `VNode` modifiers start lifecycle-bound async effects on mount, restart on dependency change (`!=`), and cancel on unmount. Correct-by-default cancellation: writes from superseded or dead tasks are dropped by the runtime before they reach `@State`, so call sites need only their domain `do/catch` — no `Task.isCancelled` or `CancellationError` handling. See [async-tasks guide](docs/guides/async-tasks.md).
+- **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. `AsyncTestHarness` + `settle()` / `flush()` for deterministic async task tests. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
 - 571 Swift tests across 117 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter, MiniRouter, progress overlay, SW cache, DevTools API contract). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
@@ -69,7 +80,6 @@ Sideload via `chrome://extensions` → **Load unpacked** → select
 full smoke checklist.
 
 **What's not in the box yet:**
-- **`AsyncTestRenderer`** — for `task {}` lifecycle hooks (pre-1.0 follow-up).
 - **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
 - **Homebrew distribution** — not packaged yet. The CLI is installable today by cloning + `swift build -c release --product swiflow`; a Homebrew formula is a pre-1.0 polish item. Versioned GitHub releases (tags + release notes) ship with the framework as of 0.1.3.
 

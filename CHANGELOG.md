@@ -51,6 +51,47 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 20] — Async task effects (`.task` / `.task(rerunOn:)`)
+
+### Added
+- **`.task { … }` / `.task(rerunOn: someEquatable) { … }`** — postfix `VNode`
+  modifiers that declare lifecycle-bound async effects. A bare `.task { }` runs
+  once on mount and cancels on unmount; `.task(rerunOn:)` cancels and restarts
+  whenever the dependency changes (`!=`); both cancel on unmount. Closure type:
+  `TaskBody = @MainActor @Sendable () async -> Void` (non-throwing). Multiple
+  tasks may decorate one node; a DEBUG `swiflowDiagnostic` flags violations of
+  the stable-slot rule (task count changing between renders).
+- **Correct-by-default cancellation — superseded/dead-task write guard.** Each
+  spawned task is stamped with a `@TaskLocal` token carrying `(slotID,
+  generation)`. `@State`'s generated `didSet` consults `SwiflowTaskRuntime.shouldDropWrite()`
+  and reverts the write when the running task has been superseded (its slot
+  moved to a newer generation) or its component has unmounted. Stale data can
+  neither re-render nor clobber stored state. Call sites need only their own
+  domain `do/catch` — no `Task.isCancelled` checks and no `catch is CancellationError`.
+- **`AsyncTestHarness.settle()` and `flush()`** in `SwiflowTesting`. `settle()`
+  drives all in-flight task handles to completion, flushes resulting re-renders,
+  and repeats to a fixed point — making async component tests deterministic.
+  `flush()` applies a synchronous `@State` mutation before settling so a
+  `rerunOn` change is reconciled before tasks are awaited. `settle()` throws
+  `AsyncTestHarness.SettleError` if it cannot reach a fixed point within
+  `maxRounds` (default 100).
+- **`JavaScriptEventLoop.installGlobalExecutor()`** wired into
+  `Swiflow.render(into:)` (once, idempotently). Without the global executor,
+  `Task`/`await` silently hang in the browser; this wiring is now automatic.
+- **`examples/AsyncFetch`** — minimal runnable demo of `.task(rerunOn:)` with
+  a simulated network fetch and dependency-keyed refetch on button click.
+- **`docs/guides/async-tasks.md`** — user guide covering lifecycle, purity
+  story, the write-guard guarantee, dependency composition, the stable-slot
+  rule, and `AsyncTestHarness` usage with worked examples.
+
+### Stability
+- **Experimental — interface may change.** `.task` / `.task(rerunOn:)` are a
+  new API surface; the dependency model may be extended (e.g. variadic-generic
+  multi-dependency form) before 1.0. The prerequisite `JavaScriptEventLoop`
+  global executor is now installed automatically by `Swiflow.render(into:)`.
+
+---
+
 ## [Phase 19b] — Live DevTools panel (render-version push tick)
 
 ### Added
