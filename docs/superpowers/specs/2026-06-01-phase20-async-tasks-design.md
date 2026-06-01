@@ -1,6 +1,6 @@
 # Phase 20 — Async Task Effects (`.task` / `.task(rerunOn:)`)
 
-**Status:** Draft (awaiting review)
+**Status:** Draft — revised after Taylor-Otwell API review (awaiting approval)
 **Date:** 2026-06-01
 **Predecessor:** Phase 19b (`docs/superpowers/specs/2026-05-28-phase19b-render-version-push-tick-design.md`).
 **Successor (separate brainstorm):** a data-fetching / caching library (à la TanStack Query / SWR). This phase is the **foundation** that library will ride on; the library itself is explicitly out of scope here.
@@ -28,11 +28,7 @@ var body: VNode {
   }
   .task(rerunOn: userID) {
     do {
-      let u = try await fetchUser(userID)
-      guard !Task.isCancelled else { return }
-      user = .success(u)
-    } catch is CancellationError {
-      // superseded — ignore
+      user = .success(try await fetchUser(userID))
     } catch {
       user = .failure(error)
     }
@@ -45,6 +41,8 @@ var body: VNode {
 - **Cancelled** when the node (or its owning component's subtree) unmounts.
 - Plus a no-dependency form, `.task { }`, that runs once on mount and cancels on unmount.
 
+Note the call site carries **only** the consumer's domain `do/catch` — no `guard !Task.isCancelled` and no `catch is CancellationError`. The runtime **drops writes from superseded and dead tasks** (see Semantics → Cancellation), so stale data can neither re-render nor clobber stored state. That correctness lives in the bedrock, not at every call site.
+
 Plus the `AsyncTestHarness` needed to test all of the above deterministically, and the `JavaScriptEventLoop` wiring needed to make it work in the browser at all.
 
 ## Scope
@@ -52,13 +50,14 @@ Plus the `AsyncTestHarness` needed to test all of the above deterministically, a
 **In:**
 - `.task { }` and `.task(rerunOn:)` modifiers on `VNode`, collected during diff like `.on(.click)` handlers.
 - Diff-integrated task lifecycle: start on mount, cancel+restart on `rerunOn` change, cancel on unmount — riding the existing node lifecycle, no parallel machinery.
-- A task registry/runner that tracks spawned `Task` handles (for cancellation in production, for `await` in tests).
-- Cooperative cancellation + a **dead-component write guard** (a `markDirty` on an unmounted component is a no-op).
+- A task registry/runner that tracks spawned `Task` handles + a per-slot **live generation** (for cancellation in production, for `await` in tests, and for the superseded-write guard).
+- A **superseded-/dead-task write guard**: a `@State` write originating from a task that has been superseded (its slot moved to a newer generation) or whose component has unmounted is **dropped at the write** — neither the stored value changes nor `markDirty` fires. This makes the primitive correct-by-default and removes the cancellation ceremony from every call site.
 - `JavaScriptEventLoop.installGlobalExecutor()` wired into the web bootstrap (`Swiflow.render(into:)`), and the `JavaScriptEventLoop` product added to the `SwiflowWeb` target.
 - `AsyncTestHarness` + `settle()` in `SwiflowTesting`, with a controllable IO stub pattern and a settle iteration cap.
+- A `TaskBody` typealias for the closure signature, and a DEBUG `swiflowDiagnostic` for stable-slot violations.
 - A worked fetch example.
-- Documentation covering the sharp edges (purity story, restart semantics, the stale-write race).
-- Unit/integration tests for lifecycle, rerun, cancellation, and the dead-component guard.
+- Documentation covering the sharp edges (purity story, restart semantics, the write-guard guarantee).
+- Unit/integration tests for lifecycle, rerun, cancellation, and the superseded-/dead-task write guard.
 
 **Explicitly out (separate brainstorm or not pursued):**
 - The data-fetching / caching library itself: `QueryClient`, `QueryState<T>`, caching, dedup, invalidation, mutations, persistence.
@@ -72,21 +71,21 @@ Plus the `AsyncTestHarness` needed to test all of the above deterministically, a
 A new modifier on the `VNode` DSL, alongside `.on(...)`:
 
 ```swift
+/// The body of a `.task` effect. Non-throwing; runs on the main actor.
+public typealias TaskBody = @MainActor @Sendable () async -> Void
+
 public extension VNode {
     /// Run once when this node mounts; cancel when it unmounts. Never restarts.
-    func task(_ body: @MainActor @Sendable @escaping () async -> Void) -> VNode
+    func task(_ body: @escaping TaskBody) -> VNode
 
     /// Run when this node mounts; cancel and re-run whenever `rerunOn` changes
     /// between renders; cancel when it unmounts.
-    func task<ID: Equatable>(
-        rerunOn id: ID,
-        _ body: @MainActor @Sendable @escaping () async -> Void
-    ) -> VNode
+    func task<ID: Equatable>(rerunOn id: ID, _ body: @escaping TaskBody) -> VNode
 }
 ```
 
-- The closure is **non-throwing** `@MainActor @Sendable () async -> Void`. Errors are handled inside the closure by the consumer (see Semantics → Errors).
-- `rerunOn` requires `Equatable`; restart is decided by `!=` against the prior render's value.
+- The closure is **non-throwing** (`TaskBody`). Errors are handled inside the closure by the consumer (see Semantics → Errors). The `TaskBody` typealias keeps the four-attribute signature from leaking into every doc comment and call site.
+- `rerunOn` requires `Equatable`; restart is decided by `!=` against the prior render's value — the same Equatable-keyed, fire-on-change contract as the existing `onChange(of:perform:)` (`Sources/Swiflow/Reactivity/OnChangeStorage.swift`). The two are documented as one family.
 - Multiple `.task`s may decorate one node; they are identified by declaration order on that node (the "stable slot" rule below).
 
 ## Semantics
@@ -100,20 +99,29 @@ Tasks ride the diff's existing node create / update / remove signals — the sam
   - `.task(rerunOn: v)` → compare `v` to the prior render's value. Equal → leave running. Changed → cancel the running task, start fresh.
 - **Node removed (unmount), including via owning component unmount** → cancel each task on the node.
 
-**Identity** = the mounted node the modifier decorates × the task's declaration slot on that node. **Stable-slot rule:** do not conditionally vary the *number* of `.task`s on a single node — slot indices must be stable across renders. This is the same constraint handlers/attributes already carry, and is documented as such.
+**Identity** = the mounted node the modifier decorates × the task's declaration slot on that node. **Stable-slot rule:** do not conditionally vary the *number* of `.task`s on a single node — slot indices must be stable across renders. This is the same constraint handlers/attributes already carry. Rather than ship it as a docs-only footgun, a **DEBUG `swiflowDiagnostic`** fires when a node's `.task` count changes between renders (the same facility that already guards duplicate keys and mixed keyed/unkeyed children in `Diff.swift`) — the "rules-of-hooks" trap is caught loudly in development and compiled out of release.
 
 Anchoring to the node (not the component) is a deliberate choice: it is a direct reuse of the diff, and a component unmount cancels every task in its subtree for free because the diff already removes those nodes.
 
-### Cancellation & the stale-write race
-Cancellation is cooperative (`Task.cancel()`); rerun is **latest-wins** (cancel in-flight, start new). The sharp edge is a cancelled task that ignores cancellation and resumes *after* its replacement, clobbering newer state. Two-layer defense:
+### Cancellation & the superseded-write guard
+Cancellation is cooperative (`Task.cancel()`); rerun is **latest-wins** (cancel in-flight, start new). The sharp edge is a cancelled task that resumes *after* its replacement and (a) triggers a stale re-render and (b) clobbers the stored `@State` value. Rather than push a correctness guard onto every call site, the **runtime drops the stale write itself** — the primitive is correct-by-default.
 
-1. **Cooperative bail (consumer contract):** `guard !Task.isCancelled else { return }` before any state write, and treat `CancellationError` as a no-op. This is the documented, demonstrated pattern.
-2. **Dead-component write guard (framework):** a late write to `@State` on an unmounted component must be a `markDirty` no-op. Phase 20 verifies the scheduler already ignores dirty marks for unmounted components and hardens it if not.
+**Mechanism.** Each `.task` slot holds a monotonically increasing **live generation**; a rerun bumps it. When the runtime spawns a task it stamps the work with a `@TaskLocal` token carrying `(slotID, generation)`:
 
-The foundation cannot *prevent* a non-cooperative closure from writing (writes go straight through `@State`), so this is cooperative-by-contract plus loud documentation. The future query library will encapsulate the correct pattern so end users rarely hand-write it.
+```swift
+TaskRunner.$current.withValue(token) { await body() }
+```
+
+A `@State` write consults that task-local at the point of mutation. If a token is present **and** it is stale (its generation ≠ the slot's live generation, or the slot/component has unmounted), the write is **dropped**: the stored value is left unchanged and `markDirty` does not fire. Writes with no token (event handlers, etc.) and writes from the live task proceed normally.
+
+**Why this is cheap on the macro.** `@State` already expands to a `didSet` that calls `scheduler.markDirty(owner)`. The guard is **one additive line at the top of that `didSet`**: if the current task token is stale, restore `oldValue` and return before `markDirty`. Swift does **not** re-fire `didSet` for an assignment made inside the same observer, so the restore is safe and non-reentrant. The macro change is a single emitted guard calling one runtime function — it does not restructure `@State`, which keeps it well clear of the isolation pitfalls that have bitten the macros before (still verified early — see Risks).
+
+This subsumes the old "dead-component write guard": a dead component is just a slot with no live generation, handled by the same check.
 
 ### Errors
-The closure is non-throwing. The framework has no notion of what an error *means* (no `QueryState`, no `.failure`), so catching it could only log-and-swallow — the silent-failure anti-pattern. Forcing the `catch` at the call site puts error handling where the state lives, and matches SwiftUI's `.task`. The cost — hand-written `do/catch` in the raw API — is accepted; the query layer is what later makes it ergonomic.
+The closure is non-throwing. The framework has no notion of what an error *means* (no `QueryState`, no `.failure`), so catching it could only log-and-swallow — the silent-failure anti-pattern. Forcing the `catch` at the call site puts error handling where the state lives, and matches SwiftUI's `.task`. This is the consumer's *domain* `do/catch` — distinct from the *lifecycle* race ceremony, which the write guard above absorbs. So the raw call site carries exactly one burden (map success/failure to your state) and not two; the query layer later removes even that.
+
+Note: because superseded/cancelled tasks have their writes dropped, the consumer does **not** need to special-case `CancellationError`. A `CancellationError` surfacing in the `do/catch` would set `.failure`, but that write is itself dropped by the guard (the task is, by definition, stale), so it never reaches state.
 
 ## Prerequisite: `JavaScriptEventLoop` (load-bearing)
 
@@ -155,10 +163,11 @@ No new target — this is core framework work.
 
 | Concern | Module | File(s) |
 |---|---|---|
-| `.task` / `.task(rerunOn:)` modifier | `Swiflow` | `DSL/Modifiers.swift` (new `Attribute`-style case), `VNode.swift` |
+| `.task` / `.task(rerunOn:)` modifier + `TaskBody` | `Swiflow` | `DSL/Modifiers.swift` (new `Attribute`-style case), `VNode.swift` |
 | Task collection + lifecycle (start/rerun/cancel) | `Swiflow` | `Diff/Diff.swift` (ride node create/update/remove) |
-| Task registry / runner | `Swiflow` | new file, scheduler-adjacent (`Reactivity/`) |
-| Dead-component write guard | `Swiflow` | `Reactivity/Scheduler.swift` (+ `SyncScheduler`) — verify/harden |
+| Task registry / runner + per-slot live generation + `@TaskLocal` token | `Swiflow` | new file, scheduler-adjacent (`Reactivity/`) |
+| Superseded-/dead-task write guard | `Swiflow` | `SwiflowMacrosPlugin/StateMacro.swift` (one guard line in the emitted `didSet`) + a runtime check function; `Reactivity/Scheduler.swift` |
+| Stable-slot DEBUG diagnostic | `Swiflow` | `Diff/Diff.swift` (`swiflowDiagnostic`) |
 | JS executor install + dependency | `SwiflowWeb` | `SwiflowWeb.swift` (`render(into:)`), `Package.swift` |
 | `AsyncTestHarness` + `settle()` | `SwiflowTesting` | new `AsyncTestHarness.swift`, reuse `TestRenderer` |
 | Worked example | `examples/` | a fetch demo component |
@@ -169,23 +178,26 @@ No new target — this is core framework work.
 
 A chunk of this primitive's cons are *legibility* cons, so docs are load-bearing (not an afterthought). The docs must explicitly cover:
 - **The purity story:** the `.task` closure is *declared* in `body` but *runs later*, owned by the runtime on `@MainActor` — it is not executed during render. (`body` stays pure.)
-- **Restart semantics:** `rerunOn` restarts (cancel + fresh start) on `!=`; bare `.task` never restarts; both cancel on unmount.
-- **The stale-write race + the cooperative-bail pattern** (`guard !Task.isCancelled`, treat `CancellationError` as no-op).
-- **The stable-slot rule** for multiple tasks on one node.
+- **Restart semantics:** `rerunOn` restarts (cancel + fresh start) on `!=`; bare `.task` never restarts; both cancel on unmount. Cross-reference `onChange(of:perform:)` so the Equatable-keyed family reads as one idea.
+- **The write-guard guarantee:** writes from superseded/cancelled/dead tasks are dropped by the runtime, so the call site needs only its own success/failure `do/catch` — no `isCancelled` / `CancellationError` handling. (Documenting the guarantee replaces documenting a manual workaround.)
+- **The stable-slot rule** for multiple tasks on one node — and that the DEBUG diagnostic will flag violations.
 
 ## Testing strategy
 
 - **Lifecycle:** task starts exactly once on mount; cancels exactly once on unmount (mirrors the Trap 7 component-lifecycle test in `examples/EdgeCases`).
 - **Rerun:** changing `rerunOn` cancels the prior task and starts a new one; unchanged value does not.
-- **Latest-wins / stale-write:** a slow prior run that resolves after a newer run does not clobber newer state.
-- **Dead-component guard:** a task resolving after its component unmounts does not crash and does not mark dirty.
+- **Superseded write dropped:** a slow prior run that resolves *after* a newer run has the write dropped at the `@State` mutation — the stored value is unchanged (not just the re-render suppressed) and no `markDirty` fires. Asserted on stored state, not only on rendered output, to catch the latent-staleness case.
+- **Dead-task write dropped:** a task resolving after its component unmounts does not crash, does not mutate state, and does not mark dirty.
+- **Stable-slot diagnostic:** varying the `.task` count on a node between renders fires `swiflowDiagnostic` in DEBUG.
 - **`settle()` fixed point:** a task that triggers a `rerunOn` change is driven to quiescence; a runaway cycle hits the iteration cap and fails cleanly.
 - **Browser smoke (Playwright):** the worked example actually resumes a `Task` and updates the DOM — the regression guard for the `JavaScriptEventLoop` wiring. (Per the Playwright-CI-gap note, run manually after this runtime change.)
 
 ## Risks & open questions
 
+- **`@State` macro guard under WASM cross-compile (verify first):** the write guard adds one line to the `didSet` the `@State` macro emits. Confirm the emitted guard + the `@TaskLocal` read compile and run correctly under the WASM cross-compile *before* building on it — this is the macro-adjacent area that has bitten isolation before. The revert-in-`didSet` approach is chosen precisely to keep the change additive (no `@State` restructuring); if even that fights the cross-compile, fall back to gating only `markDirty` (drops the stale re-render) plus a documented value-staleness note, and escalate.
+- **`@TaskLocal` propagation across the `await`:** confirm the token set via `TaskRunner.$current.withValue` is visible at the `@State` write that happens *after* an `await` suspension inside the task body (task-locals propagate to child scopes and across suspensions of the same task — verify in a test, since it is the linchpin of the guard).
 - **JS executor interaction with `RAFScheduler`/HMR:** confirm `installGlobalExecutor()` is idempotent across multiple `render(into:)` calls (multi-root) and survives an HMR re-import without double-installing.
-- **`@Sendable` closure capturing `self`:** the component is `@MainActor`; the closure is `@MainActor @Sendable`. Confirm capture of a `@MainActor`-isolated `self` into a `@MainActor @Sendable` async closure compiles cleanly under the WASM cross-compile (this is the area that has bitten macro isolation before — verify early).
+- **`@Sendable` closure capturing `self`:** the component is `@MainActor`; the closure is `@MainActor @Sendable`. Confirm capture of a `@MainActor`-isolated `self` into a `@MainActor @Sendable` async closure compiles cleanly under the WASM cross-compile.
 - **Settle iteration cap value:** pick a default that never trips on legitimate chained reruns but catches real cycles.
 
 ## Rejected alternatives
@@ -194,4 +206,5 @@ A chunk of this primitive's cons are *legibility* cons, so docs are load-bearing
 - **`@Effect` property wrapper (useEffect-shaped):** deepest macro coupling (most fragile under WASM cross-compile), the `self`-capture-in-initializer problem doesn't cleanly compile, and it imports React's most error-prone mental model (the deps array). Rejected.
 - **`tasks()` lifecycle method:** keeps `body` pure but decouples effects from the view that consumes them, uses fragile index identity, and is a parallel mechanism rather than a reuse of the handler-collection path. A possible future *escape hatch*, not the primary. Rejected for now.
 - **`throws` closure with a framework error sink:** the foundation can't meaningfully handle an error it doesn't understand; would force log-and-swallow. Rejected in favor of non-throwing.
+- **Cooperative-by-contract cancellation** (mandatory `guard !Task.isCancelled` + `catch is CancellationError` at every call site): an earlier draft accepted this ceremony and leaned on docs. The Taylor-Otwell review flagged it as a lifecycle concern leaking into user code — a foundation should be correct-by-default. Rejected in favor of the runtime superseded-write guard, which moves the correctness into the bedrock and collapses the call site to the consumer's domain `do/catch`.
 - **Naming `.task(id:)`** (SwiftUI parity): `id:` names the mechanism, not the behavior, and is SwiftUI's own most-confused label. **Naming `.task(restartOn:)`:** "restart" reads too heavy (restart *what* — the app?) and over-implies a prior run on first mount. Chosen: **`.task(rerunOn:)`** — lightest action word, its implicit object is unambiguously the braced closure, and it pairs cleanly with bare `.task { }`. A multi-dependency form `.task(rerunOn: [a, b])` works for free under the generic signature, since an `Array` of `Equatable` is itself `Equatable`.
