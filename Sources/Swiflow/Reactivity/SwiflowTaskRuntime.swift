@@ -71,7 +71,12 @@ public enum SwiflowTaskRuntime {
     /// intentional, not a leak: the live set is bounded by (live nodes ×
     /// tasks-per-node), and the entry is what lets a late, superseded write
     /// from the same slot be recognised as stale.
-    static var liveGenerations: [Int: Int] = [:]
+    ///
+    /// `nonisolated(unsafe)`: all mutations happen on @MainActor; the dict is
+    /// read by `shouldDropWrite()` from the @State didSet which also runs on
+    /// @MainActor (via `@MainActor @Component`), but the compiler cannot prove
+    /// this statically across macro expansion boundaries.
+    nonisolated(unsafe) static var liveGenerations: [Int: Int] = [:]
     /// All in-flight tasks keyed by a unique task-run ID (not slotID), so
     /// superseded and cancelled tasks remain awaitable until they complete.
     static var inFlight: [Int: Task<Void, Never>] = [:]
@@ -91,7 +96,14 @@ public enum SwiflowTaskRuntime {
     /// Consulted by `@State`'s generated `didSet`. True when the current
     /// execution is inside a task that has been superseded (generation bumped
     /// by a rerun) or whose slot was torn down (component unmounted).
-    public static func shouldDropWrite() -> Bool {
+    ///
+    /// `nonisolated`: the `@State` didSet expands into a synchronous observer
+    /// on a `@MainActor @Component` class; the compiler cannot prove @MainActor
+    /// isolation across macro expansion boundaries, so the call must be
+    /// `nonisolated`. Safety is preserved because `liveGenerations` is
+    /// `nonisolated(unsafe)` and all mutations occur on @MainActor, while all
+    /// reads occur in `@State` didSets which also run on @MainActor.
+    public nonisolated static func shouldDropWrite() -> Bool {
         guard let token = SwiflowTaskLocal.current else { return false }
         guard let live = liveGenerations[token.slotID] else { return true }
         return token.generation != live

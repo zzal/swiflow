@@ -21,6 +21,10 @@ final class StateMacroTests: XCTestCase {
             final class Counter {
                 var count: Int = 0 {
                     didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            count = oldValue
+                            return
+                        }
                         if let s = runtimeScheduler, let o = runtimeOwner {
                             s.markDirty(o)
                         }
@@ -55,6 +59,10 @@ final class StateMacroTests: XCTestCase {
             final class Counter {
                 var maybeId: Int? = nil {
                     didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            maybeId = oldValue
+                            return
+                        }
                         if let s = runtimeScheduler, let o = runtimeOwner {
                             s.markDirty(o)
                         }

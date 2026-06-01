@@ -41,11 +41,20 @@ public struct StateMacro: AccessorMacro, PeerMacro {
             return []   // peer macro emits the diagnostic
         }
 
-        // Emit a didSet that calls scheduler.markDirty(owner) when both
-        // are wired. Runtime fields are emitted by @Component on the
-        // enclosing class.
+        guard let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text else {
+            return []
+        }
+
+        // Emit a didSet that (1) drops the write when it originates from a
+        // superseded/dead `.task` (reverting to oldValue — Swift does not
+        // re-fire didSet for an in-observer assignment), then (2) marks the
+        // owner dirty. Runtime fields are emitted by @Component on the class.
         let didSet: AccessorDeclSyntax = """
             didSet {
+                if SwiflowTaskRuntime.shouldDropWrite() {
+                    \(raw: name) = oldValue
+                    return
+                }
                 if let s = runtimeScheduler, let o = runtimeOwner {
                     s.markDirty(o)
                 }
