@@ -103,6 +103,12 @@ public enum SwiflowTaskRuntime {
     /// `nonisolated`. Safety is preserved because `liveGenerations` is
     /// `nonisolated(unsafe)` and all mutations occur on @MainActor, while all
     /// reads occur in `@State` didSets which also run on @MainActor.
+    ///
+    /// CONTRACT: callers MUST run on the main actor. The `nonisolated` keyword
+    /// is a workaround for the macro-expansion isolation gap — NOT a license to
+    /// call this off the main actor. An off-actor caller would race the
+    /// `nonisolated(unsafe)` `liveGenerations` reads against `start`/`cancel`
+    /// mutations. Any future non-component caller must uphold this.
     public nonisolated static func shouldDropWrite() -> Bool {
         guard let token = SwiflowTaskLocal.current else { return false }
         guard let live = liveGenerations[token.slotID] else { return true }
