@@ -105,11 +105,11 @@ public struct ElementData: Equatable {
         self.taskBindings = taskBindings
     }
 
-    /// Manual equality: every field participates EXCEPT `refBindings`. The
-    /// binding closures aren't `Equatable` (closures never are), and two
-    /// ElementData values describing the same DOM element should compare
-    /// equal regardless of whether either side carried a Ref binding.
-    /// Refs are out-of-band metadata, not part of the rendered shape.
+    /// Manual equality: every field participates EXCEPT `refBindings` and
+    /// `taskBindings`. Both carry closures (never `Equatable`) and are
+    /// out-of-band lifecycle metadata — not part of the rendered DOM shape.
+    /// Two ElementData values describing the same element compare equal
+    /// regardless of which side carries Ref or task bindings.
     public static func == (lhs: ElementData, rhs: ElementData) -> Bool {
         lhs.tag == rhs.tag
             && lhs.key == rhs.key
