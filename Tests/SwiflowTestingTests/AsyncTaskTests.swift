@@ -65,6 +65,19 @@ struct AsyncTaskTests {
             try await h.settle(maxRounds: 5)
         }
     }
+
+    @Test func changingDependencyRefetchesAfterSettle() async throws {
+        let vm = Profile(userID: 1) { id in "User#\(id)" }
+        let h = AsyncTestHarness(vm)
+        try await h.settle()                 // task A fully completes
+        #expect(h.allText.contains("User#1"))
+
+        vm.userID = 2                         // change dep on an already-settled component
+        h.flush()                             // reconcile: rerun -> task B
+        try await h.settle()                  // task B completes
+        #expect(h.allText.contains("User#2"))
+        #expect(h.allText.contains("User#1") == false)
+    }
 }
 
 @MainActor @Component
