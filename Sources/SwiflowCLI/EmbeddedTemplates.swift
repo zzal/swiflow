@@ -13,6 +13,178 @@ enum EmbeddedTemplates {
 
     static let all: [Template] = [
         Template(
+            name: "AsyncFetch",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    // Inherited from the parent Swiflow package, which sets this floor
+    // because its SwiflowCLI executable depends on Hummingbird 2.x.
+    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // need macOS 14; SwiftPM just propagates the package-level platform
+    // floor to every consumer, regardless of which product they import.
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        // Local path back to the parent Swiflow package.
+        {{SWIFLOW_DEP}},
+        // JavaScriptKit is declared as a direct dependency so SwiftPM
+        // exposes the `swift package js` (PackageToJS) plugin to this
+        // package. Without it, the plugin only surfaces on the parent
+        // package and can't target this example's executable.
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowWeb", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+A Swiflow example demonstrating `.task(rerunOn:)` — Phase 20 async task effects.
+
+## Build
+
+```bash
+swiflow build
+```
+
+This wraps `swift package js --use-cdn --product App -c release` after
+probing for an installed WASM SDK. The output lands at
+`.build/plugins/PackageToJS/outputs/Package/`.
+
+## Serve
+
+Any static HTTP server works:
+
+```bash
+python3 -m http.server 3000
+```
+
+Then open <http://localhost:3000>.
+
+## What you should see
+
+- A heading: **Async fetch demo**
+- A paragraph that starts at **Status: idle** for one frame, flips to
+  **Status: loading…** as the `.task` fires for `userID = 1`, then after ~400 ms
+  shows **Status: loaded user #1**.
+- A button: **Load next user** — each click increments `userID` (the `.task`'s
+  `rerunOn:` dependency), which cancels the in-flight task and re-runs the effect:
+  status goes `loading…` then `loaded user #N`.
+
+"""##,
+                "Sources/App/App.swift": ##"""
+// Sources/App/App.swift
+
+import SwiflowWeb
+
+@MainActor @Component
+final class {{NAME}} {
+    // `state` is a flat status string for demo brevity:
+    // "idle" | "loading…" | "loaded user #N".
+    @State var userID: Int = 1
+    @State var state: String = "idle"
+
+    var body: VNode {
+        div {
+            h1("Async fetch demo")
+            p("Status: \(state)")
+            // The button is an action — clicking bumps `userID`, which is the
+            // `.task`'s dependency, so the effect re-runs for the next user.
+            button("Load next user", .on(.click) { self.userID += 1 })
+        }
+        .task(rerunOn: userID) {
+            self.state = "loading…"
+            try? await Task.sleep(nanoseconds: 400_000_000)   // simulate latency
+            self.state = "loaded user #\(self.userID)"
+        }
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { {{NAME}}() }
+    }
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Async fetch demo</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
+        Template(
             name: "EdgeCases",
             files: [
                 ".gitignore": ##"""

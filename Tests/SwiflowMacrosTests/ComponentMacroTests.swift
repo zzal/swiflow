@@ -165,6 +165,10 @@ final class ComponentMacroTests: XCTestCase {
             final class Counter {
                 var count: Int = 0 {
                     didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            count = oldValue
+                            return
+                        }
                         if let s = runtimeScheduler, let o = runtimeOwner {
                             s.markDirty(o)
                         }
@@ -183,6 +187,10 @@ final class ComponentMacroTests: XCTestCase {
                 }
                 var label: String = "hi" {
                     didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            label = oldValue
+                            return
+                        }
                         if let s = runtimeScheduler, let o = runtimeOwner {
                             s.markDirty(o)
                         }
@@ -301,6 +309,10 @@ final class ComponentMacroTests: XCTestCase {
             final class Counter {
                 var maybeId: Int? = nil {
                     didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            maybeId = oldValue
+                            return
+                        }
                         if let s = runtimeScheduler, let o = runtimeOwner {
                             s.markDirty(o)
                         }
