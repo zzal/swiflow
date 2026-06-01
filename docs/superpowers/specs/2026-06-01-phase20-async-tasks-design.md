@@ -65,6 +65,7 @@ Plus the `AsyncTestHarness` needed to test all of the above deterministically, a
 - Async `body` / Suspense / concurrent rendering (rejected — see below).
 - `throws` task closures with a framework error sink (rejected — see below).
 - An `@Effect` property wrapper or a `tasks()` lifecycle method (rejected — see below).
+- Variadic-generic (parameter pack) multi-dependency `rerunOn:` — a fast-follow once the core guard is proven; v1 ships the single-`Dependency` signature (compose via struct/array). See Dependencies.
 
 ## API surface
 
@@ -80,13 +81,34 @@ public extension VNode {
 
     /// Run when this node mounts; cancel and re-run whenever `rerunOn` changes
     /// between renders; cancel when it unmounts.
-    func task<ID: Equatable>(rerunOn id: ID, _ body: @escaping TaskBody) -> VNode
+    func task<Dependency: Equatable>(rerunOn dependency: Dependency, _ body: @escaping TaskBody) -> VNode
 }
 ```
 
 - The closure is **non-throwing** (`TaskBody`). Errors are handled inside the closure by the consumer (see Semantics → Errors). The `TaskBody` typealias keeps the four-attribute signature from leaking into every doc comment and call site.
-- `rerunOn` requires `Equatable`; restart is decided by `!=` against the prior render's value — the same Equatable-keyed, fire-on-change contract as the existing `onChange(of:perform:)` (`Sources/Swiflow/Reactivity/OnChangeStorage.swift`). The two are documented as one family.
+- `rerunOn` takes any `Equatable` `Dependency` (the generic is named for what it *is*, not "id" — that label was a SwiftUI vestige). Restart is decided by `!=` against the prior render's value — the same Equatable-keyed, fire-on-change contract as the existing `onChange(of:perform:)` (`Sources/Swiflow/Reactivity/OnChangeStorage.swift`). The two are documented as one family. See **Dependencies** below.
 - Multiple `.task`s may decorate one node; they are identified by declaration order on that node (the "stable slot" rule below).
+
+## Dependencies (`rerunOn:`)
+
+`rerunOn:` is an **explicit re-run trigger**, not a dependency audit. This is a deliberate departure from React's `useEffect` deps array, and the distinction is the whole point:
+
+| Aspect | React `useEffect(fn, [a, b])` | `.task(rerunOn:)` |
+|---|---|---|
+| What you pass | An untyped array | One `Equatable` value (compose for many) |
+| Comparison | `Object.is`, element-by-element, untyped | `!=`, type-checked, synthesized |
+| Contract | **Exhaustive** — must list everything the closure reads, enforced by a lint | **Explicit trigger** — list only what should *cause* a re-run |
+
+We do **not** import the "declare every value you read" obligation (the footgun behind rejecting `@Effect`). The closure reads current `self` values freely; only `rerunOn:` decides re-runs. The honest consequence, which the docs must state: if the closure's *result* depends on a value you did not put in `rerunOn:`, it will not re-run when that value changes — your explicit choice, not a silently-wrong lint situation.
+
+**One dependency** — any `Equatable`: `rerunOn: userID` (`Int`), `rerunOn: query` (`String`), `rerunOn: filter` (`enum`).
+
+**Several dependencies** — compose into one `Equatable` value:
+- A **struct key** is the recommended idiom: `rerunOn: SearchKey(text: q, page: n)` with synthesized `Equatable`. Heterogeneous, type-safe, self-documenting — and it foreshadows the future query library, where the dependency *is* a query key.
+- An **array** works for the homogeneous case: `rerunOn: [userID, page]`.
+- A raw **tuple `(a, b)` does *not* work**: tuples cannot *conform* to `Equatable` (even though `==` exists for them up to arity 6). Use a struct.
+
+**Parameter packs (fast-follow, not v1)** — Swift 6 variadic generics could allow a type-safe *heterogeneous* list directly: `func task<each Dependency: Equatable>(rerunOn deps: repeat each Dependency, …)` → `.task(rerunOn: userID, filter, page) { … }`. This is a genuine win over TS (which cannot express a type-safe heterogeneous deps list), but it adds pack-comparison machinery. Deferred to a fast-follow so Phase 20 stays focused on de-risking the write guard and the JS executor; v1 ships the single-`Dependency` signature, which struct/array already cover.
 
 ## Semantics
 
