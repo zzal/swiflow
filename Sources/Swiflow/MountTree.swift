@@ -47,6 +47,11 @@ package final class MountNode {
     /// exactly once at mount time.
     package var componentBody: MountNode?
 
+    /// `.task` run state for this node, one `TaskSlot` per `.task` modifier in
+    /// declaration order. Carried across renders so the diff can compare
+    /// dependencies (rerun) and cancel on unmount. Empty for nodes with no tasks.
+    package var taskSlots: [TaskSlot] = []
+
     /// The DOM-facing handle for this node — the one the JS driver knows.
     ///
     /// For ordinary nodes (text, rawHTML, element) it's `handle` itself.
