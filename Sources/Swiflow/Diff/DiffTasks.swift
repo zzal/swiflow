@@ -18,12 +18,14 @@ func startTasks(on node: MountNode, _ bindings: [TaskBinding]) {
 
 /// Reconcile `node`'s running tasks against a freshly rendered binding list.
 /// Per slot: bare `.task` never reruns; `.task(rerunOn:)` reruns when its
-/// dependency changed (`!=`).
+/// dependency changed (`!=`). The "before" count is `node.taskSlots.count`,
+/// read before any mutation below — there is no need for the caller to pass
+/// the old bindings.
 @MainActor
-func reconcileTasks(on node: MountNode, old: [TaskBinding], new: [TaskBinding]) {
+func reconcileTasks(on node: MountNode, new: [TaskBinding]) {
     #if DEBUG
-    if old.count != new.count {
-        swiflowDiagnostic("`.task` count on a node changed between renders (\(old.count) → \(new.count)). The number of `.task` modifiers on a node must be stable across renders — don't put a `.task` behind a conditional that adds or removes it. Use `.task(rerunOn:)` to react to a changing value instead.")
+    if node.taskSlots.count != new.count {
+        swiflowDiagnostic("`.task` count on a node changed between renders (\(node.taskSlots.count) → \(new.count)). The number of `.task` modifiers on a node must be stable across renders — don't put a `.task` behind a conditional that adds or removes it. Use `.task(rerunOn:)` to react to a changing value instead.")
     }
     #endif
 

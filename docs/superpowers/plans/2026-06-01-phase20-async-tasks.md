@@ -957,8 +957,10 @@ to:
 In the same-tag element branch of `update(...)` (the `case (.element(let oldData), .element(let newData)) where oldData.tag == newData.tag:` block), add a `reconcileTasks` call. Insert it right after the refBindings re-bind loops (after the `for binding in newData.refBindings { binding.setHandle(mounted.handle) }` loop), before the `diffAttributes(...)` call:
 
 ```swift
-        reconcileTasks(on: mounted, old: oldData.taskBindings, new: newData.taskBindings)
+        reconcileTasks(on: mounted, new: newData.taskBindings)
 ```
+
+(`reconcileTasks` reads the prior count from `mounted.taskSlots`, so only the new bindings are passed — no `old:` argument.)
 
 `mounted.vnode = next` (end of the branch, ~line 380) already records the new ElementData for the next render; task dependency state additionally lives on `mounted.taskSlots`.
 

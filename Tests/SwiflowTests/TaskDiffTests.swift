@@ -31,16 +31,32 @@ struct TaskDiffTests {
         #expect(runs == 1)
 
         // Same dependency -> no rerun.
-        reconcileTasks(on: node, old: [TaskBinding(dependency: AnyEquatableBox(1), body: {})],
-                       new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
+        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
         await drain()
         #expect(runs == 1)
 
         // Changed dependency -> rerun.
-        reconcileTasks(on: node, old: [TaskBinding(dependency: AnyEquatableBox(1), body: {})],
-                       new: [TaskBinding(dependency: AnyEquatableBox(2), body: { runs += 1 })])
+        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(2), body: { runs += 1 })])
         await drain()
         #expect(runs == 2)
+    }
+
+    @Test func gainingOrLosingDependencyReruns() async {
+        let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
+        var runs = 0
+        startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })])
+        await drain()
+        #expect(runs == 1)
+
+        // nil -> value: reruns (the (nil, value) switch arm).
+        reconcileTasks(on: node, new: [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })])
+        await drain()
+        #expect(runs == 2)
+
+        // value -> nil: reruns (the (value, nil) switch arm).
+        reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })])
+        await drain()
+        #expect(runs == 3)
     }
 
     @Test func bareTaskNeverReruns() async {
@@ -48,8 +64,7 @@ struct TaskDiffTests {
         var runs = 0
         startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })])
         await drain()
-        reconcileTasks(on: node, old: [TaskBinding(dependency: nil, body: {})],
-                       new: [TaskBinding(dependency: nil, body: { runs += 1 })])
+        reconcileTasks(on: node, new: [TaskBinding(dependency: nil, body: { runs += 1 })])
         await drain()
         #expect(runs == 1)   // bare task ran once, never again
     }
@@ -76,10 +91,11 @@ struct TaskDiffTests {
 
         // New render declares two tasks where there was one — stable-slot violation.
         reconcileTasks(on: node,
-                       old: [TaskBinding(dependency: AnyEquatableBox(1), body: {})],
                        new: [TaskBinding(dependency: AnyEquatableBox(1), body: {}),
                              TaskBinding(dependency: nil, body: {})])
         await drain()
         #expect(captured.contains { $0.contains("`.task` count") })
+        // The grow path still ran past the diagnostic and started the extra slot.
+        #expect(node.taskSlots.count == 2)
     }
 }
