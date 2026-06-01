@@ -76,6 +76,10 @@ public struct ElementData: Equatable {
     /// dictionaries and never become patches. See `Attribute.refBinding`
     /// and the `.ref(_:)` modifier in SwiflowWeb.
     public var refBindings: [AnyRefBinding]
+    /// `.task` async effects declared on this node, captured at body-eval time.
+    /// Stored out-of-band like `refBindings`: consumed by Diff at mount/update/
+    /// destroy and never folded into the four bags or compared in `==`.
+    public var taskBindings: [TaskBinding] = []
 
     /// Creates an `ElementData` with the given bags. Every bag defaults to
     /// empty so callers can pass only what they need.
@@ -87,7 +91,8 @@ public struct ElementData: Equatable {
         style: [String: String] = [:],
         handlers: [String: EventHandler] = [:],
         children: [VNode] = [],
-        refBindings: [AnyRefBinding] = []
+        refBindings: [AnyRefBinding] = [],
+        taskBindings: [TaskBinding] = []
     ) {
         self.tag = tag
         self.key = key
@@ -97,6 +102,7 @@ public struct ElementData: Equatable {
         self.handlers = handlers
         self.children = children
         self.refBindings = refBindings
+        self.taskBindings = taskBindings
     }
 
     /// Manual equality: every field participates EXCEPT `refBindings`. The
