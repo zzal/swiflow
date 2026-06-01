@@ -29,6 +29,11 @@ public struct AsyncTestHarness {
             for t in tasks { await t.value }
             renderer.scheduler.flush()
         }
+        // Final flush: if the in-flight set drained between a task's last
+        // `@State` write and this loop's check, the dirty mark is queued but no
+        // round ran to flush it. An empty flush is a no-op, so this is always
+        // safe and makes `settle()` correct regardless of call timing.
+        renderer.scheduler.flush()
     }
 
     public enum SettleError: Error, CustomStringConvertible {
@@ -55,4 +60,6 @@ public struct AsyncTestHarness {
     public func exists(_ tag: String, text: String? = nil) -> Bool { harness.exists(tag, text: text) }
     public func click(_ tag: String, text: String? = nil) { harness.click(tag, text: text) }
     public func input(_ tag: String = "input", at index: Int = 0, value: String) { harness.input(tag, at: index, value: value) }
+    public func blur(_ tag: String = "input", at index: Int = 0) { harness.blur(tag, at: index) }
+    public func change(_ tag: String = "select", at index: Int = 0, value: String) { harness.change(tag, at: index, value: value) }
 }

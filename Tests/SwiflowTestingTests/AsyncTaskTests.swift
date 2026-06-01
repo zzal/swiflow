@@ -2,7 +2,7 @@ import Testing
 @testable import SwiflowTesting
 @testable import Swiflow
 
-enum Loadable: Equatable { case idle, loading, loaded(String), failed }
+private enum Loadable: Equatable { case idle, loading, loaded(String), failed }
 
 @MainActor @Component
 private final class Profile {
