@@ -41,6 +41,12 @@ public struct AsyncTestHarness {
         }
     }
 
+    /// Flush pending synchronous re-renders (e.g. after directly mutating a
+    /// component's `@State` from a test). Use before `settle()` when a state
+    /// change must take effect — e.g. so a `rerunOn` change is reconciled —
+    /// before in-flight tasks are awaited.
+    public func flush() { renderer.scheduler.flush() }
+
     // MARK: - Query / interaction passthrough
 
     public var allText: String { harness.allText }
