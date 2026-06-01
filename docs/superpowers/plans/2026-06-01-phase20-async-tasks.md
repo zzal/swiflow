@@ -1171,78 +1171,42 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 9: Rerun + dead-task end-to-end coverage
+## Task 9: Refetch-after-settle end-to-end coverage
 
-**Why:** Tasks 6–8 cover the units. This adds the two behavior guarantees the spec calls out — dependency-change refetch and the superseded-write guard — exercised through a real component re-render, not the low-level helpers.
+**Why:** Task 8's `supersededRunDoesNotClobberNewerState` covers the *race* path (a task superseded before it completes). This task adds the distinct — and most common real-world — path: a query that **fully settles**, then its dependency changes and it **refetches**, showing the new value. (`flush()` and `Profile` with `@State var userID` already exist from Task 8, so this is one additive test.)
 
 **Files:**
 - Test: `Tests/SwiflowTestingTests/AsyncTaskTests.swift` (extend)
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing test**
 
-Append to `Tests/SwiflowTestingTests/AsyncTaskTests.swift` (inside `AsyncTaskTests`). `ProfileVM` lets a test mutate `userID` and re-render, which is what drives the rerun:
+Append this `@Test` inside the existing `AsyncTaskTests` struct (it reuses the existing `Profile`, which already has `@State var userID`):
 
 ```swift
-    @Test func changingDependencyRefetches() async throws {
-        let vm = ProfileVM(userID: 1) { id in "User#\(id)" }
+    @Test func changingDependencyRefetchesAfterSettle() async throws {
+        let vm = Profile(userID: 1) { id in "User#\(id)" }
         let h = AsyncTestHarness(vm)
-        try await h.settle()
+        try await h.settle()                 // task A fully completes
         #expect(h.allText.contains("User#1"))
 
-        vm.userID = 2          // changing the @State dep triggers re-render -> rerun
-        h.flush()
-        try await h.settle()
+        vm.userID = 2                         // change dep on an already-settled component
+        h.flush()                             // reconcile: rerun -> task B
+        try await h.settle()                  // task B completes
         #expect(h.allText.contains("User#2"))
         #expect(h.allText.contains("User#1") == false)
     }
-}
-
-@MainActor @Component
-private final class ProfileVM {
-    @State var userID: Int
-    let fetch: @Sendable (Int) async -> String
-    @State var state: Loadable = .idle
-
-    init(userID: Int, fetch: @escaping @Sendable (Int) async -> String) {
-        self.userID = userID
-        self.fetch = fetch
-    }
-
-    var body: VNode {
-        div {
-            if case .loaded(let name) = state { p(name) } else { p("…") }
-        }
-        .task(rerunOn: userID) {
-            self.state = .loading
-            self.state = .loaded(await self.fetch(self.userID))
-        }
-    }
 ```
 
-Add a `flush()` passthrough to `AsyncTestHarness` (needed to apply the synchronous re-render after a direct `@State` mutation in a test) — in `Sources/SwiflowTesting/AsyncTestHarness.swift`, in the passthrough section:
-
-```swift
-    /// Flush pending synchronous re-renders (e.g. after directly mutating a
-    /// component's `@State` from a test). Use before `settle()` when a state
-    /// change must take effect before in-flight tasks are awaited.
-    public func flush() { renderer.scheduler.flush() }
-```
-
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run the test**
 
 Run: `swift test --filter AsyncTaskTests`
-Expected: FAIL — `value of type 'AsyncTestHarness' has no member 'flush'` (then, once `flush()` is added in the same step, the test runs).
+Expected: PASS (4 tests). This proves refetch-after-settle; combined with Task 8's race test and the Task 2/5 unit guards, the rerun + clobber-prevention behavior is fully covered end-to-end.
 
-- [ ] **Step 3: Confirm green**
-
-Run: `swift test --filter AsyncTaskTests`
-Expected: PASS (4 tests). `changingDependencyRefetches` proves rerun-on-dependency-change end-to-end; the earlier `supersededRunDoesNotClobberNewerState` plus the Task 5 revert test together cover the guard.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add Sources/SwiflowTesting/AsyncTestHarness.swift Tests/SwiflowTestingTests/AsyncTaskTests.swift
-git commit -m "test(testing): rerun-on-dependency-change end-to-end + harness flush() (Phase 20)
+git add Tests/SwiflowTestingTests/AsyncTaskTests.swift
+git commit -m "test(testing): refetch-after-settle on dependency change (Phase 20)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
