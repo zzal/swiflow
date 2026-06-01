@@ -154,6 +154,9 @@ func mount(
             vnode: vnode,
             handlerIds: handlerIds
         )
+        // `.task` bodies are async — they run after this synchronous mount
+        // returns, so starting them here (before children mount) is immaterial
+        // to ordering. Symmetric cancel lives in `destroy()`.
         startTasks(on: mountNode, data.taskBindings)
 
         // Diagnostic: validate children key consistency on initial mount.
