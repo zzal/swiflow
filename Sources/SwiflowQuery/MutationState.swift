@@ -43,62 +43,61 @@ public final class MutationRuntime<M: Mutation> {
         markDirty()
     }
 
-    /// The single engine path: drives published state (pending → success/error,
-    /// optimism + rollback + invalidation) and reports the outcome. NEVER throws
-    /// — returns a `Result` so `.error` is set in exactly one place and
-    /// `mutateAsync` rethrows the same stored error.
-    func run(_ input: M.Input, _ mutation: M) async -> Result<M.Output, any Error> {
-        guard let client else {
-            // B1 guarantees mount-time wiring; this path is a hand-rolled /
-            // direct-construction safety net. Loud in DEBUG, degraded (no
-            // optimism/invalidation) in release — never a silently-wrong write.
-            assertionFailure("MutationRuntime.run: no QueryClient wired (was the component mounted through the renderer?)")
-            return await performOnly(input, mutation)
-        }
-
-        // 1. Optimism: snapshot prior, apply, stash for rollback.
+    /// Synchronous prologue, run on the caller's tick (inside `mutate` /
+    /// `mutateAsync`, NOT inside the spawned task): apply the optimistic cache
+    /// edits and enter `.pending`. Returning here means the cache + status
+    /// reflect the optimistic update immediately — synchronous code after
+    /// `mutate` sees it, and the next render shows it without a microtask gap.
+    ///
+    /// Returns the rollback stack (prior values, in apply order) for `finish`
+    /// to restore on failure. The stack is local to one mutation call, so
+    /// concurrent mutations never share rollback state.
+    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [(key: QueryKey, prior: Any?)] {
         var rollback: [(key: QueryKey, prior: Any?)] = []
-        for edit in mutation.optimistic(input) {
-            let prior = client.getQueryDataErased(edit.key)
-            if let next = edit.apply(prior) {
-                client.setQueryData(edit.key, next)
-                rollback.append((edit.key, prior))
-            } else {
-                #if DEBUG
-                swiflowDiagnostic("OptimisticEdit.update: no cache entry for key \(edit.key) — edit skipped.")
-                #endif
+        if let client {
+            for edit in mutation.optimistic(input) {
+                let prior = client.getQueryDataErased(edit.key)
+                if let next = edit.apply(prior) {
+                    client.setQueryData(edit.key, next)
+                    rollback.append((edit.key, prior))
+                } else {
+                    #if DEBUG
+                    swiflowDiagnostic("OptimisticEdit.update: no cache entry for key \(edit.key) — edit skipped.")
+                    #endif
+                }
             }
+        } else {
+            // B1 guarantees mount-time wiring; this is a hand-rolled /
+            // direct-construction safety net. Loud in DEBUG, degraded in
+            // release — the write still runs (in `finish`); only optimism and
+            // invalidation are skipped. Never a silently-wrong write.
+            assertionFailure("MutationRuntime: no QueryClient wired (was the component mounted through the renderer?)")
         }
-
-        // 2. Pending (synchronous, before the first suspension).
         status = .pending; markDirty()
+        return rollback
+    }
 
-        // 3. Perform.
+    /// Async remainder: run `perform`, then on success set `data` + invalidate,
+    /// or on failure roll back `rollback` and surface the error. NEVER throws —
+    /// returns a `Result` so `.error` is set in exactly one place and
+    /// `mutateAsync` rethrows the same stored error.
+    func finish(_ input: M.Input, _ mutation: M,
+                _ rollback: [(key: QueryKey, prior: Any?)]) async -> Result<M.Output, any Error> {
         let result: Result<M.Output, any Error>
         do { result = .success(try await mutation.perform(input)) }
         catch { result = .failure(error) }
 
-        // 4–6.
         switch result {
         case .success(let out):
             status = .success; data = out
-            for inv in mutation.invalidations(input: input, output: out) { dispatch(inv, client) }
+            if let client {
+                for inv in mutation.invalidations(input: input, output: out) { dispatch(inv, client) }
+            }
         case .failure(let err):
-            for r in rollback.reversed() { client.setQueryData(r.key, r.prior) }
+            if let client {
+                for r in rollback.reversed() { client.setQueryData(r.key, r.prior) }
+            }
             status = .error; error = err
-        }
-        markDirty()
-        return result
-    }
-
-    private func performOnly(_ input: M.Input, _ mutation: M) async -> Result<M.Output, any Error> {
-        status = .pending; markDirty()
-        let result: Result<M.Output, any Error>
-        do { result = .success(try await mutation.perform(input)) }
-        catch { result = .failure(error) }
-        switch result {
-        case .success(let out): status = .success; data = out
-        case .failure(let err): status = .error; error = err
         }
         markDirty()
         return result
@@ -145,17 +144,22 @@ public struct MutationHandle<M: Mutation> {
     public var data: M.Output? { runtime.data }
     public var error: (any Error)? { runtime.error }
 
-    /// Fire-and-forget — the UI reacts through the published state.
+    /// Fire-and-forget — the UI reacts through the published state. Optimism +
+    /// `.pending` are applied synchronously here; only `perform` + resolution
+    /// run in the spawned task.
     public func mutate(_ input: M.Input) {
         let rt = runtime, m = mutation
-        rt.register { _ = await rt.run(input, m) }
+        let rollback = rt.beginOptimistic(input, m)        // synchronous: optimism + pending
+        rt.register { _ = await rt.finish(input, m, rollback) }
     }
 
-    /// Awaitable — for sequencing side effects at the call site.
+    /// Awaitable — for sequencing side effects at the call site. Optimism +
+    /// `.pending` apply synchronously before the `await`.
     public func mutateAsync(_ input: M.Input) async throws -> M.Output {
         let rt = runtime, m = mutation
-        let task = Task { await rt.run(input, m) }   // typed result
-        rt.register { _ = await task.value }          // Void wrapper registered for settle()
+        let rollback = rt.beginOptimistic(input, m)        // synchronous: optimism + pending
+        let task = Task { await rt.finish(input, m, rollback) }   // typed result
+        rt.register { _ = await task.value }                       // Void wrapper for settle()
         switch await task.value {
         case .success(let out): return out
         case .failure(let err): throw err
