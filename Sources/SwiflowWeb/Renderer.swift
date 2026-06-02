@@ -3,6 +3,7 @@
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 import Swiflow
+import SwiflowQuery
 
 /// Owns Swiflow's per-application render state in a WASM/browser environment.
 ///
@@ -48,6 +49,10 @@ final class Renderer {
     /// `SwiflowTaskRuntime.currentScope` around each render so tasks started by
     /// this root's diff are tracked here, isolated from other roots.
     let taskScope = TaskScope()
+
+    /// This root's query client, installed as the render observer around each
+    /// render so `query()` during `body` reaches it.
+    let queryClient = QueryClient()
 
     /// Cumulative count of `renderOnce()` calls since this Renderer was created.
     /// Read by `DevAPI` to populate `__swiflow.perf().renders`.
@@ -124,9 +129,11 @@ final class Renderer {
     func renderOnce() {
         _currentRenderingRenderer = self
         SwiflowTaskRuntime.currentScope = taskScope
+        RenderObserverBox.current = queryClient
         defer {
             _currentRenderingRenderer = nil
             SwiflowTaskRuntime.currentScope = nil
+            RenderObserverBox.current = nil
         }
 
         let nextVNode: VNode

@@ -52,6 +52,7 @@ let package = Package(
             name: "SwiflowWeb",
             dependencies: [
                 "Swiflow",
+                "SwiflowQuery",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
