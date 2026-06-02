@@ -5,7 +5,7 @@
 > protocol, `QueryClient` cache, `query()` consumption, prefix+tag
 > `invalidate(...)`, and the `RenderObserver` boundary hook.
 
-**Status:** Approved design, ready for implementation plan. **Rev 3** — confirmation pass closed the last gap: the B1 mount-wiring needs a one-line `TestRenderer.init` ordering fix (install the client before the root `wireState`), since the test renderer wires the root out-of-band. Scoped the "no source changes" claim accordingly; tightened the B1 test; documented the macro naming-coupling + descriptor-array option. **Rev 2** — incorporated the swift-innovator review (B1 mount-time client wiring pulled into v1; B2 `run`→`Result` engine + `mutateAsync` bridge + cancellation contract; B3 `setQueryData` cancels in-flight + bumps generation).
+**Status:** ✅ **Implemented & shipped** (11-task TDD execution, branch `mutations`). **Rev 4** — reconciled the spec to the as-built code: the engine is a synchronous `beginOptimistic` + async `finish` split (not one `run`) so optimism is applied on the caller's tick (§5.1); the emitted `bind` calls the public `_currentRenderQueryClient()` accessor rather than the `package` `RenderObserverBox` directly (§4/§8.2); the unwired path uses `assertionFailure`+degraded (§8.2); `Invalidation` is `Equatable`. `SwiflowQuery` stayed on the default language mode (v6 was not required to build). **Rev 3** — confirmation pass closed the last gap: the B1 mount-wiring needs a one-line `TestRenderer.init` ordering fix (install the client before the root `wireState`). **Rev 2** — incorporated the swift-innovator review (B1 mount-time client wiring pulled into v1; B2 `run`→`Result` engine + `mutateAsync` bridge + cancellation contract; B3 `setQueryData` cancels in-flight + bumps generation).
 **Date:** 2026-06-02
 **Predecessor spec:** `docs/superpowers/specs/2026-06-01-query-core-design.md` (Query Core, shipped). Its §12 lists this sub-project: *"a `Mutation` analogue, optimistic updates with rollback, auto-invalidation of affected query keys/tags on success."*
 
@@ -166,7 +166,7 @@ A declarative target that maps onto Query Core's existing
 `invalidate(_:exact:)` and `invalidate(tag:)`.
 
 ```swift
-public enum Invalidation: Sendable {
+public enum Invalidation: Equatable, Sendable {   // Equatable: handy for tests
     case prefix(QueryKey)   // → client.invalidate(key, exact: false)
     case exact(QueryKey)    // → client.invalidate(key, exact: true)
     case tag(QueryTag)      // → client.invalidate(tag:)
@@ -335,11 +335,13 @@ appends a wiring statement to the `bind(owner:scheduler:)` body it emits:
 func bind(owner: AnyComponent, scheduler: Scheduler) {
     self.runtimeOwner = owner
     self.runtimeScheduler = scheduler
-    // emitted once per @MutationState property, ONLY when the class has one:
+    // emitted once per @MutationState property, ONLY when the class has one.
+    // `_currentRenderQueryClient()` is the public accessor over the `package`
+    // RenderObserverBox (the box itself is unreachable from a user module):
     _create_mutationRuntime.wire(
         owner: owner,
         scheduler: scheduler,
-        client: RenderObserverBox.current as? QueryClient
+        client: _currentRenderQueryClient()
     )
 }
 ```
@@ -404,39 +406,57 @@ Notes:
 - The driving task is registered with the client (§8.3) so the existing
   `AsyncTestHarness.settle()` awaits it.
 
-### 5.1 The engine: `run` returns `Result`, never throws
+### 5.1 The engine: synchronous `beginOptimistic` + async `finish`
 
-`mutate` and `mutateAsync` are thin entry points over **one** engine method.
-The non-negotiable rule: `run` owns *all* state transitions and **never
-throws** — it returns a `Result`. This makes `.error` settable in exactly one
-place (no double state-drive, no error duplicated between a thrown value and
-the stored one), and lets `mutateAsync` rethrow the very same error it stored.
+> **As-built (rev 4).** During implementation, Task 6 established that an
+> optimistic write must land **synchronously** with `mutate` — synchronous code
+> right after `mutate`, and the very next render, must see the optimistic value
+> with no microtask gap. So the single `run` was split into a synchronous
+> prologue and an async remainder. The invariants are unchanged: the async half
+> **never throws** (returns a `Result`), so `.error` is set in exactly one place
+> and `mutateAsync` rethrows the very same stored error.
+
+`beginOptimistic` runs on the caller's tick (inside `mutate`/`mutateAsync`,
+*not* the spawned task): it applies the optimistic edits and enters `.pending`,
+returning the per-call rollback stack. `finish` is the async remainder
+(`perform` → success/invalidate or failure/rollback).
 
 ```swift
 @MainActor
 final class MutationRuntime<M: Mutation> {
     // published: status, data, error; wired at mount: owner, scheduler, client
 
-    /// The single engine path. Drives published state (steps 1–6 above) AND
-    /// reports the outcome. Does NOT throw. The `mutation` is passed in by the
+    /// Synchronous prologue: snapshot+apply optimistic edits, enter `.pending`,
+    /// markDirty. Returns the per-call rollback stack. (Unwired client →
+    /// `assertionFailure` + no optimism; the write still runs in `finish`.)
+    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [(key: QueryKey, prior: Any?)] {
+        var rollback: [(key: QueryKey, prior: Any?)] = []
+        if let client {
+            for edit in mutation.optimistic(input) {
+                let prior = client.getQueryDataErased(edit.key)
+                if let next = edit.apply(prior) { client.setQueryData(edit.key, next); rollback.append((edit.key, prior)) }
+            }
+        } else { assertionFailure("no QueryClient wired") }
+        status = .pending; markDirty()
+        return rollback
+    }
+
+    /// Async remainder. Does NOT throw. The `mutation` is passed in by the
     /// handle (which snapshots the current `create`, §4), not stored here.
-    func run(_ input: M.Input, _ mutation: M) async -> Result<M.Output, any Error> {
-        let rollback = applyOptimism(input, mutation)   // step 1: snapshot+apply → restore stack
-        status = .pending; markDirty()                  // step 2 (synchronous, before any await)
-
+    func finish(_ input: M.Input, _ mutation: M,
+                _ rollback: [(key: QueryKey, prior: Any?)]) async -> Result<M.Output, any Error> {
         let result: Result<M.Output, any Error>
-        do    { result = .success(try await mutation.perform(input)) }   // step 3
+        do    { result = .success(try await mutation.perform(input)) }
         catch { result = .failure(error) }
-
         switch result {
         case .success(let out):
-            status = .success; data = out                                // step 4a
-            for inv in mutation.invalidations(input: input, output: out) { dispatch(inv) } // 5a
+            status = .success; data = out
+            if let client { for inv in mutation.invalidations(input: input, output: out) { dispatch(inv, client) } }
         case .failure(let err):
-            for entry in rollback.reversed() { client?.setQueryData(entry.key, entry.prior) } // 4b
-            status = .error; error = err                                 // step 5b
+            if let client { for r in rollback.reversed() { client.setQueryData(r.key, r.prior) } }
+            status = .error; error = err
         }
-        markDirty()                                                      // step 6
+        markDirty()
         return result
     }
 }
@@ -447,12 +467,16 @@ struct MutationHandle<M: Mutation> {
     let mutation: M                                       // snapshot of `create` at $-access (§4)
 
     func mutate(_ input: M.Input) {                       // fire-and-forget
-        runtime.register(Task { _ = await runtime.run(input, mutation) })
+        let rt = runtime, m = mutation
+        let rollback = rt.beginOptimistic(input, m)       // SYNCHRONOUS: optimism + pending
+        rt.register { _ = await rt.finish(input, m, rollback) }
     }
 
     func mutateAsync(_ input: M.Input) async throws -> M.Output {
-        let task = Task { await runtime.run(input, mutation) }   // typed result
-        runtime.register(Task { _ = await task.value })          // Void task for settle()
+        let rt = runtime, m = mutation
+        let rollback = rt.beginOptimistic(input, m)       // SYNCHRONOUS: optimism + pending
+        let task = Task { await rt.finish(input, m, rollback) }   // typed result
+        rt.register { _ = await task.value }                       // Void task for settle()
         switch await task.value {
         case .success(let out): return out
         case .failure(let err): throw err               // same error already stored in `.error`
@@ -462,16 +486,15 @@ struct MutationHandle<M: Mutation> {
 ```
 
 Why two task handles in `mutateAsync`: `inFlightTasks()` is typed
-`[Task<Void, Never>]` (`QueryClient.swift:124`), so the result-bearing
-`Task<Result<…>>` cannot be registered directly — a `Void` wrapper that awaits
-it is what `settle()` blocks on. `runtime.register` wraps the client's
-token-keyed registry (§8.3).
+`[Task<Void, Never>]`, so the result-bearing `Task<Result<…>>` cannot be
+registered directly — a `Void` wrapper that awaits it is what `settle()` blocks
+on. `runtime.register` wraps the client's token-keyed registry (§8.3).
 
-**`settle()` ordering.** `register(...)` runs synchronously before `run`'s
-first suspension (`perform`'s `await`), and `status = .pending`'s `markDirty`
-also fires before that suspension — so a test that calls `settle()` immediately
-after `mutate` observes a non-empty in-flight set and the pending state on the
-next `flush()`. No race.
+**`settle()` ordering.** `register(...)` and the synchronous `beginOptimistic`
+(which sets `.pending` + `markDirty`) both run before the spawned task's first
+suspension (`perform`'s `await`), so a test that calls `settle()` immediately
+after `mutate` observes a non-empty in-flight set and the pending/optimistic
+state on the next `flush()`. No race.
 
 ---
 
@@ -539,6 +562,13 @@ calls `scheduler.markDirty(owner)` on every state transition in §5.1.)
 `@Component`. But it **is** reachable at mount through the same type-erased seam
 `query()` uses: `RenderObserverBox.current as? QueryClient`.
 
+> **As-built note:** `RenderObserverBox` is `package`, so it is unreachable from
+> a *user* module where the `@Component`-emitted `bind` lives. The macro
+> therefore emits a call to the public accessor `_currentRenderQueryClient()`
+> (defined in `SwiflowQuery`, which *can* read the `package` box), not a direct
+> `RenderObserverBox.current` reference. Same seam, exported through one public
+> function.
+
 The critical fact (verified against the renderer): `RenderObserverBox.current`
 is set to the client for the **entire render pass** and nil'd in a `defer`. It
 is *not* scoped per component body. In production (`Renderer.swift:132`), the
@@ -560,7 +590,7 @@ So `@Component`'s emitted `bind` wires each mutation runtime once, at mount
 
 ```swift
 _create_mutationRuntime.wire(owner: owner, scheduler: scheduler,
-                             client: RenderObserverBox.current as? QueryClient)
+                             client: _currentRenderQueryClient())  // public accessor over the package box
 ```
 
 This makes mutations **correct by construction** — the client is present the
@@ -573,8 +603,9 @@ failure mode entirely.)
 
 If the client is somehow nil at wire time (e.g. a hand-rolled `Component` that
 isn't mounted through the diff, or a unit test driving the runtime directly),
-`mutate` traps with a `preconditionFailure` in DEBUG and no-ops with a
-`swiflowDiagnostic` in release — a *loud* failure, never a silently-wrong write.
+`beginOptimistic` fires an `assertionFailure` in DEBUG (loud, fail-fast at the
+call site) and degrades in release: the write still runs in `finish`, only
+optimism + invalidation are skipped — never a silently-wrong write.
 
 ### 8.3 Mutation task registration (for tests + settle)
 
