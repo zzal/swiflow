@@ -64,4 +64,31 @@ struct QueryClientReconcileTests {
         #expect(!client.hasLiveSubscribers(["a"]))
         #expect(!client.hasLiveSubscribers(["b"]))
     }
+
+    // Regression: a second component newly-observing a key while the first
+    // component's fetch for it is still in flight must dedup AND must not leave
+    // the entry stuck in `hasPendingFetch` (which would wedge isFetching=true
+    // after the fetch resolves).
+    @Test func secondSubscriberMidFlightDoesNotStickFetching() async {
+        let client = QueryClient(clock: ManualClock())
+        let a = AnyComponent(Dummy())
+        let b = AnyComponent(Dummy())
+        let sched = SyncScheduler { _ in }
+        var calls = 0
+        func make() -> QueryClient.QueryObservation {
+            QueryClient.QueryObservation(
+                key: ["x"], tags: [], staleTime: .zero,
+                boxedFetch: { calls += 1; return 1 },
+                valuesEqual: { ($0 as? Int) == ($1 as? Int) }
+            )
+        }
+        client.reconcile(owner: a, scheduler: sched, observations: [make()])  // triggers fetch
+        client.reconcile(owner: b, scheduler: sched, observations: [make()])  // dedups mid-flight
+        await awaitInFlight(client)
+
+        #expect(calls == 1)                                  // deduped to one fetch
+        let entry = client.entries[["x"]]!
+        #expect(!entry.hasPendingFetch)                      // not wedged
+        #expect(makeSnapshot(from: entry, as: Int.self).isFetching == false)
+    }
 }

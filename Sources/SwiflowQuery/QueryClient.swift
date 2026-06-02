@@ -73,8 +73,12 @@ public final class QueryClient {
     /// Spawn the entry's fetch if none is in flight (dedup). The task captures
     /// the entry's current generation and commits only if it still matches.
     func startFetch(for key: QueryKey, entry: QueryEntry) {
-        guard entry.inFlight == nil, let boxedFetch = entry.boxedFetch else { return }
+        // Clear the pending flag unconditionally — even when this call dedups to
+        // an already-in-flight fetch (guard below returns), the entry must not
+        // stay "pending" forever, which would wedge isFetching=true after that
+        // fetch resolves.
         entry.hasPendingFetch = false
+        guard entry.inFlight == nil, let boxedFetch = entry.boxedFetch else { return }
         let generation = entry.generation
         entry.inFlight = Task { [weak self] in
             let result: Result<Any, any Error>
@@ -189,7 +193,6 @@ public final class QueryClient {
             let isNew = !oldKeys.contains(ob.key)
             if isNew, !triggered.contains(ob.key), needsFetch(entry, staleTime: ob.staleTime) {
                 triggered.insert(ob.key)
-                entry.hasPendingFetch = true
                 startFetch(for: ob.key, entry: entry)
             }
         }
