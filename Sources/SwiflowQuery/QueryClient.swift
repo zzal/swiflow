@@ -113,4 +113,32 @@ public final class QueryClient {
         guard let last = entry.lastFetched else { return true }
         return (clock.now() - last) >= staleTime
     }
+
+    // MARK: - Invalidation
+
+    /// Force every entry whose key starts with `key` (or equals it when
+    /// `exact`) stale, and refetch the ones with live subscribers.
+    public func invalidate(_ key: QueryKey, exact: Bool = false) {
+        for (entryKey, entry) in entries {
+            let match = exact ? (entryKey == key) : entryKey.hasPrefix(key)
+            if match { forceStaleAndRefetch(entryKey, entry) }
+        }
+    }
+
+    /// Force every entry tagged `tag` stale, and refetch the live ones.
+    public func invalidate(tag: QueryTag) {
+        for (entryKey, entry) in entries where entry.tags.contains(tag) {
+            forceStaleAndRefetch(entryKey, entry)
+        }
+    }
+
+    private func forceStaleAndRefetch(_ key: QueryKey, _ entry: QueryEntry) {
+        entry.lastFetched = nil          // force stale
+        entry.generation += 1            // supersede any in-flight result
+        entry.inFlight?.cancel()
+        entry.inFlight = nil
+        if hasLiveSubscribers(key) {
+            startFetch(for: key, entry: entry)
+        }
+    }
 }
