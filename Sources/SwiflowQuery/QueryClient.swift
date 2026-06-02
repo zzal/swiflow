@@ -46,14 +46,18 @@ public final class QueryClient {
     }
 
     /// Mark every live subscriber of `key` dirty, pruning dead weak refs.
+    /// A subscriber is "live" if its owner is alive; a missing scheduler
+    /// just means markDirty is skipped for that subscriber (e.g. in tests
+    /// where the scheduler is transient), but the subscription itself stays.
     func notify(_ key: QueryKey) {
         guard let subs = subscribers[key] else { return }
         var live: [Subscriber] = []
         for sub in subs {
-            if let owner = sub.owner, let scheduler = sub.scheduler {
+            guard let owner = sub.owner else { continue }   // owner gone → prune
+            if let scheduler = sub.scheduler {
                 scheduler.markDirty(owner)
-                live.append(sub)
             }
+            live.append(sub)
         }
         subscribers[key] = live.isEmpty ? nil : live
     }
@@ -140,5 +144,63 @@ public final class QueryClient {
         if hasLiveSubscribers(key) {
             startFetch(for: key, entry: entry)
         }
+    }
+
+    // MARK: - Reconciliation
+
+    /// One component's observation of one key during a render (recorded by
+    /// `observe`). Carries everything reconcile needs to create the entry and
+    /// trigger a fetch.
+    struct QueryObservation {
+        let key: QueryKey
+        let tags: Set<QueryTag>
+        let staleTime: Duration
+        let boxedFetch: @MainActor () async throws -> Any
+        let valuesEqual: (Any?, Any?) -> Bool
+    }
+
+    /// Diff `owner`'s this-render observations against its previous set.
+    func reconcile(owner: AnyComponent, scheduler: (any Scheduler)?,
+                   observations: [QueryObservation]) {
+        let ownerID = ObjectIdentifier(owner.instance)
+        let newKeys = Set(observations.map(\.key))
+        let oldKeys = observed[ownerID] ?? []
+
+        // Dropped keys → unsubscribe.
+        for key in oldKeys.subtracting(newKeys) {
+            unsubscribe(ownerID: ownerID, from: key)
+        }
+        observed[ownerID] = newKeys.isEmpty ? nil : newKeys
+
+        var triggered = Set<QueryKey>()
+        for ob in observations {
+            let entry = entries[ob.key] ?? {
+                let e = QueryEntry(valuesEqual: ob.valuesEqual)
+                entries[ob.key] = e
+                return e
+            }()
+            entry.tags = ob.tags
+            entry.boxedFetch = ob.boxedFetch          // capture latest deps
+
+            if let scheduler { subscribe(owner: owner, scheduler: scheduler, to: ob.key) }
+
+            // Trigger only for NEW observations (mount / key-change), gated by
+            // staleness; once per key per render.
+            let isNew = !oldKeys.contains(ob.key)
+            if isNew, !triggered.contains(ob.key), needsFetch(entry, staleTime: ob.staleTime) {
+                triggered.insert(ob.key)
+                entry.hasPendingFetch = true
+                startFetch(for: ob.key, entry: entry)
+            }
+        }
+    }
+
+    /// Drop all of a component's subscriptions on unmount.
+    func dropComponent(_ owner: AnyComponent) {
+        let ownerID = ObjectIdentifier(owner.instance)
+        for key in observed[ownerID] ?? [] {
+            unsubscribe(ownerID: ownerID, from: key)
+        }
+        observed[ownerID] = nil
     }
 }
