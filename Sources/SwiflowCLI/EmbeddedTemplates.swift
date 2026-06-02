@@ -1972,7 +1972,7 @@ struct App {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Async fetch demo</title>
+    <title>Query demo</title>
     <style>
       /* Swiflow loading indicator. The driver writes
          documentElement.dataset.swiflowProgress = "0".."100"
