@@ -57,13 +57,20 @@ public final class MutationRuntime<M: Mutation> {
         if let client {
             for edit in mutation.optimistic(input) {
                 let prior = client.getQueryDataErased(edit.key)
-                if let next = edit.apply(prior) {
+                switch edit.apply(prior) {
+                case .write(let next):
                     client.setQueryData(edit.key, next)
                     rollback.append((edit.key, prior))
-                } else {
+                case .noValue:
                     #if DEBUG
-                    swiflowDiagnostic("OptimisticEdit.update: no cache entry for key \(edit.key) — edit skipped.")
+                    swiflowDiagnostic("OptimisticEdit.update: no cached value for key \(edit.key) — edit skipped.")
                     #endif
+                case .typeMismatch(let expected, let actual):
+                    // Never intentional: the edit targets the wrong query. Trap
+                    // in DEBUG; degrade to a skipped edit in release (the write
+                    // still runs in `finish`).
+                    assertionFailure(
+                        "OptimisticEdit.update: type mismatch for key \(edit.key) — expected a cached value of type \(expected) but found \(actual). The optimistic edit targets the wrong query; edit skipped.")
                 }
             }
         } else {
@@ -111,16 +118,11 @@ public final class MutationRuntime<M: Mutation> {
         }
     }
 
-    /// Register a fire-and-forget driving task with the client so `settle()`
-    /// awaits it; the task self-removes by token on completion.
+    /// Register a fire-and-forget driving task with the client's in-flight
+    /// registry so `settle()` awaits it; the task self-removes on completion.
     func register(_ work: @escaping () async -> Void) {
         guard let client else { Task { await work() }; return }
-        let token = client.nextMutationTaskToken()
-        let task = Task<Void, Never> {
-            await work()
-            client.removeMutationTask(token)
-        }
-        client.storeMutationTask(token, task)
+        client.inFlightMutations.track(work)
     }
 }
 

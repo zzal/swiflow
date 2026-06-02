@@ -22,11 +22,11 @@ struct QueryEntryTests {
         #expect(s.isSuccess)
     }
 
-    @Test func pendingFetchWithDataIsBackgroundFetching() {
+    @Test func inFlightFetchWithDataIsBackgroundFetching() {
         let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
         e.value = 7
         e.lastFetched = .zero
-        e.hasPendingFetch = true
+        e.inFlight = Task<Void, Never> {}   // a revalidation is running in the background
         let s = makeSnapshot(from: e, as: Int.self)
         #expect(s.data == 7)
         #expect(!s.isLoading)

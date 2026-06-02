@@ -16,9 +16,6 @@ final class QueryEntry {
     var generation: Int = 0
     /// The currently running fetch, if any (dedup + cancellation handle).
     var inFlight: Task<Void, Never>?
-    /// Observed-but-task-not-yet-spawned. Makes the snapshot report fetching
-    /// between `observe` (during body) and `startFetch` (at reconcile).
-    var hasPendingFetch: Bool = false
     /// Cross-cutting families this entry belongs to (from the latest query).
     var tags: Set<QueryTag> = []
     /// The latest query's fetch, capturing its latest dependencies. Used to
@@ -38,7 +35,7 @@ func makeSnapshot<V>(from entry: QueryEntry?, as _: V.Type) -> QueryState<V> {
     guard let entry else {
         return QueryState(isLoading: true, isFetching: true)
     }
-    let fetching = entry.inFlight != nil || entry.hasPendingFetch
+    let fetching = entry.inFlight != nil
     let data = entry.value as? V
     return QueryState(
         data: data,

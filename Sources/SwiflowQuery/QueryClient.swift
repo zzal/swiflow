@@ -12,10 +12,10 @@ public final class QueryClient {
     /// Per owner-instance: the set of keys it observed in its last render.
     var observed: [ObjectIdentifier: Set<QueryKey>] = [:]
 
-    /// In-flight mutation driving tasks, token-keyed so a task self-removes by
-    /// token (NOT index — index removal would race a concurrent removal).
-    var mutationTasks: [Int: Task<Void, Never>] = [:]
-    var nextMutationToken = 0
+    /// Driving tasks for in-flight mutations, tracked apart from the query cache
+    /// so this type stays about queries. Folded into `inFlightTasks()` so the
+    /// test harness awaits mutations too.
+    let inFlightMutations = InFlightRegistry()
 
     public init(clock: any QueryClock = SystemQueryClock()) {
         self.clock = clock
@@ -78,11 +78,6 @@ public final class QueryClient {
     /// Spawn the entry's fetch if none is in flight (dedup). The task captures
     /// the entry's current generation and commits only if it still matches.
     func startFetch(for key: QueryKey, entry: QueryEntry) {
-        // Clear the pending flag unconditionally — even when this call dedups to
-        // an already-in-flight fetch (guard below returns), the entry must not
-        // stay "pending" forever, which would wedge isFetching=true after that
-        // fetch resolves.
-        entry.hasPendingFetch = false
         guard entry.inFlight == nil, let boxedFetch = entry.boxedFetch else { return }
         let generation = entry.generation
         entry.inFlight = Task { [weak self] in
@@ -127,7 +122,7 @@ public final class QueryClient {
     /// `package` (not `public`): only the in-package test harness needs it; the
     /// public surface stays `query` / `invalidate` / `QueryState` / `Query`.
     package func inFlightTasks() -> [Task<Void, Never>] {
-        entries.values.compactMap { $0.inFlight } + Array(mutationTasks.values)
+        entries.values.compactMap { $0.inFlight } + inFlightMutations.current()
     }
 
     // MARK: - Freshness

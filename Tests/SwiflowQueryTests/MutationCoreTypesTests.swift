@@ -19,12 +19,25 @@ struct MutationCoreTypesTests {
     @Test func updateCarriesKeyAndTransforms() {
         let edit = OptimisticEdit.update(Count()) { $0 + 1 }
         #expect(edit.key == ["count"])
-        #expect((edit.apply(10) as? Int) == 11)
+        guard case .write(let next) = edit.apply(10) else {
+            Issue.record("expected .write"); return
+        }
+        #expect((next as? Int) == 11)
     }
 
-    @Test func updateNoOpsOnAbsentOrMismatchedValue() {
+    @Test func updateReportsNoValueWhenAbsent() {
         let edit = OptimisticEdit.update(Count()) { $0 + 1 }
-        #expect(edit.apply(nil) == nil)            // absent → no-op
-        #expect(edit.apply("not an int") == nil)   // type mismatch → no-op
+        guard case .noValue = edit.apply(nil) else {
+            Issue.record("absent value should report .noValue"); return
+        }
+    }
+
+    @Test func updateFlagsTypeMismatchOnWrongType() {
+        let edit = OptimisticEdit.update(Count()) { $0 + 1 }
+        guard case .typeMismatch(let expected, let actual) = edit.apply("not an int") else {
+            Issue.record("wrong cached type should report .typeMismatch"); return
+        }
+        #expect(expected.contains("Int"))
+        #expect(actual.contains("String"))
     }
 }
