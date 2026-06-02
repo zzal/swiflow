@@ -1,5 +1,6 @@
 // Sources/SwiflowTesting/TestRenderer.swift
 import Swiflow
+import SwiflowQuery
 
 private final class RerenderRelay: @unchecked Sendable {
     weak var owner: TestRenderer?
@@ -21,10 +22,15 @@ final class TestRenderer {
     /// running) test renderers that share the process-global runtime.
     let taskScope = TaskScope()
 
-    init<C: Component>(_ instance: C) {
+    /// This render root's query client, installed as the render observer
+    /// around each diff so `query()` during `body` reaches it.
+    let queryClient: QueryClient
+
+    init<C: Component>(_ instance: C, queryClient: QueryClient = QueryClient()) {
         let relay = RerenderRelay()
         self.handles = HandleAllocator()
         self.handlers = HandlerRegistry()
+        self.queryClient = queryClient
         self.rootInstance = instance
         self.rootID = ObjectIdentifier(instance)
         self.scheduler = SyncScheduler { [relay] component in
@@ -37,13 +43,20 @@ final class TestRenderer {
         // Set the scope directly (not via the `withScope` closure) so we don't
         // capture `self` in a closure before all members are initialized.
         SwiflowTaskRuntime.currentScope = taskScope
+        RenderObserverBox.current = queryClient
         defer {
             _testAmbientHandlers = nil
             SwiflowTaskRuntime.currentScope = nil
+            RenderObserverBox.current = nil
         }
+        // Wrap the root component's body evaluation in a query observer frame
+        // so `query()` calls inside body are recorded and reconciled.
+        queryClient.willEvaluate(owner: anyComponent, scheduler: self.scheduler)
+        let rootBodyVNode = instance.body
+        queryClient.didEvaluate()
         let result = diff(
             mounted: nil,
-            next: instance.body,
+            next: rootBodyVNode,
             handles: self.handles,
             handlers: self.handlers,
             scheduler: self.scheduler
@@ -55,14 +68,20 @@ final class TestRenderer {
     func rerender(_ component: AnyComponent) {
         _testAmbientHandlers = self.handlers
         SwiflowTaskRuntime.currentScope = taskScope
+        RenderObserverBox.current = queryClient
         defer {
             _testAmbientHandlers = nil
             SwiflowTaskRuntime.currentScope = nil
+            RenderObserverBox.current = nil
         }
         if ObjectIdentifier(component.instance) == rootID {
+            // Wrap root body evaluation in a query observer frame.
+            queryClient.willEvaluate(owner: rootComponent, scheduler: scheduler)
+            let rootBodyVNode = rootInstance.body
+            queryClient.didEvaluate()
             let result = diff(
                 mounted: mountTree,
-                next: rootInstance.body,
+                next: rootBodyVNode,
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler

@@ -83,7 +83,7 @@ let package = Package(
         ),
         .target(
             name: "SwiflowTesting",
-            dependencies: ["Swiflow"],
+            dependencies: ["Swiflow", "SwiflowQuery"],
             path: "Sources/SwiflowTesting",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

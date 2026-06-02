@@ -1,5 +1,6 @@
 // Sources/SwiflowTesting/AsyncTestHarness.swift
 import Swiflow
+import SwiflowQuery
 
 /// A test harness for components that use `.task` async effects. `settle()`
 /// drives all in-flight tasks to completion and flushes the resulting
@@ -9,8 +10,8 @@ public struct AsyncTestHarness {
     let renderer: TestRenderer
     let harness: TestHarness
 
-    public init<C: Component>(_ component: C) {
-        let r = TestRenderer(component)
+    public init<C: Component>(_ component: C, queryClient: QueryClient = QueryClient()) {
+        let r = TestRenderer(component, queryClient: queryClient)
         self.renderer = r
         self.harness = TestHarness(r)
     }
@@ -24,11 +25,13 @@ public struct AsyncTestHarness {
     public func settle(maxRounds: Int = 100) async throws {
         var rounds = 0
         while true {
-            let tasks = renderer.taskScope.inFlightTasks()
-            if tasks.isEmpty { break }
+            let taskHandles = renderer.taskScope.inFlightTasks()
+            let queryHandles = renderer.queryClient.inFlightTasks()
+            if taskHandles.isEmpty && queryHandles.isEmpty { break }
             rounds += 1
             if rounds > maxRounds { throw SettleError.exceededMaxRounds(maxRounds) }
-            for t in tasks { await t.value }
+            for t in taskHandles { await t.value }
+            for t in queryHandles { await t.value }
             renderer.scheduler.flush()
         }
         // Final flush: if the in-flight set drained between a task's last
