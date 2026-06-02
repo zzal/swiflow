@@ -38,7 +38,6 @@ final class TestRenderer {
         }
         let anyComponent = AnyComponent(instance)
         self.rootComponent = anyComponent
-        wireState(on: anyComponent, scheduler: self.scheduler)
         _testAmbientHandlers = self.handlers
         // Set the scope directly (not via the `withScope` closure) so we don't
         // capture `self` in a closure before all members are initialized.
@@ -49,6 +48,10 @@ final class TestRenderer {
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }
+        // Wire AFTER the observer box is installed, so a root @MutationState's
+        // mount-time wiring (@Component.bind → _currentRenderQueryClient())
+        // captures the client (spec §8.2, B1).
+        wireState(on: anyComponent, scheduler: self.scheduler)
         // Wrap the root component's body evaluation in a query observer frame
         // so `query()` calls inside body are recorded and reconciled.
         queryClient.willEvaluate(owner: anyComponent, scheduler: self.scheduler)
