@@ -252,7 +252,11 @@ func mount(
         let bodyVNode = handlers.withScope(scopeID) {
             let previousEnv = AmbientEnvironment.current
             AmbientEnvironment.current = environment
-            defer { AmbientEnvironment.current = previousEnv }
+            RenderObserverBox.current?.willEvaluate(owner: instance, scheduler: scheduler)
+            defer {
+                AmbientEnvironment.current = previousEnv
+                RenderObserverBox.current?.didEvaluate()
+            }
             return instance.instance.body
         }
         // Notify the CSS injector so scoped styles are injected into
@@ -422,7 +426,11 @@ func update(
         let newBodyVNode = handlers.withScope(mounted.scopeID) {
             let previousEnv = AmbientEnvironment.current
             AmbientEnvironment.current = environment
-            defer { AmbientEnvironment.current = previousEnv }
+            RenderObserverBox.current?.willEvaluate(owner: instance, scheduler: scheduler)
+            defer {
+                AmbientEnvironment.current = previousEnv
+                RenderObserverBox.current?.didEvaluate()
+            }
             return instance.instance.body
         }
         // Ensure the scope class stays on the body root across re-renders.
@@ -645,6 +653,7 @@ package func destroy(
             handlers.closeScope(scopeID)
         }
         OnChangeStorage.remove(for: ObjectIdentifier(any.instance))
+        RenderObserverBox.current?.componentDidUnmount(any)
         // Symmetric with the register call in mount(): drop this instance
         // from the reused-instance diagnostic tracker.
         #if DEBUG
