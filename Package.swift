@@ -92,6 +92,7 @@ let package = Package(
             name: "SwiflowQuery",
             dependencies: [
                 "Swiflow",
+                "SwiflowMacrosPlugin",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             ],
             path: "Sources/SwiflowQuery"
