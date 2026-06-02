@@ -206,4 +206,45 @@ public final class QueryClient {
         }
         observed[ownerID] = nil
     }
+
+    // MARK: - RenderObserver (per-render observation frames)
+
+    /// One in-progress component render's collected observations.
+    private struct Frame {
+        let owner: AnyComponent
+        let scheduler: (any Scheduler)?
+        var observations: [QueryObservation] = []
+    }
+    private var frames: [Frame] = []
+
+    /// Called by `query(_:)` during `body`: record interest, return the current
+    /// snapshot. Pure read otherwise — no fetch, no subscription mutation here.
+    func observe<Q: Query>(_ q: Q) -> QueryState<Q.Value> {
+        let key = q.queryKey
+        let ob = QueryObservation(
+            key: key,
+            tags: q.tags,
+            staleTime: q.staleTime,
+            boxedFetch: { try await q.fetch() },
+            valuesEqual: { ($0 as? Q.Value) == ($1 as? Q.Value) }
+        )
+        if !frames.isEmpty { frames[frames.count - 1].observations.append(ob) }
+        return makeSnapshot(from: entries[key], as: Q.Value.self)
+    }
+}
+
+extension QueryClient: RenderObserver {
+    package func willEvaluate(owner: AnyComponent, scheduler: (any Scheduler)?) {
+        frames.append(Frame(owner: owner, scheduler: scheduler))
+    }
+
+    package func didEvaluate() {
+        guard let frame = frames.popLast() else { return }
+        reconcile(owner: frame.owner, scheduler: frame.scheduler,
+                  observations: frame.observations)
+    }
+
+    package func componentDidUnmount(_ owner: AnyComponent) {
+        dropComponent(owner)
+    }
 }
