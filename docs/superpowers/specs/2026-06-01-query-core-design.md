@@ -6,14 +6,23 @@
 (`docs/superpowers/specs/2026-06-01-phase20-async-tasks-design.md`).
 
 > **Revision 2** folds in a stern design review. Material changes from the
-> first draft: typed `QueryKeyComponent` enum (was `[AnyHashable]`); owner read
-> off `self` via a `package` accessor (was a new ambient current-component);
+> first draft: typed `QueryKeyComponent` enum (was `[AnyHashable]`);
 > an explicit refetch **trigger model** so `.zero` staleTime does not storm;
 > per-render subscription **reconciliation** (was subscribe-until-unmount with a
 > lingering leak); a per-entry generation guard with pinned capture/compare
 > points; a monotonic `Duration` clock; `QueryState` is no longer `Equatable`.
 > The spec no longer claims `query()` reuses `.task`'s mechanism — it is a
 > distinct component-level mechanism, argued on its own merits.
+>
+> **Revision 3** (during planning) replaces rev-2's "owner read off `self` via a
+> macro-emitted `package` accessor" with a **diff-authoritative render-observer
+> boundary hook** (§7.1/§7.2/§11). Per-render reconciliation needs a
+> body-eval boundary signal in the diff regardless; since the diff already holds
+> the authoritative `(owner, scheduler)` at that point, supplying it through the
+> boundary hook makes the macro accessor redundant — **no macro change, no
+> `ComponentMacroTests` snapshot churn**. The owner is *bound by the diff*, never
+> *inferred by `query()`*, so the wrong-owner-near-`embed` risk the review raised
+> still cannot occur. The user-facing API is unchanged.
 
 ---
 
@@ -385,28 +394,42 @@ the array levels, which prefix-matching fully covers).
 This section defines the contract with the `Swiflow` core. The required core
 changes are in §11.
 
-### 7.1 Owner identity from `self`
+### 7.1 Owner identity from the diff (render-observer boundary)
 
-`query()` is a `Component` extension method, so inside `body` `self` *is* the
-component. It reads that component's owner + scheduler — which every component
-already receives via `bind(owner:scheduler:)` on the `public _ComponentRuntime`
-protocol — through a small `package` accessor (§11). **No ambient
-current-component is introduced.** This is robust and avoids a real bug an
-ambient would create: the diff already saves/restores `AmbientEnvironment.current`
-around `embed { Child() }`, so an ambient *component* set the same way could
-leave a parent's later `query()` calls attributing to the child. Reading off
-`self` sidesteps this entirely.
+The core gains one general, query-agnostic seam: a `package` **render-observer
+boundary hook**. `Swiflow` declares a `package protocol RenderObserver` with
+`willEvaluate(owner:scheduler:)`, `didEvaluate()`, and
+`componentDidUnmount(_:)`, plus a `package` ambient `currentRenderObserver:
+(any RenderObserver)?`. The diff fires `willEvaluate`/`didEvaluate` around each
+component's `body` evaluation, at the existing `AmbientEnvironment.current`
+bracket sites (so it nests correctly through `embed { Child() }`), and
+`componentDidUnmount` from the destroy path. `SwiflowQuery` installs an observer
+(the `QueryClient` itself conforms); the renderer save/restores
+`currentRenderObserver` around its render, exactly as it already does for
+`SwiflowTaskRuntime.currentScope`.
 
-### 7.2 Collect-during-body, reconcile-at-commit (a distinct mechanism)
+`query()` therefore attributes its observed keys to the owner **the diff
+supplied** at the active boundary — it never *infers* the owner. This is an
+ambient current-owner, but a safe one: the binding is authoritative (the diff
+knows precisely which component's `body` it is evaluating) and rides the same
+bracket `AmbientEnvironment` uses, so the wrong-owner-near-`embed` failure mode
+cannot arise. It needs **no macro change** and no `_ComponentRuntime` accessor —
+the diff already holds `(AnyComponent, Scheduler)` at the eval site.
+
+### 7.2 Collect-during-body, reconcile-at-boundary (a distinct mechanism)
 
 This is **not** how `.task` works — `.task` closures are attached to element
 `VNode`s and slot-reconciled by the diff (`DiffTasks.swift`). Queries are a
-*component-level* concern, so they use a different mechanism:
+*component-level* concern, so they use a different mechanism, driven by the
+render-observer boundary (§7.1):
 
-- During `body`, each `query(key)` call appends `key` to a per-render
-  observation set for the current component (a pure read otherwise).
-- After the render commits, a post-commit hook hands that set to the client,
-  which **reconciles** it against the component's previous observation set:
+- `willEvaluate(owner:scheduler:)` opens a fresh observation frame for the
+  component about to render.
+- During `body`, each `query(key)` call records `key` (plus a type-erased fetch
+  and `Equatable` witness) into that frame and returns the current snapshot — a
+  pure read otherwise (no fetch spawned, no subscription mutated during `body`).
+- `didEvaluate()` hands the completed frame to the client, which **reconciles**
+  it against that component's previous observation set:
   - **new keys** (observed now, not before) → subscribe + apply the §5 trigger
     (fetch if absent/stale);
   - **dropped keys** (observed before, not now) → unsubscribe;
@@ -456,12 +479,16 @@ returning across the suspension.
 
 ## 8. Client injection & manual refetch
 
-### 8.1 Environment-injected client
+### 8.1 Per-root client (installed as the render observer)
 
-The client is read via `@Environment(\.queryClient)`. A default `QueryClient`
-is created at the render root if none is injected; tests inject their own client
-(with a `ManualClock`). No global singleton — the Phase 20 isolation lesson
-(per-root scope, nothing process-global to pollute across tests/roots).
+Each render root owns one `QueryClient`. The renderer installs it as the active
+`RenderObserver` (§11 item 2), save/restored around the render — so during a
+given root's render that root's client is the active observer, and `query()`
+obtains it from there (`currentRenderObserver as? QueryClient`). A default client
+is created at the render root; tests inject their own (with a `ManualClock`). No
+separate `\.queryClient` environment key is required, and no global singleton —
+per-root, save/restored, nothing process-global to pollute across tests/roots
+(the Phase 20 isolation lesson).
 
 ### 8.2 Manual refetch
 
@@ -510,19 +537,25 @@ the plan).
 
 ## 11. Required core changes (`Swiflow`)
 
-1. **`package` accessor for the runtime handles on `_ComponentRuntime`** — the
-   macro already emits `private runtimeOwner`/`runtimeScheduler` and a `public
-   bind(...)`; add a `package` getter (e.g. `var _runtimeHandles: (AnyComponent,
-   Scheduler)?`) emitted by the macro and declared on the protocol, so
-   `query()` can read the owner off `self`. *No diff change.*
-2. **Post-commit reconciliation hook in the render path** (`Renderer.renderOnce`
-   and `TestRenderer`) — after each component's render commits, hand its
-   per-render observation set to the client for reconciliation (§7.2).
-3. **Destroy-path unsubscribe notification** — when a component's node unmounts,
-   the diff's destroy path notifies the client to drop its subscriptions and
-   observation record.
+1. **A general `package` render-observer boundary hook.** Add to `Swiflow` core:
+   a `package protocol RenderObserver` (`willEvaluate(owner:scheduler:)`,
+   `didEvaluate()`, `componentDidUnmount(_:)`) and a `package` ambient
+   `currentRenderObserver: (any RenderObserver)?` (an `enum` holding a
+   `nonisolated(unsafe) static var`, mirroring `AmbientEnvironment`). The diff
+   fires `willEvaluate`/`didEvaluate` around each component's `body` eval at the
+   existing `AmbientEnvironment` bracket sites (`Diff.swift` ~253/256 and
+   ~423/426), and `componentDidUnmount` from `destroy(...)` alongside the
+   existing `cancelTasks(on:)` call. `TestRenderer` fires the same around its
+   direct root-body evals (where it already sets `SwiflowTaskRuntime.currentScope`).
+   Core stays query-agnostic; `SwiflowQuery` provides the observer that drives
+   §7.2 reconciliation. **No macro change, no snapshot churn.**
+2. **Renderer/TestRenderer install the observer.** Each render root creates (or
+   is injected) a `QueryClient`, injects it via `@Environment(\.queryClient)`,
+   and save/restores `Swiflow.currentRenderObserver = client` around its render —
+   the identical pattern already used for `SwiflowTaskRuntime.currentScope`.
 
-(The first draft's "ambient current-component" core change is removed — §7.1.)
+(Rev-1's "ambient current-component" and rev-2's "macro accessor" are both
+superseded by this single query-agnostic boundary hook — §7.1.)
 
 ---
 
@@ -559,9 +592,13 @@ the plan).
   every render as a refetch): correct-by-default freshness *without* a refetch
   storm — triggers are mount/key-change/invalidate, gated by staleness; plain
   re-renders never fetch.
-- **Owner from `self`** (over an ambient current-component): robust, no
-  wrong-owner bug near `embed{}`, and no diff change — every component already
-  holds its owner via `bind(...)`.
+- **Owner from the diff via a render-observer boundary** (over a `query()`-read
+  ambient, and over a macro-emitted off-`self` accessor): per-render
+  reconciliation needs a body-eval boundary signal in the diff regardless, and
+  the diff already holds the authoritative `(owner, scheduler)` there — so the
+  boundary hook supplies it, the owner is *bound* not *inferred* (no
+  wrong-owner-near-`embed` bug), and there is no macro change or snapshot churn.
+  A strictly cleaner seam than rev-1's ambient or rev-2's accessor.
 - **Per-render subscription reconciliation** (over subscribe-until-unmount):
   with GC deferred, the lingering-subscription approach was an unbounded leak;
   the per-render set-diff also *is* the trigger mechanism, so it costs little.
