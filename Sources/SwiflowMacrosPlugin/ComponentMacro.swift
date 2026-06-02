@@ -164,19 +164,33 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             }
         }
 
+        // Collect @MutationState property names so `bind` can wire each
+        // runtime's QueryClient at mount (spec §8, B1).
+        var mutationNames: [String] = []
+        for member in classDecl.memberBlock.members {
+            guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+            let isMutation = varDecl.attributes.contains { attr in
+                guard let a = attr.as(AttributeSyntax.self),
+                      let n = a.attributeName.as(IdentifierTypeSyntax.self)?.name.text else { return false }
+                return n == "MutationState"
+            }
+            guard isMutation,
+                  let b = varDecl.bindings.first,
+                  let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier else { continue }
+            mutationNames.append(id.text)
+        }
+
+        // Build the `bind` body: always the two owner/scheduler assignments,
+        // plus one wire() line per @MutationState (conditional — mutation-free
+        // components emit a byte-identical body with no SwiflowQuery reference).
+        var bindStmts = ["self.runtimeOwner = owner", "self.runtimeScheduler = scheduler"]
+        bindStmts += mutationNames.map { name in
+            "_\(name)_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())"
+        }
+        let bindBody = bindStmts.joined(separator: "\n    ")
         let bindDecl: DeclSyntax = isPublic
-            ? """
-              public func bind(owner: AnyComponent, scheduler: Scheduler) {
-                  self.runtimeOwner = owner
-                  self.runtimeScheduler = scheduler
-              }
-              """
-            : """
-              func bind(owner: AnyComponent, scheduler: Scheduler) {
-                  self.runtimeOwner = owner
-                  self.runtimeScheduler = scheduler
-              }
-              """
+            ? DeclSyntax(stringLiteral: "public func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
+            : DeclSyntax(stringLiteral: "func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
 
         return [
             "private weak var runtimeOwner: AnyComponent?",
