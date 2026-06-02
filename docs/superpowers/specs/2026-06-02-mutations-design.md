@@ -5,7 +5,7 @@
 > protocol, `QueryClient` cache, `query()` consumption, prefix+tag
 > `invalidate(...)`, and the `RenderObserver` boundary hook.
 
-**Status:** Approved design, ready for implementation plan.
+**Status:** Approved design, ready for implementation plan. **Rev 2** — incorporates the swift-innovator review (B1 mount-time client wiring pulled into v1; B2 `run`→`Result` engine + `mutateAsync` bridge + cancellation contract; B3 `setQueryData` cancels in-flight + bumps generation).
 **Date:** 2026-06-02
 **Predecessor spec:** `docs/superpowers/specs/2026-06-01-query-core-design.md` (Query Core, shipped). Its §12 lists this sub-project: *"a `Mutation` analogue, optimistic updates with rollback, auto-invalidation of affected query keys/tags on success."*
 
@@ -36,10 +36,11 @@ matches their semantics: per-component reactive state, sibling to `@State`.
 
 - `Mutation` protocol (`Input`, `Output`, `perform`, `optimistic`, `invalidations`).
 - `@MutationState` macro + `$`-projected `MutationHandle` (the consumption surface).
+- **Mount-time client wiring** — `@Component` scans `@MutationState` and wires the `QueryClient` into each mutation runtime at mount, so a mutation is *never* unwired regardless of whether `body` reads its handle (B1).
 - Declarative `optimistic()` with automatic snapshot + rollback.
 - Declarative `invalidations(input:output:)` running on success.
-- `mutate` (fire-and-forget) + `mutateAsync` (awaitable, for side effects) + `reset()`.
-- A package-internal cache-write primitive on `QueryClient` (`setQueryData`/`getQueryData`) that the optimistic engine uses.
+- `mutate` (fire-and-forget, the common path) + `mutateAsync` (awaitable, for side effects) + `reset()`.
+- A package-internal cache-write primitive on `QueryClient` (`setQueryData`/`getQueryData`) that cancels any in-flight fetch + bumps the entry generation so optimistic values survive concurrent SWR revalidation (B3).
 - Test coverage via the existing `AsyncTestHarness`.
 
 ### Out of scope (explicitly deferred)
@@ -70,17 +71,28 @@ Modified:
 
 | File | Change |
 |---|---|
-| `Sources/SwiflowMacrosPlugin/MutationStateMacro.swift` (new) | Macro **implementation** (peer macro). |
+| `Sources/SwiflowMacrosPlugin/MutationStateMacro.swift` (new) | `@MutationState` peer-macro **implementation** (emits the backing runtime + `$name` projection). |
+| `Sources/SwiflowMacrosPlugin/ComponentMacro.swift` | Scan members for `@MutationState` (alongside the existing `@State`/`@MacroState` scan at `ComponentMacro.swift:84-89`); emit mount-time client wiring into `bind(owner:scheduler:)` (B1, §8.2). |
 | `Sources/SwiflowMacrosPlugin/SwiflowMacrosPlugin.swift` | Register `MutationStateMacro` in `providingMacros`. |
-| `Package.swift` | Add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target's dependencies (so the macro declaration resolves). |
-| `Sources/SwiflowQuery/QueryClient.swift` | Mutation in-flight task registry surfaced through `inFlightTasks()`. |
+| `Package.swift` | Add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target's dependencies (so the macro declaration resolves). **Also confirm the language-mode**: `SwiflowQuery` is currently the one target *without* `.swiftLanguageMode(.v6)`; adding a macro dependency may surface a mismatch — set it to match if the build complains. |
+| `Sources/SwiflowQuery/QueryClient.swift` | Token-based mutation in-flight task registry surfaced through `inFlightTasks()`; `setQueryData` cancel+generation-bump semantics (§11). |
 
 **Dependency direction is preserved.** `SwiflowQuery` already depends on
-`Swiflow`. The macro **implementation** lives in the existing
-`SwiflowMacrosPlugin` and emits *source text* into the user's module — which
+`Swiflow`. The macro **implementations** live in the existing
+`SwiflowMacrosPlugin` and emit *source text* into the user's module — which
 imports `SwiflowQuery` — so emitted references to `MutationHandle`,
-`MutationRuntime`, `QueryClient`, and `RenderObserverBox` resolve there, not
-in the plugin. No core (`Swiflow`) source changes are required.
+`MutationRuntime`, `QueryClient`, and `RenderObserverBox` resolve there, not in
+the plugin.
+
+**No `Swiflow` *runtime* source changes** (the `RenderObserver` hook,
+`runtimeOwner`/`runtimeScheduler`, and `bind`/`wireStateAndRestore` are reused
+as-is). The one core-adjacent change is to the `@Component` **macro**
+(`ComponentMacro`, in the plugin): it learns to scan `@MutationState`. Its
+mount-wiring emission references `QueryClient`/`RenderObserverBox` **only when
+the component actually declares a `@MutationState`** — and such a component
+necessarily imports `SwiflowQuery`, so the references resolve. Components
+without mutations emit byte-identical `bind` bodies to today and never name a
+`SwiflowQuery` type, so nothing that doesn't use mutations is affected.
 
 ---
 
@@ -189,6 +201,14 @@ public struct OptimisticEdit {
 cached list. v1 ships only `.update`; `.set` and insert/remove sugar are
 deferred (§14).
 
+Note the deliberate constraint asymmetry: an `OptimisticEdit`'s value is the
+target query's `Q.Value`, which is `Equatable & Sendable` by `Query`'s own
+contract (`Query.swift:14`). A `Mutation`'s `Output` (§3.1) is only `Sendable`.
+That's intentional — `Output` is display-only, while the edit's value flows
+into a cache entry whose stored `valuesEqual` witness was captured from
+`Q.Value` and so must remain that exact concrete type (the type-erasure
+contract, §11).
+
 ### 3.4 `MutationStatus` and the handle surface
 
 ```swift
@@ -209,6 +229,13 @@ func mutate(_ input: M.Input)                              // fire-and-forget
 func mutateAsync(_ input: M.Input) async throws -> M.Output // awaitable, for side effects
 func reset()                                               // → idle, clears data/error
 ```
+
+**`status` and `data`/`error` are orthogonal** (the same reasoning that made
+`QueryState` a struct, not an enum). A subsequent failed `mutate` sets
+`status = .error` and populates `error` but **retains the prior `data`** from
+the last success — matching queries' SWR semantics. `isSuccess` is therefore
+`status == .success`, *not* `data != nil` (the two diverge after a failure that
+follows a success). `reset()` is the only thing that clears `data`.
 
 ---
 
@@ -233,19 +260,34 @@ final class AddTodo {
     var body: VNode {
         form {
             input(.value($title))
-            button("Add") {
-                Task {
-                    let todo = try await self.$create.mutateAsync(self.title)
-                    self.title = ""                      // side effect, co-located with the trigger
-                    // e.g. router.navigate(to: todo.id)
-                }
-            }
+            // Common path — fire-and-forget. The UI reacts purely through the
+            // handle's published state; no Task, no await.
+            button("Add") { self.$create.mutate(self.title) }
         }
         .disabled($create.isPending)
         if $create.isError { p("Couldn't add todo") }
     }
 }
 ```
+
+When a success needs a *side effect* that isn't a cache write (clear the form,
+navigate, close a dialog), reach for `mutateAsync` at the call site — the
+escape hatch, not the default:
+
+```swift
+button("Add") {
+    Task {
+        let todo = try await self.$create.mutateAsync(self.title)
+        self.title = ""                      // side effect, co-located with the trigger
+        // e.g. router.navigate(to: todo.id)
+    }
+}
+```
+
+> Lead with `mutate`; it covers the majority of buttons. The `Task { try await … }`
+> ceremony of `mutateAsync` is only paid when you actually sequence a side
+> effect. (Whether the event-handler closure could itself be `async` — dropping
+> the `Task {}` wrapper — is a separate framework question, out of scope here.)
 
 ### Why `$create` (the handle) and not `create.mutate(...)`
 
@@ -256,34 +298,56 @@ to `@State`:
 - A property has one type for get and set, so `create` cannot *also* return a `MutationHandle` (a macro accessor can't change the type the way a property wrapper's `wrappedValue` can).
 - `@State var title: String` already establishes the idiom: the name is the value, **`$title` is the reactive projection**. `@MutationState var create: CreateTodo` → **`$create` is the reactive handle** is the direct analogue.
 
-### What the macro emits
+### What the macros emit
 
-`@MutationState` is a **peer macro** (no accessor needed — reassigning the
-`Mutation` definition is not itself a re-render trigger). For
+Two macros cooperate. The naming convention for the backing field
+(`_<name>_mutationRuntime`) is shared between them.
+
+**`@MutationState` (peer macro).** No accessor needed — reassigning the
+`Mutation` definition is not itself a re-render trigger. For
 `@MutationState var create: CreateTodo` it emits, as siblings in the component
 class:
 
 ```swift
-// persistent reactive state — survives across renders with the component instance
+// persistent reactive state — survives across renders with the component instance.
+// (owner / scheduler / client are injected at mount by @Component's bind, §8.)
 private let _create_mutationRuntime = MutationRuntime<CreateTodo>()
 
-// the reactive handle projection
+// the reactive handle projection — a cheap value wrapping the persistent runtime
+// plus a snapshot of the current `Mutation` (so a reassigned `create` is picked up).
 var $create: MutationHandle<CreateTodo> {
-    _create_mutationRuntime.wire(
-        mutation: create,
-        owner: runtimeOwner,                          // private @Component field — in-class access OK
-        scheduler: runtimeScheduler,                  // private @Component field — in-class access OK
-        client: RenderObserverBox.current as? QueryClient  // captured during render (see §8)
-    )
-    return MutationHandle(runtime: _create_mutationRuntime)
+    MutationHandle(runtime: _create_mutationRuntime, mutation: create)
 }
 ```
 
-Because the projection is a sibling member of the component class, it can read
-the **private** `runtimeOwner`/`runtimeScheduler` that `@Component` already
-emits — no `@Component` changes, no new enumeration array. The macro reads the
-type annotation (`CreateTodo`) exactly as `@State` does to emit
-`Binding<T>`.
+The projection does **no** wiring — it just reads. All three references the
+runtime needs (`owner`, `scheduler`, `client`) are injected once at mount (§8.2),
+so the handle works even if `body` never reads it. The macro reads the type
+annotation (`CreateTodo`) exactly as `@State` does to emit `Binding<T>`.
+
+**`@Component` (member macro, extended).** It already scans members for `@State`
+to build `stateCells`. It additionally scans for `@MutationState` and, for each,
+appends a wiring statement to the `bind(owner:scheduler:)` body it emits:
+
+```swift
+func bind(owner: AnyComponent, scheduler: Scheduler) {
+    self.runtimeOwner = owner
+    self.runtimeScheduler = scheduler
+    // emitted once per @MutationState property, ONLY when the class has one:
+    _create_mutationRuntime.wire(
+        owner: owner,
+        scheduler: scheduler,
+        client: RenderObserverBox.current as? QueryClient
+    )
+}
+```
+
+`bind` runs at mount inside the render pass (it's called from
+`wireStateAndRestore`, invoked from the diff), so `RenderObserverBox.current`
+*is* the installed `QueryClient` at that moment (§8.2). Because the wiring line
+is emitted only for classes that declare a `@MutationState` — which necessarily
+import `SwiflowQuery` — the `QueryClient`/`RenderObserverBox` references always
+resolve, and mutation-free components emit an unchanged `bind`.
 
 ---
 
@@ -319,12 +383,77 @@ Notes:
 - The optimistic value stays applied through `perform`; on success the
   `invalidations` refetch overwrites it with server truth (standard SWR — a
   brief reconcile, usually invisible since the optimistic value ≈ the result).
-- `mutate` is fire-and-forget: it kicks off `run` and discards the task; the UI
-  reacts purely through the handle's published state. `mutateAsync` awaits the
-  same `run` and returns/rethrows so side effects sequence with `async`/`await`
-  at the call site.
 - The driving task is registered with the client (§8.3) so the existing
   `AsyncTestHarness.settle()` awaits it.
+
+### 5.1 The engine: `run` returns `Result`, never throws
+
+`mutate` and `mutateAsync` are thin entry points over **one** engine method.
+The non-negotiable rule: `run` owns *all* state transitions and **never
+throws** — it returns a `Result`. This makes `.error` settable in exactly one
+place (no double state-drive, no error duplicated between a thrown value and
+the stored one), and lets `mutateAsync` rethrow the very same error it stored.
+
+```swift
+@MainActor
+final class MutationRuntime<M: Mutation> {
+    // published: status, data, error; wired at mount: owner, scheduler, client
+
+    /// The single engine path. Drives published state (steps 1–6 above) AND
+    /// reports the outcome. Does NOT throw. The `mutation` is passed in by the
+    /// handle (which snapshots the current `create`, §4), not stored here.
+    func run(_ input: M.Input, _ mutation: M) async -> Result<M.Output, any Error> {
+        let rollback = applyOptimism(input, mutation)   // step 1: snapshot+apply → restore stack
+        status = .pending; markDirty()                  // step 2 (synchronous, before any await)
+
+        let result: Result<M.Output, any Error>
+        do    { result = .success(try await mutation.perform(input)) }   // step 3
+        catch { result = .failure(error) }
+
+        switch result {
+        case .success(let out):
+            status = .success; data = out                                // step 4a
+            for inv in mutation.invalidations(input: input, output: out) { dispatch(inv) } // 5a
+        case .failure(let err):
+            for entry in rollback.reversed() { client?.setQueryData(entry.key, entry.prior) } // 4b
+            status = .error; error = err                                 // step 5b
+        }
+        markDirty()                                                      // step 6
+        return result
+    }
+}
+
+@MainActor
+struct MutationHandle<M: Mutation> {
+    let runtime: MutationRuntime<M>
+    let mutation: M                                       // snapshot of `create` at $-access (§4)
+
+    func mutate(_ input: M.Input) {                       // fire-and-forget
+        runtime.register(Task { _ = await runtime.run(input, mutation) })
+    }
+
+    func mutateAsync(_ input: M.Input) async throws -> M.Output {
+        let task = Task { await runtime.run(input, mutation) }   // typed result
+        runtime.register(Task { _ = await task.value })          // Void task for settle()
+        switch await task.value {
+        case .success(let out): return out
+        case .failure(let err): throw err               // same error already stored in `.error`
+        }
+    }
+}
+```
+
+Why two task handles in `mutateAsync`: `inFlightTasks()` is typed
+`[Task<Void, Never>]` (`QueryClient.swift:124`), so the result-bearing
+`Task<Result<…>>` cannot be registered directly — a `Void` wrapper that awaits
+it is what `settle()` blocks on. `runtime.register` wraps the client's
+token-keyed registry (§8.3).
+
+**`settle()` ordering.** `register(...)` runs synchronously before `run`'s
+first suspension (`perform`'s `await`), and `status = .pending`'s `markDirty`
+also fires before that suspension — so a test that calls `settle()` immediately
+after `mutate` observes a non-empty in-flight set and the pending state on the
+next `flush()`. No race.
 
 ---
 
@@ -334,13 +463,20 @@ The developer declares *what the cache should look like*; the engine owns
 snapshot/apply/rollback. This deletes the TanStack footgun class (forgetting
 to snapshot in `onMutate` or restore in `onError`).
 
-- **Snapshot:** the engine reads `client.getQueryData(key)` (type-erased `Any?`) *before* applying each edit, and stashes `(key, prior)`. There is no developer-visible snapshot/context object.
-- **Apply:** `setQueryData(key, transformed)` writes the entry's value and runs the existing notify path so mounted `query()` observers re-render with the optimistic value immediately.
-- **No-op safety:** `.update` returns `nil` from `apply` when the targeted entry has no cached value (nothing on screen reads it yet). The engine skips the write and records no snapshot — nothing to roll back.
+- **Snapshot:** the engine reads `client.getQueryDataErased(key)` (type-erased `Any?`) *before* applying each edit, and stashes `(key, prior)`. There is no developer-visible snapshot/context object.
+- **Apply:** `setQueryData(key, transformed)` writes the entry's value, **cancels any in-flight fetch for that key and bumps the entry generation** (so a concurrent SWR revalidation that resolves later cannot clobber the optimistic value — B3, §11), and runs the existing notify path so mounted `query()` observers re-render with the optimistic value immediately.
+- **No-op safety + observability:** `.update` returns `nil` from `apply` when the targeted entry has no cached value (nothing on screen reads it yet). The engine skips the write and records no snapshot — nothing to roll back. Because a silently-vanished optimistic edit is hard to debug, the engine emits a `swiflowDiagnostic` **in DEBUG builds** when an `.update` finds no entry (S1).
 - **Rollback:** on `perform` failure, the engine restores each `(key, prior)` in reverse order via `setQueryData` (including `prior == nil`, which clears a value the edit had seeded — though v1 `.update` never seeds).
 
 Multiple edits per mutation are supported (e.g. update a list *and* a detail
 entry); each is independently snapshotted and rolled back.
+
+**Expressiveness limit (v1).** `.update`'s transform receives only the *target*
+query's current value (`(Q.Value) -> Q.Value`). An optimistic edit that must
+*read another query* to compute its new value (e.g. derive a total from a
+separate aggregate query) cannot be expressed declaratively in v1; that needs
+the deferred public `setQueryData` escape hatch (§14). Documented so it doesn't
+surprise.
 
 ---
 
@@ -368,49 +504,73 @@ The handle needs three references to function: the `owner` and `scheduler`
 (to `markDirty` and trigger re-render) and the `QueryClient` (to read/write the
 cache and invalidate).
 
-### 8.1 Owner + scheduler (always available post-mount)
+### 8.1 Owner + scheduler (injected at mount)
 
-`@Component` already emits `private weak var runtimeOwner` and
-`private var runtimeScheduler`, bound once per instance at mount via
-`bind(owner:scheduler:)` (called from `wireStateAndRestore` during the diff).
-The macro-emitted `$create` projection is an in-class sibling, so it reads
-those private fields directly — identical to how `@State`'s `didSet` reads them
-to `markDirty`.
+`bind(owner:scheduler:)` (emitted by `@Component`, called from
+`wireStateAndRestore` during the diff) already receives the `owner` and
+`scheduler`. The extended `bind` (§4) passes them straight into each mutation
+runtime's `wire(owner:scheduler:client:)` at mount — the runtime caches them,
+exactly once, alongside the client (§8.2). The `$create` projection therefore
+does no wiring; it just wraps the already-wired runtime. (This is the same
+`owner`/`scheduler` pair `@State`'s `didSet` uses to `markDirty`; the runtime
+calls `scheduler.markDirty(owner)` on every state transition in §5.1.)
 
-### 8.2 Client (captured during render)
+### 8.2 Client (wired at mount — B1)
 
 `QueryClient` lives above `Swiflow`, so it cannot be a typed field on the core
-`@Component`. Instead — exactly as `query()` does — the handle captures it from
-the type-erased `RenderObserverBox.current as? QueryClient`, which is the
-installed client during any render/diff. The `$create` projection caches the
-client into `_create_mutationRuntime` whenever it is evaluated within a render
-(`RenderObserverBox.current != nil`); the cache is only overwritten with a
-non-nil value.
+`@Component`. But it **is** reachable at mount through the same type-erased seam
+`query()` uses: `RenderObserverBox.current as? QueryClient`.
 
-**Constraint:** `$create` must be referenced in `body` at least once before
-`mutate` fires, so the client is captured. This is the universal pattern —
-components show `$create.isPending` (disable) and/or `$create.isError`
-(message). If `mutate`/`mutateAsync` is invoked while unwired (client never
-captured), the engine emits a `swiflowDiagnostic` and runs `perform` **without**
-optimism or invalidation (the write still happens; only the cache-reconcile is
-skipped). A future hardening (deferred, §14) can wire the client at mount via a
-`@Component`-emitted mutation-cell array if this constraint proves limiting.
+The critical fact (verified against the renderer): `RenderObserverBox.current`
+is set to the client for the **entire render pass** and nil'd in a `defer`
+(`Renderer.swift` / `TestRenderer.swift`). It is *not* scoped per component
+body. Mount wiring (`wireStateAndRestore` → `bind`) runs *inside* that render
+pass, so `RenderObserverBox.current` is the installed `QueryClient` at mount
+time.
+
+So `@Component`'s emitted `bind` wires each mutation runtime once, at mount
+(§4, *What the macros emit*):
+
+```swift
+_create_mutationRuntime.wire(owner: owner, scheduler: scheduler,
+                             client: RenderObserverBox.current as? QueryClient)
+```
+
+This makes mutations **correct by construction** — the client is present the
+instant the component mounts, whether or not `body` ever reads `$create`. There
+is no "reference the handle in `body` first" constraint and no silent-degrade
+path. (An earlier rev captured the client lazily during `body`; the review
+(B1) showed that lets a component whose `body` never touches `$create` run its
+first `mutate` unwired — a silent data-correctness bug. Mount wiring removes the
+failure mode entirely.)
+
+If the client is somehow nil at wire time (e.g. a hand-rolled `Component` that
+isn't mounted through the diff, or a unit test driving the runtime directly),
+`mutate` traps with a `preconditionFailure` in DEBUG and no-ops with a
+`swiflowDiagnostic` in release — a *loud* failure, never a silently-wrong write.
 
 ### 8.3 Mutation task registration (for tests + settle)
 
-`AsyncTestHarness.settle()` awaits `renderer.queryClient.inFlightTasks()`. The
-engine registers its driving task with the client so `settle()` blocks on
-in-flight mutations too:
+`AsyncTestHarness.settle()` awaits `renderer.queryClient.inFlightTasks()`. Query
+fetches are derived from `entries` (`QueryClient.swift:124`); mutations have no
+entry, so the client gains a **separate, token-keyed** registry of in-flight
+mutation tasks:
 
 ```swift
 // QueryClient (package surface)
-package func registerMutationTask(_ task: Task<Void, Never>)   // stored; auto-pruned on completion
-package func inFlightTasks() -> [Task<Void, Never>]            // now includes mutation tasks
+private var mutationTasks: [Int: Task<Void, Never>] = [:]   // token → task
+private var nextMutationToken = 0
+
+package func registerMutationTask(_ task: Task<Void, Never>) -> Int  // returns token
+package func removeMutationTask(_ token: Int)                        // remove by token, NOT index
+package func inFlightTasks() -> [Task<Void, Never>]                  // entries' inFlight + mutationTasks.values
 ```
 
-`run` wraps its work in a `Task<Void, Never>` (the awaitable result for
-`mutateAsync` is bridged separately, see §5), registers it, and removes it on
-completion.
+The registered `Task<Void, Never>` removes itself by **token** in a `defer`
+(`defer { client.removeMutationTask(token) }`) — not by array index, which
+would race a concurrent removal that shifts indices. All access is `@MainActor`,
+so the dictionary needs no further synchronization. (The `register(...)` calls
+in §5.1 wrap this register-and-defer-remove pair.)
 
 ---
 
@@ -423,10 +583,15 @@ completion.
 
 ---
 
-## 10. Concurrency & re-entrancy
+## 10. Concurrency, re-entrancy & cancellation
 
 - All mutation code is `@MainActor`; `perform` is the only suspension point.
-- A second `mutate` while one is pending is **allowed**; both run. State reflects the last to resolve. Optimistic snapshots are independent per call, restored on each call's own failure. v1 does **not** queue or cancel — UIs gate re-entry with `.disabled($create.isPending)`, which is the documented pattern. (Noted as a known limitation; queue/cancel deferred to §14.)
+- **Re-entrancy:** a second `mutate` while one is pending is **allowed**; both run, and `status`/`data`/`error` reflect the last to resolve. Each call captures its own independent rollback stack (local to its `run` invocation, §5.1), restored on that call's own failure. v1 does **not** queue or cancel concurrent mutations — UIs gate re-entry with `.disabled($create.isPending)`, the documented pattern. (Queue/cancel deferred, §14.)
+- **Concurrent optimistic edits to the same key are NOT serializable in v1.** If two in-flight mutations both `.update` the same cache entry, mutation A's rollback restores the value it snapshotted, which may already have been overwritten by mutation B — classic optimistic-interleaving. The `isPending` gate makes this rare, but it is advisory, not enforced. Explicit known limitation.
+- **Cancellation contract (the unmount/reset question, B2):**
+  - **`reset()` does NOT cancel** an in-flight task. It returns the *published* state to `.idle`; an outstanding `perform` still completes and applies its success/failure transition + invalidation/rollback as normal. (Rationale: a write already sent to the server should still reconcile the cache; `reset` only clears the UI-facing state.)
+  - **Unmount does NOT cancel** in v1. A `perform` that resolves after its component unmounts still runs its completion. This is safe because: `markDirty` on a dead `weak` owner no-ops; and the cache writes (invalidation refetch / optimistic rollback) act on the shared `QueryClient`, which outlives the component — the correct target, since other mounted observers of that key should still see the reconciled result. The runtime holds `owner` `weak`, so it does not retain the component.
+  - Task-level cancellation (cooperative, via the surrounding `Task`) remains available to `perform` implementations but is not driven by `reset`/unmount in v1.
 
 ---
 
@@ -435,24 +600,49 @@ completion.
 ```swift
 // QueryClient+Cache.swift — NOT public in v1
 extension QueryClient {
-    /// Current cached value at `key`, or nil if absent / type mismatch.
+    /// Current cached value at `key`, typed, or nil if absent / type mismatch.
     package func getQueryData<V>(_ key: QueryKey, as type: V.Type) -> V?
 
     /// Type-erased read used by the optimistic engine (it holds Any? snapshots).
     package func getQueryDataErased(_ key: QueryKey) -> Any?
 
-    /// Write `value` into the entry at `key` (creating nothing if absent is
-    /// acceptable for v1 — see note) and run the existing notify/markDirty
-    /// path so mounted observers re-render. Does NOT mark the entry fresh in a
-    /// way that suppresses a subsequent invalidation refetch.
+    /// Write `value` into the entry at `key`, notify observers, and protect the
+    /// write from a concurrent in-flight fetch. See the generation contract below.
     package func setQueryData(_ key: QueryKey, _ value: Any?)
 }
 ```
 
-Implementation reuses the existing per-entry storage and the `notify` path
-(prune-on-nil-owner semantics unchanged). `setQueryData` on a key with **no**
-entry is a no-op in v1 (optimistic edits target on-screen queries, which have
-live entries); seeding absent entries is deferred.
+**The generation contract (B3).** The shipped cache has a per-entry generation
+guard: `commitFetch` (`QueryClient.swift:94-118`) drops a fetch result unless
+`entry.generation` still matches the value captured when the fetch was spawned,
+and `forceStaleAndRefetch` (`:155-163`) bumps `generation` + cancels
+`entry.inFlight`. Without coordination, an optimistic `setQueryData` racing an
+in-flight SWR revalidation would be silently clobbered when that fetch resolves
+via `commitFetch`. So `setQueryData` must, in one step:
+
+1. `entry.inFlight?.cancel()` and bump `entry.generation` — so any fetch already
+   in flight for this key is superseded and its `commitFetch` is dropped by the
+   guard (the same mechanism `forceStaleAndRefetch` relies on).
+2. Set `entry.value = value` and **leave the entry stale** (`lastFetched = nil`)
+   so a later `invalidate(...)` still refetches — the optimistic value is
+   provisional, not authoritative.
+3. Run the existing `notify` path (prune-on-nil-owner semantics unchanged) so
+   mounted `query()` observers re-render with the new value immediately.
+
+This is the declarative equivalent of TanStack's "cancel outgoing refetches in
+`onMutate` before applying optimistic data."
+
+**Type-erasure contract.** `entry.value` is `Any?`, but the entry's
+`valuesEqual` witness (`QueryEntry.swift`) was captured from the original
+query's concrete `Q.Value`. The `Any` written by `setQueryData` **must** be that
+same concrete type. v1 satisfies this by construction — `.update`'s transform is
+`(Q.Value) -> Q.Value` — but the contract must be stated so future
+`select`/change-detection work doesn't break silently.
+
+**Absent entry.** `setQueryData` on a key with **no** entry is a no-op in v1
+(optimistic edits target on-screen queries, which have live entries; `.update`
+already returns `nil` and the engine logs in DEBUG, §6). Seeding absent entries
+is deferred (§14).
 
 ---
 
@@ -476,9 +666,13 @@ Integration (mounted component + a live `query()`):
 - `invalidations` triggers a refetch of a mounted observer on success (assert via a fetch counter, like `invalidateRefetchesMountedObserver`).
 - side-effect path: `mutateAsync` resolves, then a `@State` write (`title = ""`) is reflected after `flush()`.
 - re-render: `isPending` toggles drive the `.disabled(...)` attribute in the rendered tree.
+- **B1 mount wiring:** a component that mounts a `@MutationState` but whose `body` **never references `$create`** still wires the client — its first `mutate` applies optimism + invalidation (assert the optimistic value appears / a fetch counter bumps). This is the regression test for the silent-degrade footgun.
+- **B3 generation guard:** with a background revalidation in flight for a key (gate it with a `Gate`, as in `supersedingFetchSurvivesStaleCompletion`), an optimistic `setQueryData` survives — when the superseded fetch later resolves, `commitFetch` is dropped by the guard and the optimistic value is *not* clobbered.
+- **Cancellation:** `reset()` while a `perform` is in flight returns published state to `.idle`, but the still-running `perform` completes and applies its invalidation/rollback (assert via a fetch counter / cache value after `settle()`).
 
 Macro:
 - a golden expansion test for `@MutationState` (emitted `_*_mutationRuntime` + `$name` projection), paralleling existing `@State`/`@Component` macro tests.
+- a golden expansion test for `@Component`'s extended `bind` — a class **with** a `@MutationState` emits the `_*_mutationRuntime.wire(...)` line; a class **without** one emits a `bind` byte-identical to today's (the conditional-emission guarantee, §2).
 
 ---
 
@@ -489,12 +683,16 @@ Macro:
 `QueryClient+Cache.swift`.
 
 **Modified:**
-- `SwiflowQuery/QueryClient.swift` — mutation-task registry surfaced through `inFlightTasks()`.
-- `SwiflowMacrosPlugin/` — add `MutationStateMacro.swift`; register it in `SwiflowMacrosPlugin.swift`.
-- `Package.swift` — add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target deps.
+- `SwiflowQuery/QueryClient.swift` — token-keyed mutation-task registry surfaced through `inFlightTasks()`; `setQueryData` cancel+generation-bump (§11).
+- `SwiflowMacrosPlugin/` — add `MutationStateMacro.swift`; **extend `ComponentMacro.swift`** to scan `@MutationState` and emit mount-time `wire(...)` into `bind` (B1); register `MutationStateMacro` in `SwiflowMacrosPlugin.swift`.
+- `Package.swift` — add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target deps; confirm `SwiflowQuery`'s language mode (§2).
 
-**No `Swiflow` (core) source changes.** The `RenderObserver` hook and the
-`@Component`-emitted `runtimeOwner`/`runtimeScheduler` are reused as-is.
+**No `Swiflow` *runtime* source changes.** The `RenderObserver` hook, the
+`@Component`-emitted `runtimeOwner`/`runtimeScheduler`, and
+`bind`/`wireStateAndRestore` are reused as-is. The only core-adjacent change is
+the `@Component` **macro** learning to scan `@MutationState` — and its emitted
+`QueryClient`/`RenderObserverBox` references are conditional on the component
+declaring a mutation, so mutation-free code is byte-for-byte unaffected (§2).
 
 ---
 
@@ -503,11 +701,13 @@ Macro:
 - Mutation-result cache / dedup / mutation history.
 - Retries / backoff.
 - Lifecycle callbacks on the `Mutation` type.
-- Public `getQueryData`/`setQueryData` imperative cache surgery.
-- Concurrent-mutation queueing / cancellation.
+- Public `getQueryData`/`setQueryData` imperative cache surgery (the escape hatch for cross-query optimistic edits, §6).
+- Concurrent-mutation queueing / cancellation, and serializable same-key optimistic edits (§10).
+- `reset()`/unmount cancelling an in-flight `perform` (§10 — the v1 contract is *no* cancel).
 - Optimistic `.set` and insert/remove helpers beyond `.update`.
-- Mount-time client wiring via a `@Component` mutation-cell array (only if the §8.2 "reference `$create` in body" constraint proves limiting).
 - Seeding cache entries that have no live observer from `setQueryData`.
+
+> Mount-time client wiring (formerly deferred here) was **pulled into v1** per the review (B1, §8.2) — a data layer must not silently drop a write's cache effects.
 
 ---
 
@@ -517,4 +717,4 @@ Macro:
 2. **`@MutationState` + `$`-projection (not a `query()`-style body method).** Mutation state is local and imperative, the opposite of a query's shared declarative cache. Routing it through a `mutation()` body method would force **call-site positional identity** to fake per-component state — a brand-new fragility class the codebase doesn't have. `@MutationState` says exactly what it is: local reactive state, sibling to `@State`, with stable per-instance identity for free.
 3. **Declarative `optimistic()` with engine-owned rollback (not imperative `onMutate`/`onError` hooks).** Turns the most error-prone part of mutations into a typed, declarative statement built on the existing typed `Query`. The imperative escape hatch (public `setQueryData`) stays deferred until a real case needs surgery the declarative form can't express.
 4. **`mutate` / `mutateAsync` pair; side effects at the call site (not lifecycle callbacks).** Structured concurrency reads top-to-bottom where the action fires, and avoids re-introducing the callback model that declarative optimism just removed.
-5. **Macro path forced by Swift constraints, landing parallel to `@State`.** Dependencies-in-`init` ⇒ `create` is the stored `Mutation`; one-type-per-property ⇒ the handle is the `$`-projection. The result is *more* consistent with `@State`, and needs zero core changes.
+5. **Macro path forced by Swift constraints, landing parallel to `@State`.** Dependencies-in-`init` ⇒ `create` is the stored `Mutation`; one-type-per-property ⇒ the handle is the `$`-projection. The result is *more* consistent with `@State`. It needs no `Swiflow` *runtime* changes; the one core-adjacent cost is the `@Component` macro scanning `@MutationState` to wire the client at mount (B1) — accepted in exchange for correct-by-construction wiring with no silent-degrade path.
