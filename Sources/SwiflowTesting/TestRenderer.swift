@@ -88,9 +88,18 @@ final class TestRenderer {
             )
             mountTree = result.newMountTree
         } else if let node = findComponentNode(component, in: mountTree) {
+            // A nested component re-rendering on its own (its @State changed).
+            // Its body is evaluated eagerly here, outside the diff's
+            // `.component` path, so bracket it explicitly — exactly as the root
+            // branch does — so `query()` calls reconcile. (The browser Renderer
+            // re-renders the whole tree from root, where the diff fires the hook
+            // for nested components; this keeps the TestRenderer faithful to it.)
+            queryClient.willEvaluate(owner: component, scheduler: scheduler)
+            let nestedBodyVNode = component.instance.body
+            queryClient.didEvaluate()
             let result = diff(
                 mounted: node.componentBody,
-                next: component.instance.body,
+                next: nestedBodyVNode,
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler
