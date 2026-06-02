@@ -31,4 +31,17 @@ extension QueryClient {
         entry.lastFetched = nil
         notify(key)
     }
+
+    package func nextMutationTaskToken() -> Int {
+        defer { nextMutationToken += 1 }
+        return nextMutationToken
+    }
+
+    package func storeMutationTask(_ token: Int, _ task: Task<Void, Never>) {
+        mutationTasks[token] = task
+    }
+
+    package func removeMutationTask(_ token: Int) {
+        mutationTasks[token] = nil
+    }
 }

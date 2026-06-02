@@ -12,6 +12,11 @@ public final class QueryClient {
     /// Per owner-instance: the set of keys it observed in its last render.
     var observed: [ObjectIdentifier: Set<QueryKey>] = [:]
 
+    /// In-flight mutation driving tasks, token-keyed so a task self-removes by
+    /// token (NOT index — index removal would race a concurrent removal).
+    var mutationTasks: [Int: Task<Void, Never>] = [:]
+    var nextMutationToken = 0
+
     public init(clock: any QueryClock = SystemQueryClock()) {
         self.clock = clock
     }
@@ -122,7 +127,7 @@ public final class QueryClient {
     /// `package` (not `public`): only the in-package test harness needs it; the
     /// public surface stays `query` / `invalidate` / `QueryState` / `Query`.
     package func inFlightTasks() -> [Task<Void, Never>] {
-        entries.values.compactMap { $0.inFlight }
+        entries.values.compactMap { $0.inFlight } + Array(mutationTasks.values)
     }
 
     // MARK: - Freshness
