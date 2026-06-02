@@ -104,4 +104,13 @@ public final class QueryClient {
     public func inFlightTasks() -> [Task<Void, Never>] {
         entries.values.compactMap { $0.inFlight }
     }
+
+    // MARK: - Freshness
+
+    /// Whether a *triggered* observation of this entry should revalidate.
+    /// `lastFetched == nil` (never succeeded / forced stale) always fetches.
+    func needsFetch(_ entry: QueryEntry, staleTime: Duration) -> Bool {
+        guard let last = entry.lastFetched else { return true }
+        return (clock.now() - last) >= staleTime
+    }
 }
