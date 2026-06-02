@@ -3,6 +3,12 @@
 /// One declarative cache edit applied before a mutation's `perform` resolves.
 /// Constructed from a typed `Query` so the transform is fully type-checked; the
 /// query instance supplies both the cache key and the value type.
+///
+/// `@MainActor`-isolated (like `QueryEntry`/`QueryClient`): it wraps a
+/// non-`Sendable` `apply` closure and is only ever created/consumed on the main
+/// actor (`Mutation.optimistic` → `MutationRuntime.run`), so isolation keeps it
+/// clean under the v6 language mode without an `@unchecked Sendable` band-aid.
+@MainActor
 public struct OptimisticEdit {
     let key: QueryKey
     /// Type-erased transform: current value (`Any?`) → new value, or `nil` to
