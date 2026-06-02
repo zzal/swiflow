@@ -63,4 +63,45 @@ public final class QueryClient {
         guard let subs = subscribers[key] else { return false }
         return subs.contains { $0.owner != nil }
     }
+
+    // MARK: - Fetch lifecycle
+
+    /// Spawn the entry's fetch if none is in flight (dedup). The task captures
+    /// the entry's current generation and commits only if it still matches.
+    func startFetch(for key: QueryKey, entry: QueryEntry) {
+        guard entry.inFlight == nil, let boxedFetch = entry.boxedFetch else { return }
+        entry.hasPendingFetch = false
+        let generation = entry.generation
+        entry.inFlight = Task { [weak self] in
+            let result: Result<Any, any Error>
+            do { result = .success(try await boxedFetch()) }
+            catch { result = .failure(error) }
+            self?.commitFetch(key: key, generation: generation, result: result)
+        }
+        // Reflect isFetching for any current subscribers (background spinner /
+        // first-load). Identical-output re-renders are absorbed by the diff.
+        notify(key)
+    }
+
+    private func commitFetch(key: QueryKey, generation: Int, result: Result<Any, any Error>) {
+        guard let entry = entries[key] else { return }
+        entry.inFlight = nil
+        guard entry.generation == generation else { return }   // superseded → drop
+        switch result {
+        case .success(let value):
+            entry.value = value
+            entry.error = nil
+            entry.lastFetched = clock.now()
+        case .failure(let err):
+            entry.error = err
+            // Leave `lastFetched` unchanged: a failed fetch stays stale so the
+            // next trigger retries.
+        }
+        notify(key)
+    }
+
+    /// All currently in-flight fetch tasks — awaited by the test harness.
+    public func inFlightTasks() -> [Task<Void, Never>] {
+        entries.values.compactMap { $0.inFlight }
+    }
 }
