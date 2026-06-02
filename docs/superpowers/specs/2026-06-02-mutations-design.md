@@ -5,7 +5,7 @@
 > protocol, `QueryClient` cache, `query()` consumption, prefix+tag
 > `invalidate(...)`, and the `RenderObserver` boundary hook.
 
-**Status:** Approved design, ready for implementation plan. **Rev 2** — incorporates the swift-innovator review (B1 mount-time client wiring pulled into v1; B2 `run`→`Result` engine + `mutateAsync` bridge + cancellation contract; B3 `setQueryData` cancels in-flight + bumps generation).
+**Status:** Approved design, ready for implementation plan. **Rev 3** — confirmation pass closed the last gap: the B1 mount-wiring needs a one-line `TestRenderer.init` ordering fix (install the client before the root `wireState`), since the test renderer wires the root out-of-band. Scoped the "no source changes" claim accordingly; tightened the B1 test; documented the macro naming-coupling + descriptor-array option. **Rev 2** — incorporated the swift-innovator review (B1 mount-time client wiring pulled into v1; B2 `run`→`Result` engine + `mutateAsync` bridge + cancellation contract; B3 `setQueryData` cancels in-flight + bumps generation).
 **Date:** 2026-06-02
 **Predecessor spec:** `docs/superpowers/specs/2026-06-01-query-core-design.md` (Query Core, shipped). Its §12 lists this sub-project: *"a `Mutation` analogue, optimistic updates with rollback, auto-invalidation of affected query keys/tags on success."*
 
@@ -76,6 +76,7 @@ Modified:
 | `Sources/SwiflowMacrosPlugin/SwiflowMacrosPlugin.swift` | Register `MutationStateMacro` in `providingMacros`. |
 | `Package.swift` | Add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target's dependencies (so the macro declaration resolves). **Also confirm the language-mode**: `SwiflowQuery` is currently the one target *without* `.swiftLanguageMode(.v6)`; adding a macro dependency may surface a mismatch — set it to match if the build complains. |
 | `Sources/SwiflowQuery/QueryClient.swift` | Token-based mutation in-flight task registry surfaced through `inFlightTasks()`; `setQueryData` cancel+generation-bump semantics (§11). |
+| `Sources/SwiflowTesting/TestRenderer.swift` | **Ordering fix (B1):** set `RenderObserverBox.current = queryClient` *before* the root `wireState(on:scheduler:)` call in `init`, so mount-time mutation wiring on the root component-under-test captures the client (it's currently set ~5 lines *after* `wireState` — `TestRenderer.swift:41` vs `:46`). Without this, a root `@MutationState` is wired with a `nil` client. |
 
 **Dependency direction is preserved.** `SwiflowQuery` already depends on
 `Swiflow`. The macro **implementations** live in the existing
@@ -84,10 +85,11 @@ imports `SwiflowQuery` — so emitted references to `MutationHandle`,
 `MutationRuntime`, `QueryClient`, and `RenderObserverBox` resolve there, not in
 the plugin.
 
-**No `Swiflow` *runtime* source changes** (the `RenderObserver` hook,
+**No `Swiflow` *core/Diff* source changes** (the `RenderObserver` hook,
 `runtimeOwner`/`runtimeScheduler`, and `bind`/`wireStateAndRestore` are reused
-as-is). The one core-adjacent change is to the `@Component` **macro**
-(`ComponentMacro`, in the plugin): it learns to scan `@MutationState`. Its
+as-is). Two non-core changes are required: the `@Component` **macro**
+(`ComponentMacro`, in the plugin) learns to scan `@MutationState`, and
+`SwiflowTesting/TestRenderer` needs the one-line ordering fix above. The macro's
 mount-wiring emission references `QueryClient`/`RenderObserverBox` **only when
 the component actually declares a `@MutationState`** — and such a component
 necessarily imports `SwiflowQuery`, so the references resolve. Components
@@ -349,6 +351,22 @@ is emitted only for classes that declare a `@MutationState` — which necessaril
 import `SwiflowQuery` — the `QueryClient`/`RenderObserverBox` references always
 resolve, and mutation-free components emit an unchanged `bind`.
 
+**Naming-convention coupling.** The two macros agree on the backing-field name
+`_<name>_mutationRuntime` by convention — `@MutationState` emits it,
+`@Component` reconstructs it from the property name when emitting the `wire`
+call. This is the same *class* of coupling `@State`/`@Component` already have
+(via the `stateCells` array + the `runtimeOwner`/`runtimeScheduler` field
+names), so it is not new fragility, but it is real: if the conventions drift the
+failure is an "unresolved identifier" in *user* code. Two implementation shapes
+are acceptable, decided in the plan: **(a)** inline per-property `wire(...)`
+lines in `bind` (simplest; fine for the typical 1–2 mutations per component), or
+**(b)** a macro-emitted typed descriptor array — `static let mutationRuntimes:
+[any AnyMutationWireable]` built by `@Component` (parallel to `stateCells`),
+iterated by `bind`. (b) is more robust and scales to N mutations without N
+emitted lines; it still references the backing field inside each descriptor, so
+it does not *eliminate* the convention, only localizes and types it. Recommended
+default: **(b)**, for parity with the proven `stateCells` mechanism.
+
 ---
 
 ## 5. Data flow — the `mutate` lifecycle
@@ -522,11 +540,20 @@ calls `scheduler.markDirty(owner)` on every state transition in §5.1.)
 `query()` uses: `RenderObserverBox.current as? QueryClient`.
 
 The critical fact (verified against the renderer): `RenderObserverBox.current`
-is set to the client for the **entire render pass** and nil'd in a `defer`
-(`Renderer.swift` / `TestRenderer.swift`). It is *not* scoped per component
-body. Mount wiring (`wireStateAndRestore` → `bind`) runs *inside* that render
-pass, so `RenderObserverBox.current` is the installed `QueryClient` at mount
-time.
+is set to the client for the **entire render pass** and nil'd in a `defer`. It
+is *not* scoped per component body. In production (`Renderer.swift:132`), the
+box is set *before* `diff(...)`, so mount wiring (`wireStateAndRestore` →
+`bind`, from `Diff.swift:243`) runs while `RenderObserverBox.current` is the
+installed `QueryClient`.
+
+**`TestRenderer` ordering (required, B1).** The test renderer wires the **root**
+component out-of-band: `TestRenderer.init` calls `wireState(on: root, …)` at
+`TestRenderer.swift:41` but doesn't set `RenderObserverBox.current` until
+`:46` — so the root's `bind` would capture a `nil` client. `AsyncTestHarness`
+always mounts the component-under-test *as the root*, so this is exactly the
+path the §12 B1 test exercises. Fix: move the `RenderObserverBox.current =
+queryClient` assignment **above** the root `wireState` call in
+`TestRenderer.init` (mirroring production order). Listed in §2.
 
 So `@Component`'s emitted `bind` wires each mutation runtime once, at mount
 (§4, *What the macros emit*):
@@ -666,7 +693,7 @@ Integration (mounted component + a live `query()`):
 - `invalidations` triggers a refetch of a mounted observer on success (assert via a fetch counter, like `invalidateRefetchesMountedObserver`).
 - side-effect path: `mutateAsync` resolves, then a `@State` write (`title = ""`) is reflected after `flush()`.
 - re-render: `isPending` toggles drive the `.disabled(...)` attribute in the rendered tree.
-- **B1 mount wiring:** a component that mounts a `@MutationState` but whose `body` **never references `$create`** still wires the client — its first `mutate` applies optimism + invalidation (assert the optimistic value appears / a fetch counter bumps). This is the regression test for the silent-degrade footgun.
+- **B1 mount wiring:** a component that mounts a `@MutationState` but whose `body` **never references `$create`** still wires the client — its **first `mutate`, with no prior re-render**, applies optimism + invalidation (assert the optimistic value appears / a fetch counter bumps). The "no prior re-render" condition is load-bearing: it must fire `mutate` straight after `AsyncTestHarness.init` with no intervening `flush()`/`rerender`, so the test cannot pass for the wrong reason via a `rerender` that incidentally re-installs `RenderObserverBox.current` (`TestRenderer.swift:71`). This is the regression test for both the silent-degrade footgun and the `TestRenderer` ordering fix (§2/§8.2).
 - **B3 generation guard:** with a background revalidation in flight for a key (gate it with a `Gate`, as in `supersedingFetchSurvivesStaleCompletion`), an optimistic `setQueryData` survives — when the superseded fetch later resolves, `commitFetch` is dropped by the guard and the optimistic value is *not* clobbered.
 - **Cancellation:** `reset()` while a `perform` is in flight returns published state to `.idle`, but the still-running `perform` completes and applies its invalidation/rollback (assert via a fetch counter / cache value after `settle()`).
 
@@ -685,14 +712,16 @@ Macro:
 **Modified:**
 - `SwiflowQuery/QueryClient.swift` — token-keyed mutation-task registry surfaced through `inFlightTasks()`; `setQueryData` cancel+generation-bump (§11).
 - `SwiflowMacrosPlugin/` — add `MutationStateMacro.swift`; **extend `ComponentMacro.swift`** to scan `@MutationState` and emit mount-time `wire(...)` into `bind` (B1); register `MutationStateMacro` in `SwiflowMacrosPlugin.swift`.
+- `SwiflowTesting/TestRenderer.swift` — **ordering fix (B1):** install `RenderObserverBox.current` before the root `wireState` so mount-time mutation wiring on the root captures the client (§2/§8.2).
 - `Package.swift` — add `"SwiflowMacrosPlugin"` to the `SwiflowQuery` target deps; confirm `SwiflowQuery`'s language mode (§2).
 
-**No `Swiflow` *runtime* source changes.** The `RenderObserver` hook, the
+**No `Swiflow` *core/Diff* source changes.** The `RenderObserver` hook, the
 `@Component`-emitted `runtimeOwner`/`runtimeScheduler`, and
-`bind`/`wireStateAndRestore` are reused as-is. The only core-adjacent change is
-the `@Component` **macro** learning to scan `@MutationState` — and its emitted
+`bind`/`wireStateAndRestore` are reused as-is. The two non-core changes are: the
+`@Component` **macro** learning to scan `@MutationState` (its emitted
 `QueryClient`/`RenderObserverBox` references are conditional on the component
-declaring a mutation, so mutation-free code is byte-for-byte unaffected (§2).
+declaring a mutation, so mutation-free code is byte-for-byte unaffected, §2),
+and the one-line `TestRenderer` ordering fix above.
 
 ---
 
@@ -717,4 +746,4 @@ declaring a mutation, so mutation-free code is byte-for-byte unaffected (§2).
 2. **`@MutationState` + `$`-projection (not a `query()`-style body method).** Mutation state is local and imperative, the opposite of a query's shared declarative cache. Routing it through a `mutation()` body method would force **call-site positional identity** to fake per-component state — a brand-new fragility class the codebase doesn't have. `@MutationState` says exactly what it is: local reactive state, sibling to `@State`, with stable per-instance identity for free.
 3. **Declarative `optimistic()` with engine-owned rollback (not imperative `onMutate`/`onError` hooks).** Turns the most error-prone part of mutations into a typed, declarative statement built on the existing typed `Query`. The imperative escape hatch (public `setQueryData`) stays deferred until a real case needs surgery the declarative form can't express.
 4. **`mutate` / `mutateAsync` pair; side effects at the call site (not lifecycle callbacks).** Structured concurrency reads top-to-bottom where the action fires, and avoids re-introducing the callback model that declarative optimism just removed.
-5. **Macro path forced by Swift constraints, landing parallel to `@State`.** Dependencies-in-`init` ⇒ `create` is the stored `Mutation`; one-type-per-property ⇒ the handle is the `$`-projection. The result is *more* consistent with `@State`. It needs no `Swiflow` *runtime* changes; the one core-adjacent cost is the `@Component` macro scanning `@MutationState` to wire the client at mount (B1) — accepted in exchange for correct-by-construction wiring with no silent-degrade path.
+5. **Macro path forced by Swift constraints, landing parallel to `@State`.** Dependencies-in-`init` ⇒ `create` is the stored `Mutation`; one-type-per-property ⇒ the handle is the `$`-projection. The result is *more* consistent with `@State`. It needs no `Swiflow` *core/Diff* changes; the core-adjacent costs are the `@Component` macro scanning `@MutationState` to wire the client at mount (B1) and a one-line `TestRenderer` ordering fix — both accepted in exchange for correct-by-construction wiring with no silent-degrade path.
