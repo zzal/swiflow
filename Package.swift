@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "SwiflowWeb", targets: ["SwiflowWeb"]),
         .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
+        .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
     dependencies: [
@@ -86,6 +87,14 @@ let package = Package(
             path: "Sources/SwiflowTesting",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "SwiflowQuery",
+            dependencies: [
+                "Swiflow",
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            ],
+            path: "Sources/SwiflowQuery"
+        ),
         .testTarget(
             name: "SwiflowTests",
             dependencies: ["Swiflow"],
@@ -113,6 +122,11 @@ let package = Package(
             dependencies: ["SwiflowTesting", "Swiflow"],
             path: "Tests/SwiflowTestingTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SwiflowQueryTests",
+            dependencies: ["SwiflowQuery", "SwiflowTesting", "Swiflow"],
+            path: "Tests/SwiflowQueryTests"
         ),
         .testTarget(
             name: "SwiflowMacrosTests",
