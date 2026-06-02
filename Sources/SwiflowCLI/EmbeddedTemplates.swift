@@ -1794,6 +1794,215 @@ final class UsersPage: Component {
 """##,
             ]
         ),
+        Template(
+            name: "QueryDemo",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    // Inherited from the parent Swiflow package, which sets this floor
+    // because its SwiflowCLI executable depends on Hummingbird 2.x.
+    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // need macOS 14; SwiftPM just propagates the package-level platform
+    // floor to every consumer, regardless of which product they import.
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        // Local path back to the parent Swiflow package.
+        {{SWIFLOW_DEP}},
+        // JavaScriptKit is declared as a direct dependency so SwiftPM
+        // exposes the `swift package js` (PackageToJS) plugin to this
+        // package. Without it, the plugin only surfaces on the parent
+        // package and can't target this example's executable.
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowQuery", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+A Swiflow example demonstrating `SwiflowQuery` — cached, deduplicated,
+stale-while-revalidate data fetching with a `.task`-free `query()` call.
+
+A `Query` is a value that knows how to fetch itself (`fetch()`) and where it
+lives in the cache (`queryKey`). The component just *consumes* it:
+
+```swift
+let u = query(UserByID(id: userID))
+```
+
+No `.task`, no `@State` for the loading flag — `query()` returns a
+`QueryState` (`data` / `error` / `isLoading` / `isFetching`) backed by the
+per-root `QueryClient` cache.
+
+## Build
+
+```bash
+swiflow dev
+```
+
+This compiles the example to WASM and serves it. The output lands at
+`.build/plugins/PackageToJS/outputs/Package/`. Then open the printed URL.
+
+## What you should see
+
+- A heading: **Query demo**
+- For ~400 ms, **Loading…** while `UserByID(id: 1)` fetches; then
+  **Loaded: User #1**.
+- A button: **Next user** — each click bumps `userID`, which changes the
+  query key (`["users", .int(id)]`). The new key triggers a fetch for that
+  user. Keys you have visited before are cached, so revisiting shows the
+  cached value instantly while a background revalidation runs.
+- A small **⟳** spinner appears whenever a fetch is in flight in the
+  background (`isFetching`) — including the stale-while-revalidate refetch
+  over already-cached data.
+
+## How it works
+
+- **Key-driven fetching.** A fetch happens on mount, on key change, or on
+  `invalidate` — *not* on every re-render. The `userID` lives in the key, so
+  bumping it is what drives the next fetch.
+- **Dedup.** Two components asking for the same key at the same time share one
+  in-flight fetch.
+- **Stale-while-revalidate.** With the default `staleTime` of `.zero`, every
+  trigger revalidates: cached data renders immediately, and a background
+  refetch updates it when it lands.
+- **Invalidation.** A `QueryClient` (installed automatically per render root)
+  can refetch by key prefix (`invalidate(["users"])`), exact key
+  (`invalidate(["users", 1], exact: true)`), or tag (`invalidate(tag:
+  "users")`).
+
+See [`docs/guides/query.md`](../../docs/guides/query.md) for the full guide.
+
+"""##,
+                "Sources/App/App.swift": ##"""
+// Sources/App/App.swift
+import SwiflowWeb
+import SwiflowQuery
+
+struct User: Equatable, Sendable { let id: Int; let name: String }
+
+/// Simulated API: a non-identity dependency captured by the key.
+struct FakeAPI: Sendable {
+    func user(_ id: Int) async -> User {
+        try? await Task.sleep(nanoseconds: 400_000_000)   // simulate latency
+        return User(id: id, name: "User #\(id)")
+    }
+}
+
+struct UserByID: Query {
+    let id: Int
+    let api: FakeAPI
+    var queryKey: QueryKey { ["users", .int(id)] }
+    var tags: Set<QueryTag> { ["users"] }
+    func fetch() async throws -> User { await api.user(id) }
+
+    init(id: Int, api: FakeAPI = FakeAPI()) { self.id = id; self.api = api }
+}
+
+@MainActor @Component
+final class {{NAME}} {
+    @State var userID: Int = 1
+
+    var body: VNode {
+        let u = query(UserByID(id: userID))
+        return div {
+            h1("Query demo")
+            div {
+                if let user = u.data { p("Loaded: \(user.name)") }
+                else if u.isLoading { p("Loading…") }
+                if u.isFetching { span { text(" ⟳") } }
+            }
+            button("Next user", .on(.click) { self.userID += 1 })
+        }
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { {{NAME}}() }
+    }
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Async fetch demo</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
     ]
 
     static func lookup(_ name: String) -> Template? {

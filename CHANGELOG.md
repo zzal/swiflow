@@ -51,6 +51,60 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Phase 21] — Query Core (`SwiflowQuery`)
+
+### Added
+- **`SwiflowQuery` module** — a TanStack-Query / SWR-style data layer. A
+  `Query` is a `@MainActor` value that knows how to fetch itself and where it
+  lives in a shared cache: `associatedtype Value: Equatable & Sendable`,
+  `var queryKey: QueryKey`, `var tags: Set<QueryTag>` (default `[]`),
+  `var staleTime: Duration` (default `.zero`), `func fetch() async throws -> Value`.
+  Dependencies the fetch reads live as stored properties on the query value
+  (identity ones go in the key; non-identity ones, like an injected API, do
+  not), which is also the seam for test injection.
+- **Typed hierarchical keys.** `QueryKey = [QueryKeyComponent]` where
+  `QueryKeyComponent` is `.string` / `.int`, both `ExpressibleBy…Literal`
+  (`["users", .int(id)]`). The key is cache identity *and* dependency; the
+  hierarchy enables prefix invalidation.
+- **`query(_:)` consumption** — a `Component` method returning
+  `QueryState<Value>` (`data` / `error` / `isLoading` / `isFetching` /
+  `isSuccess`). Calling it subscribes the component to the cache; it does
+  **not** fetch on every render — a fetch is triggered only by mount, key
+  change, or `invalidate`.
+- **Shared `QueryClient` cache** with request **deduplication** (concurrent
+  subscribers to the same key share one in-flight `fetch()`) and
+  **stale-while-revalidate** (default `staleTime` `.zero` means every trigger
+  revalidates; cached data renders instantly while the refetch runs, and
+  `isFetching` tracks the background load). Installed automatically per render
+  root by `Swiflow.render(into:)`.
+- **Invalidation** — `client.invalidate(_ key: QueryKey, exact: Bool = false)`
+  (prefix cascade by default; exact single-entry with `exact: true`) and
+  `client.invalidate(tag: QueryTag)` (cross-cutting tag groups). Invalidated
+  entries are forced stale; those with live subscribers refetch immediately.
+- **Deterministic testing.** `AsyncTestHarness(component, queryClient:
+  QueryClient(clock: ManualClock()))` plus the existing `settle()` / `flush()`
+  contract drive fetches to a fixed point with no wall-clock dependence; a
+  `ManualClock` controls `staleTime` evaluation.
+- **`examples/QueryDemo`** — minimal runnable demo: a `UserByID` query keyed by
+  a bumpable `userID`, showing cached/deduped/SWR fetching, key-change refetch
+  on a button click, and an `isFetching` background spinner.
+- **`docs/guides/query.md`** — user guide covering the `Query` protocol, the
+  trigger model, dedup, stale-while-revalidate, key-prefix and tag
+  invalidation, and `AsyncTestHarness` testing with worked examples.
+
+### Deferred
+- Mutations (optimistic write path), background refetch triggers (focus /
+  interval / reconnect), garbage collection of unsubscribed entries, `select`
+  (derived views), and auto-retry are explicitly out of scope for Phase 21 and
+  build on this cache in later phases.
+
+### Stability
+- **Experimental — interface may change.** `SwiflowQuery` is a new API surface;
+  the `Query` protocol and `QueryClient` may be extended (mutations, `select`,
+  retry, GC) before 1.0.
+
+---
+
 ## [Phase 20] — Async task effects (`.task` / `.task(rerunOn:)`)
 
 ### Added
