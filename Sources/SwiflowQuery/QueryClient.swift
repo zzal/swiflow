@@ -93,8 +93,14 @@ public final class QueryClient {
 
     private func commitFetch(key: QueryKey, generation: Int, result: Result<Any, any Error>) {
         guard let entry = entries[key] else { return }
+        // Guard BEFORE touching `inFlight`. If this fetch was superseded — a
+        // newer fetch or an `invalidate` bumped the generation — then
+        // `entry.inFlight` now holds the NEWER fetch's handle. Nil-ing it here
+        // would lose dedup (a later `startFetch` would spawn a duplicate) and
+        // corrupt `isFetching`/`settle()` bookkeeping for the live fetch. A
+        // superseded result is simply dropped, leaving the newer fetch intact.
+        guard entry.generation == generation else { return }
         entry.inFlight = nil
-        guard entry.generation == generation else { return }   // superseded → drop
         switch result {
         case .success(let value):
             entry.value = value
@@ -105,11 +111,17 @@ public final class QueryClient {
             // Leave `lastFetched` unchanged: a failed fetch stays stale so the
             // next trigger retries.
         }
+        // v1 notifies on every settle (both fetch start and completion) so
+        // `isFetching` toggles and the SWR indicator clears; the VNode diff
+        // absorbs identical-output re-renders. `entry.valuesEqual` is reserved
+        // for markDirty-gating once `select` change-detection lands (deferred).
         notify(key)
     }
 
     /// All currently in-flight fetch tasks — awaited by the test harness.
-    public func inFlightTasks() -> [Task<Void, Never>] {
+    /// `package` (not `public`): only the in-package test harness needs it; the
+    /// public surface stays `query` / `invalidate` / `QueryState` / `Query`.
+    package func inFlightTasks() -> [Task<Void, Never>] {
         entries.values.compactMap { $0.inFlight }
     }
 

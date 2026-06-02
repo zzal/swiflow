@@ -68,6 +68,32 @@ private final class Parent {
     var body: VNode { div { embed { self.child } } }
 }
 
+private enum DemoError: Error { case boom }
+
+/// A main-actor toggle so the test can flip a query from success to failure.
+@MainActor private final class FailBox { var failNext = false }
+
+@MainActor private struct ErrQuery: Query {
+    let box: FailBox
+    var queryKey: QueryKey { ["thing"] }
+    func fetch() async throws -> String {
+        if box.failNext { throw DemoError.boom }
+        return "ok"
+    }
+}
+
+@MainActor @Component private final class ErrLoader {
+    let box: FailBox
+    init(box: FailBox) { self.box = box }
+    var body: VNode {
+        let u = query(ErrQuery(box: box))
+        return div {
+            if let d = u.data { p(d) }
+            if u.error != nil { p("error") }
+        }
+    }
+}
+
 @Suite("Query/integration")
 @MainActor
 struct QueryIntegrationTests {
@@ -131,5 +157,28 @@ struct QueryIntegrationTests {
         h.flush()
         try await h.settle()
         #expect(h.allText.contains("User#2"))
+    }
+
+    // Error path (spec §9): a failed revalidation surfaces `error`, retains the
+    // prior `data`, and leaves the entry stale so a later trigger retries.
+    @Test func failedRevalidationSurfacesErrorAndKeepsData() async throws {
+        let client = QueryClient(clock: ManualClock())
+        let box = FailBox()
+        let h = AsyncTestHarness(ErrLoader(box: box), queryClient: client)
+        try await h.settle()
+        #expect(h.allText.contains("ok"))          // first fetch succeeds
+        #expect(!h.allText.contains("error"))
+
+        box.failNext = true
+        client.invalidate(["thing"])               // forced refetch → throws
+        try await h.settle()
+        #expect(h.allText.contains("ok"))          // prior data retained (SWR)
+        #expect(h.allText.contains("error"))       // error surfaced
+
+        box.failNext = false
+        client.invalidate(["thing"])               // entry still stale → retry succeeds
+        try await h.settle()
+        #expect(h.allText.contains("ok"))
+        #expect(!h.allText.contains("error"))      // error cleared on success
     }
 }

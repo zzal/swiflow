@@ -195,16 +195,21 @@ calling `markDirty`, not by comparing `QueryState`s). Dropping the conformance
 removes both the need to compare `data` (handled elsewhere; see below) and the
 problem of comparing a non-`Equatable` `any Error`.
 
-The **change-detection** that matters lives in the client: when a fetch
-resolves, the client compares the new `Value` against the entry's old `Value`
-using the `Equatable` witness from `Query.Value: Equatable`, and only calls
-`markDirty` if it actually changed — so an identical background revalidation
-causes no re-render.
+The **change-detection** witness (`Query.Value: Equatable`, carried into the
+cache as a type-erased closure) is **reserved infrastructure for a future
+`select` optimization, not a v1 markDirty gate.** In v1 the client notifies
+subscribers on every fetch *start* and *completion* — this is required so
+`isFetching` toggles and the SWR indicator clears on completion *regardless* of
+whether `data` changed (gating the completion notify on value-equality would
+leave a stuck spinner). Identical-output re-renders are absorbed by the VNode
+diff (zero patches), exactly as the spec defers `select` (§13). So `Value:
+Equatable` is held for when `select` lands; it does not suppress re-renders in
+v1.
 
 ### 3.4 `QueryClient` and the clock
 
 ```swift
-public protocol QueryClock: Sendable {
+public protocol QueryClock {   // not Sendable — read on the @MainActor only
     /// Monotonic time elapsed since an arbitrary fixed origin. Monotonic so a
     /// wall-clock adjustment can never make a fresh entry look stale.
     func now() -> Duration
