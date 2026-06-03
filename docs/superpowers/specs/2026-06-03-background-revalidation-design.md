@@ -1,10 +1,11 @@
 # Background Revalidation — Design
 
-> **Status:** Rev 2 — brainstormed 2026-06-03, swift-innovator-expert review folded in
-> (harness owns the test clock; focus uses the dedup-safe fetch path; supersede clears
-> the retry cycle; backoff exponent clamped; the pause-when-idle tick refinement
-> dropped). Data-layer sub-project #3, building on the shipped Query Core + Mutations.
-> Next: implementation plan.
+> **Status:** Rev 2 (+ confirmation pass) — brainstormed 2026-06-03,
+> swift-innovator-expert review folded in and re-verified: harness owns the test clock;
+> focus uses the dedup-safe fetch path; supersede clears the retry cycle; backoff clamps
+> the *result* (no overflowing product); the pause-when-idle tick refinement dropped.
+> Confirmation pass closed all findings — **ready for the implementation plan**.
+> Data-layer sub-project #3, building on the shipped Query Core + Mutations.
 
 ## 1. Context
 
@@ -82,10 +83,17 @@ public struct RetryPolicy: Sendable, Equatable {
 
 `maxRetries` is the number of retries *after* the initial fetch (total attempts =
 `maxRetries + 1`); `maxRetries: 0` (`.none`) disables retry. Backoff before retry *n*
-(0-indexed) = `min(baseDelay × 2ⁿ, maxDelay)`. The exponent is **clamped** before the
-shift (`baseDelay`'s `Int64` attoseconds overflow well before `n = 63`, and a user may
-pass a large `maxRetries`), so `backoff(_:_:)` computes
-`min(baseDelay × (1 << min(n, 40)), maxDelay)`. No jitter (keeps tests deterministic).
+(0-indexed) is `baseDelay × 2ⁿ` capped at `maxDelay`. `backoff(_:_:)` must clamp the
+**result**, never forming an overflowing product — a plain `baseDelay × 2ⁿ` overflows
+`Duration`'s `Int64` attoseconds well before `n = 40`, so clamping only the exponent is
+not enough. Compute by doubling from `baseDelay` and returning `maxDelay` the moment it's
+reached:
+```
+var d = baseDelay
+for _ in 0..<n { d = d * 2; if d >= maxDelay { return maxDelay } }
+return min(d, maxDelay)
+```
+No jitter (keeps tests deterministic).
 
 `tick(now:)` and `focusChanged(visible:)` are **`package`** (driven by the SwiflowWeb
 wiring and the test harness — not user-facing), consistent with `inFlightTasks()`.
@@ -229,8 +237,10 @@ clock, then assert. No new time-control concept.
 - **Polling:** `refetchInterval` query → `advance(by: interval)` refetches; advancing
   less than the interval does not; polling is independent of `staleTime`.
 - **Retry:** a failing fetch schedules `nextRetryDue`; `advance` past the backoff fires
-  the retry; backoff doubles and caps at `maxDelay`; after `maxRetries` the error stays
-  surfaced and no further retries fire; a later success resets `failureCount`.
+  the retry; backoff doubles and caps at `maxDelay` (and the clamp holds for a large
+  `maxRetries` without overflow); after `maxRetries` the error stays surfaced and no
+  further retries fire; a later success resets `failureCount` **and writes
+  `lastFetched = now`, so the next poll deadline is measured from the success**.
 - **Focus:** `focus()` refetches stale + `refetchOnFocus` entries only; skips fresh
   entries, opted-out entries (`refetchOnFocus == false`), and entries with no live
   subscribers.
