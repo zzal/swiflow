@@ -139,6 +139,18 @@ public final class QueryClient {
     /// Driven by the production interval (and tests). Fires due retries and
     /// due polls for live, not-in-flight entries. Filled in by later tasks.
     package func tick(now: Duration) {
+        for (key, entry) in entries {
+            guard hasLiveSubscribers(key), entry.inFlight == nil else { continue }
+            if let due = entry.nextRetryDue, now >= due {
+                entry.nextRetryDue = nil
+                startFetch(for: key, entry: entry)          // retry (scheduled by Task 7)
+                continue
+            }
+            if let interval = entry.refetchInterval,
+               let last = entry.lastFetched, now - last >= interval {
+                startFetch(for: key, entry: entry)          // poll
+            }
+        }
     }
 
     /// Driven by the production focus listener (and tests). Refetches stale,
