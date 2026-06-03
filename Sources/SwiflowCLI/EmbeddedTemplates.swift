@@ -2117,6 +2117,10 @@ optimistic updates, invalidation — is identical to the simulated examples; onl
   each with an **optimistic** cache edit (append / field-flip / remove) and an
   **`.exact(["todos"])` invalidation** that refetches the canonical list to reconcile.
 - The **⟳ spinner** (`isFetching`) during the post-mutation revalidation.
+- **Refetch-on-focus**: the list refreshes automatically when you return to the tab,
+  so edits made in another tab or by another user appear as soon as you switch back.
+- **5-second polling**: `refetchInterval: .seconds(5)` keeps the list live — out-of-band
+  edits (made directly against the API or by another browser) appear within ~5 s.
 - The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowHTTP`** module
   — `HTTPClient(baseURL:)` over the browser `fetch` + `JSValueDecoder`; no
   `Foundation`/`URLSession`.
@@ -2195,6 +2199,7 @@ struct Todo: Decodable, Equatable, Sendable {
 struct TodoList: Query {
     var queryKey: QueryKey { ["todos"] }
     var tags: Set<QueryTag> { ["todos"] }
+    var refetchInterval: Duration? { .seconds(5) }   // live polling against the real API
     func fetch() async throws -> [Todo] {
         try await api.get("/todos", as: [Todo].self)
     }

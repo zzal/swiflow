@@ -19,6 +19,7 @@ struct Todo: Decodable, Equatable, Sendable {
 struct TodoList: Query {
     var queryKey: QueryKey { ["todos"] }
     var tags: Set<QueryTag> { ["todos"] }
+    var refetchInterval: Duration? { .seconds(5) }   // live polling against the real API
     func fetch() async throws -> [Todo] {
         try await api.get("/todos", as: [Todo].self)
     }
