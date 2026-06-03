@@ -17,9 +17,10 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiflowWeb", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
-                // JavaScriptEventLoop provides `JSPromise.value` (await a JS promise)
-                // used by Net.swift to call the browser `fetch`.
-                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
+                // The fetch + JSON-decode story now lives in the SwiflowHTTP
+                // module (graduated from this example's old Net.swift); it pulls
+                // in JavaScriptKit/JavaScriptEventLoop transitively.
+                .product(name: "SwiflowHTTP", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),

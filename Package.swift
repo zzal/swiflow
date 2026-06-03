@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
         .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
+        .library(name: "SwiflowHTTP", targets: ["SwiflowHTTP"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
     dependencies: [
@@ -97,6 +98,19 @@ let package = Package(
             ],
             path: "Sources/SwiflowQuery"
         ),
+        // Standalone JSON-over-`fetch` client (graduated from the TodoCRUD
+        // example's Net.swift). WASM-only at runtime — the `HTTP` client is
+        // behind `#if canImport(JavaScriptKit)`; `JSONValue`/`HTTPError`
+        // compile everywhere (and are host-tested).
+        .target(
+            name: "SwiflowHTTP",
+            dependencies: [
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
+            ],
+            path: "Sources/SwiflowHTTP",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "SwiflowTests",
             dependencies: ["Swiflow"],
@@ -129,6 +143,12 @@ let package = Package(
             name: "SwiflowQueryTests",
             dependencies: ["SwiflowQuery", "SwiflowTesting", "Swiflow"],
             path: "Tests/SwiflowQueryTests"
+        ),
+        .testTarget(
+            name: "SwiflowHTTPTests",
+            dependencies: ["SwiflowHTTP"],
+            path: "Tests/SwiflowHTTPTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "SwiflowMacrosTests",

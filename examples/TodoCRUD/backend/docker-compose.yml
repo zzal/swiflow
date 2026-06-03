@@ -1,5 +1,10 @@
+# `name` sets the Compose project name, so the container and network read as
+# swiflow-todo-crud* instead of defaulting to the "backend" directory name.
+name: swiflow-todo-crud
+
 services:
-  todos-api:
+  api:
+    container_name: swiflow-todo-crud
     build: .
     ports: ["8080:8080"]
     # In-memory SQLite, re-seeded each start. To persist instead, in server.ts use

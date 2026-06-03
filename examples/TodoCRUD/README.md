@@ -15,8 +15,9 @@ optimistic updates, invalidation — is identical to the simulated examples; onl
   each with an **optimistic** cache edit (append / field-flip / remove) and an
   **`.exact(["todos"])` invalidation** that refetches the canonical list to reconcile.
 - The **⟳ spinner** (`isFetching`) during the post-mutation revalidation.
-- The real `fetch` + JSON-decode idiom for WASM in `Net.swift` (browser `fetch` via
-  JavaScriptKit + `JSValueDecoder`; no `Foundation`/`URLSession`).
+- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowHTTP`** module
+  — `HTTPClient(baseURL:)` over the browser `fetch` + `JSValueDecoder`; no
+  `Foundation`/`URLSession`.
 
 ## Architecture
 
@@ -64,7 +65,7 @@ Open the printed URL.
 - **CORS:** the Swiflow dev server is static-only (no proxy), so the backend sends
   permissive CORS headers and answers the `OPTIONS` preflight that POST/PUT/DELETE with
   a JSON body trigger.
-- **Config:** change `apiBase` in `Sources/App/App.swift` to target a different host/port.
+- **Config:** change the `HTTPClient(baseURL:)` in `Sources/App/App.swift` to target a different host/port.
 
 See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagram in
 `docs/diagrams/swiflow-update-lifecycle.html`.

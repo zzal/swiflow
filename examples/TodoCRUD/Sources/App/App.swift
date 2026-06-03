@@ -1,9 +1,10 @@
 import SwiflowWeb
 import SwiflowQuery
-import JavaScriptKit
+import SwiflowHTTP
 
-/// Backend base URL. Point this elsewhere to target another host/port.
-let apiBase = "http://localhost:8080"
+/// The CRUD API, configured once. Point `baseURL` elsewhere to target another
+/// host/port; queries and mutations call it with relative paths.
+let api = HTTPClient(baseURL: "http://localhost:8080")
 
 // MARK: - Model
 
@@ -19,7 +20,7 @@ struct TodoList: Query {
     var queryKey: QueryKey { ["todos"] }
     var tags: Set<QueryTag> { ["todos"] }
     func fetch() async throws -> [Todo] {
-        try await Net.get("\(apiBase)/todos", as: [Todo].self)
+        try await api.get("/todos", as: [Todo].self)
     }
 }
 
@@ -31,7 +32,7 @@ struct AddTodo: Mutation {
     static var tempSeq = -1
 
     func perform(_ title: String) async throws -> Todo {
-        try await Net.send(.POST, "\(apiBase)/todos", json: ["title": .string(title)], as: Todo.self)
+        try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
     }
     func optimistic(_ title: String) -> [OptimisticEdit] {
         let tmp = AddTodo.tempSeq; AddTodo.tempSeq -= 1
@@ -43,7 +44,7 @@ struct AddTodo: Mutation {
 struct ToggleTodo: Mutation {
     struct Input: Sendable { let id: Int; let done: Bool }
     func perform(_ i: Input) async throws -> Todo {
-        try await Net.send(.PUT, "\(apiBase)/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
+        try await api.put("/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
     }
     func optimistic(_ i: Input) -> [OptimisticEdit] {
         [.update(TodoList()) { todos in
@@ -55,7 +56,7 @@ struct ToggleTodo: Mutation {
 
 struct DeleteTodo: Mutation {
     func perform(_ id: Int) async throws {
-        try await Net.send(.DELETE, "\(apiBase)/todos/\(id)")
+        try await api.delete("/todos/\(id)")
     }
     func optimistic(_ id: Int) -> [OptimisticEdit] {
         [.update(TodoList()) { $0.filter { $0.id != id } }]
