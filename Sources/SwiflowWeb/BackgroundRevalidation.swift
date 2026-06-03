@@ -16,6 +16,9 @@ final class BackgroundRevalidation {
     private var intervalID: JSValue?
     private var tickClosure: JSClosure?
     private var focusClosure: JSClosure?
+    /// The exact `JSValue` registered as the focus/visibility listener, stored so
+    /// `removeEventListener` passes the SAME reference that `addEventListener` got.
+    private var focusListener: JSValue?
 
     init(client: QueryClient, clock: any QueryClock) {
         self.client = client
@@ -23,6 +26,8 @@ final class BackgroundRevalidation {
     }
 
     func start() {
+        guard tickClosure == nil else { return }   // idempotent: never double-install
+
         let tick = JSClosure { [weak self] _ -> JSValue in
             guard let self, let client = self.client else { return .undefined }
             client.tick(now: self.clock.now())
@@ -31,25 +36,38 @@ final class BackgroundRevalidation {
         tickClosure = tick
         intervalID = JSObject.global.setInterval!(JSValue.object(tick), 1000)
 
+        // Shared by `visibilitychange` and window `focus`. Reads the actual
+        // visibility state, so a tab HIDE (`visibilitychange` → "hidden") passes
+        // `visible: false` (a no-op in focusChanged) instead of refetching.
         let onFocus = JSClosure { [weak self] _ -> JSValue in
-            self?.client?.focusChanged(visible: true)
+            guard let self, let client = self.client else { return .undefined }
+            var visible = true
+            if let doc = JSObject.global.document.object {
+                visible = doc.visibilityState.string == "visible"
+            }
+            client.focusChanged(visible: visible)
             return .undefined
         }
         focusClosure = onFocus
+        let listener = JSValue.object(onFocus)
+        focusListener = listener
         if let doc = JSObject.global.document.object {
-            _ = doc.addEventListener!("visibilitychange", JSValue.object(onFocus))
+            _ = doc.addEventListener!("visibilitychange", listener)
         }
-        _ = JSObject.global.addEventListener!("focus", JSValue.object(onFocus))
+        _ = JSObject.global.addEventListener!("focus", listener)
     }
 
     func stop() {
         if let id = intervalID { _ = JSObject.global.clearInterval!(id); intervalID = nil }
-        if let onFocus = focusClosure {
+        if let listener = focusListener {
             if let doc = JSObject.global.document.object {
-                _ = doc.removeEventListener!("visibilitychange", JSValue.object(onFocus))
+                _ = doc.removeEventListener!("visibilitychange", listener)
             }
-            _ = JSObject.global.removeEventListener!("focus", JSValue.object(onFocus))
+            _ = JSObject.global.removeEventListener!("focus", listener)
         }
+        // Nil the closures AFTER the removeEventListener calls, so the JSClosure
+        // stays alive through the remove.
+        focusListener = nil
         tickClosure = nil
         focusClosure = nil
     }
