@@ -10,9 +10,14 @@ public struct AsyncTestHarness {
     let renderer: TestRenderer
     let harness: TestHarness
     let clock: ManualClock
+    /// True only for `init(_:clock:)`, where `clock` actually backs the client.
+    /// `advance(by:)` requires it — the `init(_:queryClient:)` path stores a
+    /// placeholder clock disconnected from the shared client's clock.
+    private let ownsClock: Bool
 
     public init<C: Component>(_ component: C, clock: ManualClock = ManualClock()) {
         self.clock = clock
+        self.ownsClock = true
         let r = TestRenderer(component, queryClient: QueryClient(clock: clock))
         self.renderer = r
         self.harness = TestHarness(r)
@@ -24,6 +29,7 @@ public struct AsyncTestHarness {
     /// directly if you need background-revalidation control.
     public init<C: Component>(_ component: C, queryClient: QueryClient) {
         self.clock = ManualClock()
+        self.ownsClock = false
         let r = TestRenderer(component, queryClient: queryClient)
         self.renderer = r
         self.harness = TestHarness(r)
@@ -76,6 +82,7 @@ public struct AsyncTestHarness {
 
     /// Advance the test clock, fire one `tick`, and settle resulting refetches.
     public func advance(by delta: Duration) async throws {
+        precondition(ownsClock, "advance(by:) is unavailable on a harness built with init(_:queryClient:) — its clock is a placeholder disconnected from the shared client. Drive time via queryClient.tick(now:) with the clock that built the shared client.")
         clock.advance(by: delta)
         renderer.queryClient.tick(now: clock.now())
         try await settle()
