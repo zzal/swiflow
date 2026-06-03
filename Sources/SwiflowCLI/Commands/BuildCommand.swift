@@ -245,7 +245,13 @@ struct BuildCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: error))
         }
 
-        // 5. Write swiflow-manifest.json at the project root, where swiflow-sw.js
+        // 5. Ensure the embedded JS driver + service worker are at the project
+        //    root for static hosting. `swiflow init` scaffolds them, but a
+        //    project that wasn't init-ed would otherwise have no driver to load
+        //    App.wasm. Re-emitting keeps them in lockstep with this CLI version.
+        try DriverInstaller.install(into: projectURL)
+
+        // 6. Write swiflow-manifest.json at the project root, where swiflow-sw.js
         //    expects to find it (new URL("swiflow-manifest.json", self.location.href)
         //    resolves to the SW's own scope, which is the project root).
         try BuildCommand.writeManifest(projectDir: projectURL)

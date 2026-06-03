@@ -44,6 +44,18 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
         }
 
+        // 0.5 Ensure the embedded JS driver + service worker are on disk before
+        //     the server starts serving. Without this, a project that wasn't
+        //     `swiflow init`-ed (or whose gitignored driver was never committed)
+        //     serves a 404 on swiflow-driver.js and boots a blank page. Written
+        //     once here, before the FileWatcher is created, so it doesn't trip
+        //     the rebuild loop.
+        do {
+            try DriverInstaller.install(into: projectURL)
+        } catch {
+            throw ValidationError("swiflow: failed to write the JS driver into \(projectURL.path): \(error)")
+        }
+
         // 1. Locate swift on PATH.
         guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
             throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
