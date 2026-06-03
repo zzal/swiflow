@@ -319,6 +319,20 @@ public func hr(_ attributes: Attribute...) -> VNode {
     .element(applyAttributes(tag: "hr", attributes))
 }
 
+/// Programmatic element factory taking an `[Attribute]` array (the variadic
+/// element factories like `div(...)` can't be called with a spliced array).
+/// Folds attributes through the same `applyAttributes` path as every other
+/// factory, so URL sanitization, `.compound` flattening, and key extraction
+/// all behave identically. Used by SwiflowUI primitives and any caller that
+/// assembles attributes dynamically.
+public func element(
+    _ tag: String,
+    attributes: [Attribute] = [],
+    children: [VNode] = []
+) -> VNode {
+    .element(applyAttributes(tag: tag, attributes, children: children))
+}
+
 // MARK: - Text node builders
 public func text(_ string: String) -> VNode { .text(string) }
 public func text(_ value: Int) -> VNode { .text(String(value)) }
