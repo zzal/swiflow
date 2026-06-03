@@ -1,8 +1,8 @@
 // Tests/SwiflowTests/StyleInjectionRegistryTests.swift
 import Testing
-@testable import Swiflow
+import Swiflow
 
-@Suite("StyleInjectionRegistry")
+@Suite("StyleInjectionRegistry", .serialized)
 @MainActor
 struct StyleInjectionRegistryTests {
     @Test func emitsOncePerID() {
@@ -34,7 +34,7 @@ struct StyleInjectionRegistryTests {
         StyleInjectionRegistry.emit = { _, _ in count += 1 }
         defer { StyleInjectionRegistry.emit = nil }
         StyleInjectionRegistry.injectOnce(id: "c") { "z{}" }
-        StyleInjectionRegistry.reset()
+        StyleInjectionRegistry.reset() // clears injectedIDs but leaves emit intact
         StyleInjectionRegistry.injectOnce(id: "c") { "z{}" }
         #expect(count == 2)
     }

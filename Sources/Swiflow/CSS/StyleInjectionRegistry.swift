@@ -17,6 +17,8 @@ public enum StyleInjectionRegistry {
     /// The emit sink. SwiflowWeb sets this to append a `<style>` to `<head>`.
     /// `nil` on a host with no DOM (tests/headless): `injectOnce` still records
     /// the id (preserving once-semantics) but emits nothing.
+    /// `emit` must be assigned before the first `injectOnce` call — ids recorded
+    /// before the sink is set are not re-emitted retroactively.
     public static var emit: ((_ id: String, _ css: String) -> Void)?
 
     /// Injects `css` under `id` exactly once. The `css` builder runs only on
