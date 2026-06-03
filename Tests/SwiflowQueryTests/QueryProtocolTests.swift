@@ -32,4 +32,31 @@ struct QueryProtocolTests {
         #expect(loaded.isSuccess)
         #expect(loaded.data == 42)
     }
+
+    @Test func backgroundConfigDefaults() {
+        let p = PlainQ()
+        #expect(p.refetchInterval == nil)
+        #expect(p.refetchOnFocus == true)
+        #expect(p.retry == .default)
+    }
+
+    @Test func backgroundConfigOverrides() {
+        let t = TunedQ()
+        #expect(t.refetchInterval == .seconds(5))
+        #expect(t.refetchOnFocus == false)
+        #expect(t.retry == .none)
+    }
+}
+
+@MainActor private struct PlainQ: Query {
+    var queryKey: QueryKey { ["p"] }
+    func fetch() async throws -> Int { 0 }
+}
+
+@MainActor private struct TunedQ: Query {
+    var queryKey: QueryKey { ["t"] }
+    var refetchInterval: Duration? { .seconds(5) }
+    var refetchOnFocus: Bool { false }
+    var retry: RetryPolicy { .none }
+    func fetch() async throws -> Int { 0 }
 }

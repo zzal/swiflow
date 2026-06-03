@@ -24,6 +24,16 @@ public protocol Query {
     /// (every *trigger* revalidates — but a plain re-render is not a trigger).
     var staleTime: Duration { get }
 
+    /// Polling cadence. `nil` (default) = no polling.
+    var refetchInterval: Duration? { get }
+
+    /// Whether this query refetches (if stale) when the window regains focus.
+    /// Defaults to `true`.
+    var refetchOnFocus: Bool { get }
+
+    /// Retry policy for failed fetches. Defaults to `.default`.
+    var retry: RetryPolicy { get }
+
     /// Fetch the value. Cancellation is cooperative via the surrounding Task.
     func fetch() async throws -> Value
 }
@@ -31,4 +41,7 @@ public protocol Query {
 public extension Query {
     var tags: Set<QueryTag> { [] }
     var staleTime: Duration { .zero }
+    var refetchInterval: Duration? { nil }
+    var refetchOnFocus: Bool { true }
+    var retry: RetryPolicy { .default }
 }
