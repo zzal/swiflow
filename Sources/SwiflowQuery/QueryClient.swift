@@ -200,6 +200,8 @@ public final class QueryClient {
         entry.generation += 1            // supersede any in-flight result
         entry.inFlight?.cancel()
         entry.inFlight = nil
+        entry.nextRetryDue = nil         // a newer fetch supersedes the retry cycle
+        entry.failureCount = 0
         if hasLiveSubscribers(key) {
             startFetch(for: key, entry: entry)
         }

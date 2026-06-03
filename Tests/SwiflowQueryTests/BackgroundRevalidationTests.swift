@@ -99,3 +99,28 @@ struct BackgroundFocusTests {
         #expect(bg.probe.calls == 2)             // exactly one refetch, not two
     }
 }
+
+@Suite("Background/supersede")
+@MainActor
+struct BackgroundSupersedeTests {
+    @Test func invalidateClearsPendingRetry() async {
+        let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(5), maxDelay: .seconds(30)))
+        bg.probe.failuresRemaining = 1           // initial fetch fails → schedules retry at t=5
+        await bg.settle()
+        #expect(bg.entry.nextRetryDue == .seconds(5))
+        #expect(bg.entry.failureCount == 1)
+        bg.client.invalidate(["k"])              // forceStaleAndRefetch → fresh fetch + reset
+        await bg.settle()
+        #expect(bg.entry.nextRetryDue == nil)    // pending retry cleared
+        #expect(bg.entry.failureCount == 0)
+    }
+    @Test func setQueryDataClearsPendingRetry() async {
+        let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(5), maxDelay: .seconds(30)))
+        bg.probe.failuresRemaining = 1
+        await bg.settle()
+        #expect(bg.entry.nextRetryDue == .seconds(5))
+        bg.client.setQueryData(["k"], ["optimistic"])
+        #expect(bg.entry.nextRetryDue == nil)
+        #expect(bg.entry.failureCount == 0)
+    }
+}

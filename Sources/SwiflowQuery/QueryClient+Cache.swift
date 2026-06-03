@@ -29,6 +29,8 @@ extension QueryClient {
         entry.value = value
         entry.error = nil
         entry.lastFetched = nil
+        entry.nextRetryDue = nil         // optimistic value supersedes the retry cycle
+        entry.failureCount = 0
         notify(key)
     }
 }
