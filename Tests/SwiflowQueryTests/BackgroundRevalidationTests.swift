@@ -70,3 +70,32 @@ struct BackgroundRetryTests {
         #expect(bg.probe.calls == 3)             // no more attempts
     }
 }
+
+@Suite("Background/focus")
+@MainActor
+struct BackgroundFocusTests {
+    @Test func focusRefetchesStaleOnly() async {
+        let bg = BG(staleTime: .seconds(10))
+        await bg.settle()                        // fetch #1 at t=0
+        bg.clock.advance(by: .seconds(5))        // still fresh (<10s)
+        await bg.focus()
+        #expect(bg.probe.calls == 1)             // fresh → skipped
+        bg.clock.advance(by: .seconds(6))        // now 11s → stale
+        await bg.focus()
+        #expect(bg.probe.calls == 2)             // stale → refetched
+    }
+    @Test func focusSkipsWhenOptedOut() async {
+        let bg = BG(staleTime: .zero, refetchOnFocus: false)  // always stale, but opted out
+        await bg.settle()
+        await bg.focus()
+        #expect(bg.probe.calls == 1)
+    }
+    @Test func doubleFocusCoalesces() async {
+        let bg = BG(staleTime: .zero)            // staleTime .zero → stale immediately after a fetch
+        await bg.settle()                        // fetch #1 done
+        bg.client.focusChanged(visible: true)    // spawns fetch #2 (in-flight, not awaited)
+        bg.client.focusChanged(visible: true)    // inFlight != nil → no cancel/respawn
+        await bg.settle()
+        #expect(bg.probe.calls == 2)             // exactly one refetch, not two
+    }
+}

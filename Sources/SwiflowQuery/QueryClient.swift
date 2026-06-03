@@ -163,8 +163,18 @@ public final class QueryClient {
     }
 
     /// Driven by the production focus listener (and tests). Refetches stale,
-    /// focus-enabled, live entries. Filled in by a later task.
+    /// focus-enabled, live entries.
     package func focusChanged(visible: Bool) {
+        guard visible else { return }
+        for (key, entry) in entries
+            where hasLiveSubscribers(key) && entry.refetchOnFocus {
+            // Dedup-safe: only refetch if stale AND not already fetching. Do NOT
+            // use forceStaleAndRefetch here — it cancels the in-flight fetch, so
+            // a double focus (visibilitychange + focus) would cancel-respawn.
+            if entry.inFlight == nil, needsFetch(entry, staleTime: entry.staleTime) {
+                startFetch(for: key, entry: entry)
+            }
+        }
     }
 
     // MARK: - Invalidation
