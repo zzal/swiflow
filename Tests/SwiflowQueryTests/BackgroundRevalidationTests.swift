@@ -109,10 +109,14 @@ struct BackgroundSupersedeTests {
         await bg.settle()
         #expect(bg.entry.nextRetryDue == .seconds(5))
         #expect(bg.entry.failureCount == 1)
-        bg.client.invalidate(["k"])              // forceStaleAndRefetch → fresh fetch + reset
-        await bg.settle()
-        #expect(bg.entry.nextRetryDue == nil)    // pending retry cleared
+        bg.client.invalidate(["k"])              // forceStaleAndRefetch → reset SYNCHRONOUSLY, then refetch
+        // Assert the reset BEFORE the refetch settles — otherwise a passing
+        // assertion could come from the refetch's own commitFetch success, not
+        // the §5.5 reset in forceStaleAndRefetch (which is what we're guarding).
+        #expect(bg.entry.nextRetryDue == nil)    // pending retry cleared at supersede time
         #expect(bg.entry.failureCount == 0)
+        await bg.settle()
+        #expect(bg.entry.nextRetryDue == nil)    // still clear after the refetch settles
     }
     @Test func setQueryDataClearsPendingRetry() async {
         let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(5), maxDelay: .seconds(30)))
