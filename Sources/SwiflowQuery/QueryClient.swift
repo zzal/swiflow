@@ -106,10 +106,19 @@ public final class QueryClient {
             entry.value = value
             entry.error = nil
             entry.lastFetched = clock.now()
+            entry.failureCount = 0               // reset the retry cycle
+            entry.nextRetryDue = nil
         case .failure(let err):
             entry.error = err
             // Leave `lastFetched` unchanged: a failed fetch stays stale so the
-            // next trigger retries.
+            // next trigger retries. Schedule a retry if attempts remain —
+            // increment BEFORE computing backoff so the exponent is the
+            // explicit 0-indexed attempt.
+            if entry.failureCount < entry.retry.maxRetries {
+                let attempt = entry.failureCount
+                entry.failureCount += 1
+                entry.nextRetryDue = clock.now() + entry.retry.delay(forAttempt: attempt)
+            }
         }
         // v1 notifies on every settle (both fetch start and completion) so
         // `isFetching` toggles and the SWR indicator clears; the VNode diff
