@@ -15,6 +15,7 @@ struct QueryClientCacheTests {
         client.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
             observations: [QueryClient.QueryObservation(
                 key: key, tags: [], staleTime: .zero,
+                refetchInterval: nil, refetchOnFocus: true, retry: .default,
                 boxedFetch: { value },
                 valuesEqual: { ($0 as? Int) == ($1 as? Int) })])
         for t in client.inFlightTasks() { await t.value }   // let the fetch settle

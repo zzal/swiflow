@@ -14,6 +14,7 @@ struct QueryClientReconcileTests {
     private func obs(_ key: QueryKey, _ counter: @escaping () -> Void) -> QueryClient.QueryObservation {
         QueryClient.QueryObservation(
             key: key, tags: [], staleTime: .zero,
+            refetchInterval: nil, refetchOnFocus: true, retry: .default,
             boxedFetch: { counter(); return 1 },
             valuesEqual: { ($0 as? Int) == ($1 as? Int) }
         )
@@ -77,6 +78,7 @@ struct QueryClientReconcileTests {
         func make() -> QueryClient.QueryObservation {
             QueryClient.QueryObservation(
                 key: ["x"], tags: [], staleTime: .zero,
+                refetchInterval: nil, refetchOnFocus: true, retry: .default,
                 boxedFetch: { calls += 1; return 1 },
                 valuesEqual: { ($0 as? Int) == ($1 as? Int) }
             )
@@ -88,5 +90,32 @@ struct QueryClientReconcileTests {
         #expect(calls == 1)                                  // deduped to one fetch
         let entry = client.entries[["x"]]!
         #expect(makeSnapshot(from: entry, as: Int.self).isFetching == false)  // not wedged
+    }
+}
+
+@MainActor private struct TunedQuery: Query {
+    var queryKey: QueryKey { ["tuned"] }
+    var staleTime: Duration { .seconds(7) }
+    var refetchInterval: Duration? { .seconds(5) }
+    var refetchOnFocus: Bool { false }
+    var retry: RetryPolicy { .none }
+    func fetch() async throws -> Int { 1 }
+}
+
+extension QueryClientReconcileTests {
+    @Test func reconcileCopiesBackgroundConfigOntoEntry() async {
+        let client = QueryClient(clock: ManualClock())
+        let owner = AnyComponent(Dummy())
+        client.willEvaluate(owner: owner, scheduler: SyncScheduler { _ in })
+        _ = client.observe(TunedQuery())
+        client.didEvaluate()
+        for t in client.inFlightTasks() { await t.value }
+
+        let entry = client.entries[["tuned"]]!
+        #expect(entry.staleTime == .seconds(7))
+        #expect(entry.refetchInterval == .seconds(5))
+        #expect(entry.refetchOnFocus == false)
+        #expect(entry.retry == .none)
+        _ = owner
     }
 }

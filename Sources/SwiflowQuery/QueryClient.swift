@@ -171,6 +171,9 @@ public final class QueryClient {
         let key: QueryKey
         let tags: Set<QueryTag>
         let staleTime: Duration
+        let refetchInterval: Duration?
+        let refetchOnFocus: Bool
+        let retry: RetryPolicy
         let boxedFetch: @MainActor () async throws -> Any
         let valuesEqual: (Any?, Any?) -> Bool
     }
@@ -196,6 +199,10 @@ public final class QueryClient {
                 return e
             }()
             entry.tags = ob.tags
+            entry.staleTime = ob.staleTime
+            entry.refetchInterval = ob.refetchInterval
+            entry.refetchOnFocus = ob.refetchOnFocus
+            entry.retry = ob.retry
             entry.boxedFetch = ob.boxedFetch          // capture latest deps
 
             if let scheduler { subscribe(owner: owner, scheduler: scheduler, to: ob.key) }
@@ -237,6 +244,9 @@ public final class QueryClient {
             key: key,
             tags: q.tags,
             staleTime: q.staleTime,
+            refetchInterval: q.refetchInterval,
+            refetchOnFocus: q.refetchOnFocus,
+            retry: q.retry,
             boxedFetch: { try await q.fetch() },
             valuesEqual: { ($0 as? Q.Value) == ($1 as? Q.Value) }
         )

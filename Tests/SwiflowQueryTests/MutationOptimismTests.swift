@@ -45,6 +45,7 @@ struct MutationOptimismTests {
         c.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
             observations: [QueryClient.QueryObservation(
                 key: ["todos"], tags: [], staleTime: .seconds(9999),
+                refetchInterval: nil, refetchOnFocus: true, retry: .default,
                 boxedFetch: { items },
                 valuesEqual: { ($0 as? [String]) == ($1 as? [String]) })])
         for t in c.inFlightTasks() { await t.value }
@@ -88,6 +89,7 @@ struct MutationOptimismTests {
         client.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
             observations: [QueryClient.QueryObservation(
                 key: ["todos"], tags: [], staleTime: .seconds(9999),
+                refetchInterval: nil, refetchOnFocus: true, retry: .default,
                 boxedFetch: { fetches += 1; return ["a"] },
                 valuesEqual: { ($0 as? [String]) == ($1 as? [String]) })])
         for t in client.inFlightTasks() { await t.value }
