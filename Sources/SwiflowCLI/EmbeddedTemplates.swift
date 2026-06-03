@@ -2042,6 +2042,389 @@ struct App {
 """##,
             ]
         ),
+        Template(
+            name: "TodoCRUD",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        {{SWIFLOW_DEP}},
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowQuery", package: "Swiflow"),
+                // The fetch + JSON-decode story now lives in the SwiflowHTTP
+                // module (graduated from this example's old Net.swift); it pulls
+                // in JavaScriptKit/JavaScriptEventLoop transitively.
+                .product(name: "SwiflowHTTP", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+SwiflowQuery against a **real** local CRUD API — Bun + SQLite, Dockerized.
+
+Unlike `QueryDemo`/`AsyncFetch` (which simulate the network with `Task.sleep` and
+hardcoded data), this example performs actual HTTP `fetch` calls from the WASM app to a
+running backend. The SwiflowQuery machinery — cache, stale-while-revalidate, dedup,
+optimistic updates, invalidation — is identical to the simulated examples; only the
+`Query.fetch()` / `Mutation.perform()` bodies change to call a real server.
+
+## What it shows
+
+- **Read** the list with `query(TodoList())` → a `QueryState<[Todo]>`.
+- **Write** with `@MutationState` mutations — `AddTodo` / `ToggleTodo` / `DeleteTodo` —
+  each with an **optimistic** cache edit (append / field-flip / remove) and an
+  **`.exact(["todos"])` invalidation** that refetches the canonical list to reconcile.
+- The **⟳ spinner** (`isFetching`) during the post-mutation revalidation.
+- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowHTTP`** module
+  — `HTTPClient(baseURL:)` over the browser `fetch` + `JSValueDecoder`; no
+  `Foundation`/`URLSession`.
+
+## Architecture
+
+```
+Browser  ──┐
+  WASM app (swiflow dev, :3002)
+           │  CORS fetch (GET/POST/PUT/DELETE /todos)
+           ▼
+  Bun API (:8080)  ──►  bun:sqlite (in-memory)
+```
+
+## Run the backend
+
+```bash
+cd backend
+docker compose up --build      # serves http://localhost:8080
+```
+
+## Run the frontend
+
+```bash
+# from this directory (examples/{{NAME}})
+swiflow dev --port 3002        # compiles to WASM, serves on http://localhost:3002
+```
+
+Open the printed URL.
+
+## What you should see
+
+- The three seeded todos render (the first is checked) after a brief **Loading…**.
+- Type a title + **Add** → the row appears **instantly** (optimistic), the **⟳** spinner
+  shows during revalidation, then the row reconciles to the server-assigned id.
+- Toggling a checkbox flips **done** instantly; the `PUT` runs in the background; the
+  list reconciles.
+- **✕** removes the row instantly; the `DELETE` runs; the list reconciles.
+- In the browser Network tab, each mutation is immediately followed by a `GET /todos`
+  (the `.exact(["todos"])` invalidation refetch).
+
+## Notes
+
+- **Persistence:** the backend uses an in-memory SQLite DB, re-seeded each container
+  start — writes persist for the session. To persist across restarts, change
+  `new Database(":memory:")` to `new Database("/data/todos.db")` in `backend/server.ts`
+  and uncomment the `volumes:` lines in `backend/docker-compose.yml`.
+- **CORS:** the Swiflow dev server is static-only (no proxy), so the backend sends
+  permissive CORS headers and answers the `OPTIONS` preflight that POST/PUT/DELETE with
+  a JSON body trigger.
+- **Config:** change the `HTTPClient(baseURL:)` in `Sources/App/App.swift` to target a different host/port.
+
+See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagram in
+`docs/diagrams/swiflow-update-lifecycle.html`.
+
+"""##,
+                "Sources/App/App.swift": ##"""
+import SwiflowWeb
+import SwiflowQuery
+import SwiflowHTTP
+
+/// The CRUD API, configured once. Point `baseURL` elsewhere to target another
+/// host/port; queries and mutations call it with relative paths.
+let api = HTTPClient(baseURL: "http://localhost:8080")
+
+// MARK: - Model
+
+struct Todo: Decodable, Equatable, Sendable {
+    let id: Int
+    let title: String
+    let done: Bool
+}
+
+// MARK: - Query
+
+struct TodoList: Query {
+    var queryKey: QueryKey { ["todos"] }
+    var tags: Set<QueryTag> { ["todos"] }
+    func fetch() async throws -> [Todo] {
+        try await api.get("/todos", as: [Todo].self)
+    }
+}
+
+// MARK: - Mutations
+
+struct AddTodo: Mutation {
+    /// Monotonic temp-id source for optimistic rows (negative so it never
+    /// collides with a real server id). The `["todos"]` refetch replaces it.
+    static var tempSeq = -1
+
+    func perform(_ title: String) async throws -> Todo {
+        try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
+    }
+    func optimistic(_ title: String) -> [OptimisticEdit] {
+        let tmp = AddTodo.tempSeq; AddTodo.tempSeq -= 1
+        return [.update(TodoList()) { $0 + [Todo(id: tmp, title: title, done: false)] }]
+    }
+    func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
+}
+
+struct ToggleTodo: Mutation {
+    struct Input: Sendable { let id: Int; let done: Bool }
+    func perform(_ i: Input) async throws -> Todo {
+        try await api.put("/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
+    }
+    func optimistic(_ i: Input) -> [OptimisticEdit] {
+        [.update(TodoList()) { todos in
+            todos.map { $0.id == i.id ? Todo(id: $0.id, title: $0.title, done: i.done) : $0 }
+        }]
+    }
+    func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
+}
+
+struct DeleteTodo: Mutation {
+    func perform(_ id: Int) async throws {
+        try await api.delete("/todos/\(id)")
+    }
+    func optimistic(_ id: Int) -> [OptimisticEdit] {
+        [.update(TodoList()) { $0.filter { $0.id != id } }]
+    }
+    func invalidations(input: Int, output: Void) -> [Invalidation] { [.exact(["todos"])] }
+}
+
+// MARK: - Component
+
+@MainActor @Component
+final class TodoApp {
+    @State var draft: String = ""
+    @MutationState var add: AddTodo
+    @MutationState var toggle: ToggleTodo
+    @MutationState var remove: DeleteTodo
+
+    init() {
+        self.add = AddTodo()
+        self.toggle = ToggleTodo()
+        self.remove = DeleteTodo()
+    }
+
+    var body: VNode {
+        let list = query(TodoList())
+        return div {
+            h1("Todo CRUD")
+            p("Reads via query(); writes via @MutationState with optimistic updates — against a real Bun + SQLite API.")
+
+            div {
+                input(.value($draft), .attr("placeholder", "New todo…"),
+                      .on(.input) { self.draft = $0.targetValue ?? "" })
+                button("Add", .on(.click) {
+                    let t = self.draft
+                    guard !t.isEmpty, !t.allSatisfy(\.isWhitespace) else { return }
+                    self.$add.mutate(t)
+                    self.draft = ""
+                }, .attr("disabled", $add.isPending))
+                if list.isFetching { span { text(" ⟳ syncing…") } }
+            }
+
+            if list.isLoading { p("Loading…") }
+            if let e = list.error { p("Failed to load: \(e)") }
+            if $add.isError { p("Add failed.") }
+            if $toggle.isError { p("Toggle failed.") }
+            if $remove.isError { p("Delete failed.") }
+
+            if let todos = list.data {
+                ul {
+                    for todo in todos {
+                        li(.key("todo-\(todo.id)")) {
+                            input(.attr("type", "checkbox"),
+                                  .checked(Binding(get: { todo.done },
+                                                   set: { self.$toggle.mutate(.init(id: todo.id, done: $0)) })))
+                            span { text(todo.title) }
+                            button("✕", .on(.click) { self.$remove.mutate(todo.id) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { TodoApp() }
+    }
+}
+
+"""##,
+                "backend/Dockerfile": ##"""
+FROM oven/bun:1
+WORKDIR /app
+COPY server.ts .
+EXPOSE 8080
+CMD ["bun", "run", "server.ts"]
+
+"""##,
+                "backend/docker-compose.yml": ##"""
+# `name` sets the Compose project name, so the container and network read as
+# swiflow-todo-crud* instead of defaulting to the "backend" directory name.
+name: swiflow-todo-crud
+
+services:
+  api:
+    container_name: swiflow-todo-crud
+    build: .
+    ports: ["8080:8080"]
+    # In-memory SQLite, re-seeded each start. To persist instead, in server.ts use
+    #   new Database("/data/todos.db")
+    # and uncomment:
+    # volumes: ["todos-data:/data"]
+# volumes: { todos-data: {} }
+
+"""##,
+                "backend/server.ts": ##"""
+// Bun + bun:sqlite Todos CRUD API — zero npm installs. Run: bun run server.ts
+import { Database } from "bun:sqlite";
+
+const db = new Database(":memory:"); // ephemeral; re-seeded each container start
+db.run(`CREATE TABLE todos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0)`);
+const seed = db.prepare("INSERT INTO todos (title, done) VALUES (?, ?)");
+seed.run("Read the SwiflowQuery guide", 1);
+seed.run("Wire a real CRUD API", 0);
+seed.run("Watch optimistic updates reconcile", 0);
+
+type Row = { id: number; title: string; done: number };
+const toTodo = (r: Row) => ({ id: r.id, title: r.title, done: r.done === 1 });
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+const json = (b: unknown, status = 200) =>
+  new Response(b === null ? null : JSON.stringify(b),
+    { status, headers: { "Content-Type": "application/json", ...CORS } });
+
+Bun.serve({
+  port: 8080,
+  async fetch(req) {
+    const url = new URL(req.url); const path = url.pathname; const { method } = req;
+    if (method === "OPTIONS") return new Response(null, { status: 204, headers: CORS }); // preflight
+    if (method === "GET" && path === "/todos")
+      return json((db.query("SELECT * FROM todos ORDER BY id").all() as Row[]).map(toTodo));
+    if (method === "POST" && path === "/todos") {
+      const { title } = (await req.json()) as { title?: string };
+      if (!title || !title.trim()) return json({ error: "title required" }, 400);
+      const info = db.prepare("INSERT INTO todos (title, done) VALUES (?, 0)").run(title.trim());
+      return json(toTodo(db.query("SELECT * FROM todos WHERE id = ?").get(Number(info.lastInsertRowid)) as Row), 201);
+    }
+    const m = path.match(/^\/todos\/(\d+)$/);
+    if (m) {
+      const id = Number(m[1]);
+      if (method === "PUT") {
+        const { done } = (await req.json()) as { done?: boolean };
+        if (!db.query("SELECT id FROM todos WHERE id = ?").get(id)) return json({ error: "not found" }, 404);
+        db.prepare("UPDATE todos SET done = ? WHERE id = ?").run(done ? 1 : 0, id);
+        return json(toTodo(db.query("SELECT * FROM todos WHERE id = ?").get(id) as Row));
+      }
+      if (method === "DELETE") {
+        db.prepare("DELETE FROM todos WHERE id = ?").run(id);
+        return new Response(null, { status: 204, headers: CORS });
+      }
+    }
+    return json({ error: "not found" }, 404);
+  },
+});
+console.log("{{NAME}} API on http://localhost:8080");
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todo CRUD</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
     ]
 
     static func lookup(_ name: String) -> Template? {
