@@ -12,30 +12,33 @@ import Swiflow
 
 @MainActor
 enum CSSInjector {
-    private static var injected: Set<ObjectIdentifier> = []
-
-    /// Wires `onComponentTypeMount` so that every new Component type
-    /// that mounts gets its scoped styles injected into <head>.
+    /// Wires the registry's emit sink to a real `<head>` `<style>` append, then
+    /// installs the component-mount hook that injects each type's scoped sheet.
     static func setup() {
+        StyleInjectionRegistry.emit = { id, css in
+            appendStyle(id: id, css: css)
+        }
         onComponentTypeMount = { componentType in
             CSSInjector.inject(for: componentType)
         }
     }
 
-    /// Injects a <style> tag for `componentType` if one hasn't been
-    /// injected yet and the type declares non-empty `scopedStyles`.
+    /// Injects a `<style>` for `componentType` if it declares non-empty
+    /// `scopedStyles`. De-duplication is owned by `StyleInjectionRegistry`.
     static func inject(for componentType: any Component.Type) {
-        let id = ObjectIdentifier(componentType)
-        guard !injected.contains(id) else { return }
-        injected.insert(id)
-
         guard let sheet = componentType.scopedStyles else { return }
         let typeName = String(describing: componentType)
         let scopeClass = "swiflow-\(typeName)"
-        let css = sheet.cssString(scopeClass: scopeClass)
-        guard !css.isEmpty else { return }
+        StyleInjectionRegistry.injectOnce(id: scopeClass) {
+            sheet.cssString(scopeClass: scopeClass)
+        }
+    }
 
-        let styleId = scopeClass
+    /// Appends a `<style id=...>` to `<head>` carrying `css`. Skips when a
+    /// `<style>` with that id already exists in the document (e.g. an HMR swap
+    /// re-running setup) or when `css` is empty.
+    private static func appendStyle(id: String, css: String) {
+        guard !css.isEmpty else { return }
         // JSObject.global.document is a JSValue; property access via dynamic
         // member lookup on JSValue returns JSValue. Method calls on JSValue
         // use the typed subscript overloads which return non-optional
@@ -44,19 +47,16 @@ enum CSSInjector {
         let document = JSObject.global.document
 
         // Skip if a <style> with this id already exists (e.g. HMR swap).
-        let existing = document.getElementById(styleId)
+        let existing = document.getElementById(id)
         guard existing == .undefined || existing == .null else { return }
 
         let style = document.createElement("style").object!
-        style.id = .string(styleId)
+        style.id = .string(id)
         style.textContent = .string(css)
         _ = document.head.object!.appendChild!(style)
     }
 
-    /// Clears the injected-set so styles are re-injected on the next
-    /// mount cycle. Used by tests and HMR reloads.
-    static func reset() {
-        injected = []
-    }
+    /// Clears the registry guard so styles re-inject on the next mount. Tests/HMR.
+    static func reset() { StyleInjectionRegistry.reset() }
 }
 #endif
