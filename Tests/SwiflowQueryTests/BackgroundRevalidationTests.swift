@@ -128,3 +128,29 @@ struct BackgroundSupersedeTests {
         #expect(bg.entry.failureCount == 0)
     }
 }
+
+@Suite("Background/poll+retry")
+@MainActor
+struct BackgroundPollRetryTests {
+    /// A polling query whose poll fails enters the retry cycle; once retries are
+    /// exhausted it resumes polling (failures never update `lastFetched`, so the
+    /// poll deadline still measures from the last success).
+    @Test func failedPollRetriesThenResumesPolling() async {
+        let bg = BG(refetchInterval: .seconds(5),
+                    retry: RetryPolicy(maxRetries: 1, baseDelay: .seconds(1), maxDelay: .seconds(30)))
+        await bg.settle()                         // fetch #1 succeeds at t=0
+        #expect(bg.probe.calls == 1)
+
+        bg.probe.failuresRemaining = 2            // the upcoming poll + its one retry both fail
+        await bg.advance(.seconds(5))             // t=5: poll fires → fails → retry scheduled at t=6
+        #expect(bg.probe.calls == 2)
+        #expect(bg.entry.nextRetryDue == .seconds(6))
+        await bg.advance(.seconds(1))             // t=6: retry fires → fails → maxRetries(1) reached
+        #expect(bg.probe.calls == 3)
+        #expect(bg.entry.nextRetryDue == nil)     // retries exhausted, not stuck
+
+        await bg.advance(.seconds(1))             // t=7: poll resumes (7-0 >= 5) → fetch #4 succeeds
+        #expect(bg.probe.calls == 4)
+        #expect(bg.entry.nextRetryDue == nil)
+    }
+}
