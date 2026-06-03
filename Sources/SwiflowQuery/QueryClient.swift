@@ -134,6 +134,18 @@ public final class QueryClient {
         return (clock.now() - last) >= staleTime
     }
 
+    // MARK: - Background revalidation
+
+    /// Driven by the production interval (and tests). Fires due retries and
+    /// due polls for live, not-in-flight entries. Filled in by later tasks.
+    package func tick(now: Duration) {
+    }
+
+    /// Driven by the production focus listener (and tests). Refetches stale,
+    /// focus-enabled, live entries. Filled in by a later task.
+    package func focusChanged(visible: Bool) {
+    }
+
     // MARK: - Invalidation
 
     /// Force every entry whose key starts with `key` (or equals it when
