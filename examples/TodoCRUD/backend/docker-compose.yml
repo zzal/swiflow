@@ -1,0 +1,9 @@
+services:
+  todos-api:
+    build: .
+    ports: ["8080:8080"]
+    # In-memory SQLite, re-seeded each start. To persist instead, in server.ts use
+    #   new Database("/data/todos.db")
+    # and uncomment:
+    # volumes: ["todos-data:/data"]
+# volumes: { todos-data: {} }
