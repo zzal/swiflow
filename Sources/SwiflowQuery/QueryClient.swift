@@ -6,7 +6,7 @@ import Swiflow
 /// render root, installed as that root's `RenderObserver` (later tasks).
 @MainActor
 public final class QueryClient {
-    let clock: any QueryClock
+    package let clock: any QueryClock
     var entries: [QueryKey: QueryEntry] = [:]
     var subscribers: [QueryKey: [Subscriber]] = [:]
     /// Per owner-instance: the set of keys it observed in its last render.

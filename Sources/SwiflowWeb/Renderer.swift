@@ -77,6 +77,11 @@ final class Renderer {
     /// two-phase initialisation constraint is satisfied.
     private let _schedulerBox: MutableBox<(any Scheduler)?> = MutableBox(nil)
 
+    /// The background-revalidation driver for this root (setInterval tick +
+    /// visibilitychange/focus listeners). Non-nil only for Phase 3 renderers.
+    /// Started in the Phase 3 init; torn down in `teardown()`.
+    private var backgroundRevalidation: BackgroundRevalidation?
+
     /// The active `Scheduler`, if any. Non-nil only for Phase 3 renderers.
     /// Exposed as a computed property so tests and internal callers get
     /// a clean `Scheduler?` type without reaching into the box.
@@ -117,6 +122,9 @@ final class Renderer {
             self?.renderOnce()
         }
         _schedulerBox.value = raf
+        let bg = BackgroundRevalidation(client: queryClient, clock: queryClient.clock)
+        bg.start()
+        backgroundRevalidation = bg
     }
 
     // MARK: - Render
@@ -260,6 +268,9 @@ final class Renderer {
         let swiflowGlobal = JSObject.global.swiflow.object!
         _ = swiflowGlobal.applyPatches!(jsArray)
 
+        // Stop background revalidation triggers before releasing the scheduler.
+        backgroundRevalidation?.stop()
+        backgroundRevalidation = nil
         // Nil out the scheduler to prevent any pending RAF from triggering
         // a render on a torn-down tree. The weak-self capture in the RAF
         // closure means it becomes a no-op once the RAFScheduler is released.
