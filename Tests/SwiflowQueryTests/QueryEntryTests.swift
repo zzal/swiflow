@@ -32,4 +32,14 @@ struct QueryEntryTests {
         #expect(!s.isLoading)
         #expect(s.isFetching)
     }
+
+    @Test func backgroundStateDefaults() {
+        let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        #expect(e.staleTime == .zero)
+        #expect(e.refetchInterval == nil)
+        #expect(e.refetchOnFocus == true)
+        #expect(e.retry == .default)
+        #expect(e.failureCount == 0)
+        #expect(e.nextRetryDue == nil)
+    }
 }

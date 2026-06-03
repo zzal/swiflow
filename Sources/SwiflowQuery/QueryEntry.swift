@@ -18,6 +18,17 @@ final class QueryEntry {
     var inFlight: Task<Void, Never>?
     /// Cross-cutting families this entry belongs to (from the latest query).
     var tags: Set<QueryTag> = []
+    /// Promoted from the latest observation (needed off the render path, by
+    /// `tick`/`focusChanged`). Defaults apply until `reconcile` copies the
+    /// query's values on.
+    var staleTime: Duration = .zero
+    var refetchInterval: Duration?
+    var refetchOnFocus: Bool = true
+    var retry: RetryPolicy = .default
+    /// Consecutive fetch failures; reset to 0 on any success or supersede.
+    var failureCount: Int = 0
+    /// Clock time the next retry should fire; `nil` = no pending retry.
+    var nextRetryDue: Duration?
     /// The latest query's fetch, capturing its latest dependencies. Used to
     /// refetch on invalidation. `@MainActor` so calling it needs no Sendable.
     var boxedFetch: (@MainActor () async throws -> Any)?
