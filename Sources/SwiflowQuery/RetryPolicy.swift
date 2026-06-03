@@ -24,11 +24,12 @@ public struct RetryPolicy: Sendable, Equatable {
     /// Clamps the RESULT by doubling, so it never forms an overflowing product.
     func delay(forAttempt n: Int) -> Duration {
         var d = baseDelay
-        if d >= maxDelay { return maxDelay }
         for _ in 0..<n {
+            // Check BEFORE doubling so the product can never overflow `Duration`:
+            // if the next double would reach the cap, return the cap now.
+            if d >= maxDelay / 2 { return maxDelay }
             d = d * 2
-            if d >= maxDelay { return maxDelay }
         }
-        return d
+        return min(d, maxDelay)
     }
 }

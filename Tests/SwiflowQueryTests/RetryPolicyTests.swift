@@ -18,4 +18,10 @@ struct RetryPolicyTests {
     @Test func noneDisablesRetry() {
         #expect(RetryPolicy.none.maxRetries == 0)
     }
+    @Test func hugeMaxDelayNeverOverflows() {
+        // A caller-built policy with a near-max maxDelay must cap, never trap,
+        // for any attempt count (the guard clamps the result, not the exponent).
+        let p = RetryPolicy(maxRetries: 500, baseDelay: .seconds(1), maxDelay: .seconds(Int64.max / 4))
+        #expect(p.delay(forAttempt: 500) == .seconds(Int64.max / 4))
+    }
 }
