@@ -2043,6 +2043,161 @@ struct App {
             ]
         ),
         Template(
+            name: "SwiflowUIDemo",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    platforms: [.macOS(.v14)],
+    products: [.executable(name: "App", targets: ["App"])],
+    dependencies: [
+        {{SWIFLOW_DEP}},
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+Browser proof-of-concept for the SwiflowUI v0 layout primitives.
+
+## What it shows
+
+- `VStack` / `HStack` with token-var spacing (`.md`, `.lg`, `.xl`)
+- `.padding(_:)` postfix modifier that maps to `--sw-space-*` CSS custom properties
+- Token-based reskin: overriding `--sw-space-md` in one `:root` rule changes every gap at once
+
+## Run
+
+```bash
+swiflow dev --port 3003
+```
+
+Open <http://localhost:3003> in a browser.
+
+## Reskin experiment
+
+Open `index.html` and uncomment the `:root` override inside `<style>`:
+
+```css
+/* :root { --sw-space-md: 2.5rem } */
+```
+
+Reload — every `HStack(spacing: .md)` gap widens instantly, with no Swift recompile needed.
+
+## Spec
+
+See [`docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md`](../../docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md) for the full design rationale.
+
+"""##,
+                "Sources/App/App.swift": ##"""
+import Swiflow
+import SwiflowWeb
+import SwiflowUI
+
+@MainActor @Component
+final class Demo {
+    var body: VNode {
+        VStack(spacing: .lg, align: .stretch) {
+            h1("SwiflowUI — Stacks")
+            HStack(spacing: .md, align: .center) {
+                button("One"); button("Two"); button("Three")
+            }
+            .padding(.md)
+            .style("background", "var(--sw-surface)")
+            .style("border-radius", "var(--sw-radius)")
+
+            p("The row above uses HStack(spacing: .md). Change --sw-space-md "
+              + "in index.html's <style> to reskin every gap at once.")
+        }
+        .padding(.xl)
+    }
+}
+
+@main
+struct App {
+    @MainActor static func main() { Swiflow.render(into: "#app") { Demo() } }
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SwiflowUI Demo</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+
+      /* Token reskin experiment — uncomment to widen every HStack/VStack gap: */
+      /* :root { --sw-space-md: 2.5rem } */
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
+        Template(
             name: "TodoCRUD",
             files: [
                 ".gitignore": ##"""
