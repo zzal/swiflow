@@ -9,12 +9,29 @@ import SwiflowQuery
 public struct AsyncTestHarness {
     let renderer: TestRenderer
     let harness: TestHarness
+    let clock: ManualClock
 
-    public init<C: Component>(_ component: C, queryClient: QueryClient = QueryClient()) {
+    public init<C: Component>(_ component: C, clock: ManualClock = ManualClock()) {
+        self.clock = clock
+        let r = TestRenderer(component, queryClient: QueryClient(clock: clock))
+        self.renderer = r
+        self.harness = TestHarness(r)
+    }
+
+    /// Use this overload when multiple harnesses must share one `QueryClient`
+    /// (e.g. to verify cross-component invalidation). The harness's `clock`
+    /// property is a no-op placeholder in this path; use `queryClient.tick`
+    /// directly if you need background-revalidation control.
+    public init<C: Component>(_ component: C, queryClient: QueryClient) {
+        self.clock = ManualClock()
         let r = TestRenderer(component, queryClient: queryClient)
         self.renderer = r
         self.harness = TestHarness(r)
     }
+
+    /// The query client owned by this harness. Use from tests to call
+    /// `invalidate`, `reconcile`, or other client-level APIs.
+    public var queryClient: QueryClient { renderer.queryClient }
 
     /// Await every in-flight `.task` *for this harness's render root*, flush
     /// resulting re-renders, and repeat until none remain. Throws `SettleError`
@@ -56,6 +73,19 @@ public struct AsyncTestHarness {
     /// change must take effect — e.g. so a `rerunOn` change is reconciled —
     /// before in-flight tasks are awaited.
     public func flush() { renderer.scheduler.flush() }
+
+    /// Advance the test clock, fire one `tick`, and settle resulting refetches.
+    public func advance(by delta: Duration) async throws {
+        clock.advance(by: delta)
+        renderer.queryClient.tick(now: clock.now())
+        try await settle()
+    }
+
+    /// Simulate the window regaining focus, then settle resulting refetches.
+    public func focus() async throws {
+        renderer.queryClient.focusChanged(visible: true)
+        try await settle()
+    }
 
     // MARK: - Query / interaction passthrough
 

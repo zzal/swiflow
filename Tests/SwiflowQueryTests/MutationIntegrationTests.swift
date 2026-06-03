@@ -96,7 +96,7 @@ struct MutationIntegrationTests {
         var server = ["a"]
         let h = AsyncTestHarness(
             Board(load: { server }, outcome: { title in server.append(title); return title }),
-            queryClient: QueryClient(clock: ManualClock()))
+            clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("a"))
 
@@ -111,7 +111,7 @@ struct MutationIntegrationTests {
     @Test func rollbackOnFailureKeepsPriorList() async throws {
         let h = AsyncTestHarness(
             Board(load: { ["a"] }, outcome: { _ in throw Boom.nope }),
-            queryClient: QueryClient(clock: ManualClock()))
+            clock: ManualClock())
         try await h.settle()
         h.click("button")
         try await h.settle()
@@ -125,18 +125,17 @@ struct MutationIntegrationTests {
     // prior re-render — correctly invalidates the shared query client.
     @Test func mountWiresClientEvenWithoutBodyReference() async throws {
         var fetches = 0
-        let client = QueryClient(clock: ManualClock())
 
-        // Mount a Board so ["todos"] has a live observer on `client`.
+        // Mount a Board so ["todos"] has a live observer on the shared client.
         let board = Board(load: { fetches += 1; return ["a"] }, outcome: { $0 })
-        let h = AsyncTestHarness(board, queryClient: client)
+        let h = AsyncTestHarness(board, clock: ManualClock())
         try await h.settle()
         #expect(fetches == 1)
 
         // Mount FireOnly on the SAME client. Its @MutationState is wired at
         // mount even though body never references $add.
         let fire = FireOnly(outcome: { $0 })
-        let fireHarness = AsyncTestHarness(fire, queryClient: client)
+        let fireHarness = AsyncTestHarness(fire, queryClient: h.queryClient)
 
         // First mutate with NO prior re-render of FireOnly — relies on mount wiring.
         fire.$add.mutate("z")

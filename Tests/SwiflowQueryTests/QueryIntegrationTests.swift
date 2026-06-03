@@ -98,16 +98,14 @@ private enum DemoError: Error { case boom }
 @MainActor
 struct QueryIntegrationTests {
     @Test func loadsOnMount() async throws {
-        let client = QueryClient(clock: ManualClock())
-        let h = AsyncTestHarness(Profile(userID: 1) { "User#\($0)" }, queryClient: client)
+        let h = AsyncTestHarness(Profile(userID: 1) { "User#\($0)" }, clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("User#1"))
     }
 
     @Test func refetchesOnKeyChange() async throws {
-        let client = QueryClient(clock: ManualClock())
         let vm = Profile(userID: 1) { "User#\($0)" }
-        let h = AsyncTestHarness(vm, queryClient: client)
+        let h = AsyncTestHarness(vm, clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("User#1"))
 
@@ -118,27 +116,25 @@ struct QueryIntegrationTests {
     }
 
     @Test func dedupesConcurrentSameKey() async throws {
-        let client = QueryClient(clock: ManualClock())
         let counter = FetchCounter()
         let h = AsyncTestHarness(
             Pair { id in counter.bump(); return "User#\(id)" },
-            queryClient: client
+            clock: ManualClock()
         )
         try await h.settle()
         #expect(counter.value == 1)   // one fetch despite two observations
     }
 
     @Test func invalidateRefetchesMountedObserver() async throws {
-        let client = QueryClient(clock: ManualClock())
         let counter = FetchCounter()
         let h = AsyncTestHarness(
             Profile(userID: 1) { id in counter.bump(); return "User#\(id)" },
-            queryClient: client
+            clock: ManualClock()
         )
         try await h.settle()
         #expect(counter.value == 1)
 
-        client.invalidate(["users", 1])
+        h.queryClient.invalidate(["users", 1])
         try await h.settle()
         #expect(counter.value == 2)   // forced refetch
     }
@@ -147,9 +143,8 @@ struct QueryIntegrationTests {
     // component re-rendering on its OWN @State change must reconcile its
     // query (refetch the new key), matching the browser renderer.
     @Test func nestedComponentReconcilesOnOwnStateChange() async throws {
-        let client = QueryClient(clock: ManualClock())
         let child = Child(n: 1) { "User#\($0)" }
-        let h = AsyncTestHarness(Parent(child: child), queryClient: client)
+        let h = AsyncTestHarness(Parent(child: child), clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("User#1"))
 
@@ -162,21 +157,20 @@ struct QueryIntegrationTests {
     // Error path (spec §9): a failed revalidation surfaces `error`, retains the
     // prior `data`, and leaves the entry stale so a later trigger retries.
     @Test func failedRevalidationSurfacesErrorAndKeepsData() async throws {
-        let client = QueryClient(clock: ManualClock())
         let box = FailBox()
-        let h = AsyncTestHarness(ErrLoader(box: box), queryClient: client)
+        let h = AsyncTestHarness(ErrLoader(box: box), clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("ok"))          // first fetch succeeds
         #expect(!h.allText.contains("error"))
 
         box.failNext = true
-        client.invalidate(["thing"])               // forced refetch → throws
+        h.queryClient.invalidate(["thing"])        // forced refetch → throws
         try await h.settle()
         #expect(h.allText.contains("ok"))          // prior data retained (SWR)
         #expect(h.allText.contains("error"))       // error surfaced
 
         box.failNext = false
-        client.invalidate(["thing"])               // entry still stale → retry succeeds
+        h.queryClient.invalidate(["thing"])        // entry still stale → retry succeeds
         try await h.settle()
         #expect(h.allText.contains("ok"))
         #expect(!h.allText.contains("error"))      // error cleared on success
