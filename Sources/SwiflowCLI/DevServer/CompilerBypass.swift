@@ -148,9 +148,14 @@ struct StalenessKey: Sendable, Equatable {
                 if let text = try? String(contentsOf: url, encoding: .utf8) {
                     for raw in text.split(separator: "\n") {
                         let line = raw.trimmingCharacters(in: .whitespaces)
-                        if line.hasPrefix("import ")
-                            || line.hasPrefix("@testable import ")
-                            || line.hasPrefix("@_exported import ") {
+                        // Catch `import X` and any attribute-prefixed form
+                        // (@testable/@_exported/@preconcurrency/@_implementationOnly/@_spi(...) import X),
+                        // while excluding comments and identifiers like `importer`.
+                        // " import " (with surrounding spaces) only appears in real
+                        // import declarations, not in `importer`/`canImport`.
+                        let isImport = !line.hasPrefix("//") && !line.hasPrefix("/*")
+                            && (line.hasPrefix("import ") || line.contains(" import "))
+                        if isImport {
                             imports.insert(line)
                         }
                     }

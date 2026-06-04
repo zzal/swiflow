@@ -182,4 +182,33 @@ struct StalenessKeyTests {
         #expect(k.resolvedMTime == nil)
         #expect(k.manifestMTime == nil)
     }
+
+    @Test("importHash differs when an attribute-prefixed import is added")
+    func differsOnAttributePrefixedImport() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        let f = src.appendingPathComponent("App.swift")
+        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k1 = key(src, root)
+        // Adding a @preconcurrency import must flip the key (it imports a new module).
+        try "import SwiflowWeb\n@preconcurrency import Dispatch\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k2 = key(src, root)
+        #expect(k2 != k1)
+        #expect(k2.sourceSet == k1.sourceSet)
+    }
+
+    @Test("A non-import line containing the word 'import' does NOT change the key")
+    func ignoresImporterIdentifierAndComments() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        let f = src.appendingPathComponent("App.swift")
+        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k1 = key(src, root)
+        // A comment mentioning import and an identifier named `importer` must NOT flip the key.
+        try "import SwiflowWeb\n// import Foundation\nlet importer = 1\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k2 = key(src, root)
+        #expect(k2 == k1)
+    }
 }
