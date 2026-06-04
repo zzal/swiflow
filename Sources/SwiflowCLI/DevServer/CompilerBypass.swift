@@ -60,6 +60,13 @@ enum BuildCommandParser {
         // Compile: the swiftc line that compiles the app module's objects for
         // wasm. There can be a separate `-emit-module` job carrying the same
         // `-module-name App … wasm32`; we want the object-emitting (`-c`) one.
+        //
+        // NOTE: SwiftPM emits exactly ONE object-emitting (`-c`) driver swiftc
+        // invocation per module regardless of source-file count (sources are
+        // passed via an `@…/sources` response file + `-output-file-map`, not
+        // inline / not `-primary-file`). Verified against the 8-file HelloWorld
+        // example. So `compileCandidates.count == 1` is correct for multi-file
+        // apps; ≥2 means genuine ambiguity → fall back to a full build.
         let compileCandidates: [ResolvedCommand] = lines.compactMap { line in
             let argv = shellSplit(line)
             guard argv.first?.hasSuffix("swiftc") == true,
@@ -78,7 +85,7 @@ enum BuildCommandParser {
             guard argv.first?.hasSuffix("clang") == true,
                   let oIndex = argv.firstIndex(of: "-o"),
                   oIndex + 1 < argv.count,
-                  argv[oIndex + 1].hasSuffix("/App.wasm")
+                  argv[oIndex + 1].hasSuffix("/\(appModule).wasm")
             else { return nil }
             return ResolvedCommand(executable: URL(fileURLWithPath: argv[0]), arguments: Array(argv.dropFirst()))
         }

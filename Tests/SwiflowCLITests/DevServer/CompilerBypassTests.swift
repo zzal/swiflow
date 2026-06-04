@@ -57,16 +57,18 @@ struct CapturingWasmBuildInvocationTests {
 struct BuildCommandParserTests {
 
     static var sample: String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()                       // DevServer
-            .deletingLastPathComponent()                       // SwiflowCLITests
-            .appendingPathComponent("Fixtures/swift-build-verbose-sample.txt")
-        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        get throws {
+            let url = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()                   // DevServer
+                .deletingLastPathComponent()                   // SwiflowCLITests
+                .appendingPathComponent("Fixtures/swift-build-verbose-sample.txt")
+            return try String(contentsOf: url, encoding: .utf8)
+        }
     }
 
     @Test("Selects the -c App wasm compile job (not -emit-module, not the host line)")
     func picksCompileJob() throws {
-        let parsed = try #require(BuildCommandParser.parse(verboseOutput: Self.sample, appModule: "App"))
+        let parsed = try #require(BuildCommandParser.parse(verboseOutput: try Self.sample, appModule: "App"))
         #expect(parsed.compile.executable.path == "/tc/usr/bin/swiftc")
         #expect(parsed.compile.arguments.contains("-c"))
         #expect(parsed.compile.arguments.contains("-module-name"))
@@ -78,7 +80,7 @@ struct BuildCommandParserTests {
 
     @Test("Selects the clang App.wasm link line (not the nested wasm-ld)")
     func picksLinkJob() throws {
-        let parsed = try #require(BuildCommandParser.parse(verboseOutput: Self.sample, appModule: "App"))
+        let parsed = try #require(BuildCommandParser.parse(verboseOutput: try Self.sample, appModule: "App"))
         #expect(parsed.link.executable.path == "/tc/usr/bin/clang")
         #expect(parsed.link.arguments.contains("-o"))
         #expect(parsed.link.arguments.contains { $0.hasSuffix("/App.wasm") })
@@ -93,8 +95,8 @@ struct BuildCommandParserTests {
     }
 
     @Test("Returns nil when two object-emitting App compile jobs are ambiguous")
-    func nilWhenAmbiguous() {
-        let dup = Self.sample + "\n" +
+    func nilWhenAmbiguous() throws {
+        let dup = try Self.sample + "\n" +
             "/tc/usr/bin/swiftc -module-name App -target wasm32-unknown-wasip1 -c /work/Sources/App/Other.swift -o /work/.build/wasm32-unknown-wasip1/debug/App.build/Other.swift.o"
         #expect(BuildCommandParser.parse(verboseOutput: dup, appModule: "App") == nil)
     }
@@ -104,5 +106,10 @@ struct BuildCommandParserTests {
         #expect(BuildCommandParser.shellSplit(#"a "b c" d"#) == ["a", "b c", "d"])
         #expect(BuildCommandParser.shellSplit("  x   y  ") == ["x", "y"])
         #expect(BuildCommandParser.shellSplit(#""/p/with space/x" -flag"#) == ["/p/with space/x", "-flag"])
+    }
+
+    @Test("Returns nil when no swiftc line matches the requested app module name")
+    func nilWhenModuleNameMismatch() throws {
+        #expect(BuildCommandParser.parse(verboseOutput: try Self.sample, appModule: "NotApp") == nil)
     }
 }
