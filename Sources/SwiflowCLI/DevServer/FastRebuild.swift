@@ -13,7 +13,7 @@ import Foundation
 /// debug wasm build, NOT the `swift package js` plugin. Mirrors
 /// `BuildInvocation`'s shape (argv composer + ProcessRunner.run) so the argv
 /// is unit-testable without spawning a process.
-struct RawWasmBuildInvocation {
+struct RawWasmBuildInvocation: Sendable {
     let swiftExecutable: URL
     let projectPath: URL
     let swiftSDK: String
@@ -97,7 +97,7 @@ enum WasmArtifactCopier {
 
 /// Coordinates one fast rebuild: build the wasm, then copy it over the served
 /// output. Holds the resolved paths so the dev loop just calls `rebuild`.
-struct FastRebuilder {
+struct FastRebuilder: Sendable {
     let build: RawWasmBuildInvocation
     /// Raw `swift build` output, e.g. `.build/wasm32-unknown-wasip1/debug/App.wasm`.
     let artifactURL: URL

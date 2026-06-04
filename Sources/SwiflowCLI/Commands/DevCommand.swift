@@ -103,6 +103,36 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: error))
         }
 
+        // 4.5 Resolve the fast-rebuild paths once. The dev loop rebuilds with a
+        //     plain `swift build` + a wasm copy (skipping the ~17s PackageToJS
+        //     repackage), reusing the JS glue the initial build just generated.
+        //     If resolution fails, `fastRebuilder` stays nil and the loop falls
+        //     back to the full `swift package js` path (correct, just slow).
+        let outputWasmURL = projectURL
+            .appendingPathComponent(Self.packageToJSOutputRelativePath)
+            .appendingPathComponent("App.wasm")
+        let fastRebuilder: FastRebuilder? = WasmArtifactLocator.resolve(
+            swiftExecutable: swift,
+            projectPath: projectURL,
+            swiftSDK: sdk,
+            toolchainBundleID: toolchainBundleID,
+            using: runner
+        ).map { artifactURL in
+            FastRebuilder(
+                build: RawWasmBuildInvocation(
+                    swiftExecutable: swift,
+                    projectPath: projectURL,
+                    swiftSDK: sdk,
+                    toolchainBundleID: toolchainBundleID
+                ),
+                artifactURL: artifactURL,
+                outputWasmURL: outputWasmURL
+            )
+        }
+        if fastRebuilder == nil {
+            print("swiflow: fast rebuild unavailable (could not resolve the wasm bin path); using full packaging per save.")
+        }
+
         // 5. Start the dev server.
         let server = DevServer(projectRoot: projectURL, port: port)
         print("swiflow: dev server listening on http://localhost:\(port)")
@@ -132,7 +162,11 @@ struct DevCommand: AsyncParsableCommand {
                 for await changed in watcher.changes() {
                     print("swiflow: rebuilding (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
                     do {
-                        _ = try invocation.run(using: rebuildRunner)
+                        if let fastRebuilder {
+                            try fastRebuilder.rebuild(using: rebuildRunner)
+                        } else {
+                            _ = try invocation.run(using: rebuildRunner)
+                        }
                         let bust = Self.wasmCacheBusterSuffix(projectURL: projectURL)
                         await server.hub.broadcastHMRSwap(
                             wasmURL: "/\(Self.packageToJSOutputRelativePath)/App.wasm?h=\(bust)",
