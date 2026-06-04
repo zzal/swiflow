@@ -41,3 +41,47 @@ struct RawWasmBuildInvocation {
         return result
     }
 }
+
+/// Resolves the raw `swift build` wasm artifact path. The build triple
+/// (e.g. `wasm32-unknown-wasip1`) varies by SDK, so we query SwiftPM for the
+/// bin directory rather than hardcoding it. `--show-bin-path` is a query: it
+/// evaluates the manifest (~1s) but does not build, so it's cheap to run once
+/// at dev startup.
+enum WasmArtifactLocator {
+    /// Parse `--show-bin-path` stdout into the bin directory path. The path is
+    /// the only real output; we take the last non-empty trimmed line to be
+    /// robust against a stray warning printed before it.
+    static func parseBinPath(_ stdout: String) -> String? {
+        stdout
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .last { !$0.isEmpty }
+    }
+
+    /// Query the bin path and append `App.wasm`. Returns nil on any failure —
+    /// the caller falls back to the full `swift package js` path.
+    static func resolve(
+        swiftExecutable: URL,
+        projectPath: URL,
+        swiftSDK: String,
+        toolchainBundleID: String?,
+        using runner: ProcessRunner
+    ) -> URL? {
+        let environment: [String: String]? = toolchainBundleID.map { ["TOOLCHAINS": $0] }
+        guard
+            let result = try? runner.run(
+                executable: swiftExecutable,
+                arguments: ["build", "--show-bin-path", "--swift-sdk", swiftSDK],
+                workingDirectory: projectPath,
+                environment: environment,
+                captureOutput: true
+            ),
+            result.exitCode == 0,
+            let stdout = result.standardOutput,
+            let binPath = parseBinPath(stdout)
+        else {
+            return nil
+        }
+        return URL(fileURLWithPath: binPath).appendingPathComponent("App.wasm")
+    }
+}

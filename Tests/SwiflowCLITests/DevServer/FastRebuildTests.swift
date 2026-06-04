@@ -60,3 +60,58 @@ struct RawWasmBuildInvocationTests {
         }
     }
 }
+
+@Suite("WasmArtifactLocator")
+struct WasmArtifactLocatorTests {
+
+    @Test("parseBinPath takes the last non-empty trimmed line")
+    func parseBinPathLastLine() {
+        #expect(WasmArtifactLocator.parseBinPath(
+            "/tmp/demo/.build/wasm32-unknown-wasip1/debug\n") ==
+            "/tmp/demo/.build/wasm32-unknown-wasip1/debug")
+        // Tolerate a stray leading warning line + surrounding whitespace.
+        #expect(WasmArtifactLocator.parseBinPath(
+            "warning: blah\n  /tmp/x/.build/wasm32-unknown-wasip1/debug  \n") ==
+            "/tmp/x/.build/wasm32-unknown-wasip1/debug")
+    }
+
+    @Test("parseBinPath returns nil for empty/whitespace output")
+    func parseBinPathEmpty() {
+        #expect(WasmArtifactLocator.parseBinPath("") == nil)
+        #expect(WasmArtifactLocator.parseBinPath("  \n\t\n") == nil)
+    }
+
+    @Test("resolve queries --show-bin-path and appends App.wasm")
+    func resolveAppendsAppWasm() {
+        let stub = StubProcessRunner(
+            stubbedExitCode: 0,
+            stubbedStandardOutput: "/tmp/demo/.build/wasm32-unknown-wasip1/debug\n"
+        )
+        let url = WasmArtifactLocator.resolve(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            using: stub
+        )
+        #expect(url?.path == "/tmp/demo/.build/wasm32-unknown-wasip1/debug/App.wasm")
+        #expect(stub.calls[0].arguments == [
+            "build", "--show-bin-path", "--swift-sdk", "swift-6.3-RELEASE_wasm",
+        ])
+        // (capture behavior is implicit: `resolve` only obtains the path from
+        // stdout, which ProcessResult populates only when captureOutput == true.)
+    }
+
+    @Test("resolve returns nil when the query exits non-zero")
+    func resolveNilOnFailure() {
+        let stub = StubProcessRunner(stubbedExitCode: 1, stubbedStandardOutput: nil)
+        let url = WasmArtifactLocator.resolve(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            using: stub
+        )
+        #expect(url == nil)
+    }
+}
