@@ -248,6 +248,7 @@ struct BypassRebuilder: Sendable {
             if let cmds = BuildCommandParser.parse(verboseOutput: output, appModule: appModule) {
                 state.captured = CapturedBuildCommands(compile: cmds.compile, link: cmds.link, key: key)
             } else {
+                state.captured = nil
                 state.bypassDisabled = true
                 print("swiflow: could not capture compile commands; using full builds this session.")
             }
@@ -262,6 +263,9 @@ struct BypassRebuilder: Sendable {
         guard let old else { return "swiflow: capturing compile commands (one-time)…" }
         if old.sourceSet != new.sourceSet { return "swiflow: app file set changed — re-capturing…" }
         if old.importHash != new.importHash { return "swiflow: imports changed — re-capturing…" }
+        if old.resolvedMTime != new.resolvedMTime {
+            return "swiflow: Package.resolved changed — re-capturing… (dependency version changed; consider restarting swiflow dev)"
+        }
         return "swiflow: Package.swift changed — re-capturing… (if you added/changed a dependency, restart swiflow dev)"
     }
 }

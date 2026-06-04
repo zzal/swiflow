@@ -251,7 +251,7 @@ struct BypassRebuilderTests {
 
     // Builds a temp project (Sources/App + Package.swift), a fake raw-build
     // artifact, and a stale served wasm. Returns the rebuilder + temp root.
-    private func fixture(sample: String) throws -> (BypassRebuilder, URL, URL) {
+    private func fixture() throws -> (BypassRebuilder, URL, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("bypass-\(UUID().uuidString)")
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
@@ -285,7 +285,7 @@ struct BypassRebuilderTests {
 
     @Test("First save: runs the capturing -v build, captures, copies the wasm")
     func firstSaveCaptures() throws {
-        let (rebuilder, root, served) = try fixture(sample: try BuildCommandParserTests.sample)
+        let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: try BuildCommandParserTests.sample, stubbedStandardError: nil)
         var state = BypassState()
@@ -301,7 +301,7 @@ struct BypassRebuilderTests {
 
     @Test("Second save, key unchanged: replays (no swift build)")
     func secondSaveReplays() throws {
-        let (rebuilder, root, _) = try fixture(sample: try BuildCommandParserTests.sample)
+        let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: try BuildCommandParserTests.sample, stubbedStandardError: nil)
         var state = BypassState()
@@ -315,11 +315,12 @@ struct BypassRebuilderTests {
         // Neither replay call is a `swift build`.
         #expect(stub.calls[1].arguments.first != "build")
         #expect(stub.calls[2].arguments.first != "build")
+        #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // replay still publishes the wasm
     }
 
     @Test("Source-set change re-captures (runs -v build again)")
     func fileSetChangeRecaptures() throws {
-        let (rebuilder, root, _) = try fixture(sample: try BuildCommandParserTests.sample)
+        let (rebuilder, root, _) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: try BuildCommandParserTests.sample, stubbedStandardError: nil)
         var state = BypassState()
@@ -335,7 +336,7 @@ struct BypassRebuilderTests {
 
     @Test("Parse failure latches bypassDisabled; next save runs the fallback")
     func parseFailureLatchesFallback() throws {
-        let (rebuilder, root, _) = try fixture(sample: "garbage with no swiftc or clang lines")
+        let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: "garbage with no swiftc or clang lines", stubbedStandardError: nil)
         var state = BypassState()
@@ -347,5 +348,6 @@ struct BypassRebuilderTests {
         try rebuilder.rebuild(using: stub, state: &state)       // now uses fallback (plain swift build)
         #expect(stub.calls.count == 2)
         #expect(stub.calls[1].arguments == ["build", "--swift-sdk", "sdk", "--product", "App"])  // RawWasmBuildInvocation argv
+        #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // fallback path still publishes the wasm
     }
 }
