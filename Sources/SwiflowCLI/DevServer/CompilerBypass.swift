@@ -123,3 +123,51 @@ enum BuildCommandParser {
         return tokens
     }
 }
+
+/// The "is a replay still correct?" key. A replay is safe iff the frozen
+/// swiftc/link argv is still the *correct* argv: file-body edits don't change
+/// it (swiftc incremental + the stable LinkFileList cover those), but a
+/// different source list, import surface, or manifest does. These four fields
+/// detect exactly those. Compared in-process within one dev session only
+/// (never persisted), so `importHash` may use a per-process hash.
+struct StalenessKey: Sendable, Equatable {
+    let sourceSet: Set<String>
+    let importHash: Int
+    let manifestMTime: Date?
+    let resolvedMTime: Date?
+
+    static func compute(appSourcesDir: URL, manifestURL: URL, resolvedURL: URL) -> StalenessKey {
+        let fm = FileManager.default
+
+        // Walk *.swift under the app sources (recursive).
+        var paths: Set<String> = []
+        var imports: Set<String> = []
+        if let en = fm.enumerator(at: appSourcesDir, includingPropertiesForKeys: nil) {
+            for case let url as URL in en where url.pathExtension == "swift" {
+                paths.insert(url.standardizedFileURL.path)
+                if let text = try? String(contentsOf: url, encoding: .utf8) {
+                    for raw in text.split(separator: "\n") {
+                        let line = raw.trimmingCharacters(in: .whitespaces)
+                        if line.hasPrefix("import ")
+                            || line.hasPrefix("@testable import ")
+                            || line.hasPrefix("@_exported import ") {
+                            imports.insert(line)
+                        }
+                    }
+                }
+            }
+        }
+        let importHash = imports.sorted().joined(separator: "\n").hashValue
+
+        return StalenessKey(
+            sourceSet: paths,
+            importHash: importHash,
+            manifestMTime: Self.mtime(manifestURL, fm),
+            resolvedMTime: Self.mtime(resolvedURL, fm)
+        )
+    }
+
+    private static func mtime(_ url: URL, _ fm: FileManager) -> Date? {
+        (try? fm.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    }
+}

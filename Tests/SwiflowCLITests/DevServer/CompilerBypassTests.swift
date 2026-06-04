@@ -113,3 +113,73 @@ struct BuildCommandParserTests {
         #expect(BuildCommandParser.parse(verboseOutput: try Self.sample, appModule: "NotApp") == nil)
     }
 }
+
+@Suite("StalenessKey")
+struct StalenessKeyTests {
+
+    private func tempDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("stalekey-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private func key(_ srcDir: URL, _ root: URL) -> StalenessKey {
+        StalenessKey.compute(
+            appSourcesDir: srcDir,
+            manifestURL: root.appendingPathComponent("Package.swift"),
+            resolvedURL: root.appendingPathComponent("Package.resolved")
+        )
+    }
+
+    @Test("Stable across a file-body edit")
+    func stableAcrossBodyEdit() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        let f = src.appendingPathComponent("App.swift")
+        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k1 = key(src, root)
+        try "import SwiflowWeb\nlet x = 2 // changed body\n".write(to: f, atomically: true, encoding: .utf8)
+        #expect(key(src, root) == k1)
+    }
+
+    @Test("sourceSet differs when a file is added")
+    func differsOnAddedFile() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        try "let a = 1".write(to: src.appendingPathComponent("A.swift"), atomically: true, encoding: .utf8)
+        let k1 = key(src, root)
+        try "let b = 2".write(to: src.appendingPathComponent("B.swift"), atomically: true, encoding: .utf8)
+        #expect(key(src, root) != k1)
+        #expect(key(src, root).sourceSet.count == 2)
+    }
+
+    @Test("importHash differs when an import is added (file set unchanged)")
+    func differsOnNewImport() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        let f = src.appendingPathComponent("App.swift")
+        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k1 = key(src, root)
+        try "import SwiflowWeb\nimport SwiflowQuery\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        let k2 = key(src, root)
+        #expect(k2 != k1)
+        #expect(k2.sourceSet == k1.sourceSet)   // same files, only imports changed
+    }
+
+    @Test("Recurses subdirectories; tolerates a missing Package.resolved")
+    func recursesAndToleratesMissingResolved() throws {
+        let root = try tempDir(); defer { try? FileManager.default.removeItem(at: root) }
+        let src = root.appendingPathComponent("Sources/App")
+        let sub = src.appendingPathComponent("Views")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        try "let a = 1".write(to: src.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+        try "let v = 1".write(to: sub.appendingPathComponent("View.swift"), atomically: true, encoding: .utf8)
+        let k = key(src, root)               // no Package.swift / Package.resolved exist
+        #expect(k.sourceSet.count == 2)      // recursed into Views/
+        #expect(k.resolvedMTime == nil)
+        #expect(k.manifestMTime == nil)
+    }
+}
