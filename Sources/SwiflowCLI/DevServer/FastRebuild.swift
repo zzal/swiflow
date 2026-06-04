@@ -85,3 +85,12 @@ enum WasmArtifactLocator {
         return URL(fileURLWithPath: binPath).appendingPathComponent("App.wasm")
     }
 }
+
+/// Atomically replaces the served wasm with a freshly-built one. Atomic write
+/// avoids serving a half-written file if the dev server reads mid-copy.
+enum WasmArtifactCopier {
+    static func copy(from source: URL, to dest: URL) throws {
+        let data = try Data(contentsOf: source)
+        try data.write(to: dest, options: .atomic)
+    }
+}

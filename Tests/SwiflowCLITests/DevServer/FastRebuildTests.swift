@@ -115,3 +115,34 @@ struct WasmArtifactLocatorTests {
         #expect(url == nil)
     }
 }
+
+@Suite("WasmArtifactCopier")
+struct WasmArtifactCopierTests {
+
+    @Test("copy replaces dest with source bytes (atomic), overwriting prior content")
+    func copyOverwrites() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("wasmcopy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let source = dir.appendingPathComponent("src.wasm")
+        let dest = dir.appendingPathComponent("dest.wasm")
+        try Data([0x00, 0x61, 0x73, 0x6D]).write(to: source) // \0asm magic
+        try Data([0xFF, 0xFF]).write(to: dest)               // stale content
+
+        try WasmArtifactCopier.copy(from: source, to: dest)
+
+        #expect(try Data(contentsOf: dest) == Data([0x00, 0x61, 0x73, 0x6D]))
+    }
+
+    @Test("copy throws when the source does not exist")
+    func copyMissingSourceThrows() {
+        let dir = FileManager.default.temporaryDirectory
+        let source = dir.appendingPathComponent("does-not-exist-\(UUID().uuidString).wasm")
+        let dest = dir.appendingPathComponent("dest-\(UUID().uuidString).wasm")
+        #expect(throws: (any Error).self) {
+            try WasmArtifactCopier.copy(from: source, to: dest)
+        }
+    }
+}
