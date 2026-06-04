@@ -26,6 +26,24 @@ swift scripts/embed-driver.swift
 (If you forget, the `DriverEmbedderTests` freshness check will fail in CI
 and tell you exactly this command to run.)
 
+## Troubleshooting
+
+**`Internal Error: DecodingError.dataCorrupted: ... Corrupted JSON. Underlying
+error: unexpected end of file`** printed several times during `swift build`
+(or `swiflow build` / the initial `swiflow dev` build) is **benign Swift 6.3
+toolchain noise, not an error in your build.** As long as the build ends with
+`Build complete!`, the output is correct.
+
+It comes from macro expansion: each module that expands a macro (`@Component`,
+`@MutationState`, …) talks to `swift-plugin-server` over a pipe, and when that
+connection closes the compiler does one last JSON read, hits EOF, and logs
+this non-fatal line. You'll see roughly one per macro-using module, and none on
+a true no-op build. It is not cache corruption — `swift package clean` won't
+change it — and there's nothing to fix in Swiflow (macros are core to the
+framework). It will most likely disappear on a future toolchain. Don't filter
+it out of build logs wholesale, or you'll also hide a genuine internal error if
+one ever occurs.
+
 ## Workflow
 
 - Fork; create a topic branch.
