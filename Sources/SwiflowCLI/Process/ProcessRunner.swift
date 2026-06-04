@@ -6,6 +6,17 @@
 
 import Foundation
 
+/// Drains one FileHandle to completion on a background queue. `@unchecked
+/// Sendable` is sound here: the handle and buffer are touched only inside
+/// `drain()`, and the result is read only after `DispatchGroup.wait()`
+/// establishes happens-before.
+private final class FileHandleDrain: @unchecked Sendable {
+    let handle: FileHandle
+    var data = Data()
+    init(_ handle: FileHandle) { self.handle = handle }
+    func drain() { data = handle.readDataToEndOfFile() }
+}
+
 struct ProcessResult: Equatable {
     let exitCode: Int32
     /// Captured stdout, only populated when `captureOutput == true`. nil otherwise.
@@ -75,25 +86,21 @@ final class SystemProcessRunner: ProcessRunner {
 
         try process.run()
 
-        // Drain pipes BEFORE waitUntilExit() to avoid deadlock: if the child
-        // writes more than the OS pipe buffer (~16-64 KiB on Darwin) without
-        // a reader, it will block on write() while we block on waitUntilExit().
-        // readDataToEndOfFile() blocks until the writer closes its end (on
-        // child exit), so it implicitly waits for the child to finish AND
-        // drains the pipe at the same time.
-        //
-        // Limitation: this reads stdout then stderr sequentially. A child
-        // that writes >64 KiB to BOTH streams could still block on the
-        // stderr write while we're still reading stdout. The fully-correct
-        // fix uses concurrent reads (one queue per pipe). The current call
-        // sites (T7 captures small `swift sdk list` output; T9 uses
-        // captureOutput: false for big build logs) don't hit this case.
-        let outData: Data? = outPipe?.fileHandleForReading.readDataToEndOfFile()
-        let errData: Data? = errPipe?.fileHandleForReading.readDataToEndOfFile()
+        // Drain BOTH pipes concurrently before waitUntilExit(). A sequential
+        // stdout-then-stderr read deadlocks when the child fills the second
+        // pipe's buffer (~64 KiB) while we're still blocked on the first —
+        // exactly what a verbose `swift build -v` does. One reader per pipe.
+        let outDrain = outPipe.map { FileHandleDrain($0.fileHandleForReading) }
+        let errDrain = errPipe.map { FileHandleDrain($0.fileHandleForReading) }
+        let group = DispatchGroup()
+        let queue = DispatchQueue(label: "swiflow.procrunner.drain", attributes: .concurrent)
+        if let outDrain { queue.async(group: group) { outDrain.drain() } }
+        if let errDrain { queue.async(group: group) { errDrain.drain() } }
+        group.wait()
         process.waitUntilExit()
 
-        let stdout = outData.flatMap { String(data: $0, encoding: .utf8) }
-        let stderr = errData.flatMap { String(data: $0, encoding: .utf8) }
+        let stdout = outDrain.flatMap { String(data: $0.data, encoding: .utf8) }
+        let stderr = errDrain.flatMap { String(data: $0.data, encoding: .utf8) }
 
         return ProcessResult(
             exitCode: process.terminationStatus,
