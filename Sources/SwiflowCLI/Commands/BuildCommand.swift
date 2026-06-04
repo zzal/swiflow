@@ -16,6 +16,7 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case noWasmSDKInstalled
     case wasmSDKListFailed(exitCode: Int32, stderr: String?)
     case swiftPackageJSFailed(exitCode: Int32)
+    case swiftBuildFailed(exitCode: Int32)
     case projectPathNotFound(URL)
     case manifestArtifactMissing(URL)
 
@@ -39,6 +40,8 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
                 """
         case .swiftPackageJSFailed(let code):
             return "swift package js failed with exit code \(code). See output above."
+        case .swiftBuildFailed(let code):
+            return "swift build failed with exit code \(code). See output above."
         case .projectPathNotFound(let url):
             return "project path does not exist or is not a directory: \(url.path)"
         case .manifestArtifactMissing(let url):
