@@ -351,3 +351,129 @@ struct BypassRebuilderTests {
         #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // fallback path still publishes the wasm
     }
 }
+
+// MARK: - End-to-end (gated on WASM SDK presence)
+
+/// Wraps a real runner, recording every call's argv while executing for real.
+/// Lets the test assert which path (build vs replay) ran.
+final class RecordingProcessRunner: ProcessRunner {
+    let inner = SystemProcessRunner()
+    private(set) var calls: [[String]] = []
+    func run(executable: URL, arguments: [String], workingDirectory: URL?, environment: [String: String]?, captureOutput: Bool) throws -> ProcessResult {
+        calls.append([executable.lastPathComponent] + arguments)
+        return try inner.run(executable: executable, arguments: arguments, workingDirectory: workingDirectory, environment: environment, captureOutput: captureOutput)
+    }
+}
+
+@Suite("BypassRebuilder end-to-end (requires WASM SDK)")
+struct BypassRebuilderIntegrationTests {
+
+    static var wasmSDKAvailable: Bool {
+        let runner = SystemProcessRunner()
+        let result = try? runner.run(
+            executable: URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["swift", "sdk", "list"],
+            workingDirectory: nil, environment: nil, captureOutput: true
+        )
+        guard let stdout = result?.standardOutput else { return false }
+        return !WasmSDKProbe.parseSDKList(stdout).isEmpty
+    }
+
+    static var swiflowRepoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // DevServer
+            .deletingLastPathComponent()   // SwiflowCLITests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+    }
+
+    @Test("capture → replay → recapture-on-new-file → replay; served wasm tracks each edit",
+          .enabled(if: wasmSDKAvailable), .timeLimit(.minutes(15)))
+    func realBypassLoop() async throws {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("swiflow-bypass-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // 1. Scaffold HelloWorld pointing at this checkout.
+        try ProjectWriter.writeProject(
+            name: "Demo",
+            template: EmbeddedTemplates.lookup("HelloWorld")!,
+            into: tmp,
+            swiflowDep: .path(Self.swiflowRepoRoot.path),
+            jsDriverSource: EmbeddedDriver.javascriptSource,
+            jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource
+        )
+        let projectPath = tmp.appendingPathComponent("Demo")
+        let appSwift = projectPath.appendingPathComponent("Sources/App/App.swift")
+
+        // 2. Probe swift + SDK + toolchain.
+        let probeRunner = SystemProcessRunner()
+        guard let swift = try SwiftExecutableLocator.locate(using: probeRunner) else { Issue.record("swift not on PATH"); return }
+        guard let sdk = try WasmSDKProbe(runner: probeRunner, swiftExecutable: swift).list().first else { Issue.record("no SDK"); return }
+        let toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
+
+        // 3. Initial full build (produces the served glue + first wasm).
+        let initial = BuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID, configuration: .dev)
+        #expect(try initial.run(using: probeRunner).exitCode == 0)
+
+        let outputWasmURL = projectPath.appendingPathComponent(DevCommand.packageToJSOutputRelativePath).appendingPathComponent("App.wasm")
+        let artifactURL = try #require(WasmArtifactLocator.resolve(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID, using: probeRunner))
+
+        let rebuilder = BypassRebuilder(
+            capturingBuild: CapturingWasmBuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID),
+            fallback: RawWasmBuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID),
+            appModule: "App", projectPath: projectPath,
+            appSourcesDir: projectPath.appendingPathComponent("Sources/App"),
+            manifestURL: projectPath.appendingPathComponent("Package.swift"),
+            resolvedURL: projectPath.appendingPathComponent("Package.resolved"),
+            artifactURL: artifactURL, outputWasmURL: outputWasmURL
+        )
+        var state = BypassState()
+        let runner = RecordingProcessRunner()
+
+        func markerPresent(_ marker: String) throws -> Bool {
+            let data = try Data(contentsOf: outputWasmURL)
+            return data.range(of: Data(marker.utf8)) != nil
+        }
+        func injectExportedSymbol(_ name: String) throws {
+            var src = try String(contentsOf: appSwift, encoding: .utf8)
+            src += "\n@_cdecl(\"\(name)\") public func \(name)() -> Int32 { 0 }\n"
+            try src.write(to: appSwift, atomically: true, encoding: .utf8)
+        }
+
+        // 4. First save (body edit) → capture. Served wasm gets marker M1.
+        try injectExportedSymbol("bypass_marker_one")
+        try rebuilder.rebuild(using: runner, state: &state)
+        #expect(state.captured != nil)
+        #expect(try markerPresent("bypass_marker_one"))
+        let callsAfterCapture = runner.calls.count
+
+        // 5. Second save (different body edit) → REPLAY (no swift build).
+        try injectExportedSymbol("bypass_marker_two")
+        try rebuilder.rebuild(using: runner, state: &state)
+        #expect(try markerPresent("bypass_marker_two"))
+        let replayCalls = runner.calls[callsAfterCapture...]
+        #expect(!replayCalls.contains { $0.first == "swift" && $0.dropFirst().first == "build" })  // replayed, didn't build
+        #expect(replayCalls.contains { $0.first?.hasSuffix("swiftc") == true })
+
+        // 6. Add a NEW file with a function and REFERENCE it from App.swift via
+        //    an exported symbol → sourceSet changes → re-capture must compile the
+        //    new file, else the link fails on the undefined reference (a stronger
+        //    check than relying on a dead-strippable unreferenced export).
+        let newFile = projectPath.appendingPathComponent("Sources/App/Extra.swift")
+        try "func extraValue() -> Int32 { 31337 }\n".write(to: newFile, atomically: true, encoding: .utf8)
+        var withRef = try String(contentsOf: appSwift, encoding: .utf8)
+        withRef += "\n@_cdecl(\"bypass_marker_three\") public func m3() -> Int32 { extraValue() }\n"
+        try withRef.write(to: appSwift, atomically: true, encoding: .utf8)
+        try rebuilder.rebuild(using: runner, state: &state)        // re-capture compiles Extra.swift
+        #expect(try markerPresent("bypass_marker_three"))
+
+        // 7. A further body edit after the re-capture must REPLAY correctly,
+        //    proving the shared .build incremental state stays coherent across
+        //    the replay → capture → replay alternation.
+        try injectExportedSymbol("bypass_marker_four")
+        try rebuilder.rebuild(using: runner, state: &state)        // replay after recapture
+        #expect(try markerPresent("bypass_marker_four"))
+        #expect(try markerPresent("bypass_marker_three"))          // earlier symbol still linked in
+    }
+}
