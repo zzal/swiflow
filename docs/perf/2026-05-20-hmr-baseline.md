@@ -52,3 +52,27 @@ that begins when the new WASM lands.
 The repo state at the time of Phase 8's commit on origin/main is
 the canonical reference; the perf doc's measurement protocol
 above produces numbers comparable across runs.
+
+## Dev rebuild loop — bypass PackageToJS (2026-06-04)
+
+`swiflow dev` no longer re-runs `swift package js` on every save. The initial
+build still runs the full plugin (generating the JS glue + first wasm); each
+subsequent save runs a plain `swift build --product App` and copies the fresh
+wasm over `.build/plugins/PackageToJS/outputs/Package/App.wasm`, reusing the
+glue. This removes the ~17s PackageToJS packaging that reran every save.
+
+**Why glue reuse is safe:** Swiflow apps have an empty wasm-imports set
+(`wasm-imports.json` is `[]`) — JavaScriptKit's Swift↔JS bridge is a fixed
+runtime ABI, so app-source edits don't change the wasm's imports, and the
+generated `index.js`/`instantiate.js`/`runtime.js` glue is invariant across
+edits.
+
+**Limitation:** if a project ever changes the low-level JS *import* surface
+(not reachable through normal `@Component`/JavaScriptKit usage), the served
+glue could go stale. Fix: restart `swiflow dev` (re-runs the full initial
+`swift package js`). If resolving the raw wasm bin path fails at startup, the
+loop automatically falls back to the full packaging path per save.
+
+**Still in the loop (not addressed here):** ~5–8s compile + WASM relink, ~1s
+SwiftPM, and ~9s macro/swift-syntax build-graph stat overhead (Lever 2 spike;
+see the design doc).
