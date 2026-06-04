@@ -1,0 +1,6 @@
+/tc/usr/bin/swiftc -module-name SwiflowMacrosPlugin -target arm64-apple-macosx10.15 -c /work/Macros.swift -o /work/.build/host/Macros.o
+/tc/usr/bin/swiftc -module-name App -target wasm32-unknown-wasip1 -emit-module -emit-module-path /work/.build/wasm32-unknown-wasip1/debug/Modules/App.swiftmodule /work/Sources/App/App.swift
+/tc/usr/bin/swiftc -module-name App -target wasm32-unknown-wasip1 -I "/work/My Headers/inc" -c /work/Sources/App/App.swift -primary-file /work/Sources/App/App.swift -o /work/.build/wasm32-unknown-wasip1/debug/App.build/App.swift.o
+/tc/usr/bin/clang -target wasm32-unknown-wasip1 -o /work/.build/wasm32-unknown-wasip1/debug/App.wasm @/work/.build/wasm32-unknown-wasip1/debug/App.product/Objects.LinkFileList -L/tc/lib
+"/tc/usr/bin/wasm-ld" -m wasm32 -o /work/.build/wasm32-unknown-wasip1/debug/App.wasm /work/objs/a.o
+Build complete! (1.62s)

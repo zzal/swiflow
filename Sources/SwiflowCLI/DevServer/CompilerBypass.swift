@@ -46,3 +46,73 @@ struct CapturingWasmBuildInvocation: Sendable {
         return (result.standardOutput ?? "") + "\n" + (result.standardError ?? "")
     }
 }
+
+/// Parses verbose `swift build --product App -v` output into the two commands
+/// the bypass replays. Pure and table-free so it's fully unit-testable.
+enum BuildCommandParser {
+
+    /// Returns the (compile, link) commands, or nil if either anchor is absent
+    /// or the compile job can't be uniquely identified — caller falls back to
+    /// a full `swift build`.
+    static func parse(verboseOutput: String, appModule: String) -> (compile: ResolvedCommand, link: ResolvedCommand)? {
+        let lines = verboseOutput.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+
+        // Compile: the swiftc line that compiles the app module's objects for
+        // wasm. There can be a separate `-emit-module` job carrying the same
+        // `-module-name App … wasm32`; we want the object-emitting (`-c`) one.
+        let compileCandidates: [ResolvedCommand] = lines.compactMap { line in
+            let argv = shellSplit(line)
+            guard argv.first?.hasSuffix("swiftc") == true,
+                  hasFlagValue(argv, "-module-name", appModule),
+                  argv.contains(where: { $0.contains("wasm32") }),
+                  argv.contains("-c")
+            else { return nil }
+            return ResolvedCommand(executable: URL(fileURLWithPath: argv[0]), arguments: Array(argv.dropFirst()))
+        }
+        guard compileCandidates.count == 1, let compile = compileCandidates.first else { return nil }
+
+        // Link: the clang driver line whose `-o` output is `App.wasm`. The bare
+        // nested `wasm-ld` line is clang's internal spawn — not what we replay.
+        let linkCandidates: [ResolvedCommand] = lines.compactMap { line in
+            let argv = shellSplit(line)
+            guard argv.first?.hasSuffix("clang") == true,
+                  let oIndex = argv.firstIndex(of: "-o"),
+                  oIndex + 1 < argv.count,
+                  argv[oIndex + 1].hasSuffix("/App.wasm")
+            else { return nil }
+            return ResolvedCommand(executable: URL(fileURLWithPath: argv[0]), arguments: Array(argv.dropFirst()))
+        }
+        guard linkCandidates.count == 1, let link = linkCandidates.first else { return nil }
+
+        return (compile, link)
+    }
+
+    /// True iff `argv` contains `flag` immediately followed by `value`.
+    private static func hasFlagValue(_ argv: [String], _ flag: String, _ value: String) -> Bool {
+        guard let i = argv.firstIndex(of: flag), i + 1 < argv.count else { return false }
+        return argv[i + 1] == value
+    }
+
+    /// Minimal shell tokenizer: splits on whitespace, honoring double- and
+    /// single-quoted segments (quotes are stripped). Sufficient for the argv
+    /// SwiftPM prints (quoted paths-with-spaces); no escape/var expansion.
+    static func shellSplit(_ line: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var quote: Character? = nil
+        var inToken = false
+        for ch in line {
+            if let q = quote {
+                if ch == q { quote = nil } else { current.append(ch) }
+            } else if ch == "\"" || ch == "'" {
+                quote = ch; inToken = true
+            } else if ch == " " || ch == "\t" {
+                if inToken { tokens.append(current); current = ""; inToken = false }
+            } else {
+                current.append(ch); inToken = true
+            }
+        }
+        if inToken { tokens.append(current) }
+        return tokens
+    }
+}
