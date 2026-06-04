@@ -94,3 +94,21 @@ enum WasmArtifactCopier {
         try data.write(to: dest, options: .atomic)
     }
 }
+
+/// Coordinates one fast rebuild: build the wasm, then copy it over the served
+/// output. Holds the resolved paths so the dev loop just calls `rebuild`.
+struct FastRebuilder {
+    let build: RawWasmBuildInvocation
+    /// Raw `swift build` output, e.g. `.build/wasm32-unknown-wasip1/debug/App.wasm`.
+    let artifactURL: URL
+    /// Served bundle wasm: `.build/plugins/PackageToJS/outputs/Package/App.wasm`.
+    let outputWasmURL: URL
+
+    /// Builds (throws `swiftBuildFailed` on a compile error — the caller then
+    /// skips the HMR broadcast, leaving the last good bundle in place), then
+    /// copies the fresh wasm into the served output.
+    func rebuild(using runner: ProcessRunner) throws {
+        try build.run(using: runner)
+        try WasmArtifactCopier.copy(from: artifactURL, to: outputWasmURL)
+    }
+}
