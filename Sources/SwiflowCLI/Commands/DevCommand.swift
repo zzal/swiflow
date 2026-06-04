@@ -103,33 +103,44 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: error))
         }
 
-        // 4.5 Resolve the fast-rebuild paths once. The dev loop rebuilds with a
-        //     plain `swift build` + a wasm copy (skipping the ~17s PackageToJS
-        //     repackage), reusing the JS glue the initial build just generated.
-        //     If resolution fails, `fastRebuilder` stays nil and the loop falls
-        //     back to the full `swift package js` path (correct, just slow).
+        // 4.5 Build the bypass rebuilder. The dev loop replays SwiftPM's own
+        //     swiftc + wasm-ld commands per save (~1.6s), re-capturing them via
+        //     a full `swift build` whenever the app source/import set or the
+        //     manifest changes. If the wasm bin path can't be resolved we leave
+        //     it nil and fall back to the full `swift package js` per save.
         let outputWasmURL = projectURL
             .appendingPathComponent(Self.packageToJSOutputRelativePath)
             .appendingPathComponent("App.wasm")
-        let fastRebuilder: FastRebuilder? = WasmArtifactLocator.resolve(
+        let bypassRebuilder: BypassRebuilder? = WasmArtifactLocator.resolve(
             swiftExecutable: swift,
             projectPath: projectURL,
             swiftSDK: sdk,
             toolchainBundleID: toolchainBundleID,
             using: runner
         ).map { artifactURL in
-            FastRebuilder(
-                build: RawWasmBuildInvocation(
+            BypassRebuilder(
+                capturingBuild: CapturingWasmBuildInvocation(
                     swiftExecutable: swift,
                     projectPath: projectURL,
                     swiftSDK: sdk,
                     toolchainBundleID: toolchainBundleID
                 ),
+                fallback: RawWasmBuildInvocation(
+                    swiftExecutable: swift,
+                    projectPath: projectURL,
+                    swiftSDK: sdk,
+                    toolchainBundleID: toolchainBundleID
+                ),
+                appModule: "App",
+                projectPath: projectURL,
+                appSourcesDir: projectURL.appendingPathComponent("Sources/App"),
+                manifestURL: projectURL.appendingPathComponent("Package.swift"),
+                resolvedURL: projectURL.appendingPathComponent("Package.resolved"),
                 artifactURL: artifactURL,
                 outputWasmURL: outputWasmURL
             )
         }
-        if fastRebuilder == nil {
+        if bypassRebuilder == nil {
             print("swiflow: fast rebuild unavailable (could not resolve the wasm bin path); using full packaging per save.")
         }
 
@@ -153,17 +164,18 @@ struct DevCommand: AsyncParsableCommand {
                 try await server.run()
             }
             group.addTask {
-                // ProcessRunner is intentionally non-Sendable (see
-                // ProcessRunner.swift §"Hold one instance per call site").
-                // The outer `runner` belongs to the parent task; this
-                // task gets its own stateless SystemProcessRunner for
-                // the rebuild loop.
+                // ProcessRunner is intentionally non-Sendable; this task gets
+                // its own stateless runner. `state` persists across saves and
+                // is owned solely by this serial loop (no cross-task sharing) —
+                // do NOT parallelize this loop (it would corrupt shared swiftc
+                // incremental state in .build).
                 let rebuildRunner = SystemProcessRunner()
+                var state = BypassState()
                 for await changed in watcher.changes() {
                     print("swiflow: rebuilding (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
                     do {
-                        if let fastRebuilder {
-                            try fastRebuilder.rebuild(using: rebuildRunner)
+                        if let bypassRebuilder {
+                            try bypassRebuilder.rebuild(using: rebuildRunner, state: &state)
                         } else {
                             _ = try invocation.run(using: rebuildRunner)
                         }
