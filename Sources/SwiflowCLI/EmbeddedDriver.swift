@@ -537,11 +537,23 @@ enum EmbeddedDriver {
           if (t) t.replaceChildren();
         }
 
-        // Re-import the new entry. Browsers cache ES-module imports
-        // by URL, so the cache-busting query is what makes the new
-        // module load fresh. Await it so failures fall through to
-        // catch and trigger the reload fallback.
-        await import(payload.jsURL);
+        // Re-import the new entry, then RE-INSTANTIATE the wasm. A
+        // PackageToJS index.js only *exports* init(); importing it does
+        // NOT run @main, so without calling init() the cleared mount
+        // target above stays empty — a blank page. This mirrors the
+        // initial-boot path below (import → init({ module })). The new
+        // module reads window.__swiflowPendingSnapshot on its first
+        // render to restore @State. The cache-busting query on both URLs
+        // is what makes the browser load fresh modules/bytes.
+        //
+        // The importer is overridable (window.swiflow.__importOverride)
+        // so jsdom tests — which can't execute a real dynamic import() —
+        // can supply a fake module. Production falls through to import().
+        const importEntry =
+          (window.swiflow && window.swiflow.__importOverride) ||
+          ((u) => import(u));
+        const { init } = await importEntry(payload.jsURL);
+        await init({ module: fetchWithProgress(payload.wasmURL) });
         // NOTE: The previous WASM module's heap (old ambientRenderer,
         // old JSClosures) is not explicitly freed — the browser GC
         // reclaims it eventually. This is acceptable for a dev-only
