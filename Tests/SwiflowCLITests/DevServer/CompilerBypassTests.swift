@@ -212,3 +212,36 @@ struct StalenessKeyTests {
         #expect(k2 == k1)
     }
 }
+
+@Suite("CommandReplayer")
+struct CommandReplayerTests {
+
+    private func sampleCommands() -> CapturedBuildCommands {
+        CapturedBuildCommands(
+            compile: ResolvedCommand(executable: URL(fileURLWithPath: "/tc/swiftc"), arguments: ["-c", "App.swift"]),
+            link: ResolvedCommand(executable: URL(fileURLWithPath: "/tc/clang"), arguments: ["-o", "App.wasm"]),
+            key: StalenessKey(sourceSet: [], importHash: 0, manifestMTime: nil, resolvedMTime: nil)
+        )
+    }
+
+    @Test("Runs compile then link, in order, from the working directory")
+    func runsBothInOrder() throws {
+        let stub = StubProcessRunner(stubbedExitCode: 0)
+        try CommandReplayer.replay(sampleCommands(), using: stub, workingDirectory: URL(fileURLWithPath: "/proj"))
+        #expect(stub.calls.count == 2)
+        #expect(stub.calls[0].executable.path == "/tc/swiftc")
+        #expect(stub.calls[0].arguments == ["-c", "App.swift"])
+        #expect(stub.calls[1].executable.path == "/tc/clang")
+        #expect(stub.calls[1].arguments == ["-o", "App.wasm"])
+        #expect(stub.calls[0].workingDirectory?.path == "/proj")
+    }
+
+    @Test("A non-zero compile exit throws and link does NOT run")
+    func compileFailureStopsBeforeLink() {
+        let stub = StubProcessRunner(stubbedExitCode: 4)   // first call (compile) fails
+        #expect(throws: BuildCommandError.swiftBuildFailed(exitCode: 4)) {
+            try CommandReplayer.replay(sampleCommands(), using: stub, workingDirectory: URL(fileURLWithPath: "/proj"))
+        }
+        #expect(stub.calls.count == 1)   // link never attempted
+    }
+}

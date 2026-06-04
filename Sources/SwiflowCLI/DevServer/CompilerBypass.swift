@@ -176,3 +176,34 @@ struct StalenessKey: Sendable, Equatable {
         (try? fm.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 }
+
+/// The two replayable commands plus the staleness key they were captured under.
+struct CapturedBuildCommands: Sendable, Equatable {
+    let compile: ResolvedCommand
+    let link: ResolvedCommand
+    let key: StalenessKey
+}
+
+/// Runs the captured compile then link, streaming output to the user
+/// (captureOutput: false). A non-zero exit throws `swiftBuildFailed` — for a
+/// real compile error that surfaces the diagnostics and the dev loop skips the
+/// HMR broadcast, exactly like today's failed rebuild. Stale-replay "no such
+/// module" cases are prevented up front by StalenessKey's importHash, so we do
+/// NOT auto-recapture on failure (that would make every mid-edit compile error
+/// pay a ~12s rebuild — fast failure feedback is worth more).
+enum CommandReplayer {
+    static func replay(_ commands: CapturedBuildCommands, using runner: ProcessRunner, workingDirectory: URL) throws {
+        for command in [commands.compile, commands.link] {
+            let result = try runner.run(
+                executable: command.executable,
+                arguments: command.arguments,
+                workingDirectory: workingDirectory,
+                environment: nil,
+                captureOutput: false
+            )
+            if result.exitCode != 0 {
+                throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
+            }
+        }
+    }
+}
