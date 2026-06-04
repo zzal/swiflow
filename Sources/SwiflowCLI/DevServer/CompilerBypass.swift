@@ -207,3 +207,61 @@ enum CommandReplayer {
         }
     }
 }
+
+/// Loop-owned, single-task state. One value keeps the `rebuild` signature
+/// stable as the staleness key grows.
+struct BypassState: Sendable {
+    var captured: CapturedBuildCommands?
+    var bypassDisabled: Bool = false
+}
+
+/// Orchestrates one save: decide replay-vs-capture, run it, copy the fresh wasm
+/// over the served output. Stays a Sendable value type; the non-Sendable
+/// ProcessRunner and the mutable `state` are passed per call (the watcher loop
+/// owns `state` and runs serially, so there's no cross-task sharing).
+struct BypassRebuilder: Sendable {
+    let capturingBuild: CapturingWasmBuildInvocation
+    let fallback: RawWasmBuildInvocation
+    let appModule: String
+    let projectPath: URL
+    let appSourcesDir: URL
+    let manifestURL: URL
+    let resolvedURL: URL
+    let artifactURL: URL
+    let outputWasmURL: URL
+
+    func rebuild(using runner: ProcessRunner, state: inout BypassState) throws {
+        // Permanent fallback once capture has proven unparseable this session.
+        if state.bypassDisabled {
+            try fallback.run(using: runner)
+            try WasmArtifactCopier.copy(from: artifactURL, to: outputWasmURL)
+            return
+        }
+
+        let key = StalenessKey.compute(appSourcesDir: appSourcesDir, manifestURL: manifestURL, resolvedURL: resolvedURL)
+
+        if let captured = state.captured, captured.key == key {
+            try CommandReplayer.replay(captured, using: runner, workingDirectory: projectPath)
+        } else {
+            print(captureReason(old: state.captured?.key, new: key))
+            let output = try capturingBuild.run(using: runner)
+            if let cmds = BuildCommandParser.parse(verboseOutput: output, appModule: appModule) {
+                state.captured = CapturedBuildCommands(compile: cmds.compile, link: cmds.link, key: key)
+            } else {
+                state.bypassDisabled = true
+                print("swiflow: could not capture compile commands; using full builds this session.")
+            }
+        }
+
+        // Both branches wrote `artifactURL`; publish it to the served output.
+        try WasmArtifactCopier.copy(from: artifactURL, to: outputWasmURL)
+    }
+
+    /// Human-readable reason for a (re)capture, for the dev console.
+    private func captureReason(old: StalenessKey?, new: StalenessKey) -> String {
+        guard let old else { return "swiflow: capturing compile commands (one-time)…" }
+        if old.sourceSet != new.sourceSet { return "swiflow: app file set changed — re-capturing…" }
+        if old.importHash != new.importHash { return "swiflow: imports changed — re-capturing…" }
+        return "swiflow: Package.swift changed — re-capturing… (if you added/changed a dependency, restart swiflow dev)"
+    }
+}
