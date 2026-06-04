@@ -61,7 +61,7 @@ enum BuildConfiguration: Equatable {
 }
 
 /// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
-struct BuildInvocation {
+struct BuildInvocation: Sendable {
     let swiftExecutable: URL
     let projectPath: URL
     let swiftSDK: String

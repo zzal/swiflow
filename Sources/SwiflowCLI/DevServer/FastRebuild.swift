@@ -54,7 +54,7 @@ enum WasmArtifactLocator {
     static func parseBinPath(_ stdout: String) -> String? {
         stdout
             .split(separator: "\n", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .last { !$0.isEmpty }
     }
 

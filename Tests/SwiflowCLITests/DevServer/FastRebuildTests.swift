@@ -177,7 +177,7 @@ struct FastRebuilderTests {
 
         try rebuilder.rebuild(using: stub)
 
-        #expect(stub.calls[0].arguments.contains("build"))      // ran swift build
+        #expect(stub.calls[0].arguments.first == "build")       // ran swift build
         #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D, 0x01])) // copied
     }
 
