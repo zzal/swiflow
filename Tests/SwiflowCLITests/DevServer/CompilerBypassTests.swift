@@ -296,11 +296,11 @@ struct BypassRebuilderTests {
         #expect(stub.calls.count == 2)
         #expect(stub.calls[0].arguments.contains("-v"))          // the capturing build
         #expect(stub.calls[1].executable.path.hasSuffix("clang"))   // reactor re-link
-        #expect(stub.calls[1].arguments.suffix(3) == BypassRebuilder.reactorLinkFlags)
+        #expect(Array(stub.calls[1].arguments.suffix(3)) == BypassRebuilder.reactorLinkFlags)
         #expect(state.captured != nil)                          // commands captured
         #expect(state.bypassDisabled == false)
         // The stored link carries the reactor flags so every replay reproduces them.
-        #expect(state.captured?.link.arguments.suffix(3).map(String.init) == BypassRebuilder.reactorLinkFlags)
+        #expect(Array(state.captured?.link.arguments.suffix(3) ?? []) == BypassRebuilder.reactorLinkFlags)
         #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // copied
     }
 
