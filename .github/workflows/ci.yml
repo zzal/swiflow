@@ -193,12 +193,11 @@ jobs:
 
       - name: Test
         # SWIFLOW_SKIP_WASM_E2E skips the WASM-SDK-gated integration suites: they
-        # spawn real `swift build` / `swift package js`, whose SwiftSyntax macro
-        # plugin crashes repeatedly under Swift 6.3.2 and segfaults the test
-        # process on the Linux runner (signal 11). The build pipeline they cover
-        # is still validated locally on a WASM SDK. With them skipped the suite
-        # is fast unit tests; --no-parallel keeps it deterministic. The pipe
-        # drain is also hardened in SystemProcessRunner (dedicated threads).
+        # spawn real, multi-minute `swift build` / `swift package js` invocations,
+        # which are slow and redundant on CI — that build pipeline is validated
+        # locally against a WASM SDK. With them skipped the suite is fast unit
+        # tests. --no-parallel keeps the process-global OnChangeStorage table
+        # (keyed by object address) deterministic across suites.
         env:
           SWIFLOW_SKIP_WASM_E2E: "1"
         run: swift test --no-parallel

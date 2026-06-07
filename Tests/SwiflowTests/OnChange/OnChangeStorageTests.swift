@@ -22,7 +22,7 @@ struct OnChangeStorageTests {
     /// makes each test hermetic. Production clears the same way on unmount
     /// (Diff.destroyComponent → OnChangeStorage.remove).
     private func makeCleanHolder() -> OnChange_Holder {
-        let c = makeCleanHolder()
+        let c = OnChange_Holder()
         OnChangeStorage.remove(for: ObjectIdentifier(c))
         return c
     }
