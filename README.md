@@ -214,15 +214,15 @@ the right WASM SDK and toolchain auto-detection.
 
 ## Prerequisites
 
-- **Swift 6.3** — `swift --version` should report 6.3.x. CI pins 6.3.0 because
+- **Swift 6.3** — `swift --version` should report 6.3.x. CI pins 6.3.2 because
   the WASM SDK's stdlib must match the host compiler exactly.
 - **macOS 14+** (host requirement for the dev server, which uses Hummingbird 2.x).
   Linux works without a version pin.
-- **WebAssembly Swift SDK 6.3** — install once via:
+- **WebAssembly Swift SDK 6.3.2** — install once via:
   ```bash
   swift sdk install \
-    https://download.swift.org/swift-6.3-release/wasm-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_wasm.artifactbundle.tar.gz \
-    --checksum 9fa4016ee632c7e9e906608ec3b55cf13dfc4dff44e47574c5af58064dc33fd9
+    https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
+    --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
   ```
 
 Run `swiflow doctor` after building the CLI to verify your toolchain is complete:
