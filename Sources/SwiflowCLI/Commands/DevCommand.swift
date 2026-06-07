@@ -125,12 +125,9 @@ struct DevCommand: AsyncParsableCommand {
                     swiftSDK: sdk,
                     toolchainBundleID: toolchainBundleID
                 ),
-                fallback: RawWasmBuildInvocation(
-                    swiftExecutable: swift,
-                    projectPath: projectURL,
-                    swiftSDK: sdk,
-                    toolchainBundleID: toolchainBundleID
-                ),
+                // Correctness fallback: the same full `swift package js` build the
+                // initial build uses — it emits a browser-ready reactor wasm.
+                fullBuild: invocation,
                 appModule: "App",
                 projectPath: projectURL,
                 appSourcesDir: projectURL.appendingPathComponent("Sources/App"),

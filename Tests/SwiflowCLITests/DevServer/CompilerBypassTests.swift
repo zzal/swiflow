@@ -268,9 +268,9 @@ struct BypassRebuilderTests {
                 swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
                 projectPath: root, swiftSDK: "sdk", toolchainBundleID: nil
             ),
-            fallback: RawWasmBuildInvocation(
+            fullBuild: BuildInvocation(
                 swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
-                projectPath: root, swiftSDK: "sdk", toolchainBundleID: nil
+                projectPath: root, swiftSDK: "sdk", toolchainBundleID: nil, configuration: .dev
             ),
             appModule: "App",
             projectPath: root,
@@ -283,7 +283,7 @@ struct BypassRebuilderTests {
         return (rebuilder, root, served)
     }
 
-    @Test("First save: runs the capturing -v build, captures, copies the wasm")
+    @Test("First save: capturing -v build, then a reactor re-link, then copies the wasm")
     func firstSaveCaptures() throws {
         let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -292,29 +292,35 @@ struct BypassRebuilderTests {
 
         try rebuilder.rebuild(using: stub, state: &state)
 
-        #expect(stub.calls.count == 1)
-        #expect(stub.calls[0].arguments.contains("-v"))         // the capturing build
+        // Capture (`swift build -v`) + a direct reactor re-link of the objects.
+        #expect(stub.calls.count == 2)
+        #expect(stub.calls[0].arguments.contains("-v"))          // the capturing build
+        #expect(stub.calls[1].executable.path.hasSuffix("clang"))   // reactor re-link
+        #expect(stub.calls[1].arguments.suffix(3) == BypassRebuilder.reactorLinkFlags)
         #expect(state.captured != nil)                          // commands captured
         #expect(state.bypassDisabled == false)
+        // The stored link carries the reactor flags so every replay reproduces them.
+        #expect(state.captured?.link.arguments.suffix(3).map(String.init) == BypassRebuilder.reactorLinkFlags)
         #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // copied
     }
 
-    @Test("Second save, key unchanged: replays (no swift build)")
+    @Test("Second save, key unchanged: replays (compile + reactor link, no swift build)")
     func secondSaveReplays() throws {
         let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: try BuildCommandParserTests.sample, stubbedStandardError: nil)
         var state = BypassState()
 
-        try rebuilder.rebuild(using: stub, state: &state)       // capture (1 call: swift build -v)
-        try rebuilder.rebuild(using: stub, state: &state)       // replay (2 calls: swiftc, clang)
+        try rebuilder.rebuild(using: stub, state: &state)       // capture (2 calls: swift build -v, reactor re-link)
+        try rebuilder.rebuild(using: stub, state: &state)       // replay (2 calls: swiftc, reactor clang)
 
-        #expect(stub.calls.count == 3)
-        #expect(stub.calls[1].executable.path.hasSuffix("swiftc"))
-        #expect(stub.calls[2].executable.path.hasSuffix("clang"))
+        #expect(stub.calls.count == 4)
+        #expect(stub.calls[2].executable.path.hasSuffix("swiftc"))
+        #expect(stub.calls[3].executable.path.hasSuffix("clang"))
         // Neither replay call is a `swift build`.
-        #expect(stub.calls[1].arguments.first != "build")
         #expect(stub.calls[2].arguments.first != "build")
+        #expect(stub.calls[3].arguments.first != "build")
+        #expect(stub.calls[3].arguments.contains("-mexec-model=reactor"))   // replay uses the reactor link
         #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // replay still publishes the wasm
     }
 
@@ -325,30 +331,37 @@ struct BypassRebuilderTests {
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: try BuildCommandParserTests.sample, stubbedStandardError: nil)
         var state = BypassState()
 
-        try rebuilder.rebuild(using: stub, state: &state)       // capture
+        try rebuilder.rebuild(using: stub, state: &state)       // capture: build -v + reactor re-link (2)
         // Add a file → sourceSet differs.
         try "let y = 2".write(to: root.appendingPathComponent("Sources/App/B.swift"), atomically: true, encoding: .utf8)
-        try rebuilder.rebuild(using: stub, state: &state)       // must re-capture, not replay
+        try rebuilder.rebuild(using: stub, state: &state)       // must re-capture, not replay: build -v + re-link (2)
 
-        #expect(stub.calls.count == 2)                          // 2 capturing builds, no replay
-        #expect(stub.calls[1].arguments.contains("-v"))
+        #expect(stub.calls.count == 4)                          // 2 capturing builds (each + a re-link)
+        #expect(stub.calls[0].arguments.contains("-v"))
+        #expect(stub.calls[2].arguments.contains("-v"))         // the second capturing build
     }
 
-    @Test("Parse failure latches bypassDisabled; next save runs the fallback")
+    @Test("Parse failure latches bypassDisabled; capture and next save run the full plugin build")
     func parseFailureLatchesFallback() throws {
         let (rebuilder, root, served) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let stub = StubProcessRunner(stubbedExitCode: 0, stubbedStandardOutput: "garbage with no swiftc or clang lines", stubbedStandardError: nil)
         var state = BypassState()
 
-        try rebuilder.rebuild(using: stub, state: &state)       // capture build runs, parse fails
-        #expect(state.bypassDisabled == true)
-        #expect(stub.calls.count == 1)
+        let fullBuildArgv = ["package", "--swift-sdk", "sdk", "js", "--use-cdn", "--product", "App", "--debug-info-format", "dwarf"]
 
-        try rebuilder.rebuild(using: stub, state: &state)       // now uses fallback (plain swift build)
+        try rebuilder.rebuild(using: stub, state: &state)       // capture build runs, parse fails → full plugin build
+        #expect(state.bypassDisabled == true)
         #expect(stub.calls.count == 2)
-        #expect(stub.calls[1].arguments == ["build", "--swift-sdk", "sdk", "--product", "App"])  // RawWasmBuildInvocation argv
-        #expect(try Data(contentsOf: served) == Data([0x00, 0x61, 0x73, 0x6D]))  // fallback path still publishes the wasm
+        #expect(stub.calls[0].arguments.contains("-v"))         // the capturing build
+        #expect(stub.calls[1].arguments == fullBuildArgv)       // correctness fallback
+
+        try rebuilder.rebuild(using: stub, state: &state)       // now latched: full plugin build only
+        #expect(stub.calls.count == 3)
+        #expect(stub.calls[2].arguments == fullBuildArgv)
+        // The plugin writes the reactor wasm straight to the served path, so the
+        // bypass does NOT copy — the stale fixture bytes are left untouched here.
+        #expect(try Data(contentsOf: served) == Data([0xDE, 0xAD]))
     }
 }
 
@@ -421,7 +434,7 @@ struct BypassRebuilderIntegrationTests {
 
         let rebuilder = BypassRebuilder(
             capturingBuild: CapturingWasmBuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID),
-            fallback: RawWasmBuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID),
+            fullBuild: BuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID, configuration: .dev),
             appModule: "App", projectPath: projectPath,
             appSourcesDir: projectPath.appendingPathComponent("Sources/App"),
             manifestURL: projectPath.appendingPathComponent("Package.swift"),
@@ -446,6 +459,12 @@ struct BypassRebuilderIntegrationTests {
         try rebuilder.rebuild(using: runner, state: &state)
         #expect(state.captured != nil)
         #expect(try markerPresent("bypass_marker_one"))
+        // Regression guard for the command-vs-reactor ABI bug: the served wasm
+        // must be a browser-loadable reactor. The reactor link exports
+        // `__main_argc_argv` (what PackageToJS's glue calls as `swift.main()`);
+        // a plain `swift build` command wasm has no such export. Byte-searching
+        // the export name is a cheap proxy for "the reactor re-link ran".
+        #expect(try markerPresent("__main_argc_argv"))
         let callsAfterCapture = runner.calls.count
 
         // 5. Second save (different body edit) → REPLAY (no swift build).

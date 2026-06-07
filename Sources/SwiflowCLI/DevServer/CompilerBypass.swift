@@ -16,8 +16,8 @@ struct ResolvedCommand: Sendable, Equatable {
 }
 
 /// `swift build --swift-sdk <id> --product App -v` with output captured so the
-/// emitted swiftc/wasm-ld lines can be parsed. Sibling of `RawWasmBuildInvocation`;
-/// the name signals intent (capturing the commands is the purpose, `-v` the means).
+/// emitted swiftc/wasm-ld lines can be parsed. The name signals intent:
+/// capturing the commands is the purpose, `-v` the means.
 struct CapturingWasmBuildInvocation: Sendable {
     let swiftExecutable: URL
     let projectPath: URL
@@ -194,16 +194,28 @@ struct CapturedBuildCommands: Sendable, Equatable {
 enum CommandReplayer {
     static func replay(_ commands: CapturedBuildCommands, using runner: ProcessRunner, workingDirectory: URL) throws {
         for command in [commands.compile, commands.link] {
-            let result = try runner.run(
-                executable: command.executable,
-                arguments: command.arguments,
-                workingDirectory: workingDirectory,
-                environment: nil,
-                captureOutput: false
-            )
-            if result.exitCode != 0 {
-                throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
-            }
+            try run(command, using: runner, workingDirectory: workingDirectory)
+        }
+    }
+
+    /// Runs only the link command. Used immediately after a capture: the
+    /// capturing `swift build` emitted a *command*-ABI wasm we don't serve, so
+    /// we re-link the freshly-built objects with the reactor flags to produce
+    /// the browser-loadable artifact.
+    static func replayLink(_ link: ResolvedCommand, using runner: ProcessRunner, workingDirectory: URL) throws {
+        try run(link, using: runner, workingDirectory: workingDirectory)
+    }
+
+    private static func run(_ command: ResolvedCommand, using runner: ProcessRunner, workingDirectory: URL) throws {
+        let result = try runner.run(
+            executable: command.executable,
+            arguments: command.arguments,
+            workingDirectory: workingDirectory,
+            environment: nil,
+            captureOutput: false
+        )
+        if result.exitCode != 0 {
+            throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
         }
     }
 }
@@ -221,7 +233,12 @@ struct BypassState: Sendable {
 /// owns `state` and runs serially, so there's no cross-task sharing).
 struct BypassRebuilder: Sendable {
     let capturingBuild: CapturingWasmBuildInvocation
-    let fallback: RawWasmBuildInvocation
+    /// Correctness fallback when command capture fails: the full `swift package js`
+    /// plugin build. It writes a browser-ready *reactor* wasm straight to the
+    /// served path, so it's slower than the bypass but always correct. (A plain
+    /// `swift build` will NOT do — it emits a command-ABI wasm JavaScriptKit can't
+    /// load; see `reactorLinkFlags`.)
+    let fullBuild: BuildInvocation
     let appModule: String
     let projectPath: URL
     let appSourcesDir: URL
@@ -230,31 +247,53 @@ struct BypassRebuilder: Sendable {
     let artifactURL: URL
     let outputWasmURL: URL
 
+    /// Extra link flags PackageToJS adds to make the wasm browser-loadable — a
+    /// WASI *reactor* (exports `_initialize` + `__main_argc_argv`) rather than
+    /// `swift build`'s default *command* (`_start`, no `__main_argc_argv`).
+    /// Appended to the captured `clang` link command and replayed as a direct
+    /// `clang` call on only the App wasm, so they never reach SwiftPM's host
+    /// macro-tool links (where the host `ld` rejects `--export-if-defined`).
+    /// Without them the served wasm fails JavaScriptKit init with "supports only
+    /// WASI reactor ABI", or `@main` never runs — either way a blank page.
+    static let reactorLinkFlags = ["-mexec-model=reactor", "-Xlinker", "--export-if-defined=__main_argc_argv"]
+
     func rebuild(using runner: ProcessRunner, state: inout BypassState) throws {
         // Permanent fallback once capture has proven unparseable this session.
+        // The full plugin build writes the reactor wasm straight to the served
+        // path, so there is nothing to copy.
         if state.bypassDisabled {
-            try fallback.run(using: runner)
-            try WasmArtifactCopier.copy(from: artifactURL, to: outputWasmURL)
+            try fullBuild.run(using: runner)
             return
         }
 
         let key = StalenessKey.compute(appSourcesDir: appSourcesDir, manifestURL: manifestURL, resolvedURL: resolvedURL)
 
         if let captured = state.captured, captured.key == key {
+            // Replay compile + the stored reactor link → reactor wasm at artifactURL.
             try CommandReplayer.replay(captured, using: runner, workingDirectory: projectPath)
         } else {
             print(captureReason(old: state.captured?.key, new: key))
             let output = try capturingBuild.run(using: runner)
-            if let cmds = BuildCommandParser.parse(verboseOutput: output, appModule: appModule) {
-                state.captured = CapturedBuildCommands(compile: cmds.compile, link: cmds.link, key: key)
-            } else {
+            guard let cmds = BuildCommandParser.parse(verboseOutput: output, appModule: appModule) else {
                 state.captured = nil
                 state.bypassDisabled = true
                 print("swiflow: could not capture compile commands; using full builds this session.")
+                try fullBuild.run(using: runner)   // writes the reactor wasm to the served path
+                return
             }
+            // The capturing `swift build` emitted a command-ABI wasm we don't
+            // serve. Bake the reactor flags into the link command (for this and
+            // every replay), then re-link the freshly-built objects so the
+            // served artifact is browser-loadable.
+            let reactorLink = ResolvedCommand(
+                executable: cmds.link.executable,
+                arguments: cmds.link.arguments + Self.reactorLinkFlags
+            )
+            state.captured = CapturedBuildCommands(compile: cmds.compile, link: reactorLink, key: key)
+            try CommandReplayer.replayLink(reactorLink, using: runner, workingDirectory: projectPath)
         }
 
-        // Both branches wrote `artifactURL`; publish it to the served output.
+        // Bypass branches wrote `artifactURL`; publish it to the served output.
         try WasmArtifactCopier.copy(from: artifactURL, to: outputWasmURL)
     }
 
