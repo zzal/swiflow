@@ -90,12 +90,29 @@ final class SystemProcessRunner: ProcessRunner {
         // stdout-then-stderr read deadlocks when the child fills the second
         // pipe's buffer (~64 KiB) while we're still blocked on the first —
         // exactly what a verbose `swift build -v` does. One reader per pipe.
+        //
+        // Use DEDICATED threads, not the shared libdispatch pool: a `.concurrent`
+        // DispatchQueue draws workers from the global pool, and under a saturated
+        // pool — e.g. a parallel test runner spawning many processes at once — the
+        // two drain blocks can fail to get a worker while this thread is parked in
+        // `wait()`, deadlocking on a full pipe buffer. (Foundation's scheduling
+        // tightened in Swift 6.3.2 and began hitting this in CI.) A plain Thread
+        // always runs regardless of pool pressure and is short-lived (reads to EOF
+        // then exits), so it doesn't accumulate.
         let outDrain = outPipe.map { FileHandleDrain($0.fileHandleForReading) }
         let errDrain = errPipe.map { FileHandleDrain($0.fileHandleForReading) }
         let group = DispatchGroup()
-        let queue = DispatchQueue(label: "swiflow.procrunner.drain", attributes: .concurrent)
-        if let outDrain { queue.async(group: group) { outDrain.drain() } }
-        if let errDrain { queue.async(group: group) { errDrain.drain() } }
+        func startDrain(_ drain: FileHandleDrain) {
+            group.enter()
+            let thread = Thread {
+                drain.drain()
+                group.leave()
+            }
+            thread.name = "swiflow.procrunner.drain"
+            thread.start()
+        }
+        if let outDrain { startDrain(outDrain) }
+        if let errDrain { startDrain(errDrain) }
         group.wait()
         process.waitUntilExit()
 
