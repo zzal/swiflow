@@ -227,6 +227,12 @@ struct BuildCommandArgvTests {
 struct BuildCommandIntegrationTests {
 
     static var wasmSDKAvailable: Bool {
+        // CI opt-out: these heavy real-build e2e tests crash the Swift 6.3.2
+        // macro plugin repeatedly and eventually segfault the test process on
+        // the Linux runner. CI sets SWIFLOW_SKIP_WASM_E2E to skip them; they
+        // still run locally on any toolchain that has a WASM SDK. See ci.yml.
+        // (DevCommandTests and InitCommandTests delegate to this gate.)
+        if ProcessInfo.processInfo.environment["SWIFLOW_SKIP_WASM_E2E"] != nil { return false }
         let runner = SystemProcessRunner()
         let result = try? runner.run(
             executable: URL(fileURLWithPath: "/usr/bin/env"),

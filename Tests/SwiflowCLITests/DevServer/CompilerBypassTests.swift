@@ -382,6 +382,10 @@ final class RecordingProcessRunner: ProcessRunner {
 struct BypassRebuilderIntegrationTests {
 
     static var wasmSDKAvailable: Bool {
+        // CI opt-out: skip this heavy real-build e2e under SWIFLOW_SKIP_WASM_E2E
+        // (the Swift 6.3.2 macro plugin segfaults the test process on CI). Runs
+        // locally on any toolchain with a WASM SDK. See ci.yml + BuildCommandIntegrationTests.
+        if ProcessInfo.processInfo.environment["SWIFLOW_SKIP_WASM_E2E"] != nil { return false }
         let runner = SystemProcessRunner()
         let result = try? runner.run(
             executable: URL(fileURLWithPath: "/usr/bin/env"),
