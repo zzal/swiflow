@@ -192,7 +192,13 @@ jobs:
         run: swift build --product swiflow
 
       - name: Test
-        run: swift test --parallel
+        # Serial (not --parallel): the WASM-SDK-gated integration tests each
+        # spawn real `swift build` / `swift package js` subprocesses (and their
+        # macro plugins). Running those concurrently under Swift 6.3.2 on the
+        # 2-core runner triggers a macro-plugin SIGSEGV and pipe-drain
+        # starvation. Serializing trades a few minutes of wall time for a
+        # stable run. (The drain itself is also hardened in SystemProcessRunner.)
+        run: swift test --no-parallel
 
   js-driver-tests:
     name: JS Driver Tests
