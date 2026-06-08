@@ -28,6 +28,16 @@
   mq.addEventListener("change", apply);
 })();
 
+// Build stamp — proves which panel.js bundle is actually live. Safari and Web
+// Inspector cache extension code aggressively, so during development a blank
+// stamp means you're still running a stale cached panel.js (do a clean rebuild
+// + reopen Web Inspector). Reads the version from the loaded manifest.
+(() => {
+  const tag = document.getElementById("build-tag");
+  const manifest = chrome.runtime && chrome.runtime.getManifest && chrome.runtime.getManifest();
+  if (tag && manifest) tag.textContent = "v" + manifest.version;
+})();
+
 /**
  * Abstract source of devtools data. Methods resolve to documented
  * shapes or null on failure. Errors are surfaced via the returned

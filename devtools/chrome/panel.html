@@ -37,6 +37,15 @@
       header {
         padding: 6px 10px;
         border-bottom: 1px solid var(--sys-color-divider);
+        display: flex;
+        align-items: center;
+      }
+      /* Build stamp: rendered by panel.js from the loaded manifest version.
+         If this is blank, you're running a stale cached panel.js. */
+      #build-tag {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--sys-color-on-surface-subtle);
       }
       /* Text-button style per the components guide: outlined border,
          transparent fill, hover shading, visible focus ring. */
@@ -131,6 +140,7 @@
   <body>
     <header>
       <button id="refresh-btn">↻ Refresh</button>
+      <span id="build-tag"></span>
     </header>
     <div id="error-region" hidden></div>
     <main>
