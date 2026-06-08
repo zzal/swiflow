@@ -16,173 +16,213 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
-## [Unreleased]
+## [0.1.5] — 2026-06-08
+
+Consolidates Phases 18–21 and the data-layer / UI / tooling work that landed
+after `v0.1.3` into a single release (the interim `0.1.4` was a code-level
+version bump only, never tagged). New API surfaces — `SwiflowQuery`,
+mutations, `.task`, `SwiflowUI` — are **Experimental**; see Stability.
 
 ### Added
-- `swiflow init --template <name>` — scaffold from any example under `examples/`. Default `HelloWorld` preserves prior zero-flag behaviour; `--template MiniRouter` is the canonical router demo. `swiflow init --help` lists available template names dynamically. The embedded set is codegen'd from `examples/*/` by `scripts/embed-templates.swift` → `Sources/SwiflowCLI/EmbeddedTemplates.swift`; a freshness test pins the script's output against the in-process equivalent (`Sources/SwiflowCLI/TemplateEmbedder.swift`) so drift fails the build.
-- DevTools panel ships bundled Chromium-derived design tokens (`devtools/colors.css`, `devtools/application_tokens.css`) so the panel picks up the host DevTools theme, including dark mode.
-- **CSS DSL — `host { … }`** entry. Emits `.swiflow-T { … }` (single selector, no compound/descendant). The right tool for "the root element of this component" when no class disambiguation is needed.
-- **CSS DSL — `raw(_:)`** escape hatch. Emits its string verbatim with no scoping. Used for at-rules the DSL doesn't model (e.g. `@property`). Deliberate small surface; dedicated builders land when a specific at-rule becomes common.
-- **CSS DSL — scoped at-rule primitives `container(_:)`, `media(_:)`, `startingStyle`.** Wrap nested rules in `@container` / `@media` / `@starting-style` while still scoping them through the normal pipeline (built on a new `CSSEntry.group` case) — so you no longer hand-paste the `.swiflow-T` scope class inside a `raw(...)` block for responsive or entry-animation rules.
-- **CSS declaration helpers — `outline`, `outlineOffset`** (the most-repeated `property("outline", …)` ceremony), plus a sheet-level **`cssVar(_:_:)`** alias over `property(_:_:)` so the custom-property verb matches the element-layer `Attribute.cssVar`.
-- **`CSSSheet.+` operator** — concatenate sheets so components can split styles across files via Swift extensions: `static var scopedStyles = layout + theme + animations`. Zero runtime cost — array concatenation.
-- **Element factories:** `dialog`, `details`, `summary`, `aside`, `output`, `hr`. Same `(_ attributes: Attribute..., @ChildrenBuilder children:)` shape as the existing factories; `summary` and `output` ship text-only convenience overloads. Popover is *not* a new factory — it's `.attr("popover", "auto"|"manual")` on any element.
-- **CSS declaration helpers:** `positionAnchor`, `positionArea`, `anchorName`, `viewTransitionName`, `interpolateSize`, `accentColor`, `colorScheme`, `inset`/`insetBlockEnd`/`insetInline`, `placeItems`/`placeContent`, `marginInline`, `backdropFilter`, `transitionBehavior`, `containerType`, `background` (shorthand), `pointerEvents`, `flex`, `flexWrap`, `listStyle`. Mechanical one-liners required by the upcoming HelloWorld showcase.
-- **`SwiflowWeb.after(_:do:)`** — cancellable `setTimeout` wrapper returning a `TimerHandle`. Use from `onAppear`; cancel from `onDisappear`. Used by the new HelloWorld Toast auto-dismiss.
+
+**Data layer — `SwiflowQuery` (Phase 21)**
+- **`SwiflowQuery` module** — a TanStack-Query / SWR-style data layer. A `Query`
+  is a `@MainActor` value that knows how to fetch itself and where it lives in a
+  shared cache: `associatedtype Value: Equatable & Sendable`, `var queryKey:
+  QueryKey`, `var tags: Set<QueryTag>` (default `[]`), `var staleTime: Duration`
+  (default `.zero`), `func fetch() async throws -> Value`.
+- **Typed hierarchical keys.** `QueryKey = [QueryKeyComponent]` (`.string` /
+  `.int`, both `ExpressibleBy…Literal`, e.g. `["users", .int(id)]`) — cache
+  identity *and* dependency; the hierarchy enables prefix invalidation.
+- **`query(_:)` consumption** — a `Component` method returning `QueryState<Value>`
+  (`data` / `error` / `isLoading` / `isFetching` / `isSuccess`). Subscribes the
+  component to the cache; a fetch is triggered only by mount, key change, or
+  `invalidate` — not on every render.
+- **Shared `QueryClient` cache** with request **deduplication** (concurrent
+  subscribers to one key share a single in-flight `fetch()`) and
+  **stale-while-revalidate** (`staleTime` `.zero` revalidates on every trigger;
+  cached data renders instantly while the refetch runs, with `isFetching`
+  tracking the background load). Installed automatically per render root by
+  `Swiflow.render(into:)`.
+- **Invalidation** — `client.invalidate(_ key:, exact:)` (prefix cascade by
+  default; exact single-entry with `exact: true`) and `client.invalidate(tag:)`
+  for cross-cutting tag groups. Invalidated entries with live subscribers
+  refetch immediately.
+- **Mutations** — `@MutationState` peer macro (synthesizes a `$name` handle +
+  backing runtime, wired in `@Component`'s `bind()` at mount) and the `Mutation`
+  protocol (`perform` + `optimistic` + `invalidations`). Optimistic edits apply
+  **synchronously**, **roll back** automatically on failure, and fan out
+  invalidations on success. Backed by `MutationRuntime` (run → `Result`) and a
+  token-keyed mutation task registry.
+- **Background revalidation** — opt-in `refetchInterval`, `refetchOnFocus`, and
+  `retry` on the `Query` protocol. Clock-driven polling via `tick(now:)`,
+  window-focus refetch of stale queries (dedup-safe, reads `visibilityState`),
+  and failed-fetch **retry with result-clamped exponential backoff**
+  (`RetryPolicy`). Wired in `SwiflowWeb` via a `setInterval` tick + focus
+  listener; retry cycles clear on supersede (invalidate / `setQueryData`).
+- **Deterministic testing.** `AsyncTestHarness(component, queryClient:
+  QueryClient(clock: ManualClock()))` with `settle()` / `flush()` / `advance(by:)`
+  / `focus()` drive fetches, polling, and focus refetch to a fixed point with no
+  wall-clock dependence.
+
+**Reactivity — async effects (Phase 20)**
+- **`.task { … }` / `.task(rerunOn: someEquatable) { … }`** — postfix `VNode`
+  modifiers for lifecycle-bound async effects. A bare `.task` runs once on mount
+  and cancels on unmount; `.task(rerunOn:)` cancels and restarts when the
+  dependency changes (`!=`). Closure: `TaskBody = @MainActor @Sendable () async ->
+  Void`. A DEBUG `swiflowDiagnostic` flags stable-slot violations (task count
+  changing between renders).
+- **Correct-by-default cancellation — superseded/dead-task write guard.** Each
+  task is stamped with a `@TaskLocal` `(slotID, generation)` token; `@State`'s
+  generated `didSet` reverts writes from a superseded or unmounted task. Stale
+  data can neither re-render nor clobber state — no `Task.isCancelled` checks or
+  `catch is CancellationError` needed at call sites.
+- **`JavaScriptEventLoop.installGlobalExecutor()`** is now wired into
+  `Swiflow.render(into:)` (once, idempotently) — without it, `Task`/`await`
+  silently hangs in the browser.
+
+**Component DevTools — Chrome panel (Phases 19 + 19b)**
+- Chrome DevTools extension at `devtools/` (sideload via `chrome://extensions` →
+  Load unpacked). Adds a "Swiflow" tab showing the live component tree and
+  `@State` of any Swiflow app in dev mode. Read-only MVP.
+- **Live updates** — the panel auto-refreshes within ~250 ms of every render by
+  polling `window.__swiflow.perf()` while visible; a footer dot shows status
+  (green = live, grey = paused, red = poll failed). Zero Swift changes — it polls
+  the Phase 9 render counter. Manual ↻ Refresh remains as a fallback.
+- Ships bundled Chromium-derived design tokens (`devtools/colors.css`,
+  `devtools/application_tokens.css`) so the panel follows the host DevTools
+  theme, including dark mode.
+
+**UI & styling**
+- **`SwiflowUI` (v0)** — a layout primitive module: `Spacing` / `CrossAlign` /
+  `MainAlign` tokens, a base token sheet with lazy-once `installBaseStyles`,
+  `VStack` / `HStack` flex primitives (inline token vars), and chainable
+  `.padding` / `.gap` modifiers. Built on a new host-testable
+  `StyleInjectionRegistry` once-injection seam (`CSSInjector` now routes through
+  it) and a public `element(_:attributes:children:)` array factory.
+- **CSS DSL — `host { … }`** (emits `.swiflow-T { … }`, single selector),
+  **`raw(_:)`** (verbatim escape hatch for at-rules the DSL doesn't model, e.g.
+  `@property`), and scoped at-rule primitives **`container(_:)` / `media(_:)` /
+  `startingStyle`** (wrap nested rules in `@container` / `@media` /
+  `@starting-style` while still scoping them, via a new `CSSEntry.group` case).
+- **`CSSSheet.+` operator** — concatenate sheets so components can split styles
+  across files: `static var scopedStyles = layout + theme + animations`. Zero
+  runtime cost.
+- **CSS declaration helpers** — `outline`, `outlineOffset`, sheet-level
+  `cssVar(_:_:)`, plus `positionAnchor`, `positionArea`, `anchorName`,
+  `viewTransitionName`, `interpolateSize`, `accentColor`, `colorScheme`,
+  `inset`/`insetBlockEnd`/`insetInline`, `placeItems`/`placeContent`,
+  `marginInline`, `backdropFilter`, `transitionBehavior`, `containerType`,
+  `background` (shorthand), `pointerEvents`, `flex`, `flexWrap`, `listStyle`.
+- **Element factories** — `dialog`, `details`, `summary`, `aside`, `output`,
+  `hr` (same `(_ attributes:, @ChildrenBuilder children:)` shape; `summary` and
+  `output` ship text-only overloads). Popover is `.attr("popover", …)` on any
+  element, not a factory.
+- **`SwiflowWeb.after(_:do:)`** — cancellable `setTimeout` wrapper returning a
+  `TimerHandle` (use from `onAppear`, cancel from `onDisappear`).
+
+**HTTP**
+- **`SwiflowHTTP` module** — a small HTTP client, graduated out of TodoCRUD's
+  `Net.swift`.
+
+**CLI & dev tooling**
+- **`swiflow init --template <name>`** — scaffold from any example under
+  `examples/` (`HelloWorld` default, `MiniRouter`, `AsyncFetch`, `QueryDemo`,
+  `TodoCRUD`, `EdgeCases`, `SwiflowUIDemo`). `swiflow init --help` lists names
+  dynamically. The embedded set is codegen'd from `examples/*/` by
+  `scripts/embed-templates.swift` → `Sources/SwiflowCLI/EmbeddedTemplates.swift`,
+  with a freshness test that fails the build on drift.
+- **Much faster `swiflow dev` rebuilds (~12 s → ~1.6 s).** Two levers: the loop
+  first stopped re-running `swift package js` per save (plain `swift build` +
+  wasm copy, reusing the JS glue), then a compiler-bypass loop that captures the
+  `swiftc` compile + `clang` link from one verbose build and **replays them
+  directly**, with a `StalenessKey` (file set + import hash + manifest mtimes)
+  deciding replay-vs-recapture. The replayed link injects PackageToJS's
+  reactor-ABI flags so the served wasm runs in the browser.
+
+**Examples**
+- **AsyncFetch** (`.task(rerunOn:)` demo), **QueryDemo** (cached/deduped/SWR
+  fetch + optimistic-rename mutation + invalidate), **TodoCRUD** (`SwiflowQuery`
+  over a real Dockerized CRUD API, focus-refetch + 5 s polling), **EdgeCases**
+  (12-trap reconciliation stress harness — all traps pass, no reconciler bugs),
+  **SwiflowUIDemo**, and **MiniRouter** (richer router demo, replaces RouterDemo).
+
+**Guides**
+- `docs/guides/query.md` and `docs/guides/async-tasks.md`.
+
+### Changed
+- **`onChange` / `onAppear` lifecycle (Phase 18) — behavior change.**
+  `Component.onChange()` now fires on **every** component in the tree after each
+  re-render, not just the root (the prior root-only behavior was a bug; React
+  `componentDidUpdate` semantics). `Component.onAppear()` now also fires on
+  components mounted **mid-render** (revealed by a conditional flip or appended
+  to a list during a re-render), which it previously skipped. Internals:
+  `collectComponentIDs(_:)` + `firePostRenderLifecycle(_:preExistingIDs:)`
+  partition reused (→ `onChange`) vs freshly mounted (→ `onAppear`); no public
+  API, JS-driver, or patch-protocol changes.
+- `examples/RouterDemo` removed; `examples/MiniRouter` (richer page set, `Back`
+  via `router.back`) is the canonical router example. Playwright configs/specs
+  and the READMEs swept to scaffold via `--template MiniRouter`.
+- **`examples/HelloWorld` rebuilt as a modern HTML/CSS showcase** — split into 8
+  focused files, wiring native `<dialog>` (focus trap, `Escape`-to-close, blurred
+  `::backdrop`, CSS-only open/close animation via `@starting-style` +
+  `allow-discrete`), declarative popovers via `popovertarget` (toast + About card,
+  the latter CSS-anchored), a `<details>` inspector with `interpolate-size`, a
+  `color-mix` + `light-dark` + `@property --accent` token system that auto-themes
+  from the OS, container queries, and `:focus-visible` outlines. `index.html`
+  stripped to the loading indicator + minimal body reset.
+- DevTools state-pane `@State` rows are now sorted alphabetically (was Swift
+  dictionary order, which shuffled between refreshes).
+- `TemplateEmbedder.blacklist` now includes `.swiftpm` so codegen ignores
+  Xcode-generated user-state files.
 
 ### Fixed
-- **Stable child slots — conditional/looped children no longer corrupt siblings.** Each view-builder statement is now one stable child slot: `if`/`else`/`for` compile to a single transparent `.fragment` that holds its position even when empty. Previously a conditional child rendered *before* a stateful sibling (e.g. a `<dialog>`) would shift sibling indices when it unmounted, recreating the sibling — which is why the Sign In dialog vanished when the toast auto-dismissed. The dev-facing rule, as plain as the Rules of Hooks: *every statement is a stable slot; key your `for` items.* Reconciliation routes all DOM placement through three pure primitives (`firstDOMHandle` / `nextDOMAnchor` / `collectDOMRoots`); no new patch type, no JS-driver change. `keyOf` now also matches component keys, and structural siblings get a position-stable bucket key in the keyed map-middle. (Dev note: because `if`/`for` now nest their children one level deeper, component mount-paths shift — e.g. `"3"` → `"3.0"` — so an HMR session spanning this upgrade re-mounts the affected components once.)
-- **Sign In dialog no longer flickers shut on open.** Its open/close had been wrapped in `document.startViewTransition` with a `view-transition-name`; interrupting a transition on the top-layer `<dialog>` (rapid or overlapping open/close) could leave it visually hidden while still `open`, and every skipped transition raised an unhandled `AbortError: Transition was skipped`. Replaced with a CSS-only animation (`@starting-style` + `transition-behavior: allow-discrete` on `overlay`/`display`); `openSignIn`/`closeSignIn` are now synchronous and gesture-immediate (the dialog appears the same frame — no perceptible lag).
-- **CSS scoping on the component root.** Class-leading scoped rules (e.g. `rule(".card") { … }`) now emit a dual selector (`.swiflow-T.card, .swiflow-T .card`) so they match BOTH the component root (when it carries the class) AND nested descendants. Previously the descendant-only form silently no-op'd against the root, which is why HelloWorld's `counter-in` animation and Toast's background never rendered. Non-class selectors (`button`, `:root`, `html`, `body`) are unchanged. ⚠️ Edge case: comma-separated selector lists (`rule(".a, .b")`) only get the dual treatment on the first selector token — a `// TODO` marks this for a future fix when a real use case surfaces.
-
-### Changed
-- `examples/RouterDemo` removed. `examples/MiniRouter` — richer page set, now with a `Back` button via `router.back` on `AboutPage` — is the canonical router example. Playwright `router.spec.ts` and both Playwright configs (`playwright.config.ts`, `playwright.router.config.ts`) scaffold via `--template MiniRouter`. Top-level `README.md`, `Tests/playwright/README.md`, and `devtools/README.md` swept to match.
-- DevTools state pane `@State` rows are now sorted alphabetically (previously Swift-side dictionary iteration order, which shuffled between refreshes and made it hard to spot which value actually changed).
-- `TemplateEmbedder.blacklist` now includes `.swiftpm` so the codegen no longer chokes on Xcode-generated user-state files (xcuserstate) when someone opens an example in Xcode.
-- **`examples/HelloWorld` rebuilt as a modern HTML/CSS showcase.** Now split into 8 focused files (`Counter+Styles.swift`, `Toast.swift`/`+Styles`, `SignIn.swift`/`+Styles`, `AboutPopover.swift`/`+Styles`, plus the entry in `App.swift`). Wires native `<dialog>` for Sign In (focus trap, `Escape`-to-close, blurred `::backdrop`, CSS-only open/close animation via `@starting-style` + `allow-discrete`), declarative popovers via `popovertarget` for the toast and About card (the latter anchored via CSS Anchor Positioning), a `<details>` "What's running here?" inspector with `interpolate-size: allow-keywords` for animated open/close, a `color-mix` + `light-dark` + `@property --accent` token system that auto-themes from the OS, container queries for the card, and `:focus-visible` outlines. `index.html` is stripped to the loading indicator + minimal body reset (`color-scheme: light dark`).
-
-### Changed
-- `examples/RouterDemo` removed. `examples/MiniRouter` — richer page set, now with a `Back` button via `router.back` on `AboutPage` — is the canonical router example. Playwright `router.spec.ts` and both Playwright configs (`playwright.config.ts`, `playwright.router.config.ts`) scaffold via `--template MiniRouter`. Top-level `README.md`, `Tests/playwright/README.md`, and `devtools/README.md` swept to match.
-- DevTools state pane `@State` rows are now sorted alphabetically (previously Swift-side dictionary iteration order, which shuffled between refreshes and made it hard to spot which value actually changed).
-- `TemplateEmbedder.blacklist` now includes `.swiftpm` so the codegen no longer chokes on Xcode-generated user-state files (xcuserstate) when someone opens an example in Xcode.
-
-### Stability
-- Stable for pre-1.0 usage. `--template` is additive; `swiflow init my-app` without flags still produces the same HelloWorld scaffold.
-
----
-
-## [Phase 21] — Query Core (`SwiflowQuery`)
-
-### Added
-- **`SwiflowQuery` module** — a TanStack-Query / SWR-style data layer. A
-  `Query` is a `@MainActor` value that knows how to fetch itself and where it
-  lives in a shared cache: `associatedtype Value: Equatable & Sendable`,
-  `var queryKey: QueryKey`, `var tags: Set<QueryTag>` (default `[]`),
-  `var staleTime: Duration` (default `.zero`), `func fetch() async throws -> Value`.
-  Dependencies the fetch reads live as stored properties on the query value
-  (identity ones go in the key; non-identity ones, like an injected API, do
-  not), which is also the seam for test injection.
-- **Typed hierarchical keys.** `QueryKey = [QueryKeyComponent]` where
-  `QueryKeyComponent` is `.string` / `.int`, both `ExpressibleBy…Literal`
-  (`["users", .int(id)]`). The key is cache identity *and* dependency; the
-  hierarchy enables prefix invalidation.
-- **`query(_:)` consumption** — a `Component` method returning
-  `QueryState<Value>` (`data` / `error` / `isLoading` / `isFetching` /
-  `isSuccess`). Calling it subscribes the component to the cache; it does
-  **not** fetch on every render — a fetch is triggered only by mount, key
-  change, or `invalidate`.
-- **Shared `QueryClient` cache** with request **deduplication** (concurrent
-  subscribers to the same key share one in-flight `fetch()`) and
-  **stale-while-revalidate** (default `staleTime` `.zero` means every trigger
-  revalidates; cached data renders instantly while the refetch runs, and
-  `isFetching` tracks the background load). Installed automatically per render
-  root by `Swiflow.render(into:)`.
-- **Invalidation** — `client.invalidate(_ key: QueryKey, exact: Bool = false)`
-  (prefix cascade by default; exact single-entry with `exact: true`) and
-  `client.invalidate(tag: QueryTag)` (cross-cutting tag groups). Invalidated
-  entries are forced stale; those with live subscribers refetch immediately.
-- **Deterministic testing.** `AsyncTestHarness(component, queryClient:
-  QueryClient(clock: ManualClock()))` plus the existing `settle()` / `flush()`
-  contract drive fetches to a fixed point with no wall-clock dependence; a
-  `ManualClock` controls `staleTime` evaluation.
-- **`examples/QueryDemo`** — minimal runnable demo: a `UserByID` query keyed by
-  a bumpable `userID`, showing cached/deduped/SWR fetching, key-change refetch
-  on a button click, and an `isFetching` background spinner.
-- **`docs/guides/query.md`** — user guide covering the `Query` protocol, the
-  trigger model, dedup, stale-while-revalidate, key-prefix and tag
-  invalidation, and `AsyncTestHarness` testing with worked examples.
-
-### Deferred
-- Mutations (optimistic write path), background refetch triggers (focus /
-  interval / reconnect), garbage collection of unsubscribed entries, `select`
-  (derived views), and auto-retry are explicitly out of scope for Phase 21 and
-  build on this cache in later phases.
+- **Release builds: dead event handlers.** `.on(.click)` buttons were inert in
+  `swiflow build` (fine in `swiflow dev`). `Event.domName` derived names via
+  `String(describing: self)`, which release's `-disable-reflection-metadata`
+  collapses to the enum's *type* name `"Event"` — so listeners bound to a DOM
+  event that never fires. Replaced with an exhaustive, reflection-free `switch`.
+- **HMR no longer blanks the page on hot-swap** — the wasm is re-instantiated on
+  each swap (importing the new entry only re-`export`s `init()`; it must be
+  re-run with the preserved `@State` snapshot).
+- **Stable child slots — conditional/looped children no longer corrupt
+  siblings.** Each view-builder statement is now one stable child slot:
+  `if`/`else`/`for` compile to a single transparent `.fragment` that holds its
+  position even when empty, so a conditional rendered before a stateful sibling
+  (e.g. a `<dialog>`) no longer shifts indices and recreates it on unmount. Rule:
+  *every statement is a stable slot; key your `for` items.* DOM placement routes
+  through three pure primitives (`firstDOMHandle` / `nextDOMAnchor` /
+  `collectDOMRoots`); no new patch type, no JS-driver change. ⚠️ Mount-path note:
+  because `if`/`for` now nest one level deeper, paths shift (`"3"` → `"3.0"`), so
+  an HMR session spanning this upgrade re-mounts affected components once.
+- **CSS scoping on the component root** — class-leading scoped rules (e.g.
+  `rule(".card") { … }`) now emit a dual selector (`.swiflow-T.card, .swiflow-T
+  .card`) so they match the component root *and* descendants (previously the
+  descendant-only form silently no-op'd against the root). Edge case:
+  comma-separated selector lists only get the dual treatment on the first token
+  (`// TODO`).
+- **Sign In dialog no longer flickers shut on open** — replaced an interrupted
+  `document.startViewTransition` (which could leave the top-layer `<dialog>`
+  hidden while `open` and raised unhandled `AbortError`s) with a CSS-only
+  animation (`@starting-style` + `transition-behavior: allow-discrete`);
+  open/close is now synchronous and gesture-immediate.
+- **CI green on Swift 6.3.2.** Keyed the SwiftPM build cache on the tracked
+  `Package.swift` (the gitignored `Package.resolved` hashed to empty), so the
+  Linux job warms its cache once green and dropped **~13 min → ~4 min**; fixed a
+  test-helper infinite recursion that crashed the suite with signal 11; and
+  hardened `ProcessRunner` to drain stdout/stderr on dedicated threads
+  (deadlock-proof under load).
 
 ### Stability
-- **Experimental — interface may change.** `SwiflowQuery` is a new API surface;
-  the `Query` protocol and `QueryClient` may be extended (mutations, `select`,
-  retry, GC) before 1.0.
+- **Experimental — interfaces may change before 1.0:** `SwiflowQuery`, mutations
+  (`@MutationState` / `Mutation`), `.task` / `.task(rerunOn:)`, and `SwiflowUI`.
+- The rest is stable for pre-1.0 usage. `--template` is additive (`swiflow init
+  my-app` with no flags still produces the HelloWorld scaffold). **Behavior
+  change:** `onChange()` now fires on every component and `onAppear()` on
+  mid-render mounts (Phase 18) — most code is unaffected; see the mount-path note
+  under Fixed for the one-time HMR re-mount across this upgrade.
 
 ---
-
-## [Phase 20] — Async task effects (`.task` / `.task(rerunOn:)`)
-
-### Added
-- **`.task { … }` / `.task(rerunOn: someEquatable) { … }`** — postfix `VNode`
-  modifiers that declare lifecycle-bound async effects. A bare `.task { }` runs
-  once on mount and cancels on unmount; `.task(rerunOn:)` cancels and restarts
-  whenever the dependency changes (`!=`); both cancel on unmount. Closure type:
-  `TaskBody = @MainActor @Sendable () async -> Void` (non-throwing). Multiple
-  tasks may decorate one node; a DEBUG `swiflowDiagnostic` flags violations of
-  the stable-slot rule (task count changing between renders).
-- **Correct-by-default cancellation — superseded/dead-task write guard.** Each
-  spawned task is stamped with a `@TaskLocal` token carrying `(slotID,
-  generation)`. `@State`'s generated `didSet` consults `SwiflowTaskRuntime.shouldDropWrite()`
-  and reverts the write when the running task has been superseded (its slot
-  moved to a newer generation) or its component has unmounted. Stale data can
-  neither re-render nor clobber stored state. Call sites need only their own
-  domain `do/catch` — no `Task.isCancelled` checks and no `catch is CancellationError`.
-- **`AsyncTestHarness.settle()` and `flush()`** in `SwiflowTesting`. `settle()`
-  drives all in-flight task handles to completion, flushes resulting re-renders,
-  and repeats to a fixed point — making async component tests deterministic.
-  `flush()` applies a synchronous `@State` mutation before settling so a
-  `rerunOn` change is reconciled before tasks are awaited. `settle()` throws
-  `AsyncTestHarness.SettleError` if it cannot reach a fixed point within
-  `maxRounds` (default 100).
-- **`JavaScriptEventLoop.installGlobalExecutor()`** wired into
-  `Swiflow.render(into:)` (once, idempotently). Without the global executor,
-  `Task`/`await` silently hang in the browser; this wiring is now automatic.
-- **`examples/AsyncFetch`** — minimal runnable demo of `.task(rerunOn:)` with
-  a simulated network fetch and dependency-keyed refetch on button click.
-- **`docs/guides/async-tasks.md`** — user guide covering lifecycle, purity
-  story, the write-guard guarantee, dependency composition, the stable-slot
-  rule, and `AsyncTestHarness` usage with worked examples.
-
-### Stability
-- **Experimental — interface may change.** `.task` / `.task(rerunOn:)` are a
-  new API surface; the dependency model may be extended (e.g. variadic-generic
-  multi-dependency form) before 1.0. The prerequisite `JavaScriptEventLoop`
-  global executor is now installed automatically by `Swiflow.render(into:)`.
-
----
-
-## [Phase 19b] — Live DevTools panel (render-version push tick)
-
-### Added
-- The Chrome DevTools panel now auto-updates within ~250 ms of every Swiflow render. No more manual ↻ Refresh after every `@State` mutation.
-- Footer live indicator (small dot) surfaces panel status: **green** = polling live, **grey** = paused (panel hidden), **red** = poll failed (e.g. inspected tab navigated to a non-Swiflow page). The manual ↻ Refresh button remains as a fallback that always works.
-
-### Mechanism
-- Panel polls the existing `window.__swiflow.perf()` surface every 250 ms via the `chrome.devtools.inspectedWindow` API while the panel is visible (gated on `chrome.devtools.panels.Panel.onShown` / `onHidden`). Polls JSON-stringify the per-selector `renders` count map as a stable signature; on change, the existing refresh path runs. Poll-time errors are silent — only manual ↻ Refresh failures surface in the error region.
-
-### Internals
-- Zero Swift code changes. `Renderer.renderCount` already incremented on every render (Phase 9) and is already exposed as `__swiflow.perf()[selector].renders` — Phase 19b just teaches the panel to poll it.
-
----
-
-## [Phase 19] — Component DevTools (Chrome panel, MVP)
-
-### Added
-- Chrome DevTools extension at `devtools/` — sideload via `chrome://extensions` → Load unpacked. Adds a "Swiflow" tab in DevTools that shows the live component tree and `@State` of any Swiflow app running in dev mode. Read-only MVP; DOM overlay, `@State` editing, perf graphs, and Web Store publication are explicitly deferred to later phases (19b/c/d/e). See `devtools/README.md` for usage.
-
-### Tests
-- New Swift unit test `DevAPIFormatterTreeStringTests` pins the exact output format of `DevAPIFormatter.treeString` — the indented string the panel parses. Format drift now fails Swift tests at the source.
-- New Playwright contract test `devtools-api.spec.ts` asserts the shape of `window.__swiflow.tree() / state() / perf() / handlers()` on the Counter demo. Catches integration drift in the API surface the panel depends on.
-
-### Internals
-- No production Swift code changes. No JS driver changes. No patch protocol changes. The extension consumes the `window.__swiflow` API surface shipped by Phase 9 as-is.
-
----
-
-## [Phase 18] — `onChange` for nested components
-
-### Behavior changes
-- `Component.onChange()` now fires on **every** component in the tree after each re-render, not just the root. Components that override `onChange()` on a nested component will now see the hook fire as documented (the prior root-only behavior was a bug). React `componentDidUpdate` semantics: fires once per reused instance per render, regardless of whether body output changed. Users who want value-aware filtering should use the existing `onChange(of:_:perform:)` convenience extension from inside their `onChange()` override.
-- `Component.onAppear()` now fires on components mounted **mid-render** (e.g. revealed by a conditional `if/else` branch flip, or appended to a list during a re-render). Previously `onAppear` only fired on the components present at first mount; mid-render new mounts silently skipped it.
-
-### Internals
-- New helpers `collectComponentIDs(_:)` and `firePostRenderLifecycle(_:preExistingIDs:)` in `Sources/Swiflow/Diff/Diff.swift` partition components per render into reused (→ `onChange`) vs freshly mounted (→ `onAppear`). The Renderer's two-branch lifecycle dispatch collapsed into a single call. `fireOnAppearTree` removed (replaced by `firePostRenderLifecycle(_, preExistingIDs: [])`).
-- No public API changes. No JS driver changes. No patch protocol changes.
 
 ## [v0.1.3] — 2026-05-27
 
