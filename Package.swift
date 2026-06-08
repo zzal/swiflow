@@ -134,6 +134,10 @@ let package = Package(
                 .product(name: "HummingbirdWSTesting", package: "hummingbird-websocket"),
             ],
             path: "Tests/SwiflowCLITests",
+            // Fixtures/ holds test data read source-relative via #filePath
+            // (e.g. CompilerBypassTests' swift build -v sample), not bundled
+            // resources — exclude it so SwiftPM doesn't flag it as unhandled.
+            exclude: ["Fixtures"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
