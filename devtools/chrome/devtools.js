@@ -10,7 +10,10 @@
 
 chrome.devtools.panels.create(
   "Swiflow",
-  null,                // no icon path for MVP
+  "panel-icon.svg",    // bundled, extension-relative path. Chrome tolerates
+                       // null here, but Safari resolves iconPath as a URL and
+                       // rejects null/invalid paths — which silently aborts
+                       // panel creation (no DevTools tab appears).
   "panel.html",
   (panel) => {
     let panelWindow = null;

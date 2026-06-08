@@ -29,6 +29,7 @@ shared=(
   devtools.js
   panel.html
   panel.js
+  panel-icon.svg
   colors.css
   design_system_tokens.css
   application_tokens.css
