@@ -31,8 +31,9 @@ be wrapped in a small app, built once in Xcode, and run.
 
    `build.sh` copies the shared panel files from `../chrome` into
    `./extension`, then runs `safari-web-extension-converter` to create the
-   wrapper project under `./xcode` (and opens it). Re-run it any time you
-   edit the panel sources in `../chrome`.
+   wrapper project under `./xcode` (and opens it). On later runs it only
+   re-syncs `./extension` and skips conversion so your signing survives —
+   see "Keeping in sync" below.
 
 3. In Xcode, for **both** targets (the app and the `... Extension` appex):
    **Signing & Capabilities → Signing Certificate → Sign to Run Locally**
@@ -72,7 +73,17 @@ documented in `../chrome/README.md` — the behavior is identical.
 - `manifest.json` here is the only Safari-specific file. If you bump
   `name`/`version` in `../chrome/manifest.json`, bump them here too.
 - `./extension` and `./xcode` are build artifacts (gitignored). Don't edit
-  files in `./extension` directly — edit `../chrome` and re-run `build.sh`.
+  files in `./extension` directly — edit `../chrome`, then re-run `build.sh`
+  and rebuild in Xcode (⌘R).
+- After the first build, `./build.sh` re-syncs `./extension` and **skips** the
+  converter when the Xcode project already exists, so your manual "Sign to Run
+  Locally" settings are preserved. Modes:
+  - `./build.sh` — sync, then convert only on the first run (else skip).
+  - `./build.sh --sync-only` — sync only; never run the converter.
+  - `./build.sh --reconvert` — regenerate the Xcode project (resets signing).
+- Re-syncing updates the **contents** of files already in the project. A
+  brand-new file (e.g. a new icon) must be added to the Xcode project once —
+  drag it into the extension's group, or run `--reconvert`.
 
 ---
 
