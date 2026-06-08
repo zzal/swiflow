@@ -14,7 +14,7 @@ phases (19c, 19d, 19b respectively).
 1. Clone the Swiflow repo.
 2. Open Chrome and navigate to `chrome://extensions`.
 3. Enable **Developer mode** (toggle at the top right).
-4. Click **Load unpacked** and select this `devtools/` directory.
+4. Click **Load unpacked** and select this `devtools/chrome/` directory.
 5. Confirm "Swiflow DevTools" appears in the extensions list with no
    errors.
 

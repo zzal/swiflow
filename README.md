@@ -30,7 +30,7 @@ footer dot showing polling status (green = live, grey = paused,
 red = failed). Zero Swift-side changes — the panel polls the
 existing `__swiflow.perf()` counter via `chrome.devtools.inspectedWindow`.
 Phase 19 shipped the read-only panel itself (tree + per-node
-`@State`) as a sideloadable MV3 extension at `devtools/`.
+`@State`) as a sideloadable MV3 extension at `devtools/chrome/`.
 Phase 18 closed the remaining lifecycle gaps: `onChange` now
 fires on **every** component per re-render (was root-only, same
 bug shape as Phase 17's `onAppear`), and `onAppear` now fires on
@@ -77,8 +77,8 @@ mode. As of Phase 19b the panel auto-updates within ~250 ms of every
 render (no manual refresh needed); a footer indicator dot reports
 polling status (green = live, grey = paused, red = poll failed).
 Sideload via `chrome://extensions` → **Load unpacked** → select
-`devtools/`. See [`devtools/README.md`](devtools/README.md) for the
-full smoke checklist.
+`devtools/chrome/`. See [`devtools/chrome/README.md`](devtools/chrome/README.md)
+for the full smoke checklist.
 
 **What's not in the box yet:**
 - **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
@@ -123,7 +123,7 @@ non-Swiflow page) and the manual ↻ Refresh button remains the
 always-works fallback that still surfaces errors. The mechanism reuses
 `Renderer.renderCount` (already exposed since Phase 9) — no driver,
 patch protocol, or runtime changes. Phase 19 (Component DevTools MVP)
-shipped just before: a Chrome MV3 extension at `devtools/` adds a
+shipped just before: a Chrome MV3 extension at `devtools/chrome/` adds a
 "Swiflow" tab in DevTools showing the live component tree and per-node
 `@State`. Read-only; DOM overlay, `@State` editing, and perf graphs
 are explicitly deferred (19c/d/e). Two contract tests pin the surfaces
