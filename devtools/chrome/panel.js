@@ -68,10 +68,19 @@ class InspectedWindowDataSource extends DataSource {
         }
       })()
     `;
+    // Cross-browser eval dispatch. Chrome's devtools.inspectedWindow.eval is
+    // callback-only — eval(expr, (result, exceptionInfo) => …) — while Safari
+    // and Firefox implement the WebExtensions promise form — eval(expr)
+    // resolving to [result, exceptionInfo]. Critically, Safari NATIVELY CRASHES
+    // Web Inspector when handed Chrome's callback form, so we must not pass a
+    // callback there. `browser` is defined in Safari/Firefox but not Chrome,
+    // which lets us pick the right calling convention. (typeof guards against
+    // a ReferenceError where `browser` is undeclared.)
+    const inspected = chrome.devtools.inspectedWindow;
     return new Promise((resolve, reject) => {
-      chrome.devtools.inspectedWindow.eval(wrapped, (result, exception) => {
+      const settle = (result, exception) => {
         if (exception) {
-          reject(new Error(String(exception.value || exception.description || exception)));
+          reject(new Error(String(exception.value || exception.description || exception.code || exception)));
           return;
         }
         if (!result || !result.ok) {
@@ -79,7 +88,17 @@ class InspectedWindowDataSource extends DataSource {
           return;
         }
         resolve(result.value);
-      });
+      };
+      if (typeof browser !== "undefined" && browser.devtools) {
+        // Promise form (Safari/Firefox): resolves to [result, exceptionInfo].
+        inspected.eval(wrapped).then(
+          (pair) => settle(pair && pair[0], pair && pair[1]),
+          (err) => reject(err instanceof Error ? err : new Error(String(err)))
+        );
+      } else {
+        // Callback form (Chrome).
+        inspected.eval(wrapped, settle);
+      }
     });
   }
 }
