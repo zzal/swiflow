@@ -69,6 +69,7 @@ if xcrun --find safari-web-extension-converter >/dev/null 2>&1; then
   mkdir -p "$proj"
   "${converter_cmd[@]}"
 else
+  hint="$(printf '%q ' "${converter_cmd[@]}")"
   cat >&2 <<EOF
 
 Full Xcode is required to convert + build the Safari extension, but
@@ -79,7 +80,7 @@ Command Line Tools). To finish:
   2. sudo xcode-select -s /Applications/Xcode.app
   3. Re-run ./build.sh, or run the converter directly:
 
-     ${converter_cmd[*]}
+     ${hint}
 
 The ./extension directory was assembled successfully and is ready to convert.
 EOF
