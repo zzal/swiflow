@@ -63,8 +63,10 @@ case "${1:-}" in
 esac
 
 # --- Stage 1: assemble ./extension (always) ----------------------------------
-# Files shared verbatim between the Chrome and Safari extensions. The manifest
-# is intentionally NOT here — Safari uses this dir's manifest.json instead.
+# Browser-agnostic CORE files, shared verbatim from ../chrome (the Chrome
+# extension is their source of truth). NOTE: datasource.js is intentionally NOT
+# here — it's the per-browser transport, and Safari supplies its own (below).
+# The manifest is also not here; Safari uses this dir's manifest.json.
 shared=(
   devtools.html
   devtools.js
@@ -74,6 +76,15 @@ shared=(
   colors.css
   design_system_tokens.css
   application_tokens.css
+)
+
+# Safari-specific encapsulation, supplied from THIS dir (not shared with
+# Chrome): the messaging data source + the relay bridge it talks to.
+local_files=(
+  datasource.js
+  bridge-sw.js
+  bridge-content.js
+  bridge-page.js
 )
 
 # Reassemble from scratch so deletions in ../chrome don't linger here.
@@ -88,12 +99,21 @@ for f in "${shared[@]}"; do
   cp "$src/$f" "$dst/$f"
 done
 
+for f in "${local_files[@]}"; do
+  if [[ ! -f "$here/$f" ]]; then
+    echo "error: missing Safari source $here/$f" >&2
+    exit 1
+  fi
+  cp "$here/$f" "$dst/$f"
+done
+
 # The Safari manifest (this dir's manifest.json) lands as the extension's
-# manifest.json. Differences from the Chrome manifest: no side_panel, no
-# sidePanel/webNavigation permissions, no minimum_chrome_version.
+# manifest.json. It differs from Chrome's: no side_panel/sidePanel, and it adds
+# the bridge (background + content_scripts + web_accessible_resources) plus the
+# host_permissions that the messaging data source needs.
 cp "$here/manifest.json" "$dst/manifest.json"
 
-echo "Assembled ${#shared[@]} shared file(s) + manifest into $dst"
+echo "Assembled ${#shared[@]} core + ${#local_files[@]} Safari file(s) + manifest into $dst"
 
 # --- Stage 2: wrap in a macOS Xcode project (requires full Xcode.app) --------
 if [[ "$mode" == "sync-only" ]]; then

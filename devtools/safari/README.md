@@ -1,13 +1,41 @@
 # Swiflow DevTools (Safari Web Inspector, MVP)
 
 A Safari Web Inspector panel for inspecting a running Swiflow app's
-component tree and `@State` live. It is the Chrome DevTools panel
-(`../chrome/`) repackaged for Safari — the panel code is shared
-verbatim; only the manifest differs (no `side_panel`, no permissions).
+component tree and `@State` live. It shares the Chrome DevTools panel's
+browser-agnostic **core** (`../chrome/`: UI, rendering, polling) and adds a
+Safari-specific **encapsulation** for reading the page — because
+`inspectedWindow.eval` crashes Safari's Web Inspector, Safari reads
+`window.__swiflow` through a small messaging bridge instead. See
+**Architecture** below.
 
 **Requires:** macOS, **Safari 16.4+** (for the `devtools_page` API), and
 **full Xcode.app** (the converter ships only with Xcode, not the Command
 Line Tools).
+
+---
+
+## Architecture: shared core + per-browser encapsulation
+
+The panel never touches the inspected page directly. A browser-specific
+`datasource.js` (loaded before the core `panel.js`) defines a global
+`SWIFLOW_DATA_SOURCE` with `tree()`, `state(path)`, `perf()`; the core just
+calls it.
+
+- **Common core** (authored in `../chrome/`, copied here by `build.sh`):
+  `panel.html`, `panel.js`, `devtools.js`, `panel-icon.svg`, the CSS.
+- **Chrome encapsulation** (`../chrome/datasource.js`): reads the page via
+  `chrome.devtools.inspectedWindow.eval`.
+- **Safari encapsulation** (this dir): `datasource.js` + a messaging bridge,
+  because `inspectedWindow.eval` natively crashes Safari's Web Inspector
+  (confirmed on Safari 26.5, even for a trivial `1 + 1`).
+
+Safari's request hops down this chain, and the reply returns along it. Each hop
+labels its own errors, so a failure message names the exact leg that broke:
+
+```
+panel datasource.js  --runtime-->  bridge-sw.js  --tabs-->
+bridge-content.js  --postMessage-->  bridge-page.js (MAIN world)  ->  __swiflow
+```
 
 ---
 
@@ -69,9 +97,12 @@ documented in `../chrome/README.md` — the behavior is identical.
 
 ## Keeping in sync with the Chrome extension
 
-- `../chrome/` is the single source of truth for all panel code.
-- `manifest.json` here is the only Safari-specific file. If you bump
-  `name`/`version` in `../chrome/manifest.json`, bump them here too.
+- `../chrome/` is the single source of truth for the **core** (UI/logic).
+  Edit core files there, never in `./extension`.
+- Safari-specific files live **here**: `manifest.json`, `datasource.js`
+  (messaging transport), and `bridge-sw.js` / `bridge-content.js` /
+  `bridge-page.js`. If you bump `name`/`version` in `../chrome/manifest.json`,
+  bump this `manifest.json` too.
 - `./extension` and `./xcode` are build artifacts (gitignored). Don't edit
   files in `./extension` directly — edit `../chrome`, then re-run `build.sh`
   and rebuild in Xcode (⌘R).

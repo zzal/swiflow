@@ -1,12 +1,12 @@
-// Phase 19 panel logic.
+// Panel core — browser-agnostic DevTools panel logic (rendering, polling,
+// errors, build stamp). Shared verbatim by the Chrome and Safari extensions.
 //
-// The panel runs in a Chrome extension context isolated from the
-// inspected page. The bridge is the chrome.devtools.inspectedWindow API,
-// which runs a string expression in the inspected page's context and
-// returns the JSON-serialized result.
-//
-// All page-side calls go through DataSource so a future event-driven
-// impl (Phase 19b) can swap in without touching the rendering layer.
+// The panel never talks to the inspected page directly. A browser-specific
+// datasource.js (loaded just before this script in panel.html) defines the
+// global SWIFLOW_DATA_SOURCE — an object with async tree(), state(path) and
+// perf() methods — and this core consumes it. Chrome's datasource.js uses
+// chrome.devtools.inspectedWindow.eval; Safari's uses a messaging bridge
+// (eval natively crashes Safari's Web Inspector).
 
 // ── OS color-scheme detection ─────────────────────────────────────────────────
 //
@@ -28,92 +28,19 @@
   mq.addEventListener("change", apply);
 })();
 
-// Build stamp — proves which panel.js bundle is actually live. Safari and Web
+// Build stamp — proves which panel bundle is actually live. Safari and Web
 // Inspector cache extension code aggressively, so during development a blank
-// stamp means you're still running a stale cached panel.js (do a clean rebuild
-// + reopen Web Inspector). Reads the version from the loaded manifest.
+// stamp means you're still running stale cached code (do a clean rebuild +
+// reopen Web Inspector). Reads the version from the loaded manifest.
 (() => {
   const tag = document.getElementById("build-tag");
   const manifest = chrome.runtime && chrome.runtime.getManifest && chrome.runtime.getManifest();
   if (tag && manifest) tag.textContent = "v" + manifest.version;
 })();
 
-/**
- * Abstract source of devtools data. Methods resolve to documented
- * shapes or null on failure. Errors are surfaced via the returned
- * Promise rejecting with an Error whose .message is suitable for
- * display in the panel's error region.
- */
-class DataSource {
-  async tree()      { throw new Error("not implemented"); }
-  async state(path) { throw new Error("not implemented"); }
-  async perf()      { throw new Error("not implemented"); }
-}
-
-/**
- * MVP implementation: queries window.__swiflow.* in the inspected
- * page via the chrome.devtools.inspectedWindow API and returns the
- * JSON-serialized result. Wraps every call in an inline envelope so
- * page-side exceptions surface instead of being silently swallowed.
- */
-class InspectedWindowDataSource extends DataSource {
-  async tree()      { return this._call("window.__swiflow.tree()"); }
-  async state(path) { return this._call(`window.__swiflow.state(${JSON.stringify(path)})`); }
-  async perf()      { return this._call("window.__swiflow.perf()"); }
-
-  _call(expr) {
-    // Inline envelope: page-side try/catch produces { ok, value, error }.
-    // Without this, the underlying chrome.devtools.inspectedWindow API
-    // silently returns null on page exceptions and on non-JSON-serializable
-    // values.
-    const wrapped = `
-      (() => {
-        try {
-          if (!window.__swiflow) {
-            return { ok: false, error: "No Swiflow runtime detected on this page (window.__swiflow is undefined). Make sure the app is running in dev mode." };
-          }
-          return { ok: true, value: ${expr} };
-        } catch (e) {
-          return { ok: false, error: String(e && e.message ? e.message : e) };
-        }
-      })()
-    `;
-    // Cross-browser eval dispatch. Chrome's devtools.inspectedWindow.eval is
-    // callback-only — eval(expr, (result, exceptionInfo) => …) — while Safari
-    // and Firefox implement the WebExtensions promise form — eval(expr)
-    // resolving to [result, exceptionInfo]. Critically, Safari NATIVELY CRASHES
-    // Web Inspector when handed Chrome's callback form, so we must not pass a
-    // callback there. `browser` is defined in Safari/Firefox but not Chrome,
-    // which lets us pick the right calling convention. (typeof guards against
-    // a ReferenceError where `browser` is undeclared.)
-    const inspected = chrome.devtools.inspectedWindow;
-    return new Promise((resolve, reject) => {
-      const settle = (result, exception) => {
-        if (exception) {
-          reject(new Error(String(exception.value || exception.description || exception.code || exception)));
-          return;
-        }
-        if (!result || !result.ok) {
-          reject(new Error((result && result.error) || "Unknown page-side error"));
-          return;
-        }
-        resolve(result.value);
-      };
-      if (typeof browser !== "undefined" && browser.devtools) {
-        // Promise form (Safari/Firefox): resolves to [result, exceptionInfo].
-        inspected.eval(wrapped).then(
-          (pair) => settle(pair && pair[0], pair && pair[1]),
-          (err) => reject(err instanceof Error ? err : new Error(String(err)))
-        );
-      } else {
-        // Callback form (Chrome).
-        inspected.eval(wrapped, settle);
-      }
-    });
-  }
-}
-
-const dataSource = new InspectedWindowDataSource();
+// The data source is the browser-specific transport, provided by datasource.js
+// (loaded before this file). See the SWIFLOW_DATA_SOURCE contract above.
+const dataSource = globalThis.SWIFLOW_DATA_SOURCE;
 
 // ── Error region ──────────────────────────────────────────────────────────────
 
@@ -127,6 +54,12 @@ function showError(message) {
 function clearError() {
   errorRegion.textContent = "";
   errorRegion.hidden = true;
+}
+
+if (!dataSource) {
+  // datasource.js failed to load or didn't define the contract. Without it
+  // nothing works, so surface it loudly rather than failing per-call later.
+  showError("Internal error: no data source loaded (datasource.js missing or failed).");
 }
 
 // ── Tree parsing ──────────────────────────────────────────────────────────────
