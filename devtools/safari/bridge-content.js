@@ -8,7 +8,10 @@
 // Uses the WebExtensions promise model: the onMessage listener returns a promise
 // that resolves when the MAIN-world script replies (or on timeout).
 (() => {
-  console.log("[swiflow] bridge-content loaded @", location.href);
+  // Flip to true to trace relay hops in the page console. Off by default.
+  const DEBUG = false;
+  const dbg = DEBUG ? (...a) => console.log("[swiflow]", ...a) : () => {};
+  dbg("bridge-content loaded @", location.href);
 
   // 1) Inject the MAIN-world reader. It runs in the page context, sets up its
   //    message listener, then removes its own <script> element.
@@ -38,7 +41,7 @@
 
   browser.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.__swiflowBridge !== true) return;
-    console.log("[swiflow] bridge-content request:", msg.method);
+    dbg("bridge-content request:", msg.method);
     return new Promise((resolve) => {
       const id = ++seq;
       const timer = setTimeout(() => {

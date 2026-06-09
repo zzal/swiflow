@@ -6,7 +6,9 @@
 // Request:  { __swiflowReq: true, id, method, args }
 // Reply:    { __swiflowRes: true, id, ok, value, error }
 (() => {
-  console.log("[swiflow] bridge-page loaded (MAIN world); window.__swiflow is", typeof window.__swiflow);
+  const DEBUG = false; // flip to true to confirm injection in the page console
+  const dbg = DEBUG ? (...a) => console.log("[swiflow]", ...a) : () => {};
+  dbg("bridge-page loaded (MAIN world); window.__swiflow is", typeof window.__swiflow);
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
     const d = ev.data;

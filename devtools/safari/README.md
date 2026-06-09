@@ -87,10 +87,13 @@ be wrapped in a small app, built once in Xcode, and run.
 
 2. Open Web Inspector (⌥⌘I).
 3. Click the **Swiflow** tab in the Web Inspector tab bar.
-4. Click ↻ Refresh to load the component tree.
 
-The panel auto-refreshes when the inspected page navigates. Everything the
-panel shows (tree pane, `@State` pane, footer, live indicator) is
+The panel populates on its own and the **live dot** turns green — the tree and
+`@State` track the app automatically (no need to click Refresh; the button is a
+manual pull). The header **slider** sets the live-poll interval (250 ms → 2 s)
+and your choice is remembered across reloads.
+
+Everything the panel shows (tree pane, `@State` pane, footer, live indicator) is
 documented in `../chrome/README.md` — the behavior is identical.
 
 ---
@@ -115,6 +118,39 @@ documented in `../chrome/README.md` — the behavior is identical.
 - Re-syncing updates the **contents** of files already in the project. A
   brand-new file (e.g. a new icon) must be added to the Xcode project once —
   drag it into the extension's group, or run `--reconvert`.
+- **Reliable reload after a code change** (Safari caches extension code hard):
+  1. `./build.sh` (or `--sync-only`) to re-sync `./extension`.
+  2. Quit Safari (⌘Q), reopen, re-tick **Develop → Allow Unsigned Extensions**.
+  3. In Xcode press **⌘R**, then click **"Quit and Open Safari Extensions
+     Preferences…"** in the run dialog.
+  The header build stamp (e.g. `v0.1.10`) confirms the new code is live; a stale
+  number means Safari is still running the old bundle.
+
+---
+
+## Safari quirks this works around
+
+Hard-won notes (Safari 26.5) so the bridge's shape makes sense:
+
+- **`inspectedWindow.eval` crashes Web Inspector** — natively, even for `1 + 1`,
+  with host access granted. The whole messaging bridge exists to avoid it.
+- **`devtools.inspectedWindow.tabId` is `-1`** (unusable) — so `bridge-sw.js`
+  finds the Swiflow page by probing each tab's content script rather than
+  addressing the inspected tab directly.
+- **`background.service_worker` won't run** — declared + bundled correctly, but
+  Safari never starts it (no "Web Extension Background Content" entry). We use a
+  classic background page (`background.scripts`), debuggable under **Develop →
+  Web Extension Background Pages**.
+- **Async replies need the promise model** — Safari ignores Chrome's
+  `sendResponse()` + `return true`; the relays return a Promise from `onMessage`.
+- **`panel.onShown` doesn't fire / the panel window isn't exposed** — so polling
+  is driven by the panel's own `document.visibilitychange`, not `devtools.js`.
+- **MAIN-world access** — content scripts can't see `window.__swiflow` (isolated
+  world), so `bridge-content.js` injects `bridge-page.js` (a
+  `web_accessible_resource`) into the page's MAIN world to read it.
+- **`iconPath` must be a real bundled file** — `panels.create(…, null, …)`
+  silently fails in Safari; we pass `panel-icon.svg`.
+- **Allow Unsigned Extensions resets** on every Safari relaunch.
 
 ---
 

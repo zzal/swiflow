@@ -11,7 +11,12 @@
 // Uses the WebExtensions promise model: onMessage RETURNS a promise whose
 // resolution becomes the response (Safari doesn't deliver Chrome's
 // sendResponse()+`return true` back to a promise-based sender).
-console.log("[swiflow] bridge-sw loaded");
+// Flip to true to trace each hop in the background console. Off by default —
+// at fast poll intervals it logs a request/reply every tick.
+const DEBUG = false;
+const dbg = DEBUG ? (...a) => console.log("[swiflow]", ...a) : () => {};
+
+dbg("bridge-sw loaded");
 
 let lastGoodTabId = null;
 
@@ -55,9 +60,9 @@ async function relay(method, args) {
 
 browser.runtime.onMessage.addListener((msg, sender) => {
   if (!msg || msg.__swiflow !== true) return; // not ours → unhandled
-  console.log("[swiflow] bridge-sw request:", msg.method);
+  dbg("bridge-sw request:", msg.method);
   return relay(msg.method, msg.args).then((resp) => {
-    console.log("[swiflow] bridge-sw reply:", resp);
+    dbg("bridge-sw reply:", resp);
     return resp;
   });
 });
