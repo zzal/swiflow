@@ -362,3 +362,19 @@ window.swiflowStop = () => {
   pollHandle = null;
   setLiveIndicator("grey", "Paused (panel hidden)");
 };
+
+// Drive polling from the panel's OWN visibility instead of devtools.js's
+// panel.onShown. Safari doesn't reliably fire onShown or expose the panel
+// window to the devtools_page, so the onShown→swiflowStart hook never ran —
+// the live dot stayed grey and @State never auto-updated. visibilitychange
+// fires in the panel page when its DevTools tab is shown/hidden; if a browser
+// never fires it we simply keep polling, which is harmless.
+function syncPollingToVisibility() {
+  if (document.visibilityState === "hidden") {
+    swiflowStop();
+  } else {
+    swiflowStart();
+  }
+}
+document.addEventListener("visibilitychange", syncPollingToVisibility);
+syncPollingToVisibility(); // panel is visible on load → start immediately
