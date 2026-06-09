@@ -10,6 +10,19 @@
 // Safari ships its own messaging-based datasource.js instead — inspectedWindow
 // .eval natively crashes Safari's Web Inspector, so it can't be used there.
 (() => {
+  // Build a readable message from Chrome's eval exceptionInfo. A page-side throw
+  // (isException) puts the message in .value; a DevTools-side failure (isError)
+  // puts a printf-style template in .description (e.g. "Operation failed: %s")
+  // with its args in .details — substitute them so we don't show a literal "%s".
+  function describeException(exc) {
+    if (exc.value) return String(exc.value);
+    if (exc.description) {
+      const details = Array.isArray(exc.details) ? exc.details.slice() : [];
+      return exc.description.replace(/%[a-z]/gi, () => (details.length ? String(details.shift()) : ""));
+    }
+    return String(exc.code || "eval failed");
+  }
+
   function call(expr) {
     // Page-side envelope: a try/catch that returns { ok, value, error } so page
     // exceptions and a missing runtime surface as readable errors instead of
@@ -29,7 +42,7 @@
     return new Promise((resolve, reject) => {
       chrome.devtools.inspectedWindow.eval(wrapped, (result, exception) => {
         if (exception) {
-          reject(new Error(String(exception.value || exception.description || exception)));
+          reject(new Error(describeException(exception)));
           return;
         }
         if (!result || !result.ok) {

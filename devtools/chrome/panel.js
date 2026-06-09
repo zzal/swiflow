@@ -286,6 +286,10 @@ async function refreshAll(surfaceErrors) {
     } else {
       clearState();
     }
+    // A fully successful refresh means the panel is healthy — clear any stale
+    // error (e.g. a transient one surfaced mid-reload). Persistent errors stay,
+    // because a failing fetch throws before reaching here.
+    clearError();
   } catch (err) {
     if (surfaceErrors) {
       showError(err.message);
@@ -309,7 +313,13 @@ document.getElementById("refresh-btn").addEventListener("click", async () => {
 // shows stale data from the previous URL. Selection is cleared because
 // the previous path may not exist in the new tree.
 chrome.devtools.network.onNavigated.addListener(() => {
+  // Reset for the new page and flag a reconnect so the running poll re-renders
+  // once the new page's runtime is ready — even if the render count coincides.
+  // The Refresh click does an immediate pull; if it races the page teardown and
+  // surfaces a transient error, the next successful poll clears it (refreshAll).
   selectedPath = null;
+  lastPerfSignature = null;
+  pollLive = false;
   clearState();
   document.getElementById("refresh-btn").click();
 });
