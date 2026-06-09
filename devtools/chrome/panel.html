@@ -107,6 +107,15 @@
         border-top: 1px solid var(--sys-color-divider);
         font-size: 11px;
         color: var(--sys-color-on-surface-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.25em;
+      }
+      #footer-stats {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5em;
       }
       .live-indicator {
         display: inline-block;
@@ -171,7 +180,7 @@
     </main>
     <footer>
       <span id="live-indicator" class="live-indicator live-indicator--grey" title="Paused"></span>
-      <span id="footer"></span>
+      <span id="footer-stats"></span>
     </footer>
     <!-- Browser-specific transport (defines SWIFLOW_DATA_SOURCE), loaded
          before the shared core. Chrome ships the eval version here; the Safari

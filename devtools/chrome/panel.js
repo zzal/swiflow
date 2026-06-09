@@ -222,7 +222,7 @@ function clearState() {
 
 // ── Footer (perf summary) ─────────────────────────────────────────────────────
 
-const footer = document.getElementById("footer");
+const footer = document.getElementById("footer-stats");
 
 function renderFooter(perfData, activeSelector) {
   footer.replaceChildren();
@@ -239,9 +239,28 @@ function renderFooter(perfData, activeSelector) {
     footer.textContent = "";
     return;
   }
-  footer.textContent =
-    `Selector: ${selector} | Renders: ${entry.renders} ` +
-    `| LastPatch: ${entry.lastPatchCount} | LastRenderMs: ${entry.lastRenderMs.toFixed(2)}`;
+  const separatorElm = document.createElement("div");
+  separatorElm.textContent = '|';
+  separatorElm.style.opacity = 0.5;
+
+  const selectorElm = document.createElement("div");
+  selectorElm.textContent = `Selector: ${selector}`;
+  footer.appendChild(selectorElm);
+
+  const rendersElm = document.createElement("div");
+  rendersElm.textContent = `Renders: ${entry.renders}`;
+  footer.appendChild(separatorElm.cloneNode(true));
+  footer.appendChild(rendersElm);
+
+  const lastPatchElm = document.createElement("div");
+  lastPatchElm.textContent = `LastPatch: ${entry.lastPatchCount}`;
+  footer.appendChild(separatorElm.cloneNode(true));
+  footer.appendChild(lastPatchElm);
+
+  const lastRenderTimeElm = document.createElement("div");
+  lastRenderTimeElm.textContent = `LastRenderMs: ${entry.lastRenderMs.toFixed(1)}`;
+  footer.appendChild(separatorElm);
+  footer.appendChild(lastRenderTimeElm);
 }
 
 // ── Refresh ───────────────────────────────────────────────────────────────────
