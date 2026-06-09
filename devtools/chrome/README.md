@@ -31,6 +31,23 @@ When the inspected page navigates, the panel auto-refreshes.
 
 ---
 
+## Reload after changes (development)
+
+Chrome caches the loaded unpacked extension — editing files in this directory
+does **not** update it automatically. After any change:
+
+1. Go to `chrome://extensions` and click the **↻ reload** icon on the
+   **Swiflow DevTools** card.
+2. **Close DevTools entirely and reopen it** (⌘W inside DevTools to close,
+   ⌥⌘I to reopen) on your app page. A DevTools extension's panel only reloads
+   its code when DevTools is reopened — reloading the extension alone isn't
+   enough while DevTools is open.
+
+The version shown in the panel header (e.g. `v0.1.14`) tells you which build is
+live; a stale number means step 1 or 2 didn't take.
+
+---
+
 ## What it shows
 
 - **Tree pane (left):** every mounted component in document order,
