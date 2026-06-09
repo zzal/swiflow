@@ -257,8 +257,12 @@ function renderFooter(perfData, activeSelector) {
   footer.appendChild(separatorElm.cloneNode(true));
   footer.appendChild(lastPatchElm);
 
+  // Round to 1 decimal but drop a trailing ".0". Safari clamps performance.now()
+  // to whole milliseconds, so its render times are integers — show "6", not "6.0"
+  // (Chrome's finer timer still shows e.g. "6.2").
+  const renderMs = Math.round(entry.lastRenderMs * 10) / 10;
   const lastRenderTimeElm = document.createElement("div");
-  lastRenderTimeElm.textContent = `LastRenderMs: ${entry.lastRenderMs.toFixed(1)}`;
+  lastRenderTimeElm.textContent = `LastRenderMs: ${renderMs}`;
   footer.appendChild(separatorElm);
   footer.appendChild(lastRenderTimeElm);
 }
