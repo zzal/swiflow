@@ -328,6 +328,7 @@ const liveIndicator = document.getElementById("live-indicator");
 
 let pollHandle = null;
 let lastPerfSignature = null;
+let pollLive = false; // did the previous poll succeed? (drives reconnect detection)
 
 function setLiveIndicator(state, tooltip) {
   liveIndicator.classList.remove(
@@ -350,9 +351,16 @@ function computePerfSignature(perf) {
 async function pollTick() {
   try {
     const perf = await dataSource.perf();
+    // Reconnect detection: a poll that succeeds right after a failure means the
+    // runtime went away and came back — i.e. the page reloaded. Force a full
+    // refresh even if the render count happens to match, and even in browsers
+    // where devtools.network.onNavigated never fires (Safari). This is what
+    // makes the panel re-live a reloaded app on its own, in both browsers.
+    const reconnected = !pollLive;
+    pollLive = true;
     setLiveIndicator("green", "Live");
     const signature = computePerfSignature(perf);
-    if (signature !== lastPerfSignature) {
+    if (reconnected || signature !== lastPerfSignature) {
       lastPerfSignature = signature;
       // refreshAll(false): poll-driven, suppress error-region surfacing.
       // If the refresh itself fails, swallow — pollTick's own catch
@@ -364,10 +372,9 @@ async function pollTick() {
       }
     }
   } catch (err) {
+    pollLive = false;
     setLiveIndicator("red", `Connection lost: ${err.message}`);
-    // Preserve lastPerfSignature: when polling recovers, the next
-    // successful tick will see whatever state moved during the outage
-    // and trigger a single recovery refresh.
+    // Next successful tick will be treated as a reconnect and force a refresh.
   }
 }
 
@@ -385,6 +392,7 @@ window.swiflowStop = () => {
   if (pollHandle === null) return;
   clearInterval(pollHandle);
   pollHandle = null;
+  pollLive = false; // re-showing the panel counts as a reconnect → forces a fresh pull
   setLiveIndicator("grey", "Paused (panel hidden)");
 };
 
