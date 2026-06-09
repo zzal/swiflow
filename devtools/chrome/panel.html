@@ -59,6 +59,7 @@
       }
       #poll-slider { width: 84px; }
       #poll-label { min-width: 42px; } /* fixed width avoids layout jitter */
+      .poll-caption { white-space: nowrap; }
       /* Text-button style per the components guide: outlined border,
          transparent fill, hover shading, visible focus ring. */
       #refresh-btn {
@@ -153,7 +154,8 @@
     <header>
       <button id="refresh-btn">↻ Refresh</button>
       <span id="poll-control" title="Live-polling interval">
-        <input id="poll-slider" type="range" min="0" max="4" step="1" value="0" aria-label="Polling interval" />
+        <span class="poll-caption">Auto-refresh Interval:</span>
+        <input id="poll-slider" type="range" min="0" max="4" step="1" value="0" aria-label="Auto-refresh interval" />
         <span id="poll-label">250 ms</span>
       </span>
       <span id="build-tag"></span>
