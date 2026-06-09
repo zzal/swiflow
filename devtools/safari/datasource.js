@@ -9,17 +9,18 @@
 // and the reply comes back along the same chain. Each hop tags its own errors,
 // so a failure message points at the exact leg that broke.
 //
+// Note: the background locates the Swiflow tab itself (Safari's
+// devtools.inspectedWindow.tabId is -1/unusable), so no tab id is sent here.
+//
 // Defines the SWIFLOW_DATA_SOURCE contract consumed by panel.js (the core):
 //   async tree()      -> { selector: "indented tree string", … }
 //   async state(path) -> { field: value, … } | null
 //   async perf()      -> { selector: { renders, lastPatchCount, lastRenderMs }, … }
 (() => {
-  const tabId = browser.devtools.inspectedWindow.tabId;
-
   async function request(method, args) {
     let resp;
     try {
-      resp = await browser.runtime.sendMessage({ __swiflow: true, tabId, method, args: args || [] });
+      resp = await browser.runtime.sendMessage({ __swiflow: true, method, args: args || [] });
     } catch (e) {
       throw new Error("bridge (panel→background): " + (e && e.message ? e.message : e));
     }
