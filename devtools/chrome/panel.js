@@ -298,7 +298,9 @@ chrome.devtools.network.onNavigated.addListener(() => {
 // errors are silent — they only paint the live indicator red. Visibility
 // gating is driven externally by devtools.js calling swiflowStart/swiflowStop.
 
-const POLL_INTERVAL_MS = 250;
+// Live-poll cadence. The header slider picks one of these stops (indices 0..4).
+const POLL_INTERVALS = [250, 500, 750, 1000, 2000];
+let pollIntervalMs = POLL_INTERVALS[0];
 const liveIndicator = document.getElementById("live-indicator");
 
 let pollHandle = null;
@@ -352,7 +354,7 @@ window.swiflowStart = () => {
   // Kick an immediate refresh so onShown doesn't wait 250ms to populate.
   // lastPerfSignature stays null here; the immediate poll will detect
   // "different" and run refreshAll on the first tick.
-  pollHandle = setInterval(pollTick, POLL_INTERVAL_MS);
+  pollHandle = setInterval(pollTick, pollIntervalMs);
   pollTick();  // immediate first poll
 };
 
@@ -362,6 +364,41 @@ window.swiflowStop = () => {
   pollHandle = null;
   setLiveIndicator("grey", "Paused (panel hidden)");
 };
+
+// ── Poll-interval control (header slider) ──────────────────────────────────
+// Maps the 5-stop slider to POLL_INTERVALS and applies the choice live: updates
+// the label, restarts the running timer at the new cadence, and remembers the
+// pick across reloads via localStorage.
+const POLL_STORAGE_KEY = "swiflow.pollIntervalMs";
+const pollSlider = document.getElementById("poll-slider");
+const pollLabel = document.getElementById("poll-label");
+
+function applyPollIndex(index, persist) {
+  pollIntervalMs = POLL_INTERVALS[index] != null ? POLL_INTERVALS[index] : POLL_INTERVALS[0];
+  if (pollLabel) pollLabel.textContent = `${pollIntervalMs} ms`;
+  if (pollSlider) pollSlider.value = String(index);
+  // Restart the timer immediately if polling is live, so the new cadence
+  // takes effect without waiting for the current interval to elapse.
+  if (pollHandle !== null) {
+    clearInterval(pollHandle);
+    pollHandle = setInterval(pollTick, pollIntervalMs);
+  }
+  if (persist) {
+    try { localStorage.setItem(POLL_STORAGE_KEY, String(pollIntervalMs)); } catch (_) {}
+  }
+}
+
+// Restore the saved cadence (default 250 ms) before polling starts below.
+(() => {
+  let saved = POLL_INTERVALS[0];
+  try { saved = parseInt(localStorage.getItem(POLL_STORAGE_KEY), 10) || saved; } catch (_) {}
+  const idx = POLL_INTERVALS.indexOf(saved);
+  applyPollIndex(idx >= 0 ? idx : 0, false);
+})();
+
+if (pollSlider) {
+  pollSlider.addEventListener("input", () => applyPollIndex(parseInt(pollSlider.value, 10), true));
+}
 
 // Drive polling from the panel's OWN visibility instead of devtools.js's
 // panel.onShown. Safari doesn't reliably fire onShown or expose the panel

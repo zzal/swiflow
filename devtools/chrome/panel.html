@@ -47,6 +47,18 @@
         font-size: 11px;
         color: var(--sys-color-on-surface-subtle);
       }
+      /* Live-poll interval slider (5 discrete stops). */
+      #poll-control {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 12px;
+        font-size: 11px;
+        color: var(--sys-color-on-surface-subtle);
+        user-select: none;
+      }
+      #poll-slider { width: 84px; }
+      #poll-label { min-width: 42px; } /* fixed width avoids layout jitter */
       /* Text-button style per the components guide: outlined border,
          transparent fill, hover shading, visible focus ring. */
       #refresh-btn {
@@ -140,6 +152,10 @@
   <body>
     <header>
       <button id="refresh-btn">↻ Refresh</button>
+      <span id="poll-control" title="Live-polling interval">
+        <input id="poll-slider" type="range" min="0" max="4" step="1" value="0" aria-label="Polling interval" />
+        <span id="poll-label">250 ms</span>
+      </span>
       <span id="build-tag"></span>
     </header>
     <div id="error-region" hidden></div>
