@@ -6,6 +6,7 @@
 // Request:  { __swiflowReq: true, id, method, args }
 // Reply:    { __swiflowRes: true, id, ok, value, error }
 (() => {
+  console.log("[swiflow] bridge-page loaded (MAIN world); window.__swiflow is", typeof window.__swiflow);
   window.addEventListener("message", (ev) => {
     if (ev.source !== window) return;
     const d = ev.data;

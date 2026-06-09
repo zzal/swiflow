@@ -14,12 +14,12 @@
 //   async state(path) -> { field: value, … } | null
 //   async perf()      -> { selector: { renders, lastPatchCount, lastRenderMs }, … }
 (() => {
-  const tabId = chrome.devtools.inspectedWindow.tabId;
+  const tabId = browser.devtools.inspectedWindow.tabId;
 
   async function request(method, args) {
     let resp;
     try {
-      resp = await chrome.runtime.sendMessage({ __swiflow: true, tabId, method, args: args || [] });
+      resp = await browser.runtime.sendMessage({ __swiflow: true, tabId, method, args: args || [] });
     } catch (e) {
       throw new Error("bridge (panel→background): " + (e && e.message ? e.message : e));
     }
