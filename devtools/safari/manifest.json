@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Swiflow DevTools",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Inspect Swiflow (Swift WASM) component trees and @State live in Safari's Web Inspector.",
   "devtools_page": "devtools.html",
   "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "bridge-sw.js" },
+  "background": { "scripts": ["bridge-sw.js"], "persistent": false },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
