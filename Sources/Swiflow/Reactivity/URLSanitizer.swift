@@ -12,9 +12,11 @@
 /// loudly-named static property.
 ///
 /// **Audit pattern:** every URL-bearing attribute that reaches the DOM
-/// passes through `URLSanitizer.sanitize(_:)`. Search for that exact
-/// symbol to enumerate every entry point. The `VNode.rawHTML(...)`
-/// escape hatch is the only documented way to bypass.
+/// passes through `URLSanitizer.sanitize(_:)` — via the prefix `Attribute`
+/// fold (DSL/Modifiers.swift) and the postfix `VNode.attr(_:_:)` modifier
+/// (DSL/VNodeModifiers.swift). Search for that exact symbol to enumerate
+/// every entry point. The `VNode.rawHTML(...)` escape hatch is the only
+/// documented way to bypass.
 public enum URLSanitizer {
 
     public static let defaultAllowedSchemes: Set<String> = [
