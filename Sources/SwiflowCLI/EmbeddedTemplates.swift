@@ -2243,10 +2243,10 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiflowWeb", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
-                // The fetch + JSON-decode story now lives in the SwiflowHTTP
+                // The fetch + JSON-decode story now lives in the SwiflowFetcher
                 // module (graduated from this example's old Net.swift); it pulls
                 // in JavaScriptKit/JavaScriptEventLoop transitively.
-                .product(name: "SwiflowHTTP", package: "Swiflow"),
+                .product(name: "SwiflowFetcher", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -2276,7 +2276,7 @@ optimistic updates, invalidation — is identical to the simulated examples; onl
   so edits made in another tab or by another user appear as soon as you switch back.
 - **5-second polling**: `refetchInterval: .seconds(5)` keeps the list live — out-of-band
   edits (made directly against the API or by another browser) appear within ~5 s.
-- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowHTTP`** module
+- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowFetcher`** module
   — `HTTPClient(baseURL:)` over the browser `fetch` + `JSValueDecoder`; no
   `Foundation`/`URLSession`.
 
@@ -2335,7 +2335,7 @@ See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagr
                 "Sources/App/App.swift": ##"""
 import SwiflowWeb
 import SwiflowQuery
-import SwiflowHTTP
+import SwiflowFetcher
 
 /// The CRUD API, configured once. Point `baseURL` elsewhere to target another
 /// host/port; queries and mutations call it with relative paths.

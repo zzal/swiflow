@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
         .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
-        .library(name: "SwiflowHTTP", targets: ["SwiflowHTTP"]),
+        .library(name: "SwiflowFetcher", targets: ["SwiflowFetcher"]),
         .library(name: "SwiflowUI", targets: ["SwiflowUI"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
@@ -104,12 +104,12 @@ let package = Package(
         // behind `#if canImport(JavaScriptKit)`; `JSONValue`/`HTTPError`
         // compile everywhere (and are host-tested).
         .target(
-            name: "SwiflowHTTP",
+            name: "SwiflowFetcher",
             dependencies: [
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
-            path: "Sources/SwiflowHTTP",
+            path: "Sources/SwiflowFetcher",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
@@ -158,9 +158,9 @@ let package = Package(
             path: "Tests/SwiflowQueryTests"
         ),
         .testTarget(
-            name: "SwiflowHTTPTests",
-            dependencies: ["SwiflowHTTP"],
-            path: "Tests/SwiflowHTTPTests",
+            name: "SwiflowFetcherTests",
+            dependencies: ["SwiflowFetcher"],
+            path: "Tests/SwiflowFetcherTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

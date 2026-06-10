@@ -1,6 +1,6 @@
 import SwiflowWeb
 import SwiflowQuery
-import SwiflowHTTP
+import SwiflowFetcher
 
 /// The CRUD API, configured once. Point `baseURL` elsewhere to target another
 /// host/port; queries and mutations call it with relative paths.

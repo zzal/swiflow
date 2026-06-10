@@ -1,6 +1,6 @@
-// Tests/SwiflowHTTPTests/JSONValueTests.swift
+// Tests/SwiflowFetcherTests/JSONValueTests.swift
 import Testing
-@testable import SwiflowHTTP
+@testable import SwiflowFetcher
 
 @Suite("JSONValue")
 struct JSONValueTests {

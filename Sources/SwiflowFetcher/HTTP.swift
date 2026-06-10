@@ -1,4 +1,4 @@
-// Sources/SwiflowHTTP/HTTP.swift
+// Sources/SwiflowFetcher/HTTP.swift
 //
 // Static convenience facade over a base-URL-less `HTTPClient`, for one-off
 // requests against absolute URLs. For a configured client (base URL + default

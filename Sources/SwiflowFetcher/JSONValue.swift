@@ -1,4 +1,4 @@
-// Sources/SwiflowHTTP/JSONValue.swift
+// Sources/SwiflowFetcher/JSONValue.swift
 //
 // A small, Sendable JSON value used for request bodies. Literal-expressible so
 // bodies read naturally inline — `["title": .string(name), "done": false]` —

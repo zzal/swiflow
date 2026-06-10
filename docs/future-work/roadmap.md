@@ -39,7 +39,7 @@ byte-for-byte identical to the simulated version.
 **What it will surface.** Whether Swiflow has (or wants) an ergonomic
 networking/JSON-decode helper. Right now there's no first-class HTTP story; this
 example is the forcing function to decide between (a) "just call `fetch` via
-JavaScriptKit, document the pattern," or (b) a small `SwiflowHTTP`-style helper
+JavaScriptKit, document the pattern," or (b) a small `SwiflowFetcher`-style helper
 (typed GET/POST + `Decodable` bridging over the JS `fetch` promise).
 
 **Open questions.**
@@ -138,7 +138,7 @@ Several roadmap items converge on the same few primitives. Building these well u
 multiple themes at once:
 
 1. **A real `fetch` / JSON story** — `JSObject.global.fetch` bridging + `Decodable` decode.
-   Needed by Theme A; useful everywhere. Decide: documented pattern vs a `SwiflowHTTP` helper.
+   Needed by Theme A; useful everywhere. Decide: documented pattern vs a `SwiflowFetcher` helper.
 2. **A richer element model** — set JS *properties* (not just attributes), `CustomEvent`
    detail payloads, and a **"Swiflow does not reconcile inside this node" escape hatch**.
    Serves B1 (web components), B2 (canvas / foreign WASM), and any third-party-DOM integration.

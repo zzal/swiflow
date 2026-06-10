@@ -1,4 +1,4 @@
-// Sources/SwiflowHTTP/HTTPClient.swift
+// Sources/SwiflowFetcher/HTTPClient.swift
 //
 // A configured JSON-over-`fetch` client: a base URL + default headers applied
 // to every request. WASM-only (behind `#if canImport(JavaScriptKit)`), like

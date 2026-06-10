@@ -1,4 +1,4 @@
-// Sources/SwiflowHTTP/HTTPError.swift
+// Sources/SwiflowFetcher/HTTPError.swift
 //
 // Public error type for `HTTP`. Pure Swift (no JavaScriptKit) so it's part of
 // the module's API on every platform, not just WASM.

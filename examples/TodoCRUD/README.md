@@ -19,7 +19,7 @@ optimistic updates, invalidation — is identical to the simulated examples; onl
   so edits made in another tab or by another user appear as soon as you switch back.
 - **5-second polling**: `refetchInterval: .seconds(5)` keeps the list live — out-of-band
   edits (made directly against the API or by another browser) appear within ~5 s.
-- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowHTTP`** module
+- The real `fetch` + JSON-decode idiom for WASM via the **`SwiflowFetcher`** module
   — `HTTPClient(baseURL:)` over the browser `fetch` + `JSValueDecoder`; no
   `Foundation`/`URLSession`.
 
