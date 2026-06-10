@@ -20,6 +20,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Changed
 
+- **Event/binding modifiers moved into the `Swiflow` core module.**
+  `.on`, `.value`, `.checked`, `.selection`, and `.ref` now register through a
+  core ambient handler seam instead of living in `SwiflowDOM` — no user-facing
+  API change (SwiflowDOM re-exports Swiflow), but the modifiers now work
+  headlessly under `SwiflowTesting`.
+- **`SwiflowTesting` is now faithful to the browser renderer.** Components
+  under test render through the production diff path: `onAppear`/`onChange`/
+  `onDisappear` fire, state changes re-render from the root, and synthetic
+  events carry `targetValue`/`targetChecked` the way the JS driver sends them.
 - **Renamed two library modules** for clearer intent (no API surface change —
   only the module names). Dependent projects must update `import` lines and
   `.product(name:)` references:
@@ -27,6 +36,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   - `SwiflowWeb` → **`SwiflowDOM`** — the WASM/DOM renderer.
 
   `swiflow init` templates and all bundled examples now use the new names.
+
+### Added
+
+- `TestHarness.check(_:at:checked:)` — simulate checkbox/radio toggles.
+- `TestHarness.unmount()` — tear down the tree, firing `onDisappear`.
 
 ---
 

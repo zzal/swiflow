@@ -15,17 +15,17 @@
 | Unit | Status | Critical | High | Medium | Low |
 |---|---|---|---|---|---|
 | Swiflow (core) | ✅ audited | 0 | 1 | 4 | 5 |
-| Cross-module architecture | ✅ audited | 0 | 2 | 3 | 5 |
+| Cross-module architecture | ✅ audited | 0 | 0 | 3 | 5 |
 | SwiflowCLI | ✅ audited | 0 | 2 | 4 | 4 |
 | SwiflowDOM | ✅ audited | 0 | 4 | 5 | 3 |
 | SwiflowFetcher | ✅ audited | 0 | 0 | 3 | 4 |
 | SwiflowMacrosPlugin | ✅ audited | 0 | 1 | 5 | 4 |
 | SwiflowQuery | ✅ audited | 0 | 1 | 4 | 5 |
 | SwiflowRouter | ✅ audited | 0 | 2 | 3 | 5 |
-| SwiflowTesting | ✅ audited | 0 | 3 | 3 | 2 |
+| SwiflowTesting | ✅ audited | 0 | 0 | 3 | 2 |
 | SwiflowUI | ✅ audited | 0 | 1 | 2 | 1 |
 | js-driver | ✅ audited | 1 | 2 | 4 | 4 |
-| **Total** | | **1** | **19** | **40** | **42** |
+| **Total** | | **1** | **14** | **40** | **42** |
 
 **Verdict in one paragraph:** Module internals are far better than typical AI-built
 code — disciplined access control, real invariant comments, correct subtle algorithms,
@@ -127,7 +127,7 @@ concentrates at the renderer/testing boundary: the handler registry was never li
 into a core ambient seam the way `RenderObserverBox`/`TaskScope` were, and the two High
 findings cascade from that.
 
-### HIGH — Public event-modifier API implemented twice with divergent semantics *(verified)*
+### HIGH — Public event-modifier API implemented twice with divergent semantics *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 `Sources/SwiflowDOM/AttributeModifiers.swift:31-59,67-82` vs
 `Sources/SwiflowTesting/TestingModifiers.swift:8-58`. Same public signatures
 (`VNode.on`, `Attribute.on`) defined in two modules against two different private
@@ -140,7 +140,7 @@ lives in SwiflowDOM instead of core — which already solved this exact problem 
 times (`RenderObserverBox`, `SwiflowTaskRuntime.currentScope`, `AmbientEnvironment`).
 A core ambient box would delete TestingModifiers entirely.
 
-### HIGH — TestRenderer skips production lifecycle *(verified)*
+### HIGH — TestRenderer skips production lifecycle *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 `Sources/SwiflowDOM/Renderer.swift:251` calls `firePostRenderLifecycle`; `:261` calls
 `destroy`. `Sources/SwiflowTesting/TestRenderer.swift` contains zero calls to either
 (grep confirmed), and `RenderObserverBox.current?.componentDidUnmount` (Diff.swift:656)
@@ -694,7 +694,7 @@ event-simulation layer is low-fidelity: it hand-builds `EventInfo` with fewer fi
 than the JS driver ever sends, leaving checkbox/radio components untestable and
 blur-validation paths returning nil where the browser returns a value.
 
-### HIGH — Event payloads omit `targetChecked`; checkboxes/radios untestable *(verified)*
+### HIGH — Event payloads omit `targetChecked`; checkboxes/radios untestable *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 `TestRenderer.swift:187,196,205,214` — all four dispatches build `EventInfo` without
 `targetChecked`; no `check()`/toggle API exists. The driver
 (js-driver/swiflow-driver.js:70-80) sends `targetChecked` on every event with a
@@ -703,13 +703,13 @@ simulating a checkbox through the harness is a guaranteed silent no-op. Test aut
 already route around it: `CheckedSelectionBindingTests.swift` hand-builds synthetic
 `EventInfo(type: "change", targetChecked: true)` instead of using the harness.
 
-### HIGH — `blur()` drops the target value the browser always sends *(verified)*
+### HIGH — `blur()` drops the target value the browser always sends *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 `TestRenderer.swift:205` — `EventInfo(type: "blur")`. The driver's `serializeEvent`
 snapshots `target.value` for any value-bearing target, so a validate-on-blur handler
 reading `info.targetValue` works in production but receives nil under test. (Click on
 buttons/inputs similarly gets `targetValue: ""` from the driver, nil here.)
 
-### HIGH — Nested re-render diverges from production while claiming faithfulness *(verified)*
+### HIGH — Nested re-render diverges from production while claiming faithfulness *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 `TestRenderer.swift:93-111` — a nested component's `@State` change diffs only
 `node.componentBody`; production always re-renders from root
 (SwiflowDOM/Renderer.swift:120-124). A parent whose body reads shared mutable state
