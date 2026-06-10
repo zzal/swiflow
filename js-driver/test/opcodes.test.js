@@ -239,12 +239,46 @@ describe("driver opcodes", () => {
     assert.equal(app.firstElementChild.className, "swiflow-AboutPage");
   });
 
-  test("replaceMount throws when selector target is missing", () => {
-    const { swiflow } = setupDriver();
+  test("replaceMount with a missing selector is caught per-patch and logged as an error", () => {
+    // Prior to per-patch isolation this test used assert.throws, which relied on
+    // applyPatches propagating the error out. With per-patch try/catch the error
+    // is swallowed at the patch level (preventing half-applied batches), logged
+    // via console.error, and passed to the dev overlay if present. We now verify
+    // the error is logged rather than thrown.
+    const { swiflow, window } = setupDriver();
     swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
-    assert.throws(
-      () => swiflow.applyPatches([{ op: "replaceMount", selector: "#missing", newHandle: 1 }]),
-      /replaceMount target '#missing' not found/
-    );
+    const errors = [];
+    const origError = window.console.error;
+    window.console.error = (...args) => { errors.push(args); };
+    try {
+      swiflow.applyPatches([{ op: "replaceMount", selector: "#missing", newHandle: 1 }]);
+    } finally {
+      window.console.error = origError;
+    }
+    // Must not throw — per-patch isolation absorbs it.
+    // The error is reported loudly via console.error.
+    assert.ok(errors.some(a => String(a[0]).includes("patch failed")));
+  });
+
+  test("a failing patch does not abort the rest of the batch and logs an error", () => {
+    const { swiflow, window } = setupDriver();
+    const errors = [];
+    const origError = window.console.error;
+    window.console.error = (...args) => { errors.push(args); };
+    try {
+      swiflow.applyPatches([
+        { op: "createElement", handle: 10, tag: "div" },
+        // Bad: parent handle 999 was never created — this used to throw and
+        // abort the remaining patches.
+        { op: "appendChild", parent: 999, child: 10 },
+        { op: "createElement", handle: 11, tag: "span" },
+      ]);
+    } finally {
+      window.console.error = origError;
+    }
+    // The batch continued: handle 11 exists and is usable.
+    assert.ok(swiflow.nodeForHandle(11));
+    // And the failure was loudly reported.
+    assert.ok(errors.some(a => String(a[0]).includes("patch failed")));
   });
 });

@@ -335,10 +335,26 @@
   }
 
   window.swiflow = {
-    /** Called by Swift each frame with a JSArray of patch objects. */
+    /** Called by Swift each frame with a JSArray of patch objects.
+     *  Each patch is applied in its own try/catch: one bad handle must not
+     *  abort the rest of the frame (a half-applied batch is strictly worse
+     *  than a batch with one skipped op). Failures are console.error'd in
+     *  ALL builds — production included — and additionally routed to the
+     *  dev overlay when the dev server installed it. */
     applyPatches: function (patches) {
       for (let i = 0; i < patches.length; i++) {
-        applyOne(patches[i]);
+        try {
+          applyOne(patches[i]);
+        } catch (e) {
+          console.error(
+            "swiflow-driver: patch failed (op " +
+              (patches[i] && patches[i].op) + ", index " + i + " of " +
+              patches.length + ")", patches[i], e
+          );
+          if (typeof window.__swiflowDevError === "function") {
+            window.__swiflowDevError(e);
+          }
+        }
       }
     },
 
@@ -626,20 +642,17 @@
       const { init } = await import(
         "./.build/plugins/PackageToJS/outputs/Package/index.js"
       );
-      let modulePromise;
-      try {
-        modulePromise = fetchWithProgress(WASM_URL);
-      } catch (e) {
-        console.warn("swiflow: progress fetch failed, falling back to default init", e);
-        modulePromise = undefined;
-      }
-      await init({ module: modulePromise });
+      // fetchWithProgress is async — it cannot throw synchronously, so the
+      // old try/catch "fallback" here was dead code. Rejections surface in
+      // the outer catch below via `await init(...)`.
+      await init({ module: fetchWithProgress(WASM_URL) });
     } catch (e) {
       // Surface init failures loudly: the dev-error overlay is only
       // populated by the WASM runtime, which never runs if the import
       // itself fails. Without this log, a 404 on index.js or an init()
-      // throw leaves the page silently dead.
-      console.warn("swiflow: WASM init failed", e);
+      // throw leaves the page silently dead — error level so production
+      // consoles surface it.
+      console.error("swiflow: WASM init failed", e);
     }
   })();
 })();
