@@ -16,6 +16,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Renamed two library modules** for clearer intent (no API surface change —
+  only the module names). Dependent projects must update `import` lines and
+  `.product(name:)` references:
+  - `SwiflowHTTP` → **`SwiflowFetcher`** — the JSON-over-`fetch` client.
+  - `SwiflowWeb` → **`SwiflowDOM`** — the WASM/DOM renderer.
+
+  `swiflow init` templates and all bundled examples now use the new names.
+
+---
+
 ## [0.1.5] — 2026-06-08
 
 Consolidates Phases 18–21 and the data-layer / UI / tooling work that landed
