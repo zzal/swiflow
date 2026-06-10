@@ -34,6 +34,12 @@ public protocol Query {
     /// Retry policy for failed fetches. Defaults to `.default`.
     var retry: RetryPolicy { get }
 
+    /// How long a cache entry outlives its last subscriber before being
+    /// garbage-collected. Defaults to 5 minutes: long enough that back-nav
+    /// remounts hit warm cache, short enough that parameterized keys
+    /// (`["users", id]`) don't grow the cache unboundedly.
+    var gcTime: Duration { get }
+
     /// Fetch the value. Cancellation is cooperative via the surrounding Task.
     func fetch() async throws -> Value
 }
@@ -44,4 +50,5 @@ public extension Query {
     var refetchInterval: Duration? { nil }
     var refetchOnFocus: Bool { true }
     var retry: RetryPolicy { .default }
+    var gcTime: Duration { .seconds(300) }
 }

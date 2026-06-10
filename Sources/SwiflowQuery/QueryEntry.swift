@@ -29,6 +29,11 @@ final class QueryEntry {
     var failureCount: Int = 0
     /// Clock time the next retry should fire; `nil` = no pending retry.
     var nextRetryDue: Duration?
+    /// Promoted from the latest observation, like `staleTime`.
+    var gcTime: Duration = .seconds(300)
+    /// Clock time this entry lost its last live subscriber; `nil` while
+    /// observed. Stamped/cleared by `tick`'s GC sweep.
+    var unobservedSince: Duration?
     /// The latest query's fetch, capturing its latest dependencies. Used to
     /// refetch on invalidation. `@MainActor` so calling it needs no Sendable.
     var boxedFetch: (@MainActor () async throws -> Any)?

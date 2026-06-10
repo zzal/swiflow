@@ -146,19 +146,39 @@ public final class QueryClient {
     // MARK: - Background revalidation
 
     /// Driven by the production interval (and tests). Fires due retries and
-    /// due polls for live, not-in-flight entries. Filled in by later tasks.
+    /// due polls for live entries, and garbage-collects entries that have had
+    /// no live subscriber for `gcTime` — evicting both the cached value and
+    /// the `boxedFetch` closure (which retains the query's captured deps).
     package func tick(now: Duration) {
+        var evict: [QueryKey] = []
         for (key, entry) in entries {
-            guard hasLiveSubscribers(key), entry.inFlight == nil else { continue }
+            guard hasLiveSubscribers(key) else {
+                // GC sweep: stamp the moment the entry became unobserved,
+                // evict once it has been unobserved for gcTime. Back-nav
+                // remounts within the window reuse the warm entry.
+                if let since = entry.unobservedSince {
+                    if now - since >= entry.gcTime { evict.append(key) }
+                } else {
+                    entry.unobservedSince = now
+                }
+                continue
+            }
+            entry.unobservedSince = nil
+            guard entry.inFlight == nil else { continue }
             if let due = entry.nextRetryDue, now >= due {
                 entry.nextRetryDue = nil
-                startFetch(for: key, entry: entry)          // retry (scheduled by Task 7)
+                startFetch(for: key, entry: entry)          // retry
                 continue
             }
             if let interval = entry.refetchInterval,
                let last = entry.lastFetched, now - last >= interval {
                 startFetch(for: key, entry: entry)          // poll
             }
+        }
+        for key in evict {
+            entries[key]?.inFlight?.cancel()
+            entries.removeValue(forKey: key)
+            subscribers.removeValue(forKey: key)
         }
     }
 
@@ -219,6 +239,7 @@ public final class QueryClient {
         let refetchInterval: Duration?
         let refetchOnFocus: Bool
         let retry: RetryPolicy
+        var gcTime: Duration = .seconds(300)
         let boxedFetch: @MainActor () async throws -> Any
         let valuesEqual: (Any?, Any?) -> Bool
     }
@@ -248,6 +269,7 @@ public final class QueryClient {
             entry.refetchInterval = ob.refetchInterval
             entry.refetchOnFocus = ob.refetchOnFocus
             entry.retry = ob.retry
+            entry.gcTime = ob.gcTime
             entry.boxedFetch = ob.boxedFetch          // capture latest deps
 
             if let scheduler { subscribe(owner: owner, scheduler: scheduler, to: ob.key) }
@@ -292,6 +314,7 @@ public final class QueryClient {
             refetchInterval: q.refetchInterval,
             refetchOnFocus: q.refetchOnFocus,
             retry: q.retry,
+            gcTime: q.gcTime,
             boxedFetch: { try await q.fetch() },
             valuesEqual: { ($0 as? Q.Value) == ($1 as? Q.Value) }
         )
