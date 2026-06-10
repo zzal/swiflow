@@ -101,6 +101,12 @@ public struct TestHarness {
         renderer.change(tag: tag, at: index, value: value)
     }
 
+    /// Simulates toggling a checkbox/radio input. Dispatches a `change` event
+    /// whose `targetChecked` is `checked`, mirroring the browser driver's payload.
+    public func check(_ tag: String = "input", at index: Int = 0, checked: Bool) {
+        renderer.check(tag: tag, at: index, checked: checked)
+    }
+
     /// Unmounts the rendered tree, firing `onDisappear` parent-first — mirrors
     /// `Swiflow.unmount(into:)` in the browser. Queries after unmount read the
     /// last-rendered tree and are unspecified. Calling `unmount()` again is a no-op.

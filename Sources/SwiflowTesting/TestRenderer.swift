@@ -161,11 +161,33 @@ final class TestRenderer {
         return results
     }
 
+    /// Mirrors the JS driver's serializeEvent(): snapshot the target's current
+    /// `value`/`checked` from the mount tree the way the browser snapshots them
+    /// from the live DOM (js-driver/swiflow-driver.js:70-80). Returns nils for
+    /// elements without those properties — same as the driver's `"value" in
+    /// target` / `"checked" in target` guards.
+    private func targetSnapshot(of node: MountNode) -> (value: String?, checked: Bool?) {
+        guard case .element(let data) = node.vnode else { return (nil, nil) }
+        var value: String? = nil
+        var checked: Bool? = nil
+        if let v = data.properties["value"] {
+            switch v {
+            case .string(let s): value = s
+            case .int(let i): value = String(i)
+            case .double(let d): value = String(d)
+            case .bool(let b): value = String(b)
+            }
+        }
+        if case .bool(let b)? = data.properties["checked"] { checked = b }
+        return (value, checked)
+    }
+
     func click(tag: String, text: String?) {
         let matches = findElements(tag: tag, text: text, in: mountTree)
         guard let (node, _) = matches.first,
               let id = node.handlerIds["click"] else { return }
-        handlers.dispatch(id: id, event: EventInfo(type: "click"))
+        let snap = targetSnapshot(of: node)
+        handlers.dispatch(id: id, event: EventInfo(type: "click", targetValue: snap.value, targetChecked: snap.checked))
         scheduler.flush()
     }
 
@@ -174,7 +196,8 @@ final class TestRenderer {
         guard index < matches.count else { return }
         let (node, _) = matches[index]
         guard let id = node.handlerIds["input"] else { return }
-        handlers.dispatch(id: id, event: EventInfo(type: "input", targetValue: value))
+        let snap = targetSnapshot(of: node)
+        handlers.dispatch(id: id, event: EventInfo(type: "input", targetValue: value, targetChecked: snap.checked))
         scheduler.flush()
     }
 
@@ -183,7 +206,8 @@ final class TestRenderer {
         guard index < matches.count else { return }
         let (node, _) = matches[index]
         guard let id = node.handlerIds["blur"] else { return }
-        handlers.dispatch(id: id, event: EventInfo(type: "blur"))
+        let snap = targetSnapshot(of: node)
+        handlers.dispatch(id: id, event: EventInfo(type: "blur", targetValue: snap.value, targetChecked: snap.checked))
         scheduler.flush()
     }
 
@@ -192,7 +216,21 @@ final class TestRenderer {
         guard index < matches.count else { return }
         let (node, _) = matches[index]
         guard let id = node.handlerIds["change"] else { return }
-        handlers.dispatch(id: id, event: EventInfo(type: "change", targetValue: value))
+        let snap = targetSnapshot(of: node)
+        handlers.dispatch(id: id, event: EventInfo(type: "change", targetValue: value, targetChecked: snap.checked))
+        scheduler.flush()
+    }
+
+    /// Simulates toggling a checkbox/radio: dispatches `change` with
+    /// `targetChecked` — the payload shape `.checked(_:)` bindings read.
+    func check(tag: String, at index: Int, checked: Bool) {
+        let matches = findElements(tag: tag, text: nil, in: mountTree)
+        guard index < matches.count else { return }
+        let (node, _) = matches[index]
+        guard let id = node.handlerIds["change"] else { return }
+        let snap = targetSnapshot(of: node)
+        handlers.dispatch(id: id, event: EventInfo(
+            type: "change", targetValue: snap.value, targetChecked: checked))
         scheduler.flush()
     }
 }
