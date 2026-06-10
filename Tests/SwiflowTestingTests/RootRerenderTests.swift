@@ -41,10 +41,10 @@ struct RootRerenderTests {
     /// exactly as it does in the browser.
     @Test func parentRefreshesWhenChildMutatesSharedState() {
         let harness = render(SharedLabelParent())
-        #expect(harness.allText.contains("label: before"))
+        #expect(harness.find("p")?.text == "label: before")
 
         harness.click("button")
 
-        #expect(harness.allText.contains("label: after"))
+        #expect(harness.find("p")?.text == "label: after")
     }
 }

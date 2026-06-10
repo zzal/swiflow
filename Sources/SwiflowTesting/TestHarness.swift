@@ -103,6 +103,6 @@ public struct TestHarness {
 
     /// Unmounts the rendered tree, firing `onDisappear` parent-first — mirrors
     /// `Swiflow.unmount(into:)` in the browser. Queries after unmount read the
-    /// last-rendered tree and are unspecified.
+    /// last-rendered tree and are unspecified. Calling `unmount()` again is a no-op.
     public func unmount() { renderer.unmount() }
 }

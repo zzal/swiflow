@@ -9,6 +9,7 @@ private final class RerenderRelay: @unchecked Sendable {
 @MainActor
 final class TestRenderer {
     private(set) var mountTree: MountNode
+    private var isUnmounted = false
     let handles: HandleAllocator
     let handlers: HandlerRegistry
     let scheduler: SyncScheduler
@@ -97,7 +98,11 @@ final class TestRenderer {
     /// Tears down the mounted tree: fires `onDisappear` (parent-first), closes
     /// handler scopes, and notifies the query client of component unmounts —
     /// mirroring SwiflowDOM.Renderer.teardown() minus the JS patches.
+    // destroy() cancels .task effects via each node's stored TaskSlot handle —
+    // no task-scope ambient needed here.
     func unmount() {
+        guard !isUnmounted else { return }
+        isUnmounted = true
         RenderObserverBox.current = queryClient
         defer { RenderObserverBox.current = nil }
         var patches: [Patch] = []

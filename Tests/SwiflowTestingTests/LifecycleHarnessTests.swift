@@ -34,4 +34,12 @@ struct LifecycleHarnessTests {
         harness.unmount()
         #expect(probe.log == ["appear", "change", "disappear"], "onDisappear must fire on unmount")
     }
+
+    @Test func doubleUnmountFiresOnDisappearOnce() {
+        let probe = LifecycleProbe()
+        let harness = render(probe)
+        harness.unmount()
+        harness.unmount()
+        #expect(probe.log.filter { $0 == "disappear" }.count == 1)
+    }
 }
