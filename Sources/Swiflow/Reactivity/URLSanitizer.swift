@@ -62,6 +62,28 @@ public enum URLSanitizer {
         return allowedSchemes.contains(lowerScheme) ? rawValue : nil
     }
 
+    /// Resolves the value to store for attribute `name`, applying the URL
+    /// allowlist. Non-URL names pass through unchanged; URL-bearing names
+    /// (`href`, `src`, `action`, `formaction` — case-insensitive) are
+    /// sanitized, and a rejected value returns `nil` (the caller drops the
+    /// attribute) after a DEBUG diagnostic. This is the single
+    /// implementation shared by the prefix `Attribute` fold
+    /// (DSL/Modifiers.swift) and the postfix `VNode.attr(_:_:)` modifier
+    /// (DSL/VNodeModifiers.swift), so the allowlist behavior — and the
+    /// rejection message — live in exactly one place.
+    public static func resolvedAttributeValue(name: String, value: String) -> String? {
+        guard urlAttributeNames.contains(name.lowercased()) else { return value }
+        if let sanitized = sanitize(value) { return sanitized }
+        // URL sanitizer rejection is a LOG, not a crash — an injected
+        // javascript: should drop the attribute and let the page continue
+        // rendering. swiflowDiagnostic crashes in DEBUG and is reserved for
+        // programmer-error footguns (duplicate keys, component cycles, etc.).
+        #if DEBUG
+        print("[Swiflow] URLSanitizer rejected \(name)=\"\(value)\" — attribute dropped. Use VNode.rawHTML for the rare case where unsanitized URLs are intentional.")
+        #endif
+        return nil
+    }
+
     // MARK: - Internals
 
     private static func stripControlAndLeadingWhitespace(_ s: String) -> String {

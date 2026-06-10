@@ -31,20 +31,13 @@ public extension VNode {
     /// Adds (or overwrites) an HTML attribute (string value).
     ///
     /// URL-bearing attribute names (`href`, `src`, `action`, `formaction` —
-    /// case-insensitive) route through `URLSanitizer.sanitize(_:)`, exactly
-    /// like the prefix `Attribute` path: a rejected value drops the attribute.
+    /// case-insensitive) route through the URL allowlist, exactly like the
+    /// prefix `Attribute` path: a rejected value drops the attribute. Shared
+    /// implementation: `URLSanitizer.resolvedAttributeValue(name:value:)`.
     func attr(_ name: String, _ value: String) -> VNode {
         mergeAttribute(self) { data in
-            if URLSanitizer.urlAttributeNames.contains(name.lowercased()) {
-                if let sanitized = URLSanitizer.sanitize(value) {
-                    data.attributes[name] = sanitized
-                } else {
-                    #if DEBUG
-                    print("[Swiflow] URLSanitizer rejected \(name)=\"\(value)\" — attribute dropped. Use VNode.rawHTML for the rare case where unsanitized URLs are intentional.")
-                    #endif
-                }
-            } else {
-                data.attributes[name] = value
+            if let resolved = URLSanitizer.resolvedAttributeValue(name: name, value: value) {
+                data.attributes[name] = resolved
             }
         }
     }
