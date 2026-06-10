@@ -135,11 +135,11 @@ final class Renderer {
     /// driver to attach the root node at `selector`. Also fires lifecycle
     /// hooks on the root component when applicable.
     func renderOnce() {
-        _currentRenderingRenderer = self
+        HandlerAmbient.current = handlers
         SwiflowTaskRuntime.currentScope = taskScope
         RenderObserverBox.current = queryClient
         defer {
-            _currentRenderingRenderer = nil
+            HandlerAmbient.current = nil
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }

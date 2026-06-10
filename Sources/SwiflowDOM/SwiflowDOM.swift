@@ -19,11 +19,6 @@ public enum Swiflow {}
 /// AttributeModifiers.swift and DevAPI.swift can read it.
 nonisolated(unsafe) var renderers: [String: Renderer] = [:]
 
-/// Set to the active `Renderer` at the start of each `renderOnce()` call
-/// and restored to `nil` in a defer. Lets `.on(_:perform:)` modifiers
-/// find the correct registry during both initial renders and RAF re-renders.
-nonisolated(unsafe) var _currentRenderingRenderer: Renderer?
-
 /// Single shared handle allocator used by all production `Renderer` instances.
 /// Guarantees globally unique node handles across all roots so the JS
 /// driver's `nodes` Map never has collisions.

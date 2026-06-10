@@ -38,13 +38,13 @@ final class TestRenderer {
         }
         let anyComponent = AnyComponent(instance)
         self.rootComponent = anyComponent
-        _testAmbientHandlers = self.handlers
+        HandlerAmbient.current = self.handlers
         // Set the scope directly (not via the `withScope` closure) so we don't
         // capture `self` in a closure before all members are initialized.
         SwiflowTaskRuntime.currentScope = taskScope
         RenderObserverBox.current = queryClient
         defer {
-            _testAmbientHandlers = nil
+            HandlerAmbient.current = nil
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }
@@ -69,11 +69,11 @@ final class TestRenderer {
     }
 
     func rerender(_ component: AnyComponent) {
-        _testAmbientHandlers = self.handlers
+        HandlerAmbient.current = self.handlers
         SwiflowTaskRuntime.currentScope = taskScope
         RenderObserverBox.current = queryClient
         defer {
-            _testAmbientHandlers = nil
+            HandlerAmbient.current = nil
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }

@@ -1,24 +1,23 @@
-// Sources/SwiflowDOM/AttributeModifiers.swift
-#if canImport(JavaScriptKit)
-@_exported import Swiflow
+// Sources/Swiflow/DSL/EventModifiers.swift
 
-/// Registers `invoke` with the ambient renderer's handler registry. Called
-/// internally by the `.on(_:perform:)` modifier overloads below. Traps if
-/// no renderer is mounted — only possible if a modifier is constructed
-/// outside a render cycle, which is a programmer error.
+/// Registers `invoke` with the ambient handler registry installed by the
+/// active render root (SwiflowDOM's browser Renderer or SwiflowTesting's
+/// TestRenderer). Called internally by the `.on(_:perform:)` and binding
+/// modifiers below. Traps if no render root is active — only possible when a
+/// modifier is constructed outside a render cycle, which is a programmer error.
 @MainActor
 func _registerAmbientHandler(
     _ invoke: @escaping @MainActor (EventInfo) -> Void
 ) -> EventHandler {
-    guard let renderer = _currentRenderingRenderer else {
+    guard let registry = HandlerAmbient.current else {
         preconditionFailure(
             "Swiflow modifier .on(_:perform:) was used outside a render cycle. "
-            + "Event handlers must be constructed inside a Component body while the renderer is "
-            + "actively building the tree. In a multi-root app, ensure each root is mounted via "
-            + "Swiflow.render(into:_:) before any component body runs."
+            + "Event handlers must be constructed inside a Component body while a render root "
+            + "is actively building the tree — Swiflow.render(into:_:) in the browser, "
+            + "SwiflowTesting.render(_:) in tests."
         )
     }
-    return renderer.handlers.register { event in
+    return registry.register { event in
         MainActor.assumeIsolated { invoke(event) }
     }
 }
@@ -277,4 +276,3 @@ public extension VNode {
         return self
     }
 }
-#endif
