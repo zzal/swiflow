@@ -384,6 +384,8 @@ dead-stripped. Contradicts the project's heavily-invested bundle-size goal.
   `Renderer.swift:138-145` — lifecycle hooks fire while `_currentRenderingRenderer` is
   set; a synchronous nested render would nil the outer ambient. No breakage today;
   fragile next to `firePostRenderLifecycle`.
+  **[RESOLVED AS SIDE EFFECT — `_currentRenderingRenderer` was deleted by the
+  handler-seam move; see docs/superpowers/plans/2026-06-10-handler-seam-harness-fidelity.md]**
 - **DevAPI `state(path)` multi-root semantics differ from siblings:** `DevAPI.swift:51-59`
   — tree()/handlers()/perf() are per-selector; `state` is first-match-wins over
   unordered dict iteration (nondeterministic with same path in two roots).
