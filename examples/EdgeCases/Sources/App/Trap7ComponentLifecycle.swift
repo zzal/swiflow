@@ -1,6 +1,6 @@
 // Sources/App/Trap7ComponentLifecycle.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// A child whose mount/unmount bumps shared counters via callbacks, so the test

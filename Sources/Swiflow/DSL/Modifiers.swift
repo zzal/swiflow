@@ -27,7 +27,7 @@ public enum Attribute {
     /// mount time and clears it at destroy. Stored on
     /// `ElementData.refBindings` and consumed out-of-band by Diff; never
     /// folded into the four normal bags. Produced by the `.ref(_:)`
-    /// modifier in SwiflowWeb.
+    /// modifier in SwiflowDOM.
     case refBinding(AnyRefBinding)
 
     // Convenience factories.

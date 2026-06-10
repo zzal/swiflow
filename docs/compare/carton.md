@@ -19,7 +19,7 @@ integrated stack that covers both responsibilities:
 | Responsibility | "Other stack" | Swiflow |
 | --- | --- | --- |
 | Build & dev server | Carton | Phase 2b/2c CLI (`swiflow init/build/dev`) — **planned** |
-| Runtime (VDOM, diff, bridge) | Tokamak | `Swiflow` + `SwiflowWeb` — **shipping in Phase 2a** |
+| Runtime (VDOM, diff, bridge) | Tokamak | `Swiflow` + `SwiflowDOM` — **shipping in Phase 2a** |
 | UI authoring DSL | Tokamak (SwiftUI-shaped) | Swiflow (HTML-shaped) |
 | Bridge to JS | Tokamak's reconciler talks directly to JSKit | `Swiflow` emits a patch list; vanilla JS driver applies it |
 
@@ -44,7 +44,7 @@ total render time.
 
 Swiflow batches **every** mutation from a render cycle into a single `JSArray`
 and ships it in one `window.swiflow.applyPatches(...)` call
-(`Sources/SwiflowWeb/Renderer.swift:41-49`). Tokamak's reconciler
+(`Sources/SwiflowDOM/Renderer.swift:41-49`). Tokamak's reconciler
 issues many small JS calls per node mutation as it walks the diff.
 
 This is the central perf premise of the framework and it is correct.

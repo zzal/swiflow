@@ -4,7 +4,7 @@
 // wires together in the Renderer: Component lifecycle hooks (onAppear,
 // onChange, onDisappear) and the Scheduler coalescing contract.
 //
-// The Renderer itself (SwiflowWeb module) requires JavaScriptKit and can only
+// The Renderer itself (SwiflowDOM module) requires JavaScriptKit and can only
 // be exercised in a WASM/browser environment. These tests target the Swiflow
 // module (no JavaScriptKit dependency) and therefore compile and run on
 // macOS/Linux for fast feedback during development.

@@ -2,7 +2,7 @@
 import Swiflow
 
 /// Set by `TestRenderer` before every `diff` call; cleared after.
-/// Provides `.on()` extensions with the same signature as SwiflowWeb,
+/// Provides `.on()` extensions with the same signature as SwiflowDOM,
 /// so test components can register handlers without importing JavaScriptKit.
 @MainActor
 var _testAmbientHandlers: HandlerRegistry? = nil

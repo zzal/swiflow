@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/JSAdapter.swift
+// Sources/SwiflowDOM/JSAdapter.swift
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit

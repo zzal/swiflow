@@ -9,6 +9,6 @@
 package struct ScopeID: Hashable, Sendable {
     /// `internal` so that `HandlerRegistry` (a separate file in the same module)
     /// can create and index into its dictionaries by this value. Not accessible
-    /// from `SwiflowWeb` or application code.
+    /// from `SwiflowDOM` or application code.
     let raw: Int
 }

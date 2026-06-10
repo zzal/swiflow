@@ -137,9 +137,9 @@ struct StalenessKeyTests {
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
         let f = src.appendingPathComponent("App.swift")
-        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k1 = key(src, root)
-        try "import SwiflowWeb\nlet x = 2 // changed body\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 2 // changed body\n".write(to: f, atomically: true, encoding: .utf8)
         #expect(key(src, root) == k1)
     }
 
@@ -161,9 +161,9 @@ struct StalenessKeyTests {
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
         let f = src.appendingPathComponent("App.swift")
-        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k1 = key(src, root)
-        try "import SwiflowWeb\nimport SwiflowQuery\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nimport SwiflowQuery\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k2 = key(src, root)
         #expect(k2 != k1)
         #expect(k2.sourceSet == k1.sourceSet)   // same files, only imports changed
@@ -189,10 +189,10 @@ struct StalenessKeyTests {
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
         let f = src.appendingPathComponent("App.swift")
-        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k1 = key(src, root)
         // Adding a @preconcurrency import must flip the key (it imports a new module).
-        try "import SwiflowWeb\n@preconcurrency import Dispatch\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\n@preconcurrency import Dispatch\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k2 = key(src, root)
         #expect(k2 != k1)
         #expect(k2.sourceSet == k1.sourceSet)
@@ -204,10 +204,10 @@ struct StalenessKeyTests {
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
         let f = src.appendingPathComponent("App.swift")
-        try "import SwiflowWeb\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k1 = key(src, root)
         // A comment mentioning import and an identifier named `importer` must NOT flip the key.
-        try "import SwiflowWeb\n// import Foundation\nlet importer = 1\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\n// import Foundation\nlet importer = 1\nlet x = 1\n".write(to: f, atomically: true, encoding: .utf8)
         let k2 = key(src, root)
         #expect(k2 == k1)
     }
@@ -255,7 +255,7 @@ struct BypassRebuilderTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("bypass-\(UUID().uuidString)")
         let src = root.appendingPathComponent("Sources/App")
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
-        try "import SwiflowWeb\nlet x = 1\n".write(to: src.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+        try "import SwiflowDOM\nlet x = 1\n".write(to: src.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
         try "// pkg".write(to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
 
         let artifact = root.appendingPathComponent("App.wasm")           // "raw build output"

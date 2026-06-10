@@ -19,7 +19,7 @@ All examples assume:
 
 ```swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 ```
 

@@ -1,5 +1,5 @@
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 import JavaScriptKit
 

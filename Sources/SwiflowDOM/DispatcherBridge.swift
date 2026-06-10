@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/DispatcherBridge.swift
+// Sources/SwiflowDOM/DispatcherBridge.swift
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit

@@ -6,7 +6,7 @@ hand for every fetch, you declare a **`Query`** — a value that knows how to
 fetch itself and where it lives in a shared cache — and consume it from `body`:
 
 ```swift
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowQuery
 
 let u = query(UserByID(id: userID))

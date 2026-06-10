@@ -1,4 +1,4 @@
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowQuery
 import SwiflowFetcher
 

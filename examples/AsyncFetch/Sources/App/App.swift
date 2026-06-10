@@ -1,6 +1,6 @@
 // Sources/App/App.swift
 
-import SwiflowWeb
+import SwiflowDOM
 
 @MainActor @Component
 final class AsyncFetch {

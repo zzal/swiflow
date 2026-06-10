@@ -2,16 +2,16 @@
 //
 // Task D — Phase 7 / Phase 15 refresh. Validates the two pieces that
 // together make `.checked(_:Binding<Bool>)` and
-// `.selection(_:Binding<String>)` work without depending on SwiflowWeb
+// `.selection(_:Binding<String>)` work without depending on SwiflowDOM
 // (which is gated behind `#if canImport(JavaScriptKit)` and unavailable
 // to host-side tests):
 //
 //   1. The `Attribute.compound([…])` shape that each modifier produces —
-//      hand-built here, identical to what SwiflowWeb emits, so we can
+//      hand-built here, identical to what SwiflowDOM emits, so we can
 //      assert structure without a mounted Renderer.
 //   2. The handler closure's get/set contract against a synthetic
 //      `EventInfo`, exactly mirroring how `.checked` / `.selection`
-//      shape the closure inside SwiflowWeb.
+//      shape the closure inside SwiflowDOM.
 //
 // Phase 15: `@State` is now a macro, so the test fixtures use
 // `@MainActor @Component`-decorated host classes for state cells.
@@ -43,7 +43,7 @@ struct CheckedSelectionBindingTests {
         let binding = host.$flag
 
         // Hand-build the exact `Attribute.compound([…])` that
-        // SwiflowWeb's `.checked(_:Binding<Bool>)` will produce.
+        // SwiflowDOM's `.checked(_:Binding<Bool>)` will produce.
         let handler = EventHandler(id: 0) { info in
             if let c = info.targetChecked { binding.set(c) }
         }
@@ -104,7 +104,7 @@ struct CheckedSelectionBindingTests {
         let binding = host.$value
 
         // Hand-build the exact `Attribute.compound([…])` that
-        // SwiflowWeb's `.selection(_:Binding<String>)` will produce.
+        // SwiflowDOM's `.selection(_:Binding<String>)` will produce.
         let handler = EventHandler(id: 0) { info in
             binding.set(info.targetValue ?? "")
         }

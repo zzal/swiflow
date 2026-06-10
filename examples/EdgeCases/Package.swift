@@ -15,7 +15,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),

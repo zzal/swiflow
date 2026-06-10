@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/HMR/HMRBridge.swift
+// Sources/SwiflowDOM/HMR/HMRBridge.swift
 //
 // Phase 8 — JS bridge for HMR snapshot extraction and restore.
 //

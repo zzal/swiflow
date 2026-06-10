@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/RAFScheduler.swift
+// Sources/SwiflowDOM/RAFScheduler.swift
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit

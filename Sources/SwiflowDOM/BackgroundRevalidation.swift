@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/BackgroundRevalidation.swift
+// Sources/SwiflowDOM/BackgroundRevalidation.swift
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 import SwiflowQuery

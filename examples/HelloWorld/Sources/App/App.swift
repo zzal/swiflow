@@ -1,6 +1,6 @@
 // Sources/App/App.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// Counter — the HelloWorld showcase root.

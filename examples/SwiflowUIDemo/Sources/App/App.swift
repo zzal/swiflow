@@ -1,5 +1,5 @@
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowUI
 
 @MainActor @Component

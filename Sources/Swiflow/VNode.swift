@@ -74,7 +74,7 @@ public struct ElementData: Equatable {
     /// `Ref<Element>` bindings consumed by Diff at mount/destroy time.
     /// Stored out-of-band — these never participate in the four bag
     /// dictionaries and never become patches. See `Attribute.refBinding`
-    /// and the `.ref(_:)` modifier in SwiflowWeb.
+    /// and the `.ref(_:)` modifier in SwiflowDOM.
     public var refBindings: [AnyRefBinding]
     /// `.task` async effects declared on this node, captured at body-eval time.
     /// Stored out-of-band like `refBindings`: consumed by Diff at mount/update/

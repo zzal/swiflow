@@ -2,9 +2,9 @@
 //
 // Phase 8 — HMR core types and mount-tree walkers.
 //
-// Lives in core (not SwiflowWeb) so the snapshot/restore logic is
+// Lives in core (not SwiflowDOM) so the snapshot/restore logic is
 // host-testable without JavaScriptKit. The JS bridge in
-// `Sources/SwiflowWeb/HMR/HMRBridge.swift` (Task E) is a thin
+// `Sources/SwiflowDOM/HMR/HMRBridge.swift` (Task E) is a thin
 // marshalling layer over these types.
 
 /// Sentinel placed in a state map when a value is `Optional.none`.
@@ -73,7 +73,7 @@ package struct SnapshotKey: Hashable {
     }
 }
 
-/// Phase 7-style install slot. SwiflowWeb installs a closure at
+/// Phase 7-style install slot. SwiflowDOM installs a closure at
 /// `Swiflow.render(into:_:)` entry time. Diff calls this at the
 /// mount-wire site to look up snapshot data; when no swap is pending,
 /// the slot is nil and the call is a single nil-check.
@@ -179,7 +179,7 @@ package enum HMRWalker {
 
     // MARK: - Restore (used by Tasks D/E)
 
-    /// Build a lookup index from a snapshot array. SwiflowWeb's bridge
+    /// Build a lookup index from a snapshot array. SwiflowDOM's bridge
     /// calls this after decoding the JS-side snapshot payload.
     package static func indexSnapshots(_ snapshots: [ComponentSnapshot]) -> [SnapshotKey: [String: Any]] {
         var index: [SnapshotKey: [String: Any]] = [:]

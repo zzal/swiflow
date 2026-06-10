@@ -163,7 +163,7 @@ tests pass.
 Phase 16 (Foundation-Free Runtime) complete — `Sources/SwiflowRouter/Core/RouteMatching.swift`
 dropped `import Foundation` (queries are decoded by a stdlib
 `Unicode.UTF8.ForwardParser`-backed `percentDecode`),
-`Sources/SwiflowWeb/HMR/HMRBridge.swift` dropped its vestigial Foundation
+`Sources/SwiflowDOM/HMR/HMRBridge.swift` dropped its vestigial Foundation
 import, and a `Verify Foundation-free runtime` step in `.github/workflows/ci.yml`
 greps for `^import Foundation$` in the three runtime modules and fails
 fast on any hit (runs before the cache restore). Bundle delta was within
@@ -247,7 +247,7 @@ Run `swiflow doctor` after building the CLI to verify your toolchain is complete
   release) catches three programmer-error footguns: duplicate keys among
   siblings, mixed keyed/unkeyed siblings, component-body anchor cycles
   (depth ≥ 32).
-- **`SwiflowWeb`** — WASM-only renderer + JavaScriptKit bridge.
+- **`SwiflowDOM`** — WASM-only renderer + JavaScriptKit bridge.
 - **`swiflow` CLI** — `init` scaffolds, `build` wraps `swift package js`, `dev`
   starts a Hummingbird HTTP + WebSocket server with file-watch full-reload.
 - **JS driver** — vanilla JS, ~200 lines, embedded into the CLI binary as

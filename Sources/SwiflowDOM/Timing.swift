@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/Timing.swift
+// Sources/SwiflowDOM/Timing.swift
 //
 // after(_:do:) — a cancellable wrapper around setTimeout/clearTimeout
 // for one-shot delayed work. Designed for Component.onAppear:

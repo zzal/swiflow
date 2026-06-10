@@ -7,7 +7,7 @@
 /// Two conformances ship with Swiflow:
 /// - `SyncScheduler` (this file): synchronous flush, used by tests
 ///   and any headless render path.
-/// - `RAFScheduler` (`SwiflowWeb/RAFScheduler.swift`, Task 8): batches per
+/// - `RAFScheduler` (`SwiflowDOM/RAFScheduler.swift`, Task 8): batches per
 ///   `requestAnimationFrame` for the browser Renderer.
 ///
 /// Conforming types are expected to be class-only (the protocol is

@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/AttributeModifiers.swift
+// Sources/SwiflowDOM/AttributeModifiers.swift
 #if canImport(JavaScriptKit)
 @_exported import Swiflow
 

@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/CSS/CSSInjector.swift
+// Sources/SwiflowDOM/CSS/CSSInjector.swift
 //
 // Injects component-scoped <style> elements into the document <head>
 // the first time each Component type is mounted. The injected CSS uses

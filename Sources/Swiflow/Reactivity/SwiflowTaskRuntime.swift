@@ -99,7 +99,7 @@ public enum SwiflowTaskRuntime {
     /// concurrent roots (and parallel test suites) interleave only at `await`
     /// points, which never occur mid-diff, so there is no cross-scope clobbering.
     ///
-    /// `package`: set by `Renderer` (SwiflowWeb) and `TestRenderer`
+    /// `package`: set by `Renderer` (SwiflowDOM) and `TestRenderer`
     /// (SwiflowTesting), both separate modules in this package.
     package static var currentScope: TaskScope?
 

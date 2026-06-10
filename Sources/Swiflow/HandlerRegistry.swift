@@ -12,7 +12,7 @@
 /// position, so sibling components can be destroyed in any order without
 /// cross-contamination.
 ///
-/// `package` access: visible to `SwiflowWeb` (same package) but not to
+/// `package` access: visible to `SwiflowDOM` (same package) but not to
 /// application code that imports Swiflow as a library dependency.
 package final class HandlerRegistry: @unchecked Sendable {
     nonisolated(unsafe) private static var nextID: Int = 0

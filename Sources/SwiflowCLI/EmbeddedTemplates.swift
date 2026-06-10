@@ -46,7 +46,7 @@ let package = Package(
     name: "{{NAME}}",
     // Inherited from the parent Swiflow package, which sets this floor
     // because its SwiflowCLI executable depends on Hummingbird 2.x.
-    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // SwiflowDOM itself only links Swiflow + JavaScriptKit and doesn't
     // need macOS 14; SwiftPM just propagates the package-level platform
     // floor to every consumer, regardless of which product they import.
     platforms: [.macOS(.v14)],
@@ -66,7 +66,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -113,7 +113,7 @@ Then open <http://localhost:3000>.
                 "Sources/App/App.swift": ##"""
 // Sources/App/App.swift
 
-import SwiflowWeb
+import SwiflowDOM
 
 @MainActor @Component
 final class {{NAME}} {
@@ -228,7 +228,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -239,7 +239,7 @@ let package = Package(
                 "Sources/App/App.swift": ##"""
 // Sources/App/App.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 
 /// EdgeLab — adversarial reconciliation stress harness. Each embedded trap is a
 /// self-contained <section data-testid="trapN"> exercising one nesting/identity
@@ -602,7 +602,7 @@ final class Trap6TwoAdjacentConds {
                 "Sources/App/Trap7ComponentLifecycle.swift": ##"""
 // Sources/App/Trap7ComponentLifecycle.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// A child whose mount/unmount bumps shared counters via callbacks, so the test
@@ -779,7 +779,7 @@ let package = Package(
     name: "{{NAME}}",
     // Inherited from the parent Swiflow package, which sets this floor
     // because its SwiflowCLI executable depends on Hummingbird 2.x.
-    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // SwiflowDOM itself only links Swiflow + JavaScriptKit and doesn't
     // need macOS 14; SwiftPM just propagates the package-level platform
     // floor to every consumer, regardless of which product they import.
     platforms: [.macOS(.v14)],
@@ -799,7 +799,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -908,7 +908,7 @@ final class AboutPopover {
                 "Sources/App/App.swift": ##"""
 // Sources/App/App.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// Counter — the {{NAME}} showcase root.
@@ -1484,7 +1484,7 @@ extension Toast {
                 "Sources/App/Toast.swift": ##"""
 // Sources/App/Toast.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// Toast — top-layer notification using the Popover API.
@@ -1616,7 +1616,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowRouter", package: "Swiflow"),
             ],
             path: "Sources/App"
@@ -1660,7 +1660,7 @@ Then open <http://localhost:3000>.
 """##,
                 "Sources/App/App.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 import JavaScriptKit
 
@@ -1683,7 +1683,7 @@ struct App {
 """##,
                 "Sources/App/NavBar.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 import JavaScriptKit
 
@@ -1700,7 +1700,7 @@ final class NavBar: Component {
 """##,
                 "Sources/App/Pages/AboutPage.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 import JavaScriptKit
 
@@ -1724,7 +1724,7 @@ final class AboutPage: Component {
 """##,
                 "Sources/App/Pages/HomePage.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 final class HomePage: Component {
@@ -1740,7 +1740,7 @@ final class HomePage: Component {
 """##,
                 "Sources/App/Pages/UsersPage.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 import JavaScriptKit
 
@@ -1828,7 +1828,7 @@ let package = Package(
     name: "{{NAME}}",
     // Inherited from the parent Swiflow package, which sets this floor
     // because its SwiflowCLI executable depends on Hummingbird 2.x.
-    // SwiflowWeb itself only links Swiflow + JavaScriptKit and doesn't
+    // SwiflowDOM itself only links Swiflow + JavaScriptKit and doesn't
     // need macOS 14; SwiftPM just propagates the package-level platform
     // floor to every consumer, regardless of which product they import.
     platforms: [.macOS(.v14)],
@@ -1848,7 +1848,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
             ],
             path: "Sources/App"
@@ -1916,7 +1916,7 @@ See [`docs/guides/query.md`](../../docs/guides/query.md) for the full guide.
 """##,
                 "Sources/App/App.swift": ##"""
 // Sources/App/App.swift
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowQuery
 
 struct User: Equatable, Sendable { let id: Int; let name: String }
@@ -2084,7 +2084,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowUI", package: "Swiflow"),
             ],
             path: "Sources/App"
@@ -2129,7 +2129,7 @@ See [`docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md`](../../d
 """##,
                 "Sources/App/App.swift": ##"""
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowUI
 
 @MainActor @Component
@@ -2241,7 +2241,7 @@ let package = Package(
         .executableTarget(
             name: "App",
             dependencies: [
-                .product(name: "SwiflowWeb", package: "Swiflow"),
+                .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
                 // The fetch + JSON-decode story now lives in the SwiflowFetcher
                 // module (graduated from this example's old Net.swift); it pulls
@@ -2333,7 +2333,7 @@ See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagr
 
 """##,
                 "Sources/App/App.swift": ##"""
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowQuery
 import SwiflowFetcher
 

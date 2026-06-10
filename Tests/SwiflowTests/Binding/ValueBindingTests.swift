@@ -2,7 +2,7 @@
 //
 // Task C — Phase 7 / Phase 15 refresh. Validates the two pieces that
 // together make `.value(_:Binding<...>)` work without depending on
-// SwiflowWeb (which is gated behind `#if canImport(JavaScriptKit)` and
+// SwiflowDOM (which is gated behind `#if canImport(JavaScriptKit)` and
 // unavailable to host-side tests):
 //
 //   1. `Attribute.compound([Attribute])` is recursively flattened by
@@ -10,9 +10,9 @@
 //      bag effects in one go (property + handler).
 //   2. The binding's get/set contract round-trips correctly when wired
 //      to a synthetic `(EventInfo) -> Void` closure shaped exactly the
-//      way `.value(_:)` will shape it inside SwiflowWeb.
+//      way `.value(_:)` will shape it inside SwiflowDOM.
 //
-// We deliberately avoid invoking SwiflowWeb's `.value(_:)` directly
+// We deliberately avoid invoking SwiflowDOM's `.value(_:)` directly
 // because `_registerAmbientHandler` requires a mounted Renderer (only
 // available in WASM). Composition of the two pieces above is trivial;
 // covering them independently is enough confidence.
@@ -98,7 +98,7 @@ struct ValueBindingTests {
         let binding = host.$value
 
         // Hand-build the exact `Attribute.compound([…])` that
-        // SwiflowWeb's `.value(_:Binding<String>)` will produce.
+        // SwiflowDOM's `.value(_:Binding<String>)` will produce.
         let handler = EventHandler(id: 0) { info in
             binding.set(info.targetValue ?? "")
         }

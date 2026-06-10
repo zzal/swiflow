@@ -1,4 +1,4 @@
-// Sources/SwiflowWeb/DevAPI.swift
+// Sources/SwiflowDOM/DevAPI.swift
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit

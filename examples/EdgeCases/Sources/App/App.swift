@@ -1,6 +1,6 @@
 // Sources/App/App.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 
 /// EdgeLab — adversarial reconciliation stress harness. Each embedded trap is a
 /// self-contained <section data-testid="trapN"> exercising one nesting/identity

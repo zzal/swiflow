@@ -25,7 +25,7 @@
 /// Phase 7 ships only `Ref<JSObject>` end-to-end (the canonical shape).
 /// `Element` is generic so future typed wrappers (`Ref<HTMLInputElement>`)
 /// can land without an ABI break, but Phase 7 only resolves to
-/// `JSObject` via the platform-side resolver installed by SwiflowWeb.
+/// `JSObject` via the platform-side resolver installed by SwiflowDOM.
 ///
 /// **Sendable:** `Ref` is intentionally not `Sendable`. It mutates from
 /// the `@MainActor`-isolated diff and is read by user code running on
@@ -86,7 +86,7 @@ public struct AnyRefBinding {
 }
 
 /// Non-generic shim that holds the platform-side resolver closure
-/// (installed by `SwiflowWeb.Swiflow.render(into:_:)`). The resolver
+/// (installed by `SwiflowDOM.Swiflow.render(into:_:)`). The resolver
 /// maps an integer handle to the live JS DOM node via
 /// `window.swiflow.nodeForHandle(h)`.
 ///
@@ -105,7 +105,7 @@ public enum RefResolverInstall {
     /// Resolves a Swiflow handle to a platform-specific DOM node. Set
     /// by `Swiflow.render(into:_:)` and read by `Ref.wrappedValue`.
     /// The return type is `Any?` because the resolver lives in the
-    /// platform-agnostic Swiflow module; SwiflowWeb installs a closure
+    /// platform-agnostic Swiflow module; SwiflowDOM installs a closure
     /// returning `JSObject?` (wrapped as `Any?` for storage). User code
     /// goes through `Ref<E>.wrappedValue`, which does the `as? E` cast.
     nonisolated(unsafe) public static var resolver: (@MainActor (Int) -> Any?)?

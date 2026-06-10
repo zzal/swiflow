@@ -22,7 +22,7 @@ Below is the central pattern: a component that fetches a user profile whenever
 `userID` changes, holding the result in a simple `Loadable` enum.
 
 ```swift
-import SwiflowWeb
+import SwiflowDOM
 
 enum Loadable<T>: Equatable where T: Equatable {
     case idle, loading, success(T), failure(String)

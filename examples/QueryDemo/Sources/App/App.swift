@@ -1,5 +1,5 @@
 // Sources/App/App.swift
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowQuery
 
 struct User: Equatable, Sendable { let id: Int; let name: String }

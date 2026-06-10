@@ -3,7 +3,7 @@
 // Process-global "inject this stylesheet exactly once" guard, shared by
 // CSSInjector (per-component scoped sheets) and SwiflowUI (its base token
 // sheet). The guard + once-semantics live here in pure Swiflow so they're
-// host-testable; the actual DOM emit is a closure SwiflowWeb registers at
+// host-testable; the actual DOM emit is a closure SwiflowDOM registers at
 // startup (mirrors the `onComponentTypeMount` / CSSMountHook pattern).
 
 /// Tracks which style ids have been injected and routes the emit through a
@@ -14,7 +14,7 @@ public enum StyleInjectionRegistry {
     /// Ids already injected this session.
     private static var injectedIDs: Set<String> = []
 
-    /// The emit sink. SwiflowWeb sets this to append a `<style>` to `<head>`.
+    /// The emit sink. SwiflowDOM sets this to append a `<style>` to `<head>`.
     /// `nil` on a host with no DOM (tests/headless): `injectOnce` still records
     /// the id (preserving once-semantics) but emits nothing.
     /// `emit` must be assigned before the first `injectOnce` call — ids recorded

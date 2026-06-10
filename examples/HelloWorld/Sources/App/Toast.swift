@@ -1,6 +1,6 @@
 // Sources/App/Toast.swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import JavaScriptKit
 
 /// Toast — top-layer notification using the Popover API.

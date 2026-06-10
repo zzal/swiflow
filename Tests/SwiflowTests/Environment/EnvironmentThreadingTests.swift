@@ -179,7 +179,7 @@ struct EnvironmentThreadingTests {
         _ = mount(vnode, into: &patches, handles: handles, handlers: handlers)
 
         // NOTE: The pure-Swift mount() call does NOT fire onAppear —
-        // that lifecycle hook is driven by the web Renderer (SwiflowWeb)
+        // that lifecycle hook is driven by the web Renderer (SwiflowDOM)
         // after the DOM commit. In the test harness, onAppear never runs,
         // so appearLocale stays "(not-set)". We pin the body-side behaviour,
         // which is the most important contract:

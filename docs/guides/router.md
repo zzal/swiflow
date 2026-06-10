@@ -16,7 +16,7 @@ targets: [
     .executableTarget(
         name: "App",
         dependencies: [
-            .product(name: "SwiflowWeb", package: "Swiflow"),
+            .product(name: "SwiflowDOM", package: "Swiflow"),
             .product(name: "SwiflowRouter", package: "Swiflow"),
         ]
     ),
@@ -27,7 +27,7 @@ targets: [
 
 ```swift
 import Swiflow
-import SwiflowWeb
+import SwiflowDOM
 import SwiflowRouter
 
 @main struct App {

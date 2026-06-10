@@ -17,7 +17,7 @@
 /// input(.value($text))         // .input event, text round-trip
 /// ```
 ///
-/// Consumers ship in `SwiflowWeb.AttributeModifiers`: `.value(_:)`,
+/// Consumers ship in `SwiflowDOM.AttributeModifiers`: `.value(_:)`,
 /// `.checked(_:)`, and `.selection(_:)` — all in both prefix
 /// (`Attribute` static) and postfix (`VNode` method) shapes.
 public struct Binding<Value> {

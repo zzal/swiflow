@@ -9,7 +9,7 @@ let package = Package(
     ],
     products: [
         .library(name: "Swiflow", targets: ["Swiflow"]),
-        .library(name: "SwiflowWeb", targets: ["SwiflowWeb"]),
+        .library(name: "SwiflowDOM", targets: ["SwiflowDOM"]),
         .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
         .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
@@ -51,14 +51,14 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
-            name: "SwiflowWeb",
+            name: "SwiflowDOM",
             dependencies: [
                 "Swiflow",
                 "SwiflowQuery",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
-            path: "Sources/SwiflowWeb",
+            path: "Sources/SwiflowDOM",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(

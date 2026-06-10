@@ -2,9 +2,9 @@
 //
 // Task E — Phase 7. Validates `Ref<Element>`, `AnyRefBinding`, the
 // `Attribute.refBinding(_:)` case, and the mount/destroy/update wiring
-// in Diff. SwiflowWeb's `.ref(_:)` modifier is covered transitively by
+// in Diff. SwiflowDOM's `.ref(_:)` modifier is covered transitively by
 // `Attribute.refBinding(AnyRefBinding(ref))` here — the `.ref(_:)`
-// factory in SwiflowWeb is just `.refBinding(AnyRefBinding(ref))`.
+// factory in SwiflowDOM is just `.refBinding(AnyRefBinding(ref))`.
 // Resolver wiring (`RefResolverInstall.resolver`) is browser-only and
 // covered by the Playwright e2e smoke test in Task G.
 import Testing
