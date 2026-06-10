@@ -488,6 +488,10 @@
     let reconnectDelay = 250;
     const maxDelay = 5000;
 
+    // Reentrancy state for hmrSwap. See hmrSwap for the coalescing contract.
+    let hmrInFlight = false;
+    let hmrQueuedPayload = null;
+
     function connect() {
       const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/reload";
       const ws = new WebSocket(url);
@@ -525,6 +529,16 @@
     }
 
     async function hmrSwap(payload) {
+      // Reentrancy guard: rapid saves can broadcast a second swap while the
+      // first is still awaiting import/init. Running them concurrently
+      // interleaves nodes.clear() with a module that is still mounting —
+      // coalesce instead: remember the LATEST payload and run it after the
+      // in-flight swap finishes (intermediate payloads are superseded).
+      if (hmrInFlight) {
+        hmrQueuedPayload = payload;
+        return;
+      }
+      hmrInFlight = true;
       const t0 = performance.now();
       try {
         const snapshot =
@@ -543,6 +557,16 @@
           const t = document.querySelector(mountSelector);
           if (t) t.replaceChildren();
         }
+
+        // Remove Swiflow-injected <style> tags so the new module's
+        // CSSInjector re-injects fresh CSS. Without this, the id-based
+        // inject-once skip keeps serving the OLD styles after a
+        // scopedStyles edit — the exact workflow HMR exists for. The
+        // "swiflow-" id prefix covers component scoped sheets and
+        // SwiflowUI's base token sheet; user styles are untouched.
+        document.querySelectorAll('style[id^="swiflow-"]').forEach(function (s) {
+          s.remove();
+        });
 
         // Re-import the new entry, then RE-INSTANTIATE the wasm. A
         // PackageToJS index.js only *exports* init(); importing it does
@@ -574,6 +598,14 @@
           e
         );
         location.reload();
+        return; // reload is in flight; don't drain the queue
+      } finally {
+        hmrInFlight = false;
+      }
+      if (hmrQueuedPayload !== null) {
+        const next = hmrQueuedPayload;
+        hmrQueuedPayload = null;
+        hmrSwap(next);
       }
     }
 
