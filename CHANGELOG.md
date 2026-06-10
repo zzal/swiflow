@@ -52,6 +52,18 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 - **`swiflow doctor`** now probes the macOS swift.org toolchain and
   binaryen's `wasm-opt` — the two missing pieces that made builds fail on
   machines where doctor passed.
+- **XSS allowlist:** the postfix `.attr("href", …)` modifier now routes
+  through `URLSanitizer` like the prefix path (the documented invariant had
+  a public bypass).
+- **Query cache growth:** entries are garbage-collected `gcTime` (default
+  5 minutes, configurable per query) after their last subscriber unmounts.
+- **Router:** history mode no longer drops `?query` strings on back/refresh;
+  `Link` hrefs are mode-aware (`#/path` under the default hash mode, so
+  cmd/click and copy-link resolve to the route).
+- **SwiflowUI:** `installBaseStyles()` before `Swiflow.render` now works —
+  the style registry buffers until the DOM sink is installed.
+- **`@State var x: Optional<Int>`** (long spelling) now gets the same
+  HMR nil-handling as `Int?`.
 
 ### Added
 

@@ -14,18 +14,18 @@
 
 | Unit | Status | Critical | High | Medium | Low |
 |---|---|---|---|---|---|
-| Swiflow (core) | ✅ audited | 0 | 1 | 4 | 5 |
-| Cross-module architecture | ✅ audited | 0 | 0 | 3 | 5 |
+| Swiflow (core) | ✅ audited | 0 | 0 | 4 | 5 |
+| Cross-module architecture | ✅ audited | 0 | 0 | 2 | 5 |
 | SwiflowCLI | ✅ audited | 0 | 0 | 4 | 4 |
 | SwiflowDOM | ✅ audited | 0 | 3 | 5 | 3 |
 | SwiflowFetcher | ✅ audited | 0 | 0 | 3 | 4 |
-| SwiflowMacrosPlugin | ✅ audited | 0 | 1 | 5 | 4 |
-| SwiflowQuery | ✅ audited | 0 | 1 | 4 | 5 |
-| SwiflowRouter | ✅ audited | 0 | 2 | 3 | 5 |
+| SwiflowMacrosPlugin | ✅ audited | 0 | 0 | 5 | 4 |
+| SwiflowQuery | ✅ audited | 0 | 0 | 4 | 5 |
+| SwiflowRouter | ✅ audited | 0 | 0 | 3 | 5 |
 | SwiflowTesting | ✅ audited | 0 | 0 | 3 | 2 |
-| SwiflowUI | ✅ audited | 0 | 1 | 2 | 1 |
+| SwiflowUI | ✅ audited | 0 | 0 | 2 | 1 |
 | js-driver | ✅ audited | 0 | 0 | 2 | 4 |
-| **Total** | | **0** | **9** | **38** | **42** |
+| **Total** | | **0** | **3** | **37** | **42** |
 
 **Verdict in one paragraph:** Module internals are far better than typical AI-built
 code — disciplined access control, real invariant comments, correct subtle algorithms,
@@ -47,7 +47,7 @@ control around the patch pipeline, correct LIS-based keyed diff, invariant-dense
 docs — but carries one security-invariant hole and a cluster of stale phase-narrative
 comments concentrated in the riskiest file.
 
-### HIGH — URLSanitizer bypass via postfix modifiers *(verified)*
+### HIGH — URLSanitizer bypass via postfix modifiers *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `Sources/Swiflow/DSL/VNodeModifiers.swift:32-34`
 ```swift
 func attr(_ name: String, _ value: String) -> VNode {
@@ -160,7 +160,7 @@ are enforced only by comment.
 `.github/workflows/ci.yml:125-128` greps only `Swiflow SwiflowRouter SwiflowDOM`;
 SwiflowQuery, SwiflowFetcher, SwiflowUI also ship in the WASM binary and are unguarded.
 All currently clean, but the guard's own "update this list when adding a new runtime
-module" comment was already not honored for three modules.
+module" comment was already not honored for three modules. **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 
 ### MEDIUM — Incoherent @_exported / umbrella strategy
 `SwiflowDOM/SwiflowDOM.swift:12` and `SwiflowDOM/AttributeModifiers.swift:3` both
@@ -474,7 +474,7 @@ cannot reach them. `resolve` is pure string logic that could be extracted and te
 detection is string-fragile, and there are clear migration-residue / task-narration
 artifacts.
 
-### HIGH — Optionality detected by string suffix; `Optional<T>` spelling produces wrong code *(verified)*
+### HIGH — Optionality detected by string suffix; `Optional<T>` spelling produces wrong code *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `ComponentMacro.swift:98`:
 ```swift
 let isOptional = valueType.hasSuffix("?")
@@ -543,7 +543,7 @@ coverage — but with a classic task-focused blind spot (no cache eviction story
 all), one latent concurrency hazard in mutation rollback, and dead speculative
 plumbing shipped as load-bearing API.
 
-### HIGH — No cache eviction / GC: entries live forever *(verified)*
+### HIGH — No cache eviction / GC: entries live forever *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `QueryClient.swift:10` — `var entries: [QueryKey: QueryEntry] = [:]`. Verified: the
 only `removeAll` in the module is on subscriptions; no `removeValue`/clear API exists
 for `entries`. `reconcile` (:236) only inserts; `dropComponent` removes subscriptions
@@ -627,7 +627,7 @@ genuinely principled (zero JS in Core/, pure well-tested matching) — but histo
 is half-implemented (query strings silently lost on load/back), and Link is
 mode-unaware, so the default hash mode renders broken hrefs.
 
-### HIGH — History mode drops query strings on initial load and popstate *(verified)*
+### HIGH — History mode drops query strings on initial load and popstate *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `Web/RouterRoot.swift:90-92`:
 ```
 case .history:
@@ -639,7 +639,7 @@ yields `/search` with empty `RouterContext.query`. Hash mode is unaffected (quer
 inside the hash). Asymmetric, state-dependent data loss — and no example or test
 exercises `.history` at all.
 
-### HIGH — Link is mode-unaware; hrefs are wrong under the default hash mode *(verified)*
+### HIGH — Link is mode-unaware; hrefs are wrong under the default hash mode *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `Web/Link.swift:51,55` — always emits `.attr("href", path)`. RouterRoot defaults to
 `.hash`, where the canonical URL is `#/about`, but Link writes `href="/about"`. The
 unconditional `preventDefault` papers over it for plain left-clicks; cmd/middle-click,
@@ -763,7 +763,7 @@ a runtime repro.
 problems are an install-ordering footgun its own doc comment encourages, and modifiers
 that emit token vars without guaranteeing the tokens exist.
 
-### HIGH — `installBaseStyles()` "up front" advice silently breaks injection *(verified)*
+### HIGH — `installBaseStyles()` "up front" advice silently breaks injection *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-invariant-holes.md]**
 `Theme.swift:27-29` advertises: "also public so apps/tests can install deterministically
 up front." But the emit sink is wired only inside `Swiflow.render`
 (`SwiflowDOM.swift:72` → `CSSInjector.setup()`), and `StyleInjectionRegistry.swift:20-21`
