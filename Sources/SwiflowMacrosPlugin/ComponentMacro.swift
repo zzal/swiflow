@@ -95,7 +95,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             }
             let name = identifier.text
             let valueType = typeAnno.type.trimmedDescription
-            let isOptional = valueType.hasSuffix("?")
+            let isOptional = Self.isOptionalType(typeAnno.type)
 
             // Per Phase 15 Task 1 finding: Optional<T>.none stored in Any
             // is type-erased. Snapshot must normalize .none to HMRNilSentinel
@@ -198,6 +198,29 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             stateCellsDecl,
             bindDecl,
         ]
+    }
+
+    // MARK: - Helpers
+
+    /// Optionality by SYNTAX, not by string suffix: `Int?` is
+    /// `OptionalTypeSyntax`; the long spellings `Optional<Int>` and
+    /// `Swift.Optional<Int>` are identifier/member types named "Optional"
+    /// with a generic argument. (The audit found `hasSuffix("?")` silently
+    /// mis-classified the long spelling, skipping HMRNilSentinel
+    /// normalization.)
+    static func isOptionalType(_ type: TypeSyntax) -> Bool {
+        if type.is(OptionalTypeSyntax.self) { return true }
+        if let ident = type.as(IdentifierTypeSyntax.self),
+           ident.name.text == "Optional",
+           ident.genericArgumentClause != nil {
+            return true
+        }
+        if let member = type.as(MemberTypeSyntax.self),
+           member.name.text == "Optional",
+           member.genericArgumentClause != nil {
+            return true
+        }
+        return false
     }
 }
 

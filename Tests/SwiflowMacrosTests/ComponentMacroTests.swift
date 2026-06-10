@@ -369,4 +369,158 @@ final class ComponentMacroTests: XCTestCase {
             macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
         )
     }
+
+    // Test 8: Long-spelling Optional<Int> must expand identically to Int? —
+    // same sentinel-normalizing snapshot and working restoreNil.
+    // (Audit HIGH: hasSuffix("?") mis-classified Optional<T> as non-optional.)
+    func testOptionalLongSpellingRestoreNilAndSnapshotSentinel() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Counter {
+                @State var maybeId: Optional<Int> = nil
+                var body: VNode { .text("") }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                var maybeId: Optional<Int> = nil {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            maybeId = oldValue
+                            return
+                        }
+                        if let s = runtimeScheduler, let o = runtimeOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                var $maybeId: Binding<Optional<Int>> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.maybeId
+                        },
+                        set: { [unowned self] in
+                            self.maybeId = $0
+                        }
+                    )
+                }
+                var body: VNode { .text("") }
+
+                private weak var runtimeOwner: AnyComponent?
+
+                private var runtimeScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Counter>(
+                    name: "maybeId",
+                    snapshot: { c in
+                        c.maybeId.map {
+                            $0 as Any
+                        } ?? HMRNilSentinel() as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: Optional<Int>.self) else {
+                            return false
+                        }
+                        c.maybeId = typed
+                        return true
+                    },
+                    restoreNil: { c in
+                        c.maybeId = nil
+                        return true
+                    }
+                    ),
+                ]
+
+                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self.runtimeOwner = owner
+                    self.runtimeScheduler = scheduler
+                }
+            }
+
+            extension Counter: Component, _ComponentRuntime {
+            }
+            """,
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
+        )
+    }
+
+    // Test 9: Swift.Optional<Int> (fully-qualified) must also expand with
+    // sentinel-normalizing snapshot + working restoreNil.
+    func testOptionalSwiftQualifiedSpellingRestoreNilAndSnapshotSentinel() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Counter {
+                @State var maybeId: Swift.Optional<Int> = nil
+                var body: VNode { .text("") }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                var maybeId: Swift.Optional<Int> = nil {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            maybeId = oldValue
+                            return
+                        }
+                        if let s = runtimeScheduler, let o = runtimeOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                var $maybeId: Binding<Swift.Optional<Int>> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.maybeId
+                        },
+                        set: { [unowned self] in
+                            self.maybeId = $0
+                        }
+                    )
+                }
+                var body: VNode { .text("") }
+
+                private weak var runtimeOwner: AnyComponent?
+
+                private var runtimeScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Counter>(
+                    name: "maybeId",
+                    snapshot: { c in
+                        c.maybeId.map {
+                            $0 as Any
+                        } ?? HMRNilSentinel() as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: Swift.Optional<Int>.self) else {
+                            return false
+                        }
+                        c.maybeId = typed
+                        return true
+                    },
+                    restoreNil: { c in
+                        c.maybeId = nil
+                        return true
+                    }
+                    ),
+                ]
+
+                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self.runtimeOwner = owner
+                    self.runtimeScheduler = scheduler
+                }
+            }
+
+            extension Counter: Component, _ComponentRuntime {
+            }
+            """,
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
+        )
+    }
+
 }
