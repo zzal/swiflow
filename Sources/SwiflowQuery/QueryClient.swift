@@ -179,6 +179,11 @@ public final class QueryClient {
             entries[key]?.inFlight?.cancel()
             entries.removeValue(forKey: key)
             subscribers.removeValue(forKey: key)
+            // `observed` is not touched here: it's keyed by ownerID and cleaned
+            // by dropComponent/reconcile. A still-alive owner's observed set
+            // may briefly hold a key that has just been evicted; every reader
+            // (reconcile's unsubscribe diff, dropComponent) handles a missing
+            // entry/subscriber slot as a no-op, so there is nothing to prune.
         }
     }
 

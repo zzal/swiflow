@@ -126,4 +126,26 @@ struct CacheEvictionTests {
         #expect(inFlight?.isCancelled == true)
         _ = owner
     }
+
+    // 5. `invalidate` is a no-op for an already-evicted key: the public API
+    //    iterates surviving entries only, so it neither crashes nor resurrects
+    //    the entry. Pins that contract against the eviction path.
+    @Test func invalidateAfterEvictionIsNoOp() async {
+        let clock = ManualClock()
+        let client = QueryClient(clock: clock)
+        let owner = AnyComponent(Dummy())
+        client.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
+                         observations: [obs(["users", "7"], gcTime: .seconds(300))])
+        await awaitInFlight(client)
+
+        client.dropComponent(owner)
+        client.tick(now: clock.now())             // STAMPS unobservedSince
+        clock.advance(by: .seconds(301))
+        client.tick(now: clock.now())             // evict
+        #expect(client.entries[["users", "7"]] == nil)
+
+        client.invalidate(["users", "7"])          // must not crash or re-create
+        #expect(client.entries[["users", "7"]] == nil)
+        _ = owner
+    }
 }
