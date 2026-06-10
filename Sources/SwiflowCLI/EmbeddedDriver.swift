@@ -682,8 +682,9 @@ const MANIFEST_URL = new URL("swiflow-manifest.json", self.location.href).href;
 // byte-compare SW update check re-fire `install` (which precaches the new
 // manifest) — without it, returning visitors would be pinned to the first
 // deploy forever. Activation still follows the standard SW lifecycle: the
-// new worker takes over on the next visit after all tabs close (we
-// deliberately don't skipWaiting; see the install handler).
+// new worker waits until all tabs using the old one close (we deliberately
+// don't skipWaiting; see the install handler), then activates and
+// immediately claims open clients (clients.claim — see the activate handler).
 const BUILD_TAG = "__SWIFLOW_BUILD_TAG__";
 
 function cacheNameFor(prefix, sha256) {
