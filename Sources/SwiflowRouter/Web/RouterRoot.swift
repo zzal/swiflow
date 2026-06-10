@@ -20,7 +20,7 @@ import Swiflow
 /// ```
 @MainActor @Component
 public final class RouterRoot {
-    public enum Mode { case hash, history }
+    public typealias Mode = RouterMode
 
     @State private var currentPath: String = "/"
     private let mode: Mode
@@ -39,6 +39,7 @@ public final class RouterRoot {
     public var body: VNode {
         let router = Router(
             path: currentPath,
+            mode: mode,
             navigate: { [weak self] path in
                 MainActor.assumeIsolated { self?.push(path) }
             },
@@ -83,7 +84,12 @@ public final class RouterRoot {
             let path = hash.hasPrefix("#") ? String(hash.dropFirst()) : ""
             return path.isEmpty ? "/" : path
         case .history:
-            return loc["pathname"].string ?? "/"
+            // pathname alone loses the query on popstate/refresh — the
+            // audit's 'history mode drops query strings' finding. The matcher
+            // strips the query for matching; RouterContext.query parses it.
+            let pathname = loc["pathname"].string ?? "/"
+            let search = loc["search"].string ?? ""
+            return pathname + search
         }
     }
 

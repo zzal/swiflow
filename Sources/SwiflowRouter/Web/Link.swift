@@ -44,12 +44,13 @@ public final class Link: Component {
         // Capture navigate during body — ambientRouter.wrappedValue reads
         // AmbientEnvironment.current which is set by the diff only during body.
         capturedNavigate = ambientRouter.navigate
+        let href = ambientRouter.href(forPath: path)
         let refAttr = Attribute.refBinding(AnyRefBinding(linkRef))
         switch content {
         case .label(let text):
-            return link(.attr("href", path), refAttr) { VNode.text(text) }
+            return link(.attr("href", href), refAttr) { VNode.text(text) }
         case .children(let nodes):
-            return link(.attr("href", path), refAttr) { nodes }
+            return link(.attr("href", href), refAttr) { nodes }
         }
     }
 
