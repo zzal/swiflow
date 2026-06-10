@@ -16,7 +16,7 @@ import JavaScriptEventLoop
 public enum Swiflow {}
 
 /// All live roots, keyed by CSS selector. Package-internal so
-/// AttributeModifiers.swift and DevAPI.swift can read it.
+/// DevAPI.swift can read it.
 nonisolated(unsafe) var renderers: [String: Renderer] = [:]
 
 /// Single shared handle allocator used by all production `Renderer` instances.

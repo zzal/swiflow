@@ -14,7 +14,7 @@ func _registerAmbientHandler(
             "Swiflow modifier .on(_:perform:) was used outside a render cycle. "
             + "Event handlers must be constructed inside a Component body while a render root "
             + "is actively building the tree — Swiflow.render(into:_:) in the browser, "
-            + "SwiflowTesting.render(_:) in tests."
+            + "the render(_:) test harness entry point in tests."
         )
     }
     return registry.register { event in
