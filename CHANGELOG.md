@@ -37,6 +37,22 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
   `swiflow init` templates and all bundled examples now use the new names.
 
+### Fixed
+
+- **Service worker updates.** `swiflow build` now stamps a per-build tag into
+  `swiflow-sw.js`, so browsers detect new deploys and refresh the offline
+  cache (previously returning visitors were pinned to the first deploy).
+- **Dev loop:** editing HTML/JS now reloads the page (previously only a wasm
+  hot-swap was broadcast and HTML edits never appeared); rapid saves no
+  longer race the hot-swap; editing `scopedStyles` no longer shows stale CSS
+  after a hot-swap.
+- **Driver resilience:** a single failing patch no longer aborts the rest of
+  the frame, and driver/boot errors are `console.error`'d in production
+  builds (previously dev-only).
+- **`swiflow doctor`** now probes the macOS swift.org toolchain and
+  binaryen's `wasm-opt` — the two missing pieces that made builds fail on
+  machines where doctor passed.
+
 ### Added
 
 - `TestHarness.check(_:at:checked:)` — simulate checkbox/radio toggles.

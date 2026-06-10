@@ -16,16 +16,16 @@
 |---|---|---|---|---|---|
 | Swiflow (core) | ✅ audited | 0 | 1 | 4 | 5 |
 | Cross-module architecture | ✅ audited | 0 | 0 | 3 | 5 |
-| SwiflowCLI | ✅ audited | 0 | 2 | 4 | 4 |
-| SwiflowDOM | ✅ audited | 0 | 4 | 5 | 3 |
+| SwiflowCLI | ✅ audited | 0 | 0 | 4 | 4 |
+| SwiflowDOM | ✅ audited | 0 | 3 | 5 | 3 |
 | SwiflowFetcher | ✅ audited | 0 | 0 | 3 | 4 |
 | SwiflowMacrosPlugin | ✅ audited | 0 | 1 | 5 | 4 |
 | SwiflowQuery | ✅ audited | 0 | 1 | 4 | 5 |
 | SwiflowRouter | ✅ audited | 0 | 2 | 3 | 5 |
 | SwiflowTesting | ✅ audited | 0 | 0 | 3 | 2 |
 | SwiflowUI | ✅ audited | 0 | 1 | 2 | 1 |
-| js-driver | ✅ audited | 1 | 2 | 4 | 4 |
-| **Total** | | **1** | **14** | **40** | **42** |
+| js-driver | ✅ audited | 0 | 0 | 2 | 4 |
+| **Total** | | **0** | **9** | **38** | **42** |
 
 **Verdict in one paragraph:** Module internals are far better than typical AI-built
 code — disciplined access control, real invariant comments, correct subtle algorithms,
@@ -230,7 +230,7 @@ user-facing bug (HTML edits never reach the browser), `doctor` drifted out of sy
 what `build`/`dev` actually require, and a systematic `ValidationError` misuse degrades
 error UX across all commands.
 
-### HIGH — HTML/JS edits trigger a rebuild but never update the page *(verified)*
+### HIGH — HTML/JS edits trigger a rebuild but never update the page *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `Commands/DevCommand.swift:151-183` — the watcher tracks `extensions: ["swift", "html",
 "js"]`, but the loop body unconditionally calls `await server.hub.broadcastHMRSwap(...)`.
 The driver's `hmr-swap` handler (js-driver/swiflow-driver.js:493-560) only re-imports
@@ -240,7 +240,7 @@ never refetched. `broadcastReload()` exists for exactly this (`WebSocketHub.swif
 but has **zero production callers** (grep: only tests + two stale comments). Classic
 bolt-on: HMR replaced reload wholesale instead of dispatching per file type.
 
-### HIGH — `swiflow doctor` doesn't check what `build`/`dev` actually require *(verified)*
+### HIGH — `swiflow doctor` doesn't check what `build`/`dev` actually require *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `Commands/DoctorCommand.swift:60-75` — the report covers only `swift` and `wasm-sdk`.
 `Toolchain/MacToolchainProbe.swift:3-6` documents that on macOS the build fails without
 a swift.org toolchain, and doctor never probes it (nor binaryen/wasm-opt — grep: zero
@@ -335,7 +335,7 @@ nothing. The JS driver corroborates the single-root assumption (one `let mountSe
 swiflow-driver.js:31, overwritten per mount). Multi-root renders/dispatches fine but
 silently corrupts on HMR.
 
-### HIGH — HMR serves stale CSS; the skip is documented as a feature *(verified)*
+### HIGH — HMR serves stale CSS; the skip is documented as a feature *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `CSS/CSSInjector.swift:39-51` skips injection when `<style id="swiflow-*">` already
 exists ("e.g. an HMR swap re-running setup"), but the driver's `hmrSwap`
 (swiflow-driver.js:511-530) clears nodes/listeners/mount target and never removes
@@ -821,7 +821,7 @@ service-worker design flaw (no update path → permanently stale deploys) and a
 patch-application layer with inconsistent missing-node handling that can leave the
 page half-patched with no signal outside dev mode.
 
-### CRITICAL — Service worker has no update trigger; production users pinned to the first deploy forever *(verified)*
+### CRITICAL — Service worker has no update trigger; production users pinned to the first deploy forever *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `swiflow-sw.js:71-92` + `swiflow-driver.js:40`. The manifest is read only in
 `install`/`activate`; the fetch handler is caches-first
 (`caches.match(event.request) ?? fetch(...)`). Asset URLs are unversioned and
@@ -835,7 +835,7 @@ invalidation strategy that never executes after the first install. The empty
 `message` handler ("Reserved for Track 3") means the page can't poke the SW to
 re-check either.
 
-### HIGH — Missing-node handling is mixed crash/silent; no per-patch isolation *(verified)*
+### HIGH — Missing-node handling is mixed crash/silent; no per-patch isolation *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `swiflow-driver.js:146-156` — structural ops dereference unconditionally
 (`nodes.get(p.parent).appendChild(nodes.get(p.child))` → TypeError on a stale handle)
 while `animateExit`/`destroyNode`/`removeHandler`/`setRawHTML` silently no-op.
@@ -844,7 +844,7 @@ rest of the batch mid-frame — half-patched DOM. Dev mode catches it via the RA
 and shows the overlay; production does not (next finding): the same differ bug crashes
 visibly in dev and corrupts silently in prod.
 
-### HIGH — Error overlay + RAF try/catch exist only behind `SWIFLOW_DEV` *(verified)*
+### HIGH — Error overlay + RAF try/catch exist only behind `SWIFLOW_DEV` *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 `swiflow-driver.js:386-470` are dev-gated; the production boot path's only failure
 signal is `console.warn("swiflow: WASM init failed", e)` (:642) — a warn, not error.
 A production render exception or init failure leaves a frozen/blank page with zero
@@ -854,14 +854,14 @@ user-visible signal and the progress attribute stuck mid-value.
 - **`hmrSwap` has no reentrancy guard:** :511-562 — fired from `ws.onmessage` without
   awaiting; a second swap mid-swap (easy given the dev server's unconditional
   broadcasts, filed under SwiflowCLI) runs concurrent snapshot/clear/import — both
-  modules can mount and dispatch interleaved.
+  modules can mount and dispatch interleaved. **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 - **`animateExit`'s deferred `nodes.delete` races handle reuse:** :129-142 — the
   setTimeout deletes by handle up to durationMs later; if Swift reissues that handle
   first, the timer evicts the new node (then structural ops hit the crash path).
   Handle-reuse behavior is unverifiable from the JS silo; the assumption is unstated.
 - **Dead catch around `fetchWithProgress`:** :629-634 — the function is async, so the
   `catch` (and its advertised "falling back to default init") is unreachable; a
-  never-re-checked guard.
+  never-re-checked guard. **[FIXED — see docs/superpowers/plans/2026-06-10-devloop-delivery-correctness.md]**
 - **Riskiest rewritten logic untested:** `destroyNode`'s numeric-prefix
   listener-cleanup loop (:114-125, rewritten per its own comment to fix a
   `startsWith` bug) has zero coverage; also untested: HMR map-clearing, reload
