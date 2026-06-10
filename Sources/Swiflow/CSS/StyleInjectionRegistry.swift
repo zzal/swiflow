@@ -14,12 +14,24 @@ public enum StyleInjectionRegistry {
     /// Ids already injected this session.
     private static var injectedIDs: Set<String> = []
 
+    /// Emits recorded while no sink was installed. Flushed (in record order)
+    /// the moment `emit` is set, so installing styles before
+    /// `Swiflow.render(into:_:)` wires the DOM sink is safe — the CSS is
+    /// buffered, not lost.
+    private static var pending: [(id: String, css: String)] = []
+
     /// The emit sink. SwiflowDOM sets this to append a `<style>` to `<head>`.
-    /// `nil` on a host with no DOM (tests/headless): `injectOnce` still records
-    /// the id (preserving once-semantics) but emits nothing.
-    /// `emit` must be assigned before the first `injectOnce` call — ids recorded
-    /// before the sink is set are not re-emitted retroactively.
-    public static var emit: ((_ id: String, _ css: String) -> Void)?
+    /// `nil` on a host with no DOM (tests/headless): `injectOnce` records the
+    /// id AND buffers the css; setting the sink flushes the buffer.
+    /// emits recorded before the sink is set are buffered and flushed when it arrives.
+    public static var emit: ((_ id: String, _ css: String) -> Void)? {
+        didSet {
+            guard let emit, !pending.isEmpty else { return }
+            let flush = pending
+            pending = []
+            for entry in flush { emit(entry.id, entry.css) }
+        }
+    }
 
     /// Injects `css` under `id` exactly once. The `css` builder runs only on
     /// the first call for an id (so repeat renders don't rebuild the string).
@@ -28,10 +40,18 @@ public enum StyleInjectionRegistry {
     public static func injectOnce(id: String, css: () -> String) -> Bool {
         guard !injectedIDs.contains(id) else { return false }
         injectedIDs.insert(id)
-        emit?(id, css())
+        if let emit {
+            emit(id, css())
+        } else {
+            pending.append((id: id, css: css()))
+        }
         return true
     }
 
-    /// Forgets all injected ids so the next `injectOnce` re-emits. Tests/HMR.
-    public static func reset() { injectedIDs = [] }
+    /// Forgets all injected ids AND drops any buffered emits, so the next
+    /// `injectOnce` re-emits fresh. Tests/HMR.
+    public static func reset() {
+        injectedIDs = []
+        pending = []
+    }
 }

@@ -26,7 +26,8 @@ public enum SwiflowUI {
 
     /// Injects `baseStyleSheet` into `<head>` exactly once. Called automatically
     /// the first time any SwiflowUI primitive renders; also public so apps/tests
-    /// can install deterministically up front.
+    /// can install deterministically up front (safe even before `Swiflow.render`
+    /// — the registry buffers until the DOM sink is installed).
     @MainActor
     public static func installBaseStyles() {
         StyleInjectionRegistry.injectOnce(id: "swiflow-ui-base") {
