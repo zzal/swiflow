@@ -38,4 +38,24 @@ struct DriverInstallerTests {
         #expect(driver == EmbeddedDriver.javascriptSource)
         #expect(!driver.contains("// stale driver"))
     }
+
+    @Test("stampServiceWorker replaces __SWIFLOW_BUILD_TAG__ with the supplied tag")
+    func stampReplacesBuildTagPlaceholder() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        try DriverInstaller.install(into: dir)
+        try DriverInstaller.stampServiceWorker(into: dir, buildTag: "deadbeefcafe")
+
+        let sw = try String(contentsOf: dir.appendingPathComponent("swiflow-sw.js"), encoding: .utf8)
+        #expect(sw.contains("deadbeefcafe"))
+        #expect(!sw.contains("__SWIFLOW_BUILD_TAG__"),
+                "the placeholder must be fully replaced in the emitted file")
+    }
+
+    @Test("the embedded service worker source carries the placeholder for stamping")
+    func embeddedServiceWorkerCarriesThePlaceholder() {
+        #expect(EmbeddedDriver.serviceWorkerSource.contains("__SWIFLOW_BUILD_TAG__"),
+                "the repo/template copy must keep the placeholder for stamping")
+    }
 }

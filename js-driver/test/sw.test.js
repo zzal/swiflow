@@ -1,6 +1,7 @@
 // js-driver/test/sw.test.js
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { loadServiceWorker, DEFAULT_MANIFEST } from "./sw-helpers.js";
 
 describe("service worker", () => {
@@ -88,5 +89,10 @@ describe("service worker", () => {
       /manifest fetch failed/,
       "install must reject when the manifest returns a non-2xx status"
     );
+  });
+
+  test("sw source carries the build-tag placeholder for CLI stamping", () => {
+    const src = fs.readFileSync(new URL("../swiflow-sw.js", import.meta.url), "utf8");
+    assert.ok(src.includes('const BUILD_TAG = "__SWIFLOW_BUILD_TAG__";'));
   });
 });

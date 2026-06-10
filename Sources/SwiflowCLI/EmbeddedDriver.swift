@@ -676,6 +676,16 @@ enum EmbeddedDriver {
 
 const MANIFEST_URL = new URL("swiflow-manifest.json", self.location.href).href;
 
+// Build tag — the Swiflow CLI replaces the placeholder below on every
+// `swiflow build` (DriverInstaller.stampServiceWorker), so this file's bytes
+// change whenever the app changes. That is what makes the browser's
+// byte-compare SW update check re-fire `install` (which precaches the new
+// manifest) — without it, returning visitors would be pinned to the first
+// deploy forever. Activation still follows the standard SW lifecycle: the
+// new worker takes over on the next visit after all tabs close (we
+// deliberately don't skipWaiting; see the install handler).
+const BUILD_TAG = "__SWIFLOW_BUILD_TAG__";
+
 function cacheNameFor(prefix, sha256) {
   return `${prefix}-v${sha256.slice(0, 8)}`;
 }
@@ -728,6 +738,7 @@ async function cleanupStale(currentNames) {
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
+    self.__swiflowBuildTag = BUILD_TAG; // exposed for debugging/tests
     const manifest = await loadManifest();
     self.__swiflowManifest = manifest;
     await precache(manifest);

@@ -257,8 +257,15 @@ struct BuildCommand: AsyncParsableCommand {
         // 6. Write swiflow-manifest.json at the project root, where swiflow-sw.js
         //    expects to find it (new URL("swiflow-manifest.json", self.location.href)
         //    resolves to the SW's own scope, which is the project root).
-        try BuildCommand.writeManifest(projectDir: projectURL)
+        let manifest = try BuildCommand.writeManifest(projectDir: projectURL)
         print("swiflow: manifest written → swiflow-manifest.json")
+
+        // 7. Stamp the SW with a manifest-derived tag so its bytes change per
+        //    build (SW update lifecycle — see DriverInstaller.stampServiceWorker).
+        let tag = manifest.wasm.sha256.prefix(12)
+            + "-"
+            + manifest.runtime.map { String($0.sha256.prefix(4)) }.joined()
+        try DriverInstaller.stampServiceWorker(into: projectURL, buildTag: String(tag))
 
         print("""
             swiflow: build complete.
@@ -280,7 +287,7 @@ struct BuildCommand: AsyncParsableCommand {
     /// Extracted from `run()` so tests can invoke the real production manifest-write
     /// path after running the build step independently — without having to re-invoke
     /// `BuildCommand.run()` and repeat the full WASM compilation.
-    package static func writeManifest(projectDir: URL) throws {
+    @discardableResult package static func writeManifest(projectDir: URL) throws -> BundleManifest {
         let outputDir = projectDir.appendingPathComponent(".build/plugins/PackageToJS/outputs/Package")
         let outputPrefix = ".build/plugins/PackageToJS/outputs/Package/"
 
@@ -310,5 +317,6 @@ struct BuildCommand: AsyncParsableCommand {
             to: projectDir.appendingPathComponent("swiflow-manifest.json"),
             options: .atomic
         )
+        return manifest
     }
 }

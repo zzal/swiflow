@@ -32,4 +32,22 @@ enum DriverInstaller {
             encoding: .utf8
         )
     }
+
+    /// Re-emits `swiflow-sw.js` with the build tag stamped in. Called by
+    /// `swiflow build` AFTER the manifest is written, so the tag reflects the
+    /// artifacts actually being served. A changed tag changes the SW file's
+    /// bytes, which is what makes the browser's update check re-fire
+    /// `install` and precache the new manifest — without this, returning
+    /// visitors stay pinned to the first-ever-cached bundle.
+    static func stampServiceWorker(into projectDir: URL, buildTag: String) throws {
+        let stamped = EmbeddedDriver.serviceWorkerSource.replacingOccurrences(
+            of: "__SWIFLOW_BUILD_TAG__",
+            with: buildTag
+        )
+        try stamped.write(
+            to: projectDir.appendingPathComponent("swiflow-sw.js"),
+            atomically: true,
+            encoding: .utf8
+        )
+    }
 }
