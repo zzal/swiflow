@@ -8,7 +8,7 @@ private final class EchoInput {
     @State var text: String = ""
     var body: VNode {
         div {
-            Swiflow.input(.value($text))
+            input(.value($text))
             p { VNode.text("echo: \(text)") }
         }
     }
