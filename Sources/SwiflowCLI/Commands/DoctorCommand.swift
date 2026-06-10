@@ -20,9 +20,17 @@ internal enum ToolStatus {
 struct DoctorReport {
     let swift: ToolStatus
     let wasmSDK: ToolStatus
+    /// nil = not applicable on this OS (Linux builds don't need the
+    /// swift.org macOS toolchain workaround).
+    let macToolchain: ToolStatus?
+    let wasmOpt: ToolStatus
+
+    private var applicable: [ToolStatus] {
+        [swift, wasmSDK, wasmOpt] + (macToolchain.map { [$0] } ?? [])
+    }
 
     var exitCode: Int32 {
-        let allPresent = [swift, wasmSDK].allSatisfy {
+        let allPresent = applicable.allSatisfy {
             if case .missing = $0 { return false }
             return true
         }
@@ -35,6 +43,12 @@ struct DoctorReport {
                          hint: "Install Swift 6.3 from https://swift.org/install/"))
         lines.append(row(name: "wasm-sdk", status: wasmSDK,
                          hint: "Install the WebAssembly Swift SDK 6.3. See README.md → Prerequisites for the current `swift sdk install …` command (the checksum changes per release)."))
+        if let macToolchain {
+            lines.append(row(name: "mac-toolchain", status: macToolchain,
+                             hint: "Install the swift.org toolchain (https://swift.org/install/) — Xcode's default clang has no WASM backend, so `swiflow build` fails with \"No available targets are compatible with triple 'wasm32-unknown-wasip1'\" without it."))
+        }
+        lines.append(row(name: "wasm-opt", status: wasmOpt,
+                         hint: "Install binaryen (`brew install binaryen`) — the PackageToJS plugin invokes wasm-opt for release builds."))
         lines.append("")
         if exitCode == 0 {
             lines.append("All checks passed.")
@@ -65,12 +79,34 @@ struct DoctorCommand: AsyncParsableCommand {
     func run() async throws {
         let report = DoctorReport(
             swift: probeSwift(),
-            wasmSDK: probeWasmSDK()
+            wasmSDK: probeWasmSDK(),
+            macToolchain: probeMacToolchain(),
+            wasmOpt: probeWasmOpt()
         )
         print(report.summary)
         if report.exitCode != 0 {
             throw ExitCode(report.exitCode)
         }
+    }
+
+    /// macOS only: `swiflow build` needs the swift.org toolchain's clang for
+    /// the wasm triple (see MacToolchainProbe's header comment). On Linux
+    /// the row is not applicable.
+    private func probeMacToolchain() -> ToolStatus? {
+        #if os(macOS)
+        if let bundleID = MacToolchainProbe.swiftLatestBundleIdentifier() {
+            return .found(bundleID)
+        }
+        return .missing
+        #else
+        return nil
+        #endif
+    }
+
+    private func probeWasmOpt() -> ToolStatus {
+        guard let out = try? captureOutput("wasm-opt", ["--version"]) else { return .missing }
+        let firstLine = out.split(separator: "\n").first.map(String.init) ?? ""
+        return .found(firstLine)
     }
 
     private func probeSwift() -> ToolStatus {

@@ -9,7 +9,9 @@ struct DoctorCommandTests {
     func allPresent() throws {
         let report = DoctorReport(
             swift: .found("Apple Swift version 6.3"),
-            wasmSDK: .found("6.3-RELEASE-wasm")
+            wasmSDK: .found("6.3-RELEASE-wasm"),
+            macToolchain: nil,
+            wasmOpt: .found("version 118")
         )
         #expect(report.exitCode == 0)
         #expect(report.summary.contains("✓ swift"))
@@ -21,7 +23,9 @@ struct DoctorCommandTests {
     func wasmSDKMissing() throws {
         let report = DoctorReport(
             swift: .found("Apple Swift version 6.3"),
-            wasmSDK: .missing
+            wasmSDK: .missing,
+            macToolchain: nil,
+            wasmOpt: .found("version 118")
         )
         #expect(report.exitCode == 1)
         #expect(report.summary.contains("✗ wasm-sdk"))
@@ -32,7 +36,9 @@ struct DoctorCommandTests {
     func multipleMissing() throws {
         let report = DoctorReport(
             swift: .missing,
-            wasmSDK: .missing
+            wasmSDK: .missing,
+            macToolchain: nil,
+            wasmOpt: .found("version 118")
         )
         #expect(report.exitCode == 1)
         #expect(report.summary.contains("✗ swift"))
