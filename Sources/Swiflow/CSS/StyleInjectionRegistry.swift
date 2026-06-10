@@ -23,7 +23,6 @@ public enum StyleInjectionRegistry {
     /// The emit sink. SwiflowDOM sets this to append a `<style>` to `<head>`.
     /// `nil` on a host with no DOM (tests/headless): `injectOnce` records the
     /// id AND buffers the css; setting the sink flushes the buffer.
-    /// emits recorded before the sink is set are buffered and flushed when it arrives.
     public static var emit: ((_ id: String, _ css: String) -> Void)? {
         didSet {
             guard let emit, !pending.isEmpty else { return }
