@@ -145,9 +145,11 @@ struct DevCommand: AsyncParsableCommand {
         let server = DevServer(projectRoot: projectURL, port: port)
         print("swiflow: dev server listening on http://localhost:\(port)")
 
-        // 6. Start the file watcher in a background task. On each
-        //    change, rebuild and broadcast reload (decision §2: don't
-        //    broadcast on failed rebuilds).
+        // 6. Start the file watcher in a background task. Per-file-type
+        //    dispatch: Swift changes rebuild and hot-swap the wasm bundle
+        //    in place; HTML/JS changes reload the page so static assets are
+        //    refetched; mixed batches rebuild and reload. Decision §2: don't
+        //    broadcast on failed rebuilds.
         let watcher = FileWatcher(
             root: projectURL,
             interval: .milliseconds(250),
@@ -169,19 +171,28 @@ struct DevCommand: AsyncParsableCommand {
                 let rebuildRunner = SystemProcessRunner()
                 var state = BypassState()
                 for await changed in watcher.changes() {
-                    print("swiflow: rebuilding (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
+                    let dispatch = Self.changeDispatch(for: changed)
+                    print("swiflow: \(dispatch.rebuild ? "rebuilding" : "reloading") (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
                     do {
-                        if let bypassRebuilder {
-                            try bypassRebuilder.rebuild(using: rebuildRunner, state: &state)
-                        } else {
-                            _ = try invocation.run(using: rebuildRunner)
+                        if dispatch.rebuild {
+                            if let bypassRebuilder {
+                                try bypassRebuilder.rebuild(using: rebuildRunner, state: &state)
+                            } else {
+                                _ = try invocation.run(using: rebuildRunner)
+                            }
                         }
-                        let bust = Self.wasmCacheBusterSuffix(projectURL: projectURL)
-                        await server.hub.broadcastHMRSwap(
-                            wasmURL: "/\(Self.packageToJSOutputRelativePath)/App.wasm?h=\(bust)",
-                            jsURL: "/\(Self.packageToJSOutputRelativePath)/index.js?h=\(bust)"
-                        )
-                        print("swiflow: HMR broadcast")
+                        switch dispatch.broadcast {
+                        case .hmrSwap:
+                            let bust = Self.wasmCacheBusterSuffix(projectURL: projectURL)
+                            await server.hub.broadcastHMRSwap(
+                                wasmURL: "/\(Self.packageToJSOutputRelativePath)/App.wasm?h=\(bust)",
+                                jsURL: "/\(Self.packageToJSOutputRelativePath)/index.js?h=\(bust)"
+                            )
+                            print("swiflow: HMR broadcast")
+                        case .reload:
+                            await server.hub.broadcastReload()
+                            print("swiflow: reload broadcast")
+                        }
                     } catch {
                         print("swiflow: rebuild failed — \(error). Browser unchanged; fix and save to retry.")
                     }
@@ -189,6 +200,33 @@ struct DevCommand: AsyncParsableCommand {
             }
             try await group.next()
             group.cancelAll()
+        }
+    }
+
+    /// What to do for a batch of changed files. Pure — unit-tested directly.
+    struct ChangeDispatch: Equatable {
+        enum Broadcast: Equatable { case hmrSwap, reload }
+        let rebuild: Bool
+        let broadcast: Broadcast
+
+        init(rebuild: Bool, broadcast: Broadcast) {
+            self.rebuild = rebuild
+            self.broadcast = broadcast
+        }
+    }
+
+    /// Swift edits need a rebuild and can hot-swap the wasm in place.
+    /// HTML/JS edits are static-asset changes: the page itself must reload
+    /// to refetch them (hmr-swap only re-imports the wasm bundle — it never
+    /// refetches index.html). Mixed batches rebuild AND reload, which picks
+    /// up both.
+    static func changeDispatch(for changed: Set<URL>) -> ChangeDispatch {
+        let swiftChanged = changed.contains { $0.pathExtension == "swift" }
+        let webChanged = changed.contains { $0.pathExtension != "swift" }
+        switch (swiftChanged, webChanged) {
+        case (true, false): return .init(rebuild: true, broadcast: .hmrSwap)
+        case (true, true):  return .init(rebuild: true, broadcast: .reload)
+        default:            return .init(rebuild: false, broadcast: .reload)
         }
     }
 

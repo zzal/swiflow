@@ -1,9 +1,10 @@
 // Sources/SwiflowCLI/DevServer/WebSocketHub.swift
 //
-// Actor that tracks every connected /reload WebSocket and exposes a
-// broadcastReload() coroutine. DevCommand calls broadcastReload() after each
-// successful rebuild; the upgrade handler routes new connections into this
-// hub via register() / unregister().
+// Actor that tracks every connected /reload WebSocket and exposes
+// broadcastHMRSwap() and broadcastReload() coroutines. DevCommand dispatches
+// broadcastHMRSwap() for Swift-only changes and broadcastReload() for
+// HTML/JS changes; the upgrade handler routes new connections into this hub
+// via register() / unregister().
 //
 // Actor isolation is the right primitive here: all access is from async
 // contexts, the per-client write is independent (no shared mutable buffer),

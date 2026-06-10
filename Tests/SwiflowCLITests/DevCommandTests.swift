@@ -54,6 +54,31 @@ struct DevCommandTests {
 //   - all DevServer component tests (FileWatcher, HTTPRouter, hub, etc.)
 // If a Linux user breaks the dev server, BuildCommandIntegrationTests
 // + the component tests still catch the structural regressions.
+@Suite struct DevChangeDispatchTests {
+
+    private func urls(_ paths: [String]) -> Set<URL> {
+        Set(paths.map { URL(fileURLWithPath: $0) })
+    }
+
+    @Test func swiftOnlyChangesRebuildAndHMRSwap() {
+        let d = DevCommand.changeDispatch(for: urls(["/p/Sources/App/Main.swift"]))
+        #expect(d == .init(rebuild: true, broadcast: .hmrSwap))
+    }
+
+    @Test func webOnlyChangesReloadWithoutRebuild() {
+        let d = DevCommand.changeDispatch(for: urls(["/p/index.html"]))
+        #expect(d == .init(rebuild: false, broadcast: .reload))
+        let js = DevCommand.changeDispatch(for: urls(["/p/styles.js"]))
+        #expect(js == .init(rebuild: false, broadcast: .reload))
+    }
+
+    @Test func mixedChangesRebuildAndReload() {
+        let d = DevCommand.changeDispatch(
+            for: urls(["/p/Sources/App/Main.swift", "/p/index.html"]))
+        #expect(d == .init(rebuild: true, broadcast: .reload))
+    }
+}
+
 #if canImport(Darwin)
 
 @Suite("DevCommand end-to-end (requires WASM SDK)")

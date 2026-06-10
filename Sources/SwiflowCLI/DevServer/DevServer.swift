@@ -2,8 +2,9 @@
 //
 // Stitches HTTPRouter + WebSocketHub into a single Hummingbird
 // Application. DevCommand owns one DevServer instance plus one
-// FileWatcher; on each watcher event it rebuilds and then calls
-// `server.hub.broadcastReload()`.
+// FileWatcher; on each watcher event it dispatches either
+// `server.hub.broadcastHMRSwap()` (Swift-only changes) or
+// `server.hub.broadcastReload()` (HTML/JS changes).
 //
 // Lifecycle: callers `await server.run()` which blocks until the
 // caller's outer Task is cancelled — that's the signal swiflow uses
