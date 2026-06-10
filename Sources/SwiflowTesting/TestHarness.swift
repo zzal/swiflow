@@ -100,4 +100,9 @@ public struct TestHarness {
     public func change(_ tag: String = "select", at index: Int = 0, value: String) {
         renderer.change(tag: tag, at: index, value: value)
     }
+
+    /// Unmounts the rendered tree, firing `onDisappear` parent-first — mirrors
+    /// `Swiflow.unmount(into:)` in the browser. Queries after unmount read the
+    /// last-rendered tree and are unspecified.
+    public func unmount() { renderer.unmount() }
 }

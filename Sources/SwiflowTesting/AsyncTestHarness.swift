@@ -104,4 +104,5 @@ public struct AsyncTestHarness {
     public func input(_ tag: String = "input", at index: Int = 0, value: String) { harness.input(tag, at: index, value: value) }
     public func blur(_ tag: String = "input", at index: Int = 0) { harness.blur(tag, at: index) }
     public func change(_ tag: String = "select", at index: Int = 0, value: String) { harness.change(tag, at: index, value: value) }
+    public func unmount() { harness.unmount() }
 }

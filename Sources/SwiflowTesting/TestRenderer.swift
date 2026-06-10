@@ -12,10 +12,12 @@ final class TestRenderer {
     let handles: HandleAllocator
     let handlers: HandlerRegistry
     let scheduler: SyncScheduler
-    let rootInstance: any Component
-    let rootID: ObjectIdentifier
     /// Kept alive so @State's weak `_owner` reference doesn't dangle.
     let rootComponent: AnyComponent
+    /// Root description with a same-instance factory — mirrors
+    /// SwiflowDOM.Renderer.renderOnce(): the factory is consumed exactly once at
+    /// first mount; every later diff at the same position reuses the instance.
+    private let rootDescription: ComponentDescription
 
     /// Owns this renderer's in-flight `.task` runs (Phase 20), so `settle()`
     /// awaits only this root's tasks — isolated from other (e.g. concurrently
@@ -31,13 +33,17 @@ final class TestRenderer {
         self.handles = HandleAllocator()
         self.handlers = HandlerRegistry()
         self.queryClient = queryClient
-        self.rootInstance = instance
-        self.rootID = ObjectIdentifier(instance)
+        let anyComponent = AnyComponent(instance)
+        self.rootComponent = anyComponent
+        self.rootDescription = ComponentDescription(
+            typeID: anyComponent.typeID,
+            key: nil,
+            factory: { anyComponent }
+        )
         self.scheduler = SyncScheduler { [relay] component in
             MainActor.assumeIsolated { relay.owner?.rerender(component) }
         }
-        let anyComponent = AnyComponent(instance)
-        self.rootComponent = anyComponent
+
         HandlerAmbient.current = self.handlers
         // Set the scope directly (not via the `withScope` closure) so we don't
         // capture `self` in a closure before all members are initialized.
@@ -48,27 +54,26 @@ final class TestRenderer {
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }
-        // Wire AFTER the observer box is installed, so a root @MutationState's
-        // mount-time wiring (@Component.bind → _currentRenderQueryClient())
-        // captures the client (spec §8.2, B1).
-        wireState(on: anyComponent, scheduler: self.scheduler)
-        // Wrap the root component's body evaluation in a query observer frame
-        // so `query()` calls inside body are recorded and reconciled.
-        queryClient.willEvaluate(owner: anyComponent, scheduler: self.scheduler)
-        let rootBodyVNode = instance.body
-        queryClient.didEvaluate()
+        // The diff's component-mount path does the rest — wireStateAndRestore,
+        // handler scope, environment + observer bracketing, body evaluation —
+        // the same code the browser renderer runs.
         let result = diff(
             mounted: nil,
-            next: rootBodyVNode,
+            next: .component(rootDescription),
             handles: self.handles,
             handlers: self.handlers,
             scheduler: self.scheduler
         )
         self.mountTree = result.newMountTree
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: [])
         relay.owner = self
     }
 
+    /// Always re-renders from the root — exactly like the browser Renderer,
+    /// where the RAF flush calls renderOnce() regardless of which component
+    /// marked itself dirty. The diff decides which bodies to re-evaluate.
     func rerender(_ component: AnyComponent) {
+        _ = component
         HandlerAmbient.current = self.handlers
         SwiflowTaskRuntime.currentScope = taskScope
         RenderObserverBox.current = queryClient
@@ -77,38 +82,26 @@ final class TestRenderer {
             SwiflowTaskRuntime.currentScope = nil
             RenderObserverBox.current = nil
         }
-        if ObjectIdentifier(component.instance) == rootID {
-            // Wrap root body evaluation in a query observer frame.
-            queryClient.willEvaluate(owner: rootComponent, scheduler: scheduler)
-            let rootBodyVNode = rootInstance.body
-            queryClient.didEvaluate()
-            let result = diff(
-                mounted: mountTree,
-                next: rootBodyVNode,
-                handles: handles,
-                handlers: handlers,
-                scheduler: scheduler
-            )
-            mountTree = result.newMountTree
-        } else if let node = findComponentNode(component, in: mountTree) {
-            // A nested component re-rendering on its own (its @State changed).
-            // Its body is evaluated eagerly here, outside the diff's
-            // `.component` path, so bracket it explicitly — exactly as the root
-            // branch does — so `query()` calls reconcile. (The browser Renderer
-            // re-renders the whole tree from root, where the diff fires the hook
-            // for nested components; this keeps the TestRenderer faithful to it.)
-            queryClient.willEvaluate(owner: component, scheduler: scheduler)
-            let nestedBodyVNode = component.instance.body
-            queryClient.didEvaluate()
-            let result = diff(
-                mounted: node.componentBody,
-                next: nestedBodyVNode,
-                handles: handles,
-                handlers: handlers,
-                scheduler: scheduler
-            )
-            node.componentBody = result.newMountTree
-        }
+        let preExistingIDs = collectComponentIDs(mountTree)
+        let result = diff(
+            mounted: mountTree,
+            next: .component(rootDescription),
+            handles: handles,
+            handlers: handlers,
+            scheduler: scheduler
+        )
+        mountTree = result.newMountTree
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
+    }
+
+    /// Tears down the mounted tree: fires `onDisappear` (parent-first), closes
+    /// handler scopes, and notifies the query client of component unmounts —
+    /// mirroring SwiflowDOM.Renderer.teardown() minus the JS patches.
+    func unmount() {
+        RenderObserverBox.current = queryClient
+        defer { RenderObserverBox.current = nil }
+        var patches: [Patch] = []
+        destroy(mountTree, into: &patches, handlers: handlers)
     }
 
     func textContent(of node: MountNode) -> String {
@@ -161,23 +154,6 @@ final class TestRenderer {
             break
         }
         return results
-    }
-
-    func findComponentNode(
-        _ component: AnyComponent,
-        in node: MountNode
-    ) -> MountNode? {
-        if let c = node.component,
-           ObjectIdentifier(c.instance) == ObjectIdentifier(component.instance) {
-            return node
-        }
-        for child in node.children {
-            if let found = findComponentNode(component, in: child) { return found }
-        }
-        if let body = node.componentBody {
-            return findComponentNode(component, in: body)
-        }
-        return nil
     }
 
     func click(tag: String, text: String?) {
