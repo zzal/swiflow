@@ -1,0 +1,70 @@
+# .github/workflows/release.yml
+#
+# Publishes a GitHub Release when a `vX.Y.Z` tag is pushed, using the matching
+# `## [<version>]` section of CHANGELOG.md as the release notes.
+#
+# Why this exists: a git tag is NOT a GitHub Release. Pushing `v0.1.8` creates
+# a tag, but the "Latest release" badge stays pinned to the last *published
+# Release* until one is created for the new tag. This workflow closes that gap
+# so tagging is the only manual release step — push `vX.Y.Z` (matching
+# `SwiflowVersion.current`) and the Release publishes itself, with notes lifted
+# straight from the CHANGELOG.
+#
+# Latest-ness is left to GitHub (it marks the highest semver as "Latest"), so a
+# back-patched older tag won't wrongly steal the badge.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Only the permission needed to create/edit a Release. Everything else stays
+# read-only.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish release from the CHANGELOG section
+        env:
+          # Injection hygiene: the tag name and token reach the script only via
+          # the environment (quoted in shell below), never interpolated into
+          # the run-block body. See
+          # https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          version="${TAG#v}"   # strip the leading 'v' → "0.1.8"
+
+          # Extract the `## [<version>]` section: from its header up to (but not
+          # including) the next `## ` h2 heading. `-v ver=` passes the version
+          # as an awk variable — it is never spliced into the program text.
+          notes="$(mktemp)"
+          awk -v ver="$version" '
+            index($0, "## [" ver "]") == 1 { inSection = 1; print; next }
+            inSection && index($0, "## ") == 1 { exit }
+            inSection { print }
+          ' CHANGELOG.md > "$notes"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — refreshing its notes."
+            if [ -s "$notes" ]; then
+              gh release edit "$TAG" --title "Swiflow $version" --notes-file "$notes"
+            else
+              echo "::warning::No CHANGELOG section for [$version]; leaving the existing release untouched."
+            fi
+          elif [ -s "$notes" ]; then
+            echo "Creating release $TAG from the CHANGELOG [$version] section."
+            gh release create "$TAG" --title "Swiflow $version" --notes-file "$notes"
+          else
+            echo "::warning::No CHANGELOG section for [$version]; creating with auto-generated notes."
+            gh release create "$TAG" --title "Swiflow $version" --generate-notes
+          fi
