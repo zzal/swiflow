@@ -16,7 +16,7 @@
 // WHAT IS NOT TESTED HERE:
 // The JSValue ↔ primitive conversion in `encodeStateMap`/`decodeStateMap`
 // itself. A future WASM test target should add end-to-end bridge tests that
-// actually call `HMRBridge.takePendingSnapshot()` after staging a mock
+// actually call `HMRBridge.pendingRestoreIndex()` after staging a mock
 // `window.__swiflowPendingSnapshot`.
 
 import Testing
