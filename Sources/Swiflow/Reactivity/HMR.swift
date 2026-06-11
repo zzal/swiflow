@@ -109,6 +109,18 @@ package enum HMRRestoreInstall {
 @MainActor
 package enum HMRWalker {
 
+    /// Aggregates snapshots across multiple render roots, in order. The HMR
+    /// exporter walks every live root so a multi-root app preserves all roots'
+    /// `@State` across a hot-swap (not just the last-mounted root).
+    ///
+    /// v1 limitation: snapshot identity is `(path, typeName, key)` relative to
+    /// each root's own tree, so mounting the identical component type with
+    /// identical structure at two selectors can collide. Distinct component
+    /// types per selector — the normal case — never collide.
+    package static func snapshot(fromRoots roots: [MountNode]) -> [ComponentSnapshot] {
+        roots.flatMap { snapshot(from: $0) }
+    }
+
     /// Walk `tree` in document order and produce one
     /// `ComponentSnapshot` per Component-bearing `MountNode`.
     ///

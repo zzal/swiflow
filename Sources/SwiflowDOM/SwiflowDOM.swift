@@ -55,11 +55,13 @@ public extension Swiflow {
             "Call Swiflow.unmount(into: \"\(selector)\") before mounting a new root at the same selector."
         )
 
-        let pendingIndex = HMRBridge.takePendingSnapshot()
+        // Pending-restore index is cached in HMRBridge so EVERY root's first
+        // render reads it (not just the first-mounted root). Install the
+        // restore hook for the duration of this root's first render only.
+        let pendingIndex = HMRBridge.pendingRestoreIndex()
         if let index = pendingIndex {
             HMRRestoreInstall.stateFor = { path, typeName, key in
-                let lookupKey = SnapshotKey(path: path, typeName: typeName, key: key)
-                return index[lookupKey]
+                index[SnapshotKey(path: path, typeName: typeName, key: key)]
             }
         }
 
@@ -68,16 +70,17 @@ public extension Swiflow {
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         DispatcherBridge.install()
         RefResolverInstall.resolver = { handle in
-            guard let swiflowGlobal = JSObject.global.swiflow.object else {
-                return nil
-            }
+            guard let swiflowGlobal = JSObject.global.swiflow.object else { return nil }
             let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
             return result.object
         }
 
-        HMRBridge.installSnapshotExporter { [weak renderer] in
-            renderer?.mountTree
-        }
+        renderers[selector] = renderer
+
+        // One aggregating exporter over the global root set — re-installed each
+        // render (idempotent; it closes over `renderers`, not a single root) so
+        // every live root contributes to a hot-swap snapshot.
+        HMRBridge.installSnapshotExporter { renderers.values.compactMap(\.mountTree) }
 
         renderer.renderOnce()
 
@@ -85,7 +88,6 @@ public extension Swiflow {
             HMRRestoreInstall.stateFor = nil
         }
 
-        renderers[selector] = renderer
         DevAPI.installAll()
     }
 

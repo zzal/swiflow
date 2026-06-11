@@ -29,17 +29,16 @@ package enum HMRBridge {
 
     // MARK: - Snapshot exporter (Swift → JS)
 
-    /// Install `window.__swiflow.hmrSnapshot = () => [...]`. The
-    /// exported function consults the renderer's live mount tree at
-    /// call time, walks it with `HMRWalker.snapshot(...)`, and
-    /// JS-encodes the result.
+    /// Install `window.__swiflow.hmrSnapshot = () => [...]`. The exported
+    /// function walks EVERY live root's mount tree at call time (via the
+    /// provider), aggregates with `HMRWalker.snapshot(fromRoots:)`, and
+    /// JS-encodes the result. Installing once over the global root set (rather
+    /// than per-render over a single root) is what makes multi-root HMR keep
+    /// every root's state instead of only the last-mounted one.
     @MainActor
-    package static func installSnapshotExporter(treeProvider: @escaping @MainActor () -> MountNode?) {
+    package static func installSnapshotExporter(rootsProvider: @escaping @MainActor () -> [MountNode]) {
         let snapshotFn = JSClosure { _ in
-            guard let tree = treeProvider() else {
-                return JSValue.object(JSObject.global.Array.function!.new())
-            }
-            let snaps = HMRWalker.snapshot(from: tree)
+            let snaps = HMRWalker.snapshot(fromRoots: rootsProvider())
             return encodeToJS(snaps)
         }
 
@@ -64,12 +63,31 @@ package enum HMRBridge {
 
     // MARK: - Pending snapshot consumer (JS → Swift)
 
+    /// Parsed pending-restore index for THIS module instance. A fresh module
+    /// after a hot-swap starts with `pendingRead == false`, so the first
+    /// `pendingRestoreIndex()` re-parses `window.__swiflowPendingSnapshot`.
+    nonisolated(unsafe) private static var pendingIndex: [SnapshotKey: [String: Any]]?
+    nonisolated(unsafe) private static var pendingRead = false
+
+    /// The restore index every root's first render consults. Parsed exactly
+    /// once per module instance (reading + nil-ing the JS global on the first
+    /// call), then CACHED — so a second/third root's `render(into:)` still sees
+    /// the index instead of nil. Returns nil when no swap is pending.
+    @MainActor
+    package static func pendingRestoreIndex() -> [SnapshotKey: [String: Any]]? {
+        if !pendingRead {
+            pendingRead = true
+            pendingIndex = parsePendingSnapshot()
+        }
+        return pendingIndex
+    }
+
     /// Read `window.__swiflowPendingSnapshot`. Returns nil when no
     /// swap is pending (initial page load). On any decode error,
     /// returns nil — the new mount will start with declared initial
     /// values, which is strictly better than a full reload.
     @MainActor
-    package static func takePendingSnapshot() -> [SnapshotKey: [String: Any]]? {
+    private static func parsePendingSnapshot() -> [SnapshotKey: [String: Any]]? {
         let pending = JSObject.global.__swiflowPendingSnapshot
         // Clear the global immediately so a subsequent render in the
         // same session (e.g. a manual rerender) doesn't accidentally
