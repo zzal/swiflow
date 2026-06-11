@@ -27,7 +27,7 @@ const MANIFEST_URL = new URL("swiflow-manifest.json", self.location.href).href;
 // new worker waits until all tabs using the old one close (we deliberately
 // don't skipWaiting; see the install handler), then activates and
 // immediately claims open clients (clients.claim — see the activate handler).
-const BUILD_TAG = "4e3469cf2fd5-19397553fd06296e";
+const BUILD_TAG = "__SWIFLOW_BUILD_TAG__";
 
 function cacheNameFor(prefix, sha256) {
   return `${prefix}-v${sha256.slice(0, 8)}`;
