@@ -69,6 +69,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 - **Release bundle:** the dev inspection API (`window.__swiflow`) and HMR
   snapshot/restore machinery are compile-time stripped from `swiflow build`
   output — smaller wasm, and no dev-only state-export surface in production.
+- **Optimistic mutations:** a failed mutation no longer rolls its cache key
+  back over a *concurrent* mutation's newer value (or cancels that mutation's
+  refetch) — rollback now skips keys that were superseded after the optimistic
+  write.
+- **`SwiflowFetcher`:** non-finite numbers (`NaN`, `±Infinity`) serialize as
+  JSON `null` (matching `JSON.stringify`) instead of the invalid tokens
+  `nan`/`inf`.
+- **Router:** captured path params are now percent-decoded like query params —
+  `/users/john%20doe` yields `params["id"] == "john doe"`.
 
 ### Removed
 

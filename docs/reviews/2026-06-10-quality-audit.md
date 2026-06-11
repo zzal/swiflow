@@ -18,14 +18,14 @@
 | Cross-module architecture | ✅ audited | 0 | 0 | 2 | 5 |
 | SwiflowCLI | ✅ audited | 0 | 0 | 4 | 4 |
 | SwiflowDOM | ✅ audited | 0 | 0 | 5 | 3 |
-| SwiflowFetcher | ✅ audited | 0 | 0 | 3 | 4 |
+| SwiflowFetcher | ✅ audited | 0 | 0 | 2 | 4 |
 | SwiflowMacrosPlugin | ✅ audited | 0 | 0 | 5 | 4 |
-| SwiflowQuery | ✅ audited | 0 | 0 | 4 | 5 |
-| SwiflowRouter | ✅ audited | 0 | 0 | 3 | 5 |
+| SwiflowQuery | ✅ audited | 0 | 0 | 3 | 5 |
+| SwiflowRouter | ✅ audited | 0 | 0 | 2 | 5 |
 | SwiflowTesting | ✅ audited | 0 | 0 | 3 | 2 |
 | SwiflowUI | ✅ audited | 0 | 0 | 2 | 1 |
 | js-driver | ✅ audited | 0 | 0 | 2 | 4 |
-| **Total** | | **0** | **0** | **37** | **42** |
+| **Total** | | **0** | **0** | **34** | **42** |
 
 **Verdict in one paragraph:** Module internals are far better than typical AI-built
 code — disciplined access control, real invariant comments, correct subtle algorithms,
@@ -428,7 +428,7 @@ is dead weight and the "RFC 8259" serializer has a non-finite-double hole.
   `case .double(let d): return String(d)` → `.infinity` serializes as `"inf"`, `.nan`
   as `"nan"`, despite the file advertising RFC 8259. A computed NaN in a request body
   becomes a server-side parse error with no client-side diagnostic. Untested (tests
-  cover only `2.5`).
+  cover only `2.5`). **[FIXED — see docs/superpowers/plans/2026-06-10-targeted-mediums.md]**
 - **Non-2xx errors discard the response body:** `HTTPClient.swift:115-117` —
   `throw HTTPError.status(Int(response.status.number ?? 0))` loses the error payload
   (`{"error": …}`) and statusText; the `?? 0` fallback can surface as meaningless
@@ -560,7 +560,7 @@ lifetime; no phase asked "when does an entry die?"
   has touched the same key, and `setQueryData` (QueryClient+Cache.swift:25-28) bumps the
   generation and cancels B's in-flight refetch, so the wrong value persists until the
   next trigger. The comment ("concurrent mutations never share rollback state", :57)
-  answers the wrong question — the hazard is interleaved cache state, not shared stacks.
+  answers the wrong question — the hazard is interleaved cache state, not shared stacks. **[FIXED — see docs/superpowers/plans/2026-06-10-targeted-mediums.md]**
 - **Dead speculative plumbing:** `QueryEntry.swift:36-41` — `valuesEqual` is a required
   init parameter, synthesized per observation (QueryClient.swift:286), supplied at 18
   test call sites, read nowhere in production (admitted at QueryClient.swift:128:
@@ -651,7 +651,7 @@ couldn't adapt even if it tried.
 - **Path params never percent-decoded while query params are:** `RoutePattern.swift:90`
   stores raw segments; `splitQuery` runs a hand-rolled RFC 3986 decoder on query
   pairs. `/users/john%20doe` → `params["id"] == "john%20doe"`, but
-  `?name=john%20doe` → `"john doe"`. Zero tests cover encoded path segments.
+  `?name=john%20doe` → `"john doe"`. Zero tests cover encoded path segments. **[FIXED — see docs/superpowers/plans/2026-06-10-targeted-mediums.md]**
 - **`matchFull`/`matchPrefix` are copy-paste twins:** `RoutePattern.swift:78-110` —
   literal/param arms character-identical; divergence already visible in mid-pattern
   wildcard behavior, and both silently make any segment after `*` unmatchable
