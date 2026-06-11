@@ -64,6 +64,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   the style registry buffers until the DOM sink is installed.
 - **`@State var x: Optional<Int>`** (long spelling) now gets the same
   HMR nil-handling as `Int?`.
+- **Multi-root HMR:** a hot-swap now preserves `@State` across all mounted
+  roots, not just the last-mounted one.
+- **Release bundle:** the dev inspection API (`window.__swiflow`) and HMR
+  snapshot/restore machinery are compile-time stripped from `swiflow build`
+  output — smaller wasm, and no dev-only state-export surface in production.
+
+### Removed
+
+- Internal Phase-2a `viewProducer` Renderer mode (never part of the public
+  API; no behavior change for apps).
 
 ### Added
 

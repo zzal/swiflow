@@ -17,7 +17,7 @@
 | Swiflow (core) | ✅ audited | 0 | 0 | 4 | 5 |
 | Cross-module architecture | ✅ audited | 0 | 0 | 2 | 5 |
 | SwiflowCLI | ✅ audited | 0 | 0 | 4 | 4 |
-| SwiflowDOM | ✅ audited | 0 | 3 | 5 | 3 |
+| SwiflowDOM | ✅ audited | 0 | 0 | 5 | 3 |
 | SwiflowFetcher | ✅ audited | 0 | 0 | 3 | 4 |
 | SwiflowMacrosPlugin | ✅ audited | 0 | 0 | 5 | 4 |
 | SwiflowQuery | ✅ audited | 0 | 0 | 4 | 5 |
@@ -25,7 +25,7 @@
 | SwiflowTesting | ✅ audited | 0 | 0 | 3 | 2 |
 | SwiflowUI | ✅ audited | 0 | 0 | 2 | 1 |
 | js-driver | ✅ audited | 0 | 0 | 2 | 4 |
-| **Total** | | **0** | **3** | **37** | **42** |
+| **Total** | | **0** | **0** | **37** | **42** |
 
 **Verdict in one paragraph:** Module internals are far better than typical AI-built
 code — disciplined access control, real invariant comments, correct subtle algorithms,
@@ -318,7 +318,7 @@ single-root), HMR serves stale CSS by design, a dead "Phase 2a" dual-mode thread
 optionality through the whole Renderer, and all dev/HMR surfaces ship in the
 size-sensitive release wasm behind runtime-only gates. Zero direct tests.
 
-### HIGH — Multi-root HMR loses state: snapshot exporter is last-writer-wins *(verified)*
+### HIGH — Multi-root HMR loses state: snapshot exporter is last-writer-wins *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-swiflowdom-final-highs.md]**
 `SwiflowDOM.swift:83-85`:
 ```swift
 HMRBridge.installSnapshotExporter { [weak renderer] in
@@ -342,14 +342,14 @@ exists ("e.g. an HMR swap re-running setup"), but the driver's `hmrSwap`
 injected styles. Editing a component's `scopedStyles` and saving shows stale styles
 until a manual full reload — in the exact workflow (dev HMR) this code serves.
 
-### HIGH — Dead "Phase 2a" dual-mode permeates Renderer *(verified)*
+### HIGH — Dead "Phase 2a" dual-mode permeates Renderer *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-swiflowdom-final-highs.md]**
 `Renderer.swift:30,95-103,149-151,167-173` — `init(viewProducer:)` has zero callers
 anywhere (grep: Sources/, Tests/, examples/). The dead mode forces
 `rootComponent`/`scheduler` to be Optionals, adds a `preconditionFailure` arm in
 `renderOnce()`, and props up the public `Swiflow.rerender()` API whose only repo
 references are a README mention and a CLI test asserting templates do NOT use it.
 
-### HIGH — Dev/HMR machinery ships active in release wasm *(verified)*
+### HIGH — Dev/HMR machinery ships active in release wasm *(verified)* **[FIXED — see docs/superpowers/plans/2026-06-10-swiflowdom-final-highs.md]**
 `DevAPI.swift:27` gates on runtime `SWIFLOW_DEV` only; `DevAPI.installAll()` is called
 unconditionally from render/unmount, and `HMRBridge.installSnapshotExporter` has no
 gate at all — production apps expose a working `window.__swiflow.hmrSnapshot`
