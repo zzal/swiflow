@@ -41,8 +41,9 @@ func percentDecode(_ s: String) -> String? {
 }
 
 /// ASCII hex-digit nibble. `nil` for any non-hex byte.
-/// `&+` is overflow-trapping arithmetic disabled: the case ranges
-/// pre-validate the inputs, so overflow is impossible by construction.
+/// `&+` is wrapping (non-trapping) addition: the case ranges pre-validate the
+/// inputs, so overflow is impossible by construction — the `&` just documents
+/// that and avoids a redundant trap check.
 private func hexDigit(_ b: UInt8) -> UInt8? {
     switch b {
     case 0x30...0x39: return b - 0x30           // '0'-'9'
