@@ -81,10 +81,10 @@ package struct RoutePattern: Sendable {
                 i += 1
             case .param(let name):
                 guard i < parts.count else { return nil }
-                params[name] = parts[i]
+                params[name] = percentDecode(parts[i]) ?? parts[i]
                 i += 1
             case .wildcard:
-                params["*"] = parts[i...].joined(separator: "/")
+                params["*"] = parts[i...].map { percentDecode($0) ?? $0 }.joined(separator: "/")
                 i = parts.count
             }
         }
@@ -102,10 +102,10 @@ package struct RoutePattern: Sendable {
                 i += 1
             case .param(let name):
                 guard i < parts.count else { return nil }
-                params[name] = parts[i]
+                params[name] = percentDecode(parts[i]) ?? parts[i]
                 i += 1
             case .wildcard:
-                params["*"] = parts[i...].joined(separator: "/")
+                params["*"] = parts[i...].map { percentDecode($0) ?? $0 }.joined(separator: "/")
                 return (params, [])
             }
         }
