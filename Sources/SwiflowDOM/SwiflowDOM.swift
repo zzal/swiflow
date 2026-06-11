@@ -77,9 +77,10 @@ public extension Swiflow {
 
         renderers[selector] = renderer
 
-        // One aggregating exporter over the global root set — re-installed each
-        // render (idempotent; it closes over `renderers`, not a single root) so
-        // every live root contributes to a hot-swap snapshot.
+        // One aggregating exporter over the global root set. Installed once per
+        // module instance (the call is idempotent); the provider closes over
+        // `renderers`, not a single root, so every live root — including ones
+        // mounted after this call — contributes to a hot-swap snapshot.
         HMRBridge.installSnapshotExporter { renderers.values.compactMap(\.mountTree) }
 
         renderer.renderOnce()

@@ -29,14 +29,23 @@ package enum HMRBridge {
 
     // MARK: - Snapshot exporter (Swift → JS)
 
-    /// Install `window.__swiflow.hmrSnapshot = () => [...]`. The exported
-    /// function walks EVERY live root's mount tree at call time (via the
-    /// provider), aggregates with `HMRWalker.snapshot(fromRoots:)`, and
-    /// JS-encodes the result. Installing once over the global root set (rather
-    /// than per-render over a single root) is what makes multi-root HMR keep
-    /// every root's state instead of only the last-mounted one.
+    /// Install `window.__swiflow.hmrSnapshot = () => [...]` exactly once per
+    /// module instance. The exported function walks EVERY live root's mount
+    /// tree at call time (via the provider, which closes over the stable global
+    /// root set), aggregates with `HMRWalker.snapshot(fromRoots:)`, and
+    /// JS-encodes the result. Closing over the global root set — rather than
+    /// capturing a single root weakly per render — is what makes multi-root HMR
+    /// preserve every root's state, and lets us install just once: roots
+    /// mounted later are picked up because the provider re-reads the live set
+    /// at call time.
     @MainActor
     package static func installSnapshotExporter(rootsProvider: @escaping @MainActor () -> [MountNode]) {
+        // Idempotent: the closure reads the live global root set at call time,
+        // so a single install covers every present-and-future root. A fresh
+        // module after a hot-swap starts with `snapshotClosure == nil` and
+        // re-installs.
+        guard snapshotClosure == nil else { return }
+
         let snapshotFn = JSClosure { _ in
             let snaps = HMRWalker.snapshot(fromRoots: rootsProvider())
             return encodeToJS(snaps)
@@ -55,9 +64,8 @@ package enum HMRBridge {
         }
         ns.hmrSnapshot = .object(snapshotFn)
 
-        // Retain across re-installs. If a previous closure was alive
-        // (idempotent re-installs in dev), replacing the static drops
-        // its reference and lets ARC reclaim the prior JSClosure.
+        // Strong reference so the JSClosure outlives every invocation (the
+        // JS-side handle under `window.__swiflow.hmrSnapshot` is weak).
         snapshotClosure = snapshotFn
     }
 

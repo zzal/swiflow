@@ -1,4 +1,4 @@
-// Tests/SwiflowTests/Reactivity/HMRMultiRootTests.swift
+// Tests/SwiflowTests/HMR/HMRMultiRootTests.swift
 import Testing
 @testable import Swiflow
 
@@ -14,11 +14,12 @@ private final class HMRMulti_Toggle {
     var body: VNode { .text("") }
 }
 
-@Suite
+@Suite("HMR multi-root snapshot aggregation")
 @MainActor
 struct HMRMultiRootTests {
 
-    @Test func snapshotFromRootsConcatenatesPerRootSnapshots() {
+    @Test("snapshot(fromRoots:) concatenates every root's snapshot, dropping none")
+    func snapshotFromRootsConcatenatesPerRootSnapshots() {
         // Tree A: a single Counter anchor (mirrors HMRSnapshotTests setup).
         let counterA = HMRMulti_Counter()
         counterA.count = 3
@@ -46,10 +47,17 @@ struct HMRMultiRootTests {
 
         #expect(aggregated.count == individual.count)
         #expect(aggregated.map(\.path) == individual.map(\.path))
-        #expect(!aggregated.isEmpty)   // both roots contributed
+        #expect(aggregated.count == 2)   // both roots contributed
+
+        // State values survive the walk — not just the structural paths. A
+        // bug that dropped one root, or discarded state maps while keeping
+        // paths, would fail here.
+        #expect(aggregated[0].state["count"] as? Int == 3)
+        #expect(aggregated[1].state["on"] as? Bool == true)
     }
 
-    @Test func snapshotFromEmptyRootsIsEmpty() {
+    @Test("snapshot(fromRoots:) of no roots is empty")
+    func snapshotFromEmptyRootsIsEmpty() {
         #expect(HMRWalker.snapshot(fromRoots: []).isEmpty)
     }
 }
