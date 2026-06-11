@@ -65,7 +65,12 @@ public extension JSONValue {
         case .null:          return "null"
         case .bool(let b):   return b ? "true" : "false"
         case .int(let i):    return String(i)
-        case .double(let d): return String(d)
+        case .double(let d):
+            // JSON has no representation for non-finite numbers; mirror
+            // `JSON.stringify`, which emits `null` for NaN / ±Infinity. Without
+            // this, `String(.nan)` would emit the invalid token `nan`, producing
+            // a server-side parse error with no client-side signal.
+            return d.isFinite ? String(d) : "null"
         case .string(let s): return Self.escape(s)
         case .array(let a):
             return "[" + a.map(\.jsonString).joined(separator: ",") + "]"

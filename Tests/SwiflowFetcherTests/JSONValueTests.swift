@@ -51,6 +51,22 @@ struct JSONValueTests {
         #expect(JSONValue.array([.string("a"), .null]).jsonString == #"["a",null]"#)
     }
 
+    @Test func nonFiniteDoublesSerializeAsNull() {
+        #expect(JSONValue.double(.infinity).jsonString == "null")
+        #expect(JSONValue.double(-.infinity).jsonString == "null")
+        #expect(JSONValue.double(.nan).jsonString == "null")
+    }
+
+    @Test func nonFiniteInsideContainersIsNull() {
+        #expect(JSONValue.array([.double(.nan), .int(1)]).jsonString == "[null,1]")
+        #expect(JSONValue.object(["x": .double(.infinity)]).jsonString == #"{"x":null}"#)
+    }
+
+    @Test func finiteDoublesAreUnchanged() {
+        #expect(JSONValue.double(2.5).jsonString == "2.5")
+        #expect(JSONValue.double(0).jsonString == "0.0")
+    }
+
     @Test("jsonString escapes strings per RFC 8259")
     func escaping() {
         #expect(JSONValue.string("a\"b").jsonString == #""a\"b""#)
