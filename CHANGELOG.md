@@ -16,6 +16,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.1.9] — 2026-06-11
+
+### Added
+
+- **Automated releases.** Pushing a `vX.Y.Z` tag now publishes the matching
+  GitHub Release automatically, with notes lifted from this file's
+  `## [X.Y.Z]` section (`.github/workflows/release.yml`). A git tag alone
+  never created a Release, so the "Latest release" badge used to lag behind
+  the newest tag.
+
 ## [0.1.8] — 2026-06-11
 
 ### Changed
