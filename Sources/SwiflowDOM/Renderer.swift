@@ -57,10 +57,6 @@ final class Renderer {
     /// after `self` is fully initialised — required because the scheduler
     /// closure needs a weak reference to `self`, which can only be formed once
     /// all stored properties are set.
-    ///
-    /// Assigned the `RAFScheduler` in `init` after `self` is fully initialised
-    /// (the scheduler closure needs a weak `self`, which can only be formed
-    /// once all stored properties are set).
     private let _schedulerBox: MutableBox<(any Scheduler)?> = MutableBox(nil)
 
     /// The background-revalidation driver for this root (setInterval tick +
