@@ -1,4 +1,11 @@
 // Sources/Swiflow/DevAPIFormatter.swift
+//
+// Dev-only inspection formatter. Its only caller is `DevAPI.installAll()`
+// (SwiflowDOM), which is `#if !SWIFLOW_RELEASE`-gated to an empty stub in
+// release. Gating the type too keeps it (and its source-path / type-name
+// strings) out of the release wasm entirely. Host/dev builds don't define
+// `SWIFLOW_RELEASE`, so it stays available for `DevAPIFormatterTests`.
+#if !SWIFLOW_RELEASE
 
 @MainActor
 package enum DevAPIFormatter {
@@ -42,3 +49,5 @@ package enum DevAPIFormatter {
         return snapshots.first(where: { $0.path == path })?.state
     }
 }
+
+#endif  // !SWIFLOW_RELEASE

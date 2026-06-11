@@ -16,6 +16,14 @@
 import JavaScriptKit
 import Swiflow
 
+// HMR is a dev-only feature (no hot-swap in a release build), and its only
+// callers — `Swiflow.render(into:)`'s snapshot-export + restore blocks — are
+// `#if !SWIFLOW_RELEASE`-gated. Gating the whole type too means the JS
+// marshalling code (and its `hmrSnapshot` / `__swiflowPendingSnapshot`
+// property-name literals) is not compiled into the release wasm at all, not
+// merely left unreferenced for the linker to maybe-strip.
+#if !SWIFLOW_RELEASE
+
 package enum HMRBridge {
 
     // MARK: - Closure retention
@@ -229,4 +237,6 @@ package enum HMRBridge {
     }
 }
 
-#endif
+#endif  // !SWIFLOW_RELEASE
+
+#endif  // canImport(JavaScriptKit)
