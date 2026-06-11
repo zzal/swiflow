@@ -7,30 +7,16 @@ import SwiflowQuery
 
 /// Owns Swiflow's per-application render state in a WASM/browser environment.
 ///
-/// A single Renderer is created by `Swiflow.render(_:into:)` and looked up by
-/// `Swiflow.rerender()` through module-private ambient storage. Multiple
-/// roots are out of scope for Phase 2a / Phase 3 v1.
-///
-/// Two initialization modes:
-///
-/// - **Phase 2a (viewProducer):** `init(viewProducer:selector:)` — caller
-///   supplies a `() -> VNode` closure evaluated on every render. No scheduler
-///   is created; `Swiflow.rerender()` drives re-renders manually.
-///
-/// - **Phase 3 (Component root):** `init(rootComponent:selector:)` — caller
-///   supplies an `AnyComponent` instance. A `RAFScheduler` is created and
-///   wired into the diff so `@State` mutations automatically schedule re-renders
-///   via `requestAnimationFrame`. Manual `rerender()` calls are not needed.
+/// One Renderer is created per mounted root by `Swiflow.render(into:_:)` and
+/// stored in the module-global `renderers` dict keyed by selector. It wraps a
+/// live Component instance and wires a `RAFScheduler` so `@State` mutations
+/// schedule re-renders via `requestAnimationFrame` automatically.
 @MainActor
 final class Renderer {
     // MARK: - Stored properties
 
-    /// Non-nil only for the Phase 2a (viewProducer) init. Exactly one of
-    /// `viewProducer` and `rootComponent` is non-nil at any given time.
-    let viewProducer: (() -> VNode)?
-
-    /// Non-nil only for the Phase 3 (Component root) init.
-    let rootComponent: AnyComponent?
+    /// The live Component instance this renderer renders.
+    let rootComponent: AnyComponent
 
     /// The CSS selector the JS driver uses to attach the root DOM node.
     let selector: String
@@ -67,49 +53,35 @@ final class Renderer {
     /// `__swiflow.perf().lastRenderMs`.
     private(set) var lastRenderMs: Double = 0
 
-    /// Heap-allocated cell that allows the Phase 3 init to assign the
-    /// `RAFScheduler` after `self` is fully initialised — required because
-    /// the scheduler closure needs a weak reference to `self`, which can only
-    /// be formed once all stored properties are set.
+    /// Heap-allocated cell that allows the init to assign the `RAFScheduler`
+    /// after `self` is fully initialised — required because the scheduler
+    /// closure needs a weak reference to `self`, which can only be formed once
+    /// all stored properties are set.
     ///
-    /// Phase 2a init leaves this at its default `nil`. Phase 3 init assigns
-    /// the scheduler to `_schedulerBox.value` in its body, after the
-    /// two-phase initialisation constraint is satisfied.
+    /// Assigned the `RAFScheduler` in `init` after `self` is fully initialised
+    /// (the scheduler closure needs a weak `self`, which can only be formed
+    /// once all stored properties are set).
     private let _schedulerBox: MutableBox<(any Scheduler)?> = MutableBox(nil)
 
     /// The background-revalidation driver for this root (setInterval tick +
-    /// visibilitychange/focus listeners). Non-nil only for Phase 3 renderers.
-    /// Started in the Phase 3 init; torn down in `teardown()`.
+    /// visibilitychange/focus listeners). Started in `init`; torn down in
+    /// `teardown()`.
     private var backgroundRevalidation: BackgroundRevalidation?
 
-    /// The active `Scheduler`, if any. Non-nil only for Phase 3 renderers.
-    /// Exposed as a computed property so tests and internal callers get
-    /// a clean `Scheduler?` type without reaching into the box.
+    /// The active `Scheduler`, if any. Exposed as a computed property so tests
+    /// and internal callers get a clean `Scheduler?` type without reaching
+    /// into the box.
     var scheduler: (any Scheduler)? { _schedulerBox.value }
 
     // MARK: - Initializers
 
-    /// Phase 2a init: the renderer evaluates `viewProducer` on every render.
-    /// No scheduler is created — re-renders are triggered manually via
-    /// `Swiflow.rerender()`.
-    init(viewProducer: @escaping () -> VNode, selector: String, handles: HandleAllocator = sharedHandleAllocator) {
-        self.viewProducer = viewProducer
-        self.rootComponent = nil
-        self.selector = selector
-        self.handles = handles
-        self.handlers = HandlerRegistry()
-        self.mountTree = nil
-        // _schedulerBox stays nil (default).
-    }
-
-    /// Phase 3 init: the renderer wraps a live Component instance and wires
-    /// a `RAFScheduler` so `@State` mutations automatically schedule
-    /// re-renders without any manual `rerender()` call.
+    /// Wraps a live Component instance and wires a `RAFScheduler` so `@State`
+    /// mutations automatically schedule re-renders without any manual
+    /// `rerender()` call.
     ///
     /// The `RAFScheduler` captures `self` weakly to avoid a retain cycle:
     /// Renderer → _schedulerBox → RAFScheduler → closure → Renderer.
     init(rootComponent: AnyComponent, selector: String, handles: HandleAllocator = sharedHandleAllocator) {
-        self.viewProducer = nil
         self.rootComponent = rootComponent
         self.selector = selector
         self.handles = handles
@@ -129,11 +101,11 @@ final class Renderer {
 
     // MARK: - Render
 
-    /// Runs the view producer or re-renders the root component, diffs against
-    /// the current mount tree, encodes patches into a JSArray, hands the array
-    /// to `window.swiflow.applyPatches`, and — on first call — tells the
-    /// driver to attach the root node at `selector`. Also fires lifecycle
-    /// hooks on the root component when applicable.
+    /// Re-renders the root component, diffs against the current mount tree,
+    /// encodes patches into a JSArray, hands the array to
+    /// `window.swiflow.applyPatches`, and — on first call — tells the driver
+    /// to attach the root node at `selector`. Also fires lifecycle hooks on
+    /// the root component when applicable.
     func renderOnce() {
         HandlerAmbient.current = handlers
         SwiflowTaskRuntime.currentScope = taskScope
@@ -144,33 +116,17 @@ final class Renderer {
             RenderObserverBox.current = nil
         }
 
-        let nextVNode: VNode
-
-        if let producer = viewProducer {
-            // Phase 2a: evaluate the producer closure.
-            nextVNode = producer()
-        } else if let root = rootComponent {
-            // Phase 3: wrap the existing component instance in a VNode.component
-            // description whose factory returns THE SAME instance rather than
-            // constructing a fresh one. This is critical for the diff's reuse
-            // arm (`.component`/`.component` case in `update()`): on first
-            // render `desc.instantiate()` is called once in `mount()`, yielding
-            // the already-live instance; on subsequent renders the diff's
-            // same-typeID path reuses the mount-tree node and calls `body` on
-            // the existing instance — the factory is never called again.
-            let desc = ComponentDescription(
-                typeID: root.typeID,
-                key: nil,
-                factory: { root }
-            )
-            nextVNode = .component(desc)
-        } else {
-            preconditionFailure(
-                "Renderer has neither a viewProducer nor a rootComponent. " +
-                "This indicates a programming error in Renderer's init — " +
-                "exactly one of the two must be non-nil."
-            )
-        }
+        // Wrap the live component instance in a VNode.component description
+        // whose factory returns THE SAME instance rather than constructing a
+        // fresh one. Critical for the diff's reuse arm: on first render
+        // `desc.instantiate()` is called once in `mount()`, yielding the
+        // already-live instance; on subsequent renders the same-typeID path
+        // reuses the mount-tree node and calls `body` on the existing
+        // instance — the factory is never called again.
+        let root = rootComponent
+        let nextVNode: VNode = .component(
+            ComponentDescription(typeID: root.typeID, key: nil, factory: { root })
+        )
 
         let renderStartMs = JSObject.global.performance.object?.now?().number ?? 0
         // Capture the previously-mounted root's DOM handle before the diff
@@ -229,12 +185,9 @@ final class Renderer {
         mountTree = result.newMountTree
 
         if isFirstMount {
-            // Use domHandle (not handle): for a Component-root tree, the mount
-            // tree root is the component anchor whose `handle` is structural-
-            // only (the driver never saw a create* patch for it). The body's
-            // DOM handle is what the driver needs to attach at `selector`.
-            // For a viewProducer tree, domHandle == handle (no anchor layer),
-            // so this is correct in both modes.
+            // The mount tree root is the component anchor whose `handle` is
+            // structural-only; `domHandle` is the body's real DOM handle,
+            // which is what the driver attaches at `selector`.
             let mountHandle = result.newMountTree.domHandle
             _ = swiflowGlobal.mount!(
                 JSValue.number(Double(mountHandle)),
