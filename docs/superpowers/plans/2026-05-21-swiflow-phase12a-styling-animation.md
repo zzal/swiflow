@@ -1225,7 +1225,7 @@ git commit -m "feat(example): Counter + Toast demo for Phase 12a styling/animati
 
 **Access to `ComponentDescription` in tests:** Use `ComponentDescription(MyType.self, factory: { MyType() })` — the `public init<C: Component>(_ type:key:factory:)` overload in `Component.swift:95`. Do not use the `package init(typeID:key:factory:)` overload directly; it's package-scoped and the test target accesses it only via `@testable import`.
 
-**`swift build` from repo root, not `examples/`:** The Swift package for tests is at the root. Always run `swift build` and `swift test` from `/Users/alainduchesneau/Projets/swiflow/`, not from inside `examples/`.
+**`swift build` from repo root, not `examples/`:** The Swift package for tests is at the root. Always run `swift build` and `swift test` from `./`, not from inside `examples/`.
 
 **Cross-module access:** `CSSSheet`, `CSSEntry`, `CSSDeclaration`, `KeyframeStop` are `package` for cross-module sharing within the Swiflow package. `CSSInjector` is `internal` to `SwiflowWeb`. `onComponentTypeMount` is `public` so `SwiflowWeb` can set it from the `Swiflow` module.
 

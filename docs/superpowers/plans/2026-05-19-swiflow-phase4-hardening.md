@@ -768,8 +768,8 @@ Recommended user-review activities before resuming:
 
 ```bash
 TMP=$(mktemp -d -t swiflow-spike-XXXXXX)
-SWIFLOW=/Users/alainduchesneau/Projets/swiflow/.build/release/swiflow
-"$SWIFLOW" init demo --path "$TMP" --swiflow-source /Users/alainduchesneau/Projets/swiflow
+SWIFLOW=./.build/release/swiflow
+"$SWIFLOW" init demo --path "$TMP" --swiflow-source .
 cd "$TMP/demo"
 # Edit Sources/App/App.swift: add `fatalError("test trap")` inside Counter's body.
 "$SWIFLOW" dev &

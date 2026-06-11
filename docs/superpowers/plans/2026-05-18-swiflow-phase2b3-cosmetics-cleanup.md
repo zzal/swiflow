@@ -45,7 +45,7 @@
 - Modify: `Tests/SwiflowCLITests/WasmSDKProbeTests.swift` (append one `@Test`)
 - Modify: `Tests/SwiflowCLITests/BuildCommandTests.swift` (append one `@Test`)
 
-Run from repo root: `/Users/alainduchesneau/Projets/swiflow/`.
+Run from repo root: `./`.
 
 - [ ] **Step 1: Add the failing WasmSDKProbe error test**
 

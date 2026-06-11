@@ -430,11 +430,11 @@ chmod +x scripts/embed-driver.swift
 - [ ] **Step 6: Run the codegen script**
 
 ```bash
-cd /Users/alainduchesneau/Projets/swiflow
+cd .
 swift scripts/embed-driver.swift
 ```
 
-Expected output: `wrote /Users/alainduchesneau/Projets/swiflow/Sources/SwiflowCLI/EmbeddedDriver.swift (NNNN bytes)`.
+Expected output: `wrote ./Sources/SwiflowCLI/EmbeddedDriver.swift (NNNN bytes)`.
 
 Verify the generated file exists and starts with `// GENERATED FILE`:
 
@@ -1260,8 +1260,8 @@ Expected: PASS — all 4 subtests green.
 cd /tmp
 rm -rf swiflow-smoke
 mkdir swiflow-smoke && cd swiflow-smoke
-swift run --package-path /Users/alainduchesneau/Projets/swiflow swiflow init demo \
-    --swiflow-source /Users/alainduchesneau/Projets/swiflow
+swift run --package-path . swiflow init demo \
+    --swiflow-source .
 ls demo
 # Expected: Package.swift  README.md  Sources  index.html  swiflow-driver.js  (and .gitignore — use `ls -a`)
 cat demo/Package.swift | head -10

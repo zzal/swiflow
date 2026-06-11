@@ -58,21 +58,21 @@
 ## Task 1: Repository bootstrap (git + license + .gitignore)
 
 **Files:**
-- Create: `/Users/alainduchesneau/Projets/swiflow/.gitignore`
-- Create: `/Users/alainduchesneau/Projets/swiflow/LICENSE`
-- Create: `/Users/alainduchesneau/Projets/swiflow/README.md`
-- Create: `/Users/alainduchesneau/Projets/swiflow/CONTRIBUTING.md`
+- Create: `./.gitignore`
+- Create: `./LICENSE`
+- Create: `./README.md`
+- Create: `./CONTRIBUTING.md`
 
 - [ ] **Step 1: Initialize git**
 
 Run:
 ```bash
-cd /Users/alainduchesneau/Projets/swiflow
+cd .
 git init
 git config user.name "$(git config --global user.name || echo 'Swiflow Contributor')"
 git config user.email "$(git config --global user.email || echo 'noreply@swiflow.dev')"
 ```
-Expected: `Initialized empty Git repository in /Users/alainduchesneau/Projets/swiflow/.git/`
+Expected: `Initialized empty Git repository in ./.git/`
 
 - [ ] **Step 2: Write `.gitignore`**
 
@@ -181,9 +181,9 @@ Expected: a single commit on `main` with four files.
 ## Task 2: SPM manifest + first build
 
 **Files:**
-- Create: `/Users/alainduchesneau/Projets/swiflow/Package.swift`
-- Create: `/Users/alainduchesneau/Projets/swiflow/Sources/Swiflow/Swiflow.swift` (placeholder, deleted in Task 4)
-- Create: `/Users/alainduchesneau/Projets/swiflow/Tests/SwiflowTests/SmokeTests.swift`
+- Create: `./Package.swift`
+- Create: `./Sources/Swiflow/Swiflow.swift` (placeholder, deleted in Task 4)
+- Create: `./Tests/SwiflowTests/SmokeTests.swift`
 
 - [ ] **Step 1: Write `Package.swift`**
 

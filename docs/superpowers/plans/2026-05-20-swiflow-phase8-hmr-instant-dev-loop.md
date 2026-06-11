@@ -324,9 +324,9 @@ Expected: FAIL — `HMRWalker` is not defined.
 
 - [ ] **Step B3: Read `MountNode` to confirm the initializer signature**
 
-Run: `grep -n "MountNode\|init(" /Users/alainduchesneau/Projets/swiflow/Sources/Swiflow/Diff/MountNode.swift 2>&1 | head -30`
+Run: `grep -n "MountNode\|init(" ./Sources/Swiflow/Diff/MountNode.swift 2>&1 | head -30`
 
-If the file path is wrong (no `MountNode.swift`), search: `grep -rn "struct MountNode\|class MountNode\|final class MountNode" /Users/alainduchesneau/Projets/swiflow/Sources/`. Use the resulting file to confirm: (a) whether the test fixture's MountNode initializer call is correct, (b) what property `MountNode` uses to expose its component (likely `component: AnyComponent?`), and (c) what property exposes children (likely `children: [MountNode]`). Adjust the test fixture init call if the real initializer differs.
+If the file path is wrong (no `MountNode.swift`), search: `grep -rn "struct MountNode\|class MountNode\|final class MountNode" ./Sources/`. Use the resulting file to confirm: (a) whether the test fixture's MountNode initializer call is correct, (b) what property `MountNode` uses to expose its component (likely `component: AnyComponent?`), and (c) what property exposes children (likely `children: [MountNode]`). Adjust the test fixture init call if the real initializer differs.
 
 - [ ] **Step B4: Create the core HMR types file**
 
@@ -854,7 +854,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step D1: Read the current site to confirm context**
 
-Run: `sed -n '195,215p' /Users/alainduchesneau/Projets/swiflow/Sources/Swiflow/Diff/Diff.swift`
+Run: `sed -n '195,215p' ./Sources/Swiflow/Diff/Diff.swift`
 
 This shows the lines around the `wireState(...)` call. You're looking for the place where a Component is being instantiated for the first time and its @State is wired to the scheduler.
 

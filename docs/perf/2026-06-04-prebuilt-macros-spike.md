@@ -163,7 +163,7 @@ swift build --help 2>&1 | grep -i prebuilt
 #    (default: --enable-experimental-prebuilts)
 
 # Toolchain prebuilt dylibs
-ls /Users/alainduchesneau/Library/Developer/Toolchains/swift-6.3-RELEASE.xctoolchain/usr/lib/swift/host/lib*.dylib
+ls ~/Library/Developer/Toolchains/swift-6.3-RELEASE.xctoolchain/usr/lib/swift/host/lib*.dylib
 # => libSwiftSyntax.dylib, libSwiftSyntaxBuilder.dylib, etc. (13 dylibs)
 
 # Prebuilt version

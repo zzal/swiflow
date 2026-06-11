@@ -69,7 +69,7 @@ import JavaScriptKit
 - [ ] **Step 3: Resolve and build**
 
 ```bash
-cd /Users/alainduchesneau/Projets/swiflow
+cd .
 swift package resolve 2>&1 | tail -5
 swift build 2>&1 | tail -5
 swift test 2>&1 | tail -3
@@ -1212,8 +1212,8 @@ struct App {
 - [ ] **Step 4: Copy the driver into the example's `public/`**
 
 ```bash
-cp /Users/alainduchesneau/Projets/swiflow/js-driver/swiflow-driver.js \
-   /Users/alainduchesneau/Projets/swiflow/examples/HelloWorld/public/swiflow-driver.js
+cp ./js-driver/swiflow-driver.js \
+   ./examples/HelloWorld/public/swiflow-driver.js
 ```
 
 - [ ] **Step 5: Write `examples/HelloWorld/README.md`**
@@ -1278,7 +1278,7 @@ Phase 2b will replace these manual steps with `swiflow init demo` +
 
 - [ ] **Step 6: Update the top-level `README.md`**
 
-In `/Users/alainduchesneau/Projets/swiflow/README.md`, replace the **Status** paragraph with:
+In `./README.md`, replace the **Status** paragraph with:
 
 ```markdown
 **Status:** Phase 2a in progress. Phase 1 (the VDOM "Brain") is complete and
@@ -1290,7 +1290,7 @@ end-to-end round-trip in a browser. CLI scaffolding (`swiflow init`, `build`,
 - [ ] **Step 7: Verify the macOS build is unchanged**
 
 ```bash
-cd /Users/alainduchesneau/Projets/swiflow
+cd .
 swift build 2>&1 | tail -5
 swift test 2>&1 | tail -3
 ```

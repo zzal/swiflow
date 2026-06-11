@@ -392,7 +392,7 @@ ls docs/superpowers/plans/ | sort
 grep -A 5 "Phase 13" README.md | head -30
 
 # Full commit history grouped by likely phase boundaries
-git -C /Users/alainduchesneau/Projets/swiflow log --oneline --no-merges | head -80
+git -C . log --oneline --no-merges | head -80
 ```
 
 From this, list every phase that has a spec OR a plan OR a clear feat/fix grouping in the commit log between Phase 7 and Phase 13f. Expected (verify against the actual repo):
@@ -435,7 +435,7 @@ Use Phase 13e and 13f as your gold-standard format (you wrote 13e's bullets abov
 
 - [ ] **Step 3: Write `CHANGELOG.md`**
 
-Create `/Users/alainduchesneau/Projets/swiflow/CHANGELOG.md`. Start with this exact header:
+Create `./CHANGELOG.md`. Start with this exact header:
 
 ```markdown
 # Changelog

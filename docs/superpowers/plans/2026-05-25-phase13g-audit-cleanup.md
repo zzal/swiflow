@@ -759,7 +759,7 @@ Expected: 15 pass — no change.
 
 - [ ] **Update the README test count** (if you have time)
 
-The README at `/Users/alainduchesneau/Projets/swiflow/README.md` mentions "524 Swift tests" and "524 tests across 103 suites" — both should be bumped. But this is small enough to defer to a follow-up commit; not part of this phase's audit-closure scope.
+The README at `./README.md` mentions "524 Swift tests" and "524 tests across 103 suites" — both should be bumped. But this is small enough to defer to a follow-up commit; not part of this phase's audit-closure scope.
 
 - [ ] **Audit gap closure summary**
 
