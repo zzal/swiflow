@@ -28,6 +28,7 @@ struct BuildCommandArgvTests {
             "-Xswiftc", "-Osize",
             "-Xswiftc", "-gnone",
             "-Xswiftc", "-disable-reflection-metadata",
+            "-Xswiftc", "-DSWIFLOW_RELEASE",
             "js",
             "--use-cdn",
             "--product", "App",
@@ -203,6 +204,32 @@ struct BuildCommandArgvTests {
             "--product", "App",
             "--debug-info-format", "dwarf",
         ])
+    }
+
+    @Test func releaseBuildDefinesSwiflowRelease() {
+        let args = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .release
+        ).composeArguments()
+        // Must appear as an -Xswiftc pair so the define reaches every target's
+        // swiftc (including SwiflowDOM), enabling #if !SWIFLOW_RELEASE stripping.
+        let idx = args.firstIndex(of: "-DSWIFLOW_RELEASE")
+        #expect(idx != nil)
+        if let idx { #expect(idx > 0 && args[idx - 1] == "-Xswiftc") }
+    }
+
+    @Test func devBuildDoesNotDefineSwiflowRelease() {
+        let args = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .dev
+        ).composeArguments()
+        #expect(!args.contains("-DSWIFLOW_RELEASE"))
     }
 
     @Test("Release configuration is the default and matches the existing argv")

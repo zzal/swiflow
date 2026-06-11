@@ -55,16 +55,6 @@ public extension Swiflow {
             "Call Swiflow.unmount(into: \"\(selector)\") before mounting a new root at the same selector."
         )
 
-        // Pending-restore index is cached in HMRBridge so EVERY root's first
-        // render reads it (not just the first-mounted root). Install the
-        // restore hook for the duration of this root's first render only.
-        let pendingIndex = HMRBridge.pendingRestoreIndex()
-        if let index = pendingIndex {
-            HMRRestoreInstall.stateFor = { path, typeName, key in
-                index[SnapshotKey(path: path, typeName: typeName, key: key)]
-            }
-        }
-
         let root = factory()
         CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
@@ -74,20 +64,31 @@ public extension Swiflow {
             let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
             return result.object
         }
-
         renderers[selector] = renderer
 
+#if !SWIFLOW_RELEASE
+        // HMR (snapshot export + state restore) is a dev-only feature — there
+        // is no hot-swap in a release build. Stripped at compile time.
+        let pendingIndex = HMRBridge.pendingRestoreIndex()
+        if let index = pendingIndex {
+            HMRRestoreInstall.stateFor = { path, typeName, key in
+                index[SnapshotKey(path: path, typeName: typeName, key: key)]
+            }
+        }
         // One aggregating exporter over the global root set. Installed once per
         // module instance (the call is idempotent); the provider closes over
         // `renderers`, not a single root, so every live root — including ones
         // mounted after this call — contributes to a hot-swap snapshot.
         HMRBridge.installSnapshotExporter { renderers.values.compactMap(\.mountTree) }
+#endif
 
         renderer.renderOnce()
 
+#if !SWIFLOW_RELEASE
         if pendingIndex != nil {
             HMRRestoreInstall.stateFor = nil
         }
+#endif
 
         DevAPI.installAll()
     }

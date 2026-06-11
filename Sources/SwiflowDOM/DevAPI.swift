@@ -6,6 +6,7 @@ import Swiflow
 
 enum DevAPI {
 
+#if !SWIFLOW_RELEASE
     // MARK: - Closure retention
 
     nonisolated(unsafe) private static var treeClosure: JSClosure?
@@ -121,6 +122,12 @@ enum DevAPI {
         }
         return .object(obj)
     }
+#else
+    /// Release builds strip the dev inspection API entirely; this stub keeps
+    /// the `DevAPI.installAll()` call sites compiling. The linker dead-strips
+    /// the call and the (now-unreferenced) core DevAPIFormatter.
+    @MainActor static func installAll() {}
+#endif
 }
 
 #endif

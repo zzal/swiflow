@@ -116,6 +116,11 @@ struct BuildInvocation: Sendable {
                 "-Xswiftc", "-Osize",
                 "-Xswiftc", "-gnone",
                 "-Xswiftc", "-disable-reflection-metadata",
+                // Compile-time strip dev/HMR machinery: SwiflowDOM gates DevAPI
+                // and the HMR snapshot/restore behind `#if !SWIFLOW_RELEASE`,
+                // so this define lets the linker dead-strip them (and the
+                // core DevAPIFormatter they reference) from the release wasm.
+                "-Xswiftc", "-DSWIFLOW_RELEASE",
             ])
             pluginArgs.append(contentsOf: ["-c", "release"])
         case .dev:
