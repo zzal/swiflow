@@ -52,15 +52,19 @@ public final class MutationRuntime<M: Mutation> {
     /// Returns the rollback stack (prior values, in apply order) for `finish`
     /// to restore on failure. The stack is local to one mutation call, so
     /// concurrent mutations never share rollback state.
-    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [(key: QueryKey, prior: Any?)] {
-        var rollback: [(key: QueryKey, prior: Any?)] = []
+    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [(key: QueryKey, prior: Any?, gen: Int?)] {
+        var rollback: [(key: QueryKey, prior: Any?, gen: Int?)] = []
         if let client {
             for edit in mutation.optimistic(input) {
                 let prior = client.getQueryDataErased(edit.key)
                 switch edit.apply(prior) {
                 case .write(let next):
                     client.setQueryData(edit.key, next)
-                    rollback.append((edit.key, prior))
+                    // Record the post-write generation so `finish` can detect
+                    // whether a LATER write superseded this key before rolling
+                    // back (which would otherwise clobber the newer value and
+                    // cancel its repair fetch).
+                    rollback.append((edit.key, prior, client.generation(of: edit.key)))
                 case .noValue:
                     #if DEBUG
                     swiflowDiagnostic("OptimisticEdit.update: no cached value for key \(edit.key) — edit skipped.")
@@ -89,7 +93,7 @@ public final class MutationRuntime<M: Mutation> {
     /// returns a `Result` so `.error` is set in exactly one place and
     /// `mutateAsync` rethrows the same stored error.
     func finish(_ input: M.Input, _ mutation: M,
-                _ rollback: [(key: QueryKey, prior: Any?)]) async -> Result<M.Output, any Error> {
+                _ rollback: [(key: QueryKey, prior: Any?, gen: Int?)]) async -> Result<M.Output, any Error> {
         let result: Result<M.Output, any Error>
         do { result = .success(try await mutation.perform(input)) }
         catch { result = .failure(error) }
@@ -102,7 +106,15 @@ public final class MutationRuntime<M: Mutation> {
             }
         case .failure(let err):
             if let client {
-                for r in rollback.reversed() { client.setQueryData(r.key, r.prior) }
+                for r in rollback.reversed() {
+                    // Only restore the prior if nothing has superseded this key
+                    // since our optimistic write. If the generation advanced, a
+                    // newer writer owns the value — rolling back would clobber it
+                    // (and cancel its in-flight fetch), so we skip.
+                    if client.generation(of: r.key) == r.gen {
+                        client.setQueryData(r.key, r.prior)
+                    }
+                }
             }
             status = .error; error = err
         }

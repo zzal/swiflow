@@ -14,6 +14,14 @@ extension QueryClient {
         entries[key]?.value
     }
 
+    /// The entry's current supersede `generation` (bumped by `setQueryData` /
+    /// `forceStaleAndRefetch`). `nil` when no entry exists. Used by the
+    /// mutation engine to detect whether a key was superseded between an
+    /// optimistic write and a rollback.
+    package func generation(of key: QueryKey) -> Int? {
+        entries[key]?.generation
+    }
+
     /// Write `value` into the entry at `key`, supersede any in-flight fetch, and
     /// notify observers. No-op when no entry exists. Leaves the entry stale so a
     /// later `invalidate` still refetches (the optimistic value is provisional).
