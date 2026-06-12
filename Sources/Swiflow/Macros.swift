@@ -41,6 +41,11 @@ public macro State() = #externalMacro(module: "SwiflowMacrosPlugin", type: "Stat
 /// **Requires:** a static string literal — no interpolation. Pass dynamic
 /// values through CSS custom properties:
 /// `div(...).style("--badge-color", value)` + `color: var(--badge-color)`.
+///
+/// Backslashes pass through to CSS verbatim — the macro reads the raw
+/// literal text, so CSS escapes like `content: "\2014"` work as written,
+/// and Swift escape cooking (`\n`, `\u{…}`) does NOT happen. Use real
+/// newlines (multiline `"""` literals) for formatting.
 @freestanding(expression)
 public macro css(_ source: String) -> CSSSheet =
     #externalMacro(module: "SwiflowMacrosPlugin", type: "CSSMacro")

@@ -134,4 +134,71 @@ final class CSSMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Test 9: CSS containing a double-quote inside a regular "…" literal.
+    // NOTE (actual-emission adjustment): plain.content.text returns raw token
+    // text, so \"x\" arrives at the CSS parser as backslash + quote + x +
+    // backslash + quote. skipString() treats the backslash as a CSS escape and
+    // consumes the quote as the escaped char, leaving no closing quote → the
+    // CSS parser emits "unterminated string" and the macro returns an empty
+    // sheet. Use a raw #"…"# or ##"…"## literal to avoid this:
+    //   #css(#"a::after { content: "x"; }"#)   ← correct form
+    func testEmbeddedDoubleQuoteSurvivesEmission() {
+        assertMacroExpansion(
+            ##"""
+            let sheet = #css("a::after { content: \"x\"; }")
+            """##,
+            expandedSource: ##"""
+            let sheet = CSSSheet(entries: [])
+            """##,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "CSS error at line 1, column 22: unterminated string",
+                    line: 1, column: 18)
+            ],
+            macros: testMacros
+        )
+    }
+
+    // Test 10: multiline """ literal — indentation is stripped per Swift rules
+    // and the de-indented CSS passes through.
+    func testMultilineLiteralIndentationStripped() {
+        assertMacroExpansion(
+            #"""
+            let sheet = #css("""
+                .row {
+                  display: grid;
+                }
+                """)
+            """#,
+            expandedSource: #"""
+            let sheet = CSSSheet(entries: [.scopedBlock(".row {\n  display: grid;\n}")])
+            """#,
+            macros: testMacros
+        )
+    }
+
+    // Test 11: backslash passthrough inside a regular "…" literal.
+    // NOTE (actual-emission adjustment): same raw-token-text caveat as Test 9.
+    // "\\2014" in a regular literal arrives at the CSS parser as the three
+    // characters \, 2, 0, 1, 4 preceded by a `\"` pair; skipString() consumes
+    // the leading `\"` as a CSS-escaped quote and then never finds the closing
+    // quote → unterminated string. Use a raw ##"…"## literal instead:
+    //   #css(##"a::after { content: "\2014"; }"##)   ← correct form
+    func testBackslashPassesThroughUncooked() {
+        assertMacroExpansion(
+            ##"""
+            let sheet = #css("a::after { content: \"\\2014\"; }")
+            """##,
+            expandedSource: ##"""
+            let sheet = CSSSheet(entries: [])
+            """##,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "CSS error at line 1, column 22: unterminated string",
+                    line: 1, column: 18)
+            ],
+            macros: testMacros
+        )
+    }
 }
