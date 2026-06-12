@@ -26,3 +26,21 @@ public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "
 @attached(accessor, names: named(didSet))
 @attached(peer, names: arbitrary)
 public macro State() = #externalMacro(module: "SwiflowMacrosPlugin", type: "StateMacro")
+
+/// Real CSS in Swift. Validates the literal's *structure* at compile time
+/// (balanced braces, `property: value` shape) and expands to a `CSSSheet`
+/// scoped via native CSS nesting — property names, values, and selectors
+/// pass through to the browser verbatim, so new CSS features work the day
+/// a browser ships them.
+///
+/// Scoping contract: `:host` (or top-level `&`) styles the component root;
+/// every other selector matches descendants; `:root`/`html`/`body` rules and
+/// non-nestable at-rules (`@keyframes`, `@font-face`, `@property`) escape the
+/// scope wrapper.
+///
+/// **Requires:** a static string literal — no interpolation. Pass dynamic
+/// values through CSS custom properties:
+/// `div(...).style("--badge-color", value)` + `color: var(--badge-color)`.
+@freestanding(expression)
+public macro css(_ source: String) -> CSSSheet =
+    #externalMacro(module: "SwiflowMacrosPlugin", type: "CSSMacro")

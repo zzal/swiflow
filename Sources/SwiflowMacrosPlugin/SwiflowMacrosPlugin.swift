@@ -8,5 +8,6 @@ struct SwiflowMacrosPlugin: CompilerPlugin {
         ComponentMacro.self,
         StateMacro.self,
         MutationStateMacro.self,
+        CSSMacro.self,
     ]
 }
