@@ -23,6 +23,11 @@ public enum CSSEntry: Sendable {
     /// CSS authored via `#css`. Rendered as `.<scopeClass> { <body> }` so the
     /// browser's native CSS nesting performs the scoping; the body is passed
     /// to the browser verbatim. See docs/superpowers/specs/2026-06-12-css-macro-design.md.
+    ///
+    /// Deliberately has no `CSSBuilder` free function: it is the `#css`
+    /// macro's expansion target, and the macro's compile-time validation is
+    /// the only supported way to author one. Hand-written raw CSS goes
+    /// through `raw(_:)`.
     case scopedBlock(String)
 
     package func cssString(scopeClass: String) -> String {
