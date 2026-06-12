@@ -2,34 +2,38 @@
 import Swiflow
 
 extension AboutPopover {
-    static var scopedStyles: CSSSheet? = css {
-        rule(".info-card") {
-            positionAnchor("--info-anchor")
-            positionArea("bottom span-right")
-            // Popover top-layer reset.
-            margin("0.5rem 0 0 0")
-            padding("0.75rem 1rem")
-            background("color-mix(in oklab, Canvas 92%, CanvasText)")
-            color("CanvasText")
-            border("1px solid color-mix(in oklab, CanvasText 12%, transparent)")
-            borderRadius("12px")
-            boxShadow("0 12px 32px -12px rgb(0 0 0 / .35)")
-            maxWidth("280px")
-            fontSize("0.9375rem")
+    // The component root carries .info-card itself, so the rule compounds
+    // with the scope class via `&.info-card`.
+    static var scopedStyles: CSSSheet? = #css("""
+        &.info-card {
+          position-anchor: --info-anchor;
+          position-area: bottom span-right;
+          /* Popover top-layer reset. */
+          margin: 0.5rem 0 0 0;
+          padding: 0.75rem 1rem;
+          background: color-mix(in oklab, Canvas 92%, CanvasText);
+          color: CanvasText;
+          border: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+          border-radius: 12px;
+          box-shadow: 0 12px 32px -12px rgb(0 0 0 / .35);
+          max-width: 280px;
+          font-size: 0.9375rem;
         }
-        rule("h3") {
-            margin("0 0 0.25rem 0")
-            fontSize("0.95rem")
-            fontWeight("600")
+        h3 {
+          margin: 0 0 0.25rem 0;
+          font-size: 0.95rem;
+          font-weight: 600;
         }
-        rule(".body") {
-            margin("0 0 0.5rem 0")
-            color("color-mix(in oklab, CanvasText 80%, Canvas)")
+        .body {
+          margin: 0 0 0.5rem 0;
+          color: color-mix(in oklab, CanvasText 80%, Canvas);
         }
-        rule("a") {
-            color("color-mix(in oklab, CanvasText 70%, blue)")
-            textDecoration("none")
+        a {
+          color: color-mix(in oklab, CanvasText 70%, blue);
+          text-decoration: none;
         }
-        rule("a:hover") { textDecoration("underline") }
-    }
+        a:hover {
+          text-decoration: underline;
+        }
+        """)
 }

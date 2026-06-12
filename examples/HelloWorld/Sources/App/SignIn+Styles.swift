@@ -2,68 +2,70 @@
 import Swiflow
 
 extension SignIn {
-    static var scopedStyles: CSSSheet? = css {
-        rule(".signin") {
-            display("flex")
-            flexDirection("column")
-            gap("1rem")
-            maxWidth("320px")
-            fontFamily("system-ui, sans-serif")
+    // The component root carries .signin itself, so the rule compounds with
+    // the scope class via `&.signin` (what the DSL's dual emission matched).
+    static var scopedStyles: CSSSheet? = #css("""
+        &.signin {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          max-width: 320px;
+          font-family: system-ui, sans-serif;
         }
-        rule(".title") {
-            margin("0")
-            fontSize("1.25rem")
+        .title {
+          margin: 0;
+          font-size: 1.25rem;
         }
-        rule(".field") {
-            display("flex")
-            flexDirection("column")
-            gap("0.25rem")
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
         }
-        rule("input") {
-            padding("0.4rem 0.6rem")
-            border("1px solid color-mix(in oklab, CanvasText 18%, transparent)")
-            borderRadius("6px")
-            background("Canvas")
-            color("CanvasText")
-            fontSize("0.9375rem")
-            accentColor("CanvasText")
+        input {
+          padding: 0.4rem 0.6rem;
+          border: 1px solid color-mix(in oklab, CanvasText 18%, transparent);
+          border-radius: 6px;
+          background: Canvas;
+          color: CanvasText;
+          font-size: 0.9375rem;
+          accent-color: CanvasText;
         }
-        rule("input:focus-visible") {
-            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            outlineOffset("2px")
+        input:focus-visible {
+          outline: 2px solid color-mix(in oklab, CanvasText 50%, blue);
+          outline-offset: 2px;
         }
-        rule(".error") {
-            margin("0.125rem 0 0 0")
-            color("oklch(.55 .2 25)")
-            fontSize("0.85rem")
+        .error {
+          margin: 0.125rem 0 0 0;
+          color: oklch(.55 .2 25);
+          font-size: 0.85rem;
         }
-        rule(".welcome") {
-            margin("0")
-            fontSize("1rem")
+        .welcome {
+          margin: 0;
+          font-size: 1rem;
         }
-        rule(".actions") {
-            display("flex")
-            gap("0.5rem")
+        .actions {
+          display: flex;
+          gap: 0.5rem;
         }
-        rule("button") {
-            padding("0.4rem 0.9rem")
-            border("1px solid color-mix(in oklab, CanvasText 18%, transparent)")
-            borderRadius("6px")
-            background("color-mix(in oklab, Canvas 90%, CanvasText)")
-            color("CanvasText")
-            cursor("pointer")
-            fontSize("0.9375rem")
+        button {
+          padding: 0.4rem 0.9rem;
+          border: 1px solid color-mix(in oklab, CanvasText 18%, transparent);
+          border-radius: 6px;
+          background: color-mix(in oklab, Canvas 90%, CanvasText);
+          color: CanvasText;
+          cursor: pointer;
+          font-size: 0.9375rem;
         }
-        rule("button:focus-visible") {
-            outline("2px solid color-mix(in oklab, CanvasText 50%, blue)")
-            outlineOffset("2px")
+        button:focus-visible {
+          outline: 2px solid color-mix(in oklab, CanvasText 50%, blue);
+          outline-offset: 2px;
         }
-        rule(".secondary") {
-            background("transparent")
+        .secondary {
+          background: transparent;
         }
-        rule("button[disabled]") {
-            opacity("0.5")
-            cursor("not-allowed")
+        button[disabled] {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
-    }
+        """)
 }
