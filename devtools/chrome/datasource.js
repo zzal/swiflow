@@ -58,5 +58,11 @@
     tree()      { return call("window.__swiflow.tree()"); },
     state(path) { return call(`window.__swiflow.state(${JSON.stringify(path)})`); },
     perf()      { return call("window.__swiflow.perf()"); },
+    // Chrome's eval always runs in the inspected page, so the binding is
+    // never ambiguous — exactly one candidate. (Safari's messaging bridge
+    // has to LOCATE the page and may report several; see its datasource.)
+    pageInfo() {
+      return call("location.href").then((url) => ({ url, candidates: [url] }));
+    },
   };
 })();

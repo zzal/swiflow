@@ -16,7 +16,18 @@
 //   async tree()      -> { selector: "indented tree string", … }
 //   async state(path) -> { field: value, … } | null
 //   async perf()      -> { selector: { renders, lastPatchCount, lastRenderMs }, … }
+//   async pageInfo()  -> { url, candidates } — which tab the bridge is bound
+//                        to, and every tab that could have answered. The
+//                        background locates "the Swiflow tab" by scanning, so
+//                        with several Swiflow tabs open the panel may be
+//                        reading a different page than the inspected one;
+//                        pageInfo() is what lets the panel SAY so.
 (() => {
+  // Updated on every successful reply (the background attaches the binding
+  // to each response). pageInfo() reads this cache — the panel calls it
+  // right after a successful poll, so it's always at most one reply old.
+  let lastBinding = { url: null, candidates: [] };
+
   async function request(method, args) {
     let resp;
     try {
@@ -30,6 +41,10 @@
     if (!resp.ok) {
       throw new Error(resp.error || "bridge: unknown error");
     }
+    lastBinding = {
+      url: resp.boundUrl ?? null,
+      candidates: Array.isArray(resp.candidates) ? resp.candidates : [],
+    };
     return resp.value;
   }
 
@@ -37,5 +52,6 @@
     tree()      { return request("tree", []); },
     state(path) { return request("state", [path]); },
     perf()      { return request("perf", []); },
+    async pageInfo() { return lastBinding; },
   };
 })();

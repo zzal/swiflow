@@ -117,6 +117,21 @@
         align-items: baseline;
         gap: 0.5em;
       }
+      /* Provenance label: which page the panel is actually reading. Warns
+         (error color) when several Swiflow tabs answered the bridge scan —
+         the data shown may then belong to a different tab than the one
+         being inspected. */
+      #page-binding {
+        margin-left: auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 45%;
+      }
+      #page-binding.page-binding--warning {
+        color: var(--sys-color-error);
+        font-weight: 500;
+      }
       .live-indicator {
         display: inline-block;
         width: 8px;
@@ -181,6 +196,7 @@
     <footer>
       <span id="live-indicator" class="live-indicator live-indicator--grey" title="Paused"></span>
       <span id="footer-stats"></span>
+      <span id="page-binding"></span>
     </footer>
     <!-- Browser-specific transport (defines SWIFLOW_DATA_SOURCE), loaded
          before the shared core. Chrome ships the eval version here; the Safari

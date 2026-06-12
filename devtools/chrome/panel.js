@@ -3,10 +3,10 @@
 //
 // The panel never talks to the inspected page directly. A browser-specific
 // datasource.js (loaded just before this script in panel.html) defines the
-// global SWIFLOW_DATA_SOURCE — an object with async tree(), state(path) and
-// perf() methods — and this core consumes it. Chrome's datasource.js uses
-// chrome.devtools.inspectedWindow.eval; Safari's uses a messaging bridge
-// (eval natively crashes Safari's Web Inspector).
+// global SWIFLOW_DATA_SOURCE — an object with async tree(), state(path),
+// perf() and pageInfo() methods — and this core consumes it. Chrome's
+// datasource.js uses chrome.devtools.inspectedWindow.eval; Safari's uses a
+// messaging bridge (eval natively crashes Safari's Web Inspector).
 
 // ── OS color-scheme detection ─────────────────────────────────────────────────
 //
@@ -267,6 +267,53 @@ function renderFooter(perfData, activeSelector) {
   footer.appendChild(lastRenderTimeElm);
 }
 
+// ── Page binding (which page is the panel actually reading?) ─────────────────
+//
+// Chrome's eval is always the inspected page, so this is a plain provenance
+// label there. Safari's bridge LOCATES the Swiflow tab by scanning, so with
+// several Swiflow tabs open the panel can be reading a page other than the
+// inspected one — the data is then live (green dot!) but for the wrong page.
+// Rendering the bound URL, plus a warning when more than one tab answered,
+// turns that silent mismatch into something the user can see.
+
+const pageBinding = document.getElementById("page-binding");
+
+function shortUrl(url) {
+  return String(url).replace(/^https?:\/\//, "");
+}
+
+function renderPageBinding(info) {
+  if (!pageBinding) return;
+  pageBinding.classList.remove("page-binding--warning");
+  if (!info || !info.url) {
+    pageBinding.textContent = "";
+    pageBinding.title = "";
+    return;
+  }
+  const others = (info.candidates || []).filter((u) => u !== info.url);
+  if (others.length > 0) {
+    pageBinding.classList.add("page-binding--warning");
+    pageBinding.textContent = `⚠ ${others.length + 1} Swiflow tabs — reading ${shortUrl(info.url)}`;
+    pageBinding.title =
+      `Multiple Swiflow tabs are open; the panel is reading ${info.url}.\n` +
+      `Other candidates:\n${others.join("\n")}\n` +
+      `Close the extra tabs to remove the ambiguity.`;
+  } else {
+    pageBinding.textContent = `Reading ${shortUrl(info.url)}`;
+    pageBinding.title = info.url;
+  }
+}
+
+// Best-effort: binding display must never break a poll.
+async function updatePageBinding() {
+  if (typeof dataSource.pageInfo !== "function") return;
+  try {
+    renderPageBinding(await dataSource.pageInfo());
+  } catch (_) {
+    renderPageBinding(null);
+  }
+}
+
 // ── Refresh ───────────────────────────────────────────────────────────────────
 //
 // Single source of truth for "re-fetch everything and re-render". Called
@@ -369,6 +416,9 @@ async function pollTick() {
     const reconnected = !pollLive;
     pollLive = true;
     setLiveIndicator("green", "Live");
+    // Refresh the provenance label on every healthy tick — a green dot with
+    // no (or the wrong) bound page is exactly the confusion this prevents.
+    await updatePageBinding();
     const signature = computePerfSignature(perf);
     if (reconnected || signature !== lastPerfSignature) {
       lastPerfSignature = signature;
@@ -384,6 +434,9 @@ async function pollTick() {
   } catch (err) {
     pollLive = false;
     setLiveIndicator("red", `Connection lost: ${err.message}`);
+    // Clear the provenance label — keeping a stale "Reading <url>" next to a
+    // red dot would be the same misdirection this label exists to prevent.
+    renderPageBinding(null);
     // Next successful tick will be treated as a reconnect and force a refresh.
   }
 }
