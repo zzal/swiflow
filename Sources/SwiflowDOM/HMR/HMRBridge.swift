@@ -48,6 +48,13 @@ package enum HMRBridge {
     /// at call time.
     @MainActor
     package static func installSnapshotExporter(rootsProvider: @escaping @MainActor () -> [MountNode]) {
+        // Same runtime gate as `DevAPI.installAll()`: only the dev server
+        // injects `window.SWIFLOW_DEV=true` (DevModeInjection), and only its
+        // driver performs hot swaps — so a debug wasm served outside
+        // `swiflow dev` (static server, copied outputs) exposes no
+        // `__swiflow.hmrSnapshot`. Without this, debug builds presented an
+        // inconsistent namespace: hmrSnapshot present, tree/state/perf absent.
+        guard JSObject.global.SWIFLOW_DEV.boolean == true else { return }
         // Idempotent: the closure reads the live global root set at call time,
         // so a single install covers every present-and-future root. A fresh
         // module after a hot-swap starts with `snapshotClosure == nil` and
