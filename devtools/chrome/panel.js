@@ -290,13 +290,16 @@ function renderPageBinding(info) {
     pageBinding.title = "";
     return;
   }
-  const others = (info.candidates || []).filter((u) => u !== info.url);
-  if (others.length > 0) {
+  // Ambiguity = more than one tab answered the bridge, NOT distinct URL
+  // strings — two tabs at the byte-identical URL are still two different
+  // pages with different state.
+  const candidates = info.candidates || [];
+  if (candidates.length > 1) {
     pageBinding.classList.add("page-binding--warning");
-    pageBinding.textContent = `⚠ ${others.length + 1} Swiflow tabs — reading ${shortUrl(info.url)}`;
+    pageBinding.textContent = `⚠ ${candidates.length} Swiflow tabs — reading ${shortUrl(info.url)}`;
     pageBinding.title =
       `Multiple Swiflow tabs are open; the panel is reading ${info.url}.\n` +
-      `Other candidates:\n${others.join("\n")}\n` +
+      `All candidates:\n${candidates.join("\n")}\n` +
       `Close the extra tabs to remove the ambiguity.`;
   } else {
     pageBinding.textContent = `Reading ${shortUrl(info.url)}`;
