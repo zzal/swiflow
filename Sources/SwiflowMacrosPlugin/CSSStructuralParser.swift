@@ -14,7 +14,7 @@ enum CSSStructuralParser {
     struct ParseDiagnostic: Equatable {
         let message: String
         let line: Int      // 1-based within the CSS text
-        let column: Int    // 1-based
+        let column: Int    // 1-based; counts grapheme clusters (Array(text) indexing)
     }
 
     enum Segment: Equatable {
@@ -211,6 +211,60 @@ enum CSSStructuralParser {
             segments.append(escapes ? .hoisted(text) : .scoped(text))
         }
 
+        /// Returns `true` if the scanner is positioned at the start of an
+        /// unquoted url-token: the preceding character is not an identifier
+        /// character, the next four characters case-insensitively spell `url(`,
+        /// and the first non-whitespace character after `(` is neither `"` nor
+        /// `'` (the quoted form uses normal string scanning).
+        private func unquotedURLStart() -> Bool {
+            // Boundary: the char immediately before `i` must not be an ident char.
+            if i > 0 {
+                let prev = chars[i - 1]
+                if prev.isLetter || prev.isNumber || prev == "-" || prev == "_" { return false }
+            }
+            // Case-insensitive "url(" lookahead.
+            guard
+                let c0 = peek(0), (c0 == "u" || c0 == "U"),
+                let c1 = peek(1), (c1 == "r" || c1 == "R"),
+                let c2 = peek(2), (c2 == "l" || c2 == "L"),
+                let c3 = peek(3), c3 == "("
+            else { return false }
+            // Skip whitespace after `(` and check the next char.
+            var j = i + 4
+            while j < chars.count && chars[j].isWhitespace { j += 1 }
+            // If we hit EOF, it's an empty url() — treat as unquoted (will be
+            // consumed and then EOF terminates with an "unterminated url()" diag).
+            if j >= chars.count { return true }
+            let after = chars[j]
+            // Quoted form: leave for normal string scanning.
+            if after == "\"" || after == "'" { return false }
+            return true
+        }
+
+        /// Consumes an unquoted url-token starting at the current position.
+        /// Caller must have verified `unquotedURLStart()` is true.
+        /// Emits "unterminated url()" if EOF is reached before the closing `)`.
+        private mutating func skipUnquotedURL() {
+            let (urlLine, urlCol) = (line, column)
+            // Consume "url(".
+            advance(); advance(); advance(); advance()
+            // Consume everything up to and including the first unescaped `)`.
+            while let c = peek() {
+                if c == "\\" {
+                    advance() // consume backslash
+                    advance() // consume escaped char (or nothing at EOF)
+                    continue
+                }
+                if c == ")" {
+                    advance()
+                    return
+                }
+                advance()
+            }
+            // Reached EOF without closing `)`.
+            emit("unterminated url()", line: urlLine, column: urlCol)
+        }
+
         /// Consumes a balanced `{ … }` block (cursor must be on the opening
         /// `{`). Tracks (), [] balance and checks declaration shape: a chunk
         /// terminated by ';' or '}' directly inside braces must contain ':'
@@ -267,6 +321,13 @@ enum CSSStructuralParser {
                     if stack.last?.open == "{" { checkChunk() }
                     advance()
                 default:
+                    // Unquoted url-token: consume opaquely — may contain {, }, ;, ,
+                    // (data URIs are the classic case). Do NOT push/pop the balance
+                    // stack for the ( ) pair; the body is not CSS structure.
+                    if unquotedURLStart() {
+                        skipUnquotedURL()
+                        continue
+                    }
                     // Accumulate declaration text only directly inside braces
                     // (inside parens/brackets the ':' was already seen or the
                     // content is value-internal, e.g. url(), calc()).

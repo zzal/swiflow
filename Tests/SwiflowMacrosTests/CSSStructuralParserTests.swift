@@ -159,4 +159,45 @@ final class CSSStructuralParserTests: XCTestCase {
             .init(message: "unexpected ';' — expected a '{' block after the selector", line: 1, column: 3)
         ])
     }
+
+    // MARK: - Unquoted url() tokens
+
+    func testUnquotedURLWithBracesAndSemicolonsIsOpaque() {
+        // Per the CSS url-token rules, an unquoted url() may contain {, }, ;, ,
+        // — data URIs are the classic case. None of it is structure.
+        let css = ".x { background: url(data:image/png;base64,iVBO{R}w0=); }"
+        let r = CSSStructuralParser.parse(css)
+        XCTAssertEqual(r.diagnostics, [])
+        XCTAssertEqual(r.segments, [.scoped(css)])
+    }
+
+    func testUnquotedURLWithApostrophePassesThrough() {
+        // Technically a bad-url-token per spec, but validity is the browser's
+        // call — the structural parser only needs to not false-error.
+        let css = ".x { background: url(images/it's.png); }"
+        let r = CSSStructuralParser.parse(css)
+        XCTAssertEqual(r.diagnostics, [])
+        XCTAssertEqual(r.segments, [.scoped(css)])
+    }
+
+    func testQuotedURLStillUsesStringScanning() {
+        let css = ".x { background: url(\"a}b.png\"); }"
+        let r = CSSStructuralParser.parse(css)
+        XCTAssertEqual(r.diagnostics, [])
+        XCTAssertEqual(r.segments, [.scoped(css)])
+    }
+
+    func testFunctionNamesEndingInURLAreNotURLTokens() {
+        // -moz-url( / no-url( must not trigger the opaque consumption;
+        // their parens get normal balance tracking.
+        let css = ".x { background: imitation-url(\"a.png\"); }"
+        let r = CSSStructuralParser.parse(css)
+        XCTAssertEqual(r.diagnostics, [])
+        XCTAssertEqual(r.segments, [.scoped(css)])
+    }
+
+    func testUnterminatedUnquotedURL() {
+        let r = CSSStructuralParser.parse(".x { background: url(oops")
+        XCTAssertEqual(r.diagnostics, [.init(message: "unterminated url()", line: 1, column: 18)])
+    }
 }
