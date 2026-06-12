@@ -251,4 +251,27 @@ struct CSSSheetTests {
         #expect(aIdx != nil && bIdx != nil)
         #expect(aIdx! < bIdx!)
     }
+
+    @Test("scopedBlock wraps its body in the scope class for native nesting")
+    func scopedBlockWrapped() {
+        let sheet = CSSSheet(entries: [.scopedBlock(".row {\n  display: grid;\n}")])
+        let result = sheet.cssString(scopeClass: "swiflow-Quakes")
+        #expect(result == ".swiflow-Quakes {\n  .row {\n    display: grid;\n  }\n}")
+    }
+
+    @Test("scopedBlock preserves blank lines without adding trailing spaces")
+    func scopedBlockBlankLines() {
+        let sheet = CSSSheet(entries: [.scopedBlock(".a { color: red; }\n\n.b { margin: 0; }")])
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        #expect(result == ".swiflow-T {\n  .a { color: red; }\n\n  .b { margin: 0; }\n}")
+    }
+
+    @Test("scopedBlock composes with DSL-built sheets via +")
+    func scopedBlockComposes() {
+        let sheet = CSSSheet(entries: [.scopedBlock(".a { color: red; }")])
+            + css { rule(".b") { margin("0") } }
+        let result = sheet.cssString(scopeClass: "swiflow-T")
+        #expect(result.contains(".swiflow-T {\n  .a { color: red; }\n}"))
+        #expect(result.contains(".swiflow-T .b {"))
+    }
 }

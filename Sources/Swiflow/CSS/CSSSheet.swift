@@ -1,7 +1,7 @@
 public struct CSSSheet: Sendable {
     package let entries: [CSSEntry]
 
-    package init(entries: [CSSEntry]) {
+    public init(entries: [CSSEntry]) {
         self.entries = entries
     }
 
@@ -20,6 +20,10 @@ public enum CSSEntry: Sendable {
     /// so the wrapper participates in scoping instead of reaching around it.
     case group(prefix: String, entries: [CSSEntry])
     case raw(String)
+    /// CSS authored via `#css`. Rendered as `.<scopeClass> { <body> }` so the
+    /// browser's native CSS nesting performs the scoping; the body is passed
+    /// to the browser verbatim. See docs/superpowers/specs/2026-06-12-css-macro-design.md.
+    case scopedBlock(String)
 
     package func cssString(scopeClass: String) -> String {
         switch self {
@@ -55,14 +59,20 @@ public enum CSSEntry: Sendable {
             // Render nested entries with the same scope, then indent one level
             // and wrap in the at-rule. Blank lines stay blank (no trailing space).
             let body = entries.map { $0.cssString(scopeClass: scopeClass) }.joined(separator: "\n")
-            let indented = body
-                .split(separator: "\n", omittingEmptySubsequences: false)
-                .map { $0.isEmpty ? "" : "  " + $0 }
-                .joined(separator: "\n")
-            return "\(prefix) {\n\(indented)\n}"
+            return "\(prefix) {\n\(Self.indentOneLevel(body))\n}"
         case .raw(let text):
             return text
+        case .scopedBlock(let body):
+            return ".\(scopeClass) {\n\(Self.indentOneLevel(body))\n}"
         }
+    }
+
+    /// Indents every non-empty line by one level (two spaces). Blank lines
+    /// stay blank so no trailing whitespace is introduced.
+    private static func indentOneLevel(_ text: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.isEmpty ? "" : "  " + $0 }
+            .joined(separator: "\n")
     }
 
     private func shouldScope(_ selector: String) -> Bool {
