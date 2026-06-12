@@ -46,8 +46,11 @@ public struct CSSMacro: ExpressionMacro {
             return empty
         }
 
-        // Hoisted entries keep source order; scoped segments merge into one
-        // block placed where the first of them appeared.
+        // Hoisted entries keep source order *among themselves*; scoped
+        // segments merge into one block placed where the first of them
+        // appeared, so a mid-sheet @keyframes deliberately lands after the
+        // block. Harmless: every hoistable at-rule is order-independent
+        // at the stylesheet level.
         var entryExprs: [String] = []
         var scopedParts: [String] = []
         var scopedSlot: Int?

@@ -41,9 +41,10 @@ browser's native CSS nesting performs the scoping:
 - `:host { … }` (or top-level `&`) styles the component's **root element**.
 - Every other top-level selector matches **descendants** of the root.
 - `:root`, `html`, and `body` rules escape scoping entirely.
-- `@keyframes`, `@font-face`, and `@property` are hoisted outside the scope
-  wrapper (they cannot nest). `@keyframes` names are **global** — prefix
-  them, e.g. `mc-spin` not `spin`.
+- `@keyframes`, `@font-face`, and `@property` (and the other non-nestable
+  at-rules: `@page`, `@counter-style`, `@font-feature-values`, `@layer`
+  statements) are hoisted outside the scope wrapper. `@keyframes` names are
+  **global** — prefix them, e.g. `mc-spin` not `spin`.
 
 Two practical notes:
 
