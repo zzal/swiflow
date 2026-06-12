@@ -16,6 +16,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`#css` macro — real CSS in Swift.** Write actual CSS in a string literal
+  (`#css(""" .row { display: grid; } """)`); the macro validates structure at
+  compile time (unbalanced braces, malformed declarations, `@import` are
+  compile errors) and passes everything else to the browser verbatim — new
+  CSS features work without a Swiflow release. Scoping rides native CSS
+  nesting: `:host` styles the component root, other selectors match
+  descendants, and non-nestable at-rules (`@keyframes`, `@font-face`,
+  `@property`) are hoisted automatically. Composes with the builder DSL via
+  `+`; the DSL remains fully supported. See `docs/guides/styling.md`.
+  **Stability: stable for pre-1.0 usage.**
+
 ## [0.1.9] — 2026-06-11
 
 ### Added
