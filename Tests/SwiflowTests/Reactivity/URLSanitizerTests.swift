@@ -2,7 +2,7 @@
 import Testing
 @testable import Swiflow
 
-@Suite("URLSanitizer", .serialized)
+@Suite("URLSanitizer")
 struct URLSanitizerTests {
 
     @Test("Allows the default scheme set: http, https, mailto, tel, ftp")
@@ -67,20 +67,18 @@ struct URLSanitizerTests {
         #expect(URLSanitizer.sanitize("data:image/png;base64,iVBORw0KGgo=") == nil)
     }
 
-    @Test("Allows data: when allowDataURLs is true")
+    @Test("Allows data: when the configuration opts in")
     func allowsDataURLsWhenOptedIn() {
-        URLSanitizer.allowDataURLs = true
-        defer { URLSanitizer.allowDataURLs = false }
-        #expect(URLSanitizer.sanitize("data:image/png;base64,iVBORw0KGgo=") == "data:image/png;base64,iVBORw0KGgo=")
-        #expect(URLSanitizer.sanitize("javascript:alert(1)") == nil)
+        let config = URLSanitizer.Configuration(allowDataURLs: true)
+        #expect(URLSanitizer.sanitize("data:image/png;base64,iVBORw0KGgo=", configuration: config) == "data:image/png;base64,iVBORw0KGgo=")
+        #expect(URLSanitizer.sanitize("javascript:alert(1)", configuration: config) == nil)
     }
 
-    @Test("Rejects blob: by default; allows when opted in")
+    @Test("Rejects blob: by default; allows when the configuration opts in")
     func blobURLOptIn() {
         #expect(URLSanitizer.sanitize("blob:https://example.com/uuid") == nil)
-        URLSanitizer.allowBlobURLs = true
-        defer { URLSanitizer.allowBlobURLs = false }
-        #expect(URLSanitizer.sanitize("blob:https://example.com/uuid") == "blob:https://example.com/uuid")
+        let config = URLSanitizer.Configuration(allowBlobURLs: true)
+        #expect(URLSanitizer.sanitize("blob:https://example.com/uuid", configuration: config) == "blob:https://example.com/uuid")
     }
 
     @Test("Rejects vbscript: scheme")
@@ -91,10 +89,9 @@ struct URLSanitizerTests {
 
     @Test("Custom allowedSchemes override the defaults")
     func customAllowedSchemes() {
-        URLSanitizer.allowedSchemes = ["myscheme"]
-        defer { URLSanitizer.allowedSchemes = URLSanitizer.defaultAllowedSchemes }
-        #expect(URLSanitizer.sanitize("myscheme://anything") == "myscheme://anything")
-        #expect(URLSanitizer.sanitize("https://example.com") == nil, "https no longer in allowlist")
+        let config = URLSanitizer.Configuration(allowedSchemes: ["myscheme"])
+        #expect(URLSanitizer.sanitize("myscheme://anything", configuration: config) == "myscheme://anything")
+        #expect(URLSanitizer.sanitize("https://example.com", configuration: config) == nil, "https no longer in allowlist")
     }
 
     @Test("applyAttributes drops javascript: href and keeps benign attributes")

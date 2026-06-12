@@ -27,7 +27,9 @@ public enum URLSanitizer {
     /// before any render or concurrent `sanitize(_:)` call.
     /// `nonisolated(unsafe)` suppresses Swift's concurrency checker but
     /// does NOT add synchronisation — runtime mutation while a render is
-    /// in flight is a data race.
+    /// in flight is a data race. Tests and one-off callers should pass an
+    /// explicit `Configuration` to `sanitize(_:configuration:)` instead of
+    /// mutating these.
     nonisolated(unsafe) public static var allowedSchemes: Set<String> = defaultAllowedSchemes
 
     nonisolated(unsafe) public static var allowDataURLs: Bool = false
@@ -38,7 +40,35 @@ public enum URLSanitizer {
         "href", "src", "action", "formaction",
     ]
 
+    /// An explicit, value-typed snapshot of the three allowlist knobs.
+    /// `sanitize(_:configuration:)` consults this instead of the static
+    /// vars, so callers that need a non-default policy (and tests) can
+    /// pass one without mutating global state.
+    public struct Configuration: Sendable {
+        public var allowedSchemes: Set<String>
+        public var allowDataURLs: Bool
+        public var allowBlobURLs: Bool
+
+        public init(
+            allowedSchemes: Set<String> = URLSanitizer.defaultAllowedSchemes,
+            allowDataURLs: Bool = false,
+            allowBlobURLs: Bool = false
+        ) {
+            self.allowedSchemes = allowedSchemes
+            self.allowDataURLs = allowDataURLs
+            self.allowBlobURLs = allowBlobURLs
+        }
+    }
+
     public static func sanitize(_ rawValue: String) -> String? {
+        sanitize(rawValue, configuration: Configuration(
+            allowedSchemes: allowedSchemes,
+            allowDataURLs: allowDataURLs,
+            allowBlobURLs: allowBlobURLs
+        ))
+    }
+
+    public static func sanitize(_ rawValue: String, configuration: Configuration) -> String? {
         let cleaned = stripControlAndLeadingWhitespace(rawValue)
         let decoded = decodeHTMLColonEntities(cleaned)
 
@@ -53,13 +83,13 @@ public enum URLSanitizer {
         let lowerScheme = scheme.lowercased()
 
         if lowerScheme == "data" {
-            return allowDataURLs ? rawValue : nil
+            return configuration.allowDataURLs ? rawValue : nil
         }
         if lowerScheme == "blob" {
-            return allowBlobURLs ? rawValue : nil
+            return configuration.allowBlobURLs ? rawValue : nil
         }
 
-        return allowedSchemes.contains(lowerScheme) ? rawValue : nil
+        return configuration.allowedSchemes.contains(lowerScheme) ? rawValue : nil
     }
 
     /// Resolves the value to store for attribute `name`, applying the URL
