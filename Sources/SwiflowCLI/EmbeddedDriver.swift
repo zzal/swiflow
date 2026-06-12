@@ -759,6 +759,42 @@ async function loadManifest() {
   return res.json();
 }
 
+async function sha256HexOf(buf) {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  let hex = "";
+  for (const b of new Uint8Array(digest)) hex += b.toString(16).padStart(2, "0");
+  return hex;
+}
+
+// Fetch `absUrl` and cache it ONLY if its bytes hash to the manifest's
+// sha256. The cache is *named* by that sha, so caching unverified bytes
+// poisons it permanently: cleanupStale() protects the current name, and the
+// fetch handler then serves the wrong bytes forever. The classic desync is
+// `swiflow dev` overwriting `swiflow build`'s App.wasm without rewriting
+// swiflow-manifest.json. A mismatch must NOT fail install — a failed install
+// would pin the page to the previous worker's (also stale) caches. Skipping
+// the file instead lets this worker activate, cleanupStale() drops the old
+// caches, and the URL falls through to the network: correct bytes, just
+// uncached.
+async function fetchVerifiedInto(cache, absUrl, expectedSha256) {
+  const res = await fetch(absUrl, { cache: "no-store" });
+  if (!res.ok) {
+    console.error(`swiflow-sw: precache fetch failed for ${absUrl} (${res.status}); will serve from network.`);
+    return;
+  }
+  const actual = await sha256HexOf(await res.clone().arrayBuffer());
+  if (actual !== expectedSha256) {
+    console.error(
+      `swiflow-sw: sha256 mismatch for ${absUrl} — manifest says ${expectedSha256.slice(0, 8)}…, ` +
+      `fetched bytes hash to ${actual.slice(0, 8)}…. Build outputs and swiflow-manifest.json are out ` +
+      `of sync (did a \`swiflow dev\` build overwrite \`swiflow build\` outputs?). Re-run \`swiflow build\`. ` +
+      `Not cached; this URL will be served from the network.`
+    );
+    return;
+  }
+  await cache.put(absUrl, res);
+}
+
 async function precache(manifest) {
   const wasmCacheName = cacheNameFor("swiflow-wasm", manifest.wasm.sha256);
   const runtimeCacheName = runtimeCacheNameFor(manifest);
@@ -767,9 +803,11 @@ async function precache(manifest) {
   // Resolve to absolute URLs so caches.match() (exact-URL semantics in
   // real browsers) hits correctly when requests arrive with full origins.
   const wasmAbs = new URL(manifest.wasm.url, self.location.href).href;
-  const runtimeAbs = manifest.runtime.map(e => new URL(e.url, self.location.href).href);
-  await wasmCache.addAll([wasmAbs]);
-  await runtimeCache.addAll(runtimeAbs);
+  await fetchVerifiedInto(wasmCache, wasmAbs, manifest.wasm.sha256);
+  for (const entry of manifest.runtime) {
+    const abs = new URL(entry.url, self.location.href).href;
+    await fetchVerifiedInto(runtimeCache, abs, entry.sha256);
+  }
   return { wasmCacheName, runtimeCacheName };
 }
 

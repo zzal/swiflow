@@ -1795,6 +1795,1003 @@ final class UsersPage: Component {
             ]
         ),
         Template(
+            name: "MissionControl",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    // Inherited from the parent Swiflow package, which sets this floor
+    // because its SwiflowCLI executable depends on Hummingbird 2.x.
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        // Local path back to the parent Swiflow package.
+        {{SWIFLOW_DEP}},
+        // JavaScriptKit is declared as a direct dependency so SwiftPM
+        // exposes the `swift package js` (PackageToJS) plugin to this
+        // package. Without it, the plugin only surfaces on the parent
+        // package and can't target this example's executable.
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
+                .product(name: "SwiflowRouter", package: "Swiflow"),
+                .product(name: "SwiflowQuery", package: "Swiflow"),
+                .product(name: "SwiflowFetcher", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# Mission Control
+
+Watching the planet live from Swift in the browser — the flagship *networked*
+sampler. Two routed tabs over free, keyless, CORS-open APIs:
+
+- **Weather** (`/`) — pinned city cards on [Open-Meteo](https://open-meteo.com)
+  (forecast + geocoding), with debounced search-to-pin and a °C/°F toggle.
+- **Quakes** (`/quakes`) — the live
+  [USGS earthquake feed](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php),
+  filtered by magnitude and time window, polling every 30 s.
+
+Unlike `AsyncFetch` and `QueryDemo` (which simulate latency with `Task.sleep`),
+everything here hits real servers.
+
+## Run it
+
+```sh
+cd examples/{{NAME}}
+swiflow dev        # builds WASM, serves, hot-reloads on save
+```
+
+## What's demonstrated where
+
+| Feature | Where |
+|---|---|
+| `.task(rerunOn:)` | `WeatherPage` — 300 ms search debounce keyed on the input text; superseded keystrokes cancel the sleep and the runtime drops their writes |
+| bare `.task { }` | `QuakesPage` — mount-scoped ticker keeping "n min ago" honest |
+| `VStack`/`HStack` + tokens | all layout; spacing/alignment from the `--sw-*` scale |
+| `HTTPClient` (SwiflowFetcher) | `API.swift` — three real clients; `Decodable` models with explicit snake_case `CodingKeys` (`JSValueDecoder` has no key strategy) |
+| Keyed queries + cache | per-(city, unit) and per-(magnitude, window) keys — flip a filter back, or unpin → re-pin, and it paints instantly from cache |
+| `refetchInterval` | quake feed polls every 30 s; weather refreshes every 5 min |
+| `staleTime` / `refetchOnFocus` | weather is fresh for 60 s; both feeds revalidate on window focus |
+| `isFetching` vs `isLoading` | the "⟳" pulses during background polls while rendered data stays put (stale-while-revalidate) |
+| `SwiflowRouter` | `RouterRoot` + two `Route`s + `Link` tabs |
+| Two-way bindings | `.value($searchText)`, `.selection(...)` on every select |
+| `scopedStyles` | every component; theme on SwiflowUI's `--sw-*` token contract |
+
+**Not here:** `Mutation` / optimistic edits — neither API accepts writes.
+`examples/QueryDemo` remains the mutation demo.
+
+## Things to try
+
+1. Type "par" in the search box, slowly, then quickly — watch the network
+   panel: one geocoding request per *settled* prefix, never per keystroke.
+2. Pin Paris, unpin it, re-pin it within a minute — no request the second time.
+3. Toggle °C → °F (refetch) → °C (instant, cached).
+4. Switch tabs back and forth — instant both ways; no spinners after first load.
+5. Leave the Quakes tab open — rows appear/reorder as the planet rumbles,
+   the "⟳" spinning on each 30 s poll.
+6. DevTools → Network → Offline: cards and feed show error states; restore
+   and refocus the window to watch `refetchOnFocus` recover everything.
+
+"""##,
+                "Sources/App/API.swift": ##"""
+// Sources/App/API.swift
+//
+// HTTP clients + Decodable models for the two live APIs.
+//
+// Both APIs are free, keyless, and CORS-open:
+//   - Open-Meteo  (forecast + geocoding) — https://open-meteo.com
+//   - USGS earthquake feed               — https://earthquake.usgs.gov
+//
+// Decoding note: responses decode with JavaScriptKit's `JSValueDecoder`
+// (see SwiflowFetcher), which has no key-decoding strategy — so every model
+// spells out snake_case keys in explicit `CodingKeys`.
+import SwiflowFetcher
+
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
+
+// MARK: - Clients
+
+enum API {
+    /// Open-Meteo runs geocoding and forecasts on separate hosts.
+    static let geocoding = HTTPClient(baseURL: "https://geocoding-api.open-meteo.com")
+    static let forecast = HTTPClient(baseURL: "https://api.open-meteo.com")
+    static let usgs = HTTPClient(baseURL: "https://earthquake.usgs.gov")
+}
+
+/// Wall-clock epoch milliseconds via JS `Date.now()` — Foundation's `Date`
+/// isn't available under WASM. (Returns 0 on the host, which only typechecks
+/// this target and never renders.)
+@MainActor
+func epochNowMs() -> Double {
+    #if canImport(JavaScriptKit)
+    return JSObject.global.Date.object?.now?().number ?? 0
+    #else
+    return 0
+    #endif
+}
+
+// MARK: - Open-Meteo geocoding
+// GET /v1/search?name={q}&count=5
+// {"results":[{"id":6077243,"name":"Montreal","latitude":45.50884,
+//   "longitude":-73.58781,"country":"Canada","admin1":"Quebec",...}], ...}
+// `results` is absent entirely when nothing matches.
+
+struct GeoSearchResponse: Decodable, Equatable, Sendable {
+    let results: [City]?
+}
+
+struct City: Decodable, Equatable, Hashable, Sendable {
+    let id: Int
+    let name: String
+    let latitude: Double
+    let longitude: Double
+    let country: String?
+    let admin1: String?
+
+    /// "Montreal, Quebec, Canada" — admin1/country are optional in the feed.
+    var fullName: String {
+        [name, admin1, country].compactMap(\.self).joined(separator: ", ")
+    }
+}
+
+// MARK: - Open-Meteo forecast
+// GET /v1/forecast?latitude=…&longitude=…
+//     &current=temperature_2m,weather_code,wind_speed_10m
+//     &daily=temperature_2m_max,temperature_2m_min
+//     &timezone=auto&temperature_unit={celsius|fahrenheit}
+
+struct Forecast: Decodable, Equatable, Sendable {
+    let current: Current
+    let currentUnits: CurrentUnits
+    let daily: Daily
+
+    enum CodingKeys: String, CodingKey {
+        case current
+        case currentUnits = "current_units"
+        case daily
+    }
+
+    struct Current: Decodable, Equatable, Sendable {
+        let temperature: Double
+        let weatherCode: Int
+        let windSpeed: Double
+
+        enum CodingKeys: String, CodingKey {
+            case temperature = "temperature_2m"
+            case weatherCode = "weather_code"
+            case windSpeed = "wind_speed_10m"
+        }
+    }
+
+    struct CurrentUnits: Decodable, Equatable, Sendable {
+        let temperature: String   // "°C" / "°F"
+
+        enum CodingKeys: String, CodingKey {
+            case temperature = "temperature_2m"
+        }
+    }
+
+    struct Daily: Decodable, Equatable, Sendable {
+        let highs: [Double]
+        let lows: [Double]
+
+        enum CodingKeys: String, CodingKey {
+            case highs = "temperature_2m_max"
+            case lows = "temperature_2m_min"
+        }
+    }
+}
+
+/// WMO weather interpretation codes (the `weather_code` field) → display.
+/// Table per Open-Meteo's documentation.
+func wmoDescription(_ code: Int) -> (emoji: String, label: String) {
+    switch code {
+    case 0:          ("☀️", "Clear sky")
+    case 1:          ("🌤️", "Mainly clear")
+    case 2:          ("⛅️", "Partly cloudy")
+    case 3:          ("☁️", "Overcast")
+    case 45, 48:     ("🌫️", "Fog")
+    case 51, 53, 55: ("🌦️", "Drizzle")
+    case 56, 57:     ("🌧️", "Freezing drizzle")
+    case 61, 63, 65: ("🌧️", "Rain")
+    case 66, 67:     ("🌧️", "Freezing rain")
+    case 71, 73, 75: ("🌨️", "Snow")
+    case 77:         ("🌨️", "Snow grains")
+    case 80, 81, 82: ("🌦️", "Rain showers")
+    case 85, 86:     ("🌨️", "Snow showers")
+    case 95:         ("⛈️", "Thunderstorm")
+    case 96, 99:     ("⛈️", "Thunderstorm with hail")
+    default:         ("❓", "Unknown")
+    }
+}
+
+// MARK: - USGS earthquake feed
+// GET /earthquakes/feed/v1.0/summary/{magnitude}_{window}.geojson
+// GeoJSON FeatureCollection; `properties.time` is epoch ms (exceeds Int32 —
+// wasm32's Int — so it stays a Double), `mag`/`place` can be null.
+
+struct QuakeFeed: Decodable, Equatable, Sendable {
+    let metadata: Metadata
+    let features: [Quake]
+
+    struct Metadata: Decodable, Equatable, Sendable {
+        let title: String
+        let count: Int
+    }
+}
+
+struct Quake: Decodable, Equatable, Sendable {
+    let id: String
+    let properties: Properties
+
+    struct Properties: Decodable, Equatable, Sendable {
+        let mag: Double?
+        let place: String?
+        let time: Double   // epoch milliseconds
+        let url: String
+    }
+}
+
+"""##,
+                "Sources/App/App.swift": ##"""
+// Sources/App/App.swift
+//
+// Mission Control — watching the planet live from Swift in the browser.
+// Two routed tabs over free, keyless, CORS-open APIs:
+//   /        Weather  — Open-Meteo forecast + geocoding
+//   /quakes  Quakes   — USGS earthquake feed
+import Swiflow
+import SwiflowDOM
+import SwiflowRouter
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") {
+            RouterRoot {
+                Route("/") { WeatherPage() }
+                Route("/quakes") { QuakesPage() }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/NavBar.swift": ##"""
+// Sources/App/NavBar.swift
+import Swiflow
+import SwiflowDOM
+import SwiflowRouter
+import SwiflowUI
+
+/// Tab bar shared by both pages. `Link` renders a fixed-shape `<a>`, so the
+/// styling targets `nav a` from the scoped sheet rather than per-link classes.
+final class NavBar: Component {
+    static var scopedStyles: CSSSheet? = css {
+        // `host {}` — the <nav> is the component root, and scoped `rule(...)`
+        // selectors only reach descendants.
+        host {
+            display("flex")
+            alignItems("center")
+            gap("var(--sw-space-sm)")
+            padding("var(--sw-space-sm) var(--sw-space-md)")
+            borderBottom("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
+        }
+        rule("a") {
+            color("var(--sw-text)")
+            textDecoration("none")
+            padding("var(--sw-space-xs) var(--sw-space-md)")
+            borderRadius("var(--sw-radius)")
+        }
+        rule("a:hover") {
+            background("color-mix(in srgb, var(--sw-accent) 15%, transparent)")
+        }
+        rule(".brand") {
+            fontWeight("700")
+            marginRight("var(--sw-space-md)")
+        }
+    }
+
+    var body: VNode {
+        nav {
+            span(.class("brand")) { text("🌍 Mission Control") }
+            embed { Link("/", "Weather") }
+            embed { Link("/quakes", "Quakes") }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Quakes/QuakeQueries.swift": ##"""
+// Sources/App/Quakes/QuakeQueries.swift
+import SwiflowQuery
+
+/// USGS publishes one feed per (magnitude floor × time window) pair, so the
+/// two filter selects map 1:1 onto feed URLs — and each combination is
+/// naturally its own cache entry.
+struct QuakeFeedQuery: Query {
+    let magnitude: String   // "all" | "1.0" | "2.5" | "4.5" | "significant"
+    let window: String      // "hour" | "day" | "week"
+
+    var queryKey: QueryKey { ["quakes", .string(magnitude), .string(window)] }
+    var tags: Set<QueryTag> { ["quakes"] }
+
+    /// Poll every 30 s — earthquakes don't wait for a refresh button.
+    var refetchInterval: Duration? { .seconds(30) }
+    /// Anything younger than the polling cadence is fresh; switching filters
+    /// back within 30 s renders instantly from cache without a refetch.
+    var staleTime: Duration { .seconds(30) }
+
+    func fetch() async throws -> QuakeFeed {
+        try await API.usgs.get("/earthquakes/feed/v1.0/summary/\(magnitude)_\(window).geojson")
+    }
+}
+
+"""##,
+                "Sources/App/Quakes/QuakeRow.swift": ##"""
+// Sources/App/Quakes/QuakeRow.swift
+import Swiflow
+import SwiflowDOM
+
+/// One feed row. A plain VNode factory (not a component) so the list can key
+/// rows directly with `.key(quake.id)`.
+@MainActor
+func quakeRow(_ quake: Quake, nowMs: Double) -> VNode {
+    let mag = quake.properties.mag
+    return li(.key(quake.id), .class("quake-row")) {
+        span(.class("mag \(magnitudeClass(mag))")) {
+            text(mag.map { "M \(($0 * 10).rounded() / 10)" } ?? "M ?")
+        }
+        span(.class("place")) { text(quake.properties.place ?? "Unknown location") }
+        span(.class("when")) { text(relativeTime(fromMs: quake.properties.time, nowMs: nowMs)) }
+    }
+}
+
+/// Badge color bucket: calm below M3, watchful to M5, alarming above.
+func magnitudeClass(_ mag: Double?) -> String {
+    switch mag ?? 0 {
+    case ..<3:   "mag-low"
+    case ..<5:   "mag-mid"
+    default:     "mag-high"
+    }
+}
+
+/// "just now" / "12 min ago" / "3 h ago" / "2 d ago". Clamps negative deltas
+/// (clock skew between USGS and the client) to "just now".
+func relativeTime(fromMs: Double, nowMs: Double) -> String {
+    let minutes = Int(max(0, nowMs - fromMs) / 60_000)
+    switch minutes {
+    case 0:        return "just now"
+    case ..<60:    return "\(minutes) min ago"
+    case ..<1440:  return "\(minutes / 60) h ago"
+    default:       return "\(minutes / 1440) d ago"
+    }
+}
+
+"""##,
+                "Sources/App/Quakes/QuakesPage+Styles.swift": ##"""
+// Sources/App/Quakes/QuakesPage+Styles.swift
+import Swiflow
+
+extension QuakesPage {
+    static var scopedStyles: CSSSheet? = layout + badges + animations
+
+    static let layout = css {
+        host {
+            display("block")
+            maxWidth("860px")
+            margin("0 auto")
+            padding("0 var(--sw-space-lg) var(--sw-space-xl)")
+        }
+        rule("h1") {
+            fontSize("1.4rem")
+            margin("0")
+        }
+        rule(".filters select") {
+            padding("var(--sw-space-xs) var(--sw-space-sm)")
+            borderRadius("var(--sw-radius)")
+            property("font", "inherit")
+        }
+        rule(".feed-meta") {
+            margin("0")
+            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
+            fontSize("0.85rem")
+        }
+        rule(".quake-list") {
+            listStyle("none")
+            margin("0")
+            padding("0")
+            display("flex")
+            flexDirection("column")
+        }
+        rule(".quake-row") {
+            display("grid")
+            property("grid-template-columns", "5.5rem 1fr max-content")
+            alignItems("center")
+            gap("var(--sw-space-md)")
+            padding("var(--sw-space-sm) var(--sw-space-xs)")
+            borderBottom("1px solid color-mix(in srgb, var(--sw-text) 10%, transparent)")
+        }
+        rule(".when") {
+            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
+            fontSize("0.85rem")
+            property("font-variant-numeric", "tabular-nums")
+        }
+        rule(".error") {
+            color("light-dark(#b91c1c, #fca5a5)")
+        }
+    }
+
+    static let badges = css {
+        rule(".mag") {
+            property("justify-self", "start")
+            padding("2px var(--sw-space-sm)")
+            borderRadius("999px")
+            fontSize("0.8rem")
+            fontWeight("700")
+            property("font-variant-numeric", "tabular-nums")
+        }
+        rule(".mag-low") {
+            background("color-mix(in srgb, light-dark(#16a34a, #4ade80) 18%, transparent)")
+            color("light-dark(#166534, #4ade80)")
+        }
+        rule(".mag-mid") {
+            background("color-mix(in srgb, light-dark(#d97706, #fbbf24) 18%, transparent)")
+            color("light-dark(#92400e, #fbbf24)")
+        }
+        rule(".mag-high") {
+            background("color-mix(in srgb, light-dark(#dc2626, #f87171) 22%, transparent)")
+            color("light-dark(#991b1b, #f87171)")
+        }
+    }
+
+    static let animations = css {
+        keyframes("mc-spin") {
+            to { transform("rotate(360deg)") }
+        }
+        rule(".live-dot") {
+            display("inline-block")
+            color("var(--sw-accent)")
+            animation("mc-spin 1s linear infinite")
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Quakes/QuakesPage.swift": ##"""
+// Sources/App/Quakes/QuakesPage.swift
+//
+// Live USGS earthquake feed. Demonstrates:
+// - a polling query (`refetchInterval` 30 s) whose data changes while you watch,
+// - `isFetching` vs `isLoading` — the "⟳" pulses on background polls while the
+//   already-rendered list stays put (stale-while-revalidate),
+// - filter selects whose values are the query key — every (magnitude, window)
+//   pair is its own cache entry, so flipping back is instant,
+// - a bare `.task { }` ticker that keeps "n min ago" honest without refetching.
+import Swiflow
+import SwiflowDOM
+import SwiflowQuery
+import SwiflowUI
+
+@MainActor @Component
+final class QuakesPage {
+    @State var magnitude: String = "2.5"
+    @State var window: String = "day"
+    /// Wall-clock anchor for relative timestamps, ticked by the bare `.task`.
+    @State var nowMs: Double = 0
+
+    var body: VNode {
+        let feed = query(QuakeFeedQuery(magnitude: magnitude, window: window))
+        return VStack(spacing: .md, .class("page")) {
+            embed { NavBar() }
+
+            HStack(spacing: .sm, align: .center, .class("toolbar")) {
+                h1("🌐 Live seismic feed")
+                if feed.isFetching {
+                    span(.class("live-dot"), .attr("title", "refreshing")) { text("⟳") }
+                }
+            }
+
+            HStack(spacing: .sm, align: .center, .class("filters")) {
+                label("Magnitude", .attr("for", "mag"))
+                // The `selected` attrs mirror the initial @State: at mount the
+                // select's bound `value` property lands before its <option>
+                // children, so without them the browser falls back to the
+                // first option.
+                select(.id("mag"), .selection($magnitude)) {
+                    option("All", .attr("value", "all"))
+                    option("M1.0+", .attr("value", "1.0"))
+                    option("M2.5+", .attr("value", "2.5"), .attr("selected", ""))
+                    option("M4.5+", .attr("value", "4.5"))
+                    option("Significant", .attr("value", "significant"))
+                }
+                label("Window", .attr("for", "win"))
+                select(.id("win"), .selection($window)) {
+                    option("Past hour", .attr("value", "hour"))
+                    option("Past day", .attr("value", "day"), .attr("selected", ""))
+                    option("Past week", .attr("value", "week"))
+                }
+            }
+
+            if let data = feed.data {
+                p("\(data.metadata.count) events — updates every 30 s",
+                  .class("feed-meta"))
+                ul(.class("quake-list")) {
+                    for quake in data.features {
+                        quakeRow(quake, nowMs: nowMs)
+                    }
+                }
+            } else if feed.isLoading {
+                p("Listening to the planet…", .class("feed-meta"))
+            } else if feed.error != nil {
+                p("Couldn't reach the USGS feed — check your connection. Recovers automatically on refocus.",
+                  .class("error"))
+            }
+        }
+        // Bare `.task` = mount-scoped effect: tick the relative-time anchor
+        // every 30 s. Cancellation on unmount makes Task.sleep throw, and the
+        // isCancelled check exits the loop; the runtime would drop any stale
+        // write anyway.
+        .task {
+            while !Task.isCancelled {
+                self.nowMs = epochNowMs()
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Weather/CityCard+Styles.swift": ##"""
+// Sources/App/Weather/CityCard+Styles.swift
+import Swiflow
+
+extension CityCard {
+    static var scopedStyles: CSSSheet? = css {
+        host {
+            display("block")
+            property("min-width", "200px")
+            padding("var(--sw-space-md) var(--sw-space-lg)")
+            borderRadius("calc(var(--sw-radius) * 1.5)")
+            background("var(--sw-surface)")
+            border("1px solid color-mix(in srgb, var(--sw-text) 12%, transparent)")
+            boxShadow("0 16px 32px -24px rgb(0 0 0 / .35)")
+        }
+        rule(".city-name") {
+            fontSize("1.05rem")
+            margin("0")
+        }
+        rule(".temp") {
+            fontSize("2.2rem")
+            fontWeight("700")
+            lineHeight("1")
+        }
+        rule(".wmo") {
+            fontSize("1.6rem")
+        }
+        rule(".wmo-label, .range") {
+            margin("0")
+            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
+            fontSize("0.85rem")
+        }
+        rule(".unpin") {
+            border("none")
+            background("transparent")
+            color("color-mix(in srgb, var(--sw-text) 50%, transparent)")
+            cursor("pointer")
+            fontSize("0.9rem")
+            padding("0 var(--sw-space-xs)")
+        }
+        rule(".unpin:hover") {
+            color("light-dark(#b91c1c, #fca5a5)")
+        }
+        rule(".live-dot") {
+            color("var(--sw-accent)")
+            fontSize("0.9rem")
+        }
+        rule(".error") {
+            color("light-dark(#b91c1c, #fca5a5)")
+            margin("0")
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Weather/CityCard.swift": ##"""
+// Sources/App/Weather/CityCard.swift
+import Swiflow
+import SwiflowDOM
+import SwiflowQuery
+import SwiflowUI
+
+/// One pinned city. Holds no `@State` of its own — the weather lives in the
+/// query cache under (city id, unit), which is what makes unpin → re-pin
+/// inside `staleTime` paint instantly.
+@MainActor @Component
+final class CityCard {
+    let city: City
+    let unit: String
+    let onUnpin: () -> Void
+
+    init(city: City, unit: String, onUnpin: @escaping () -> Void) {
+        self.city = city
+        self.unit = unit
+        self.onUnpin = onUnpin
+    }
+
+    var body: VNode {
+        let weather = query(CurrentWeatherQuery(city: city, unit: unit))
+        return VStack(spacing: .sm, .class("city-card")) {
+            HStack(spacing: .sm, align: .center, justify: .between) {
+                h2(city.name, .class("city-name"))
+                button("✕", .class("unpin"),
+                       .attr("aria-label", "Unpin \(city.name)"),
+                       .on(.click) { self.onUnpin() })
+            }
+            if let f = weather.data {
+                let wmo = wmoDescription(f.current.weatherCode)
+                HStack(spacing: .sm, align: .center) {
+                    span(.class("temp")) {
+                        text("\(Int(f.current.temperature.rounded()))\(f.currentUnits.temperature)")
+                    }
+                    span(.class("wmo"), .attr("title", wmo.label)) { text(wmo.emoji) }
+                    if weather.isFetching {
+                        span(.class("live-dot")) { text("⟳") }
+                    }
+                }
+                p(wmo.label, .class("wmo-label"))
+                if let high = f.daily.highs.first, let low = f.daily.lows.first {
+                    p("H \(Int(high.rounded()))° · L \(Int(low.rounded()))° · wind \(Int(f.current.windSpeed.rounded())) km/h",
+                      .class("range"))
+                }
+            } else if weather.isLoading {
+                p("…", .class("temp"))
+            } else if weather.error != nil {
+                p("offline", .class("error"))
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Weather/WeatherPage+Styles.swift": ##"""
+// Sources/App/Weather/WeatherPage+Styles.swift
+import Swiflow
+
+extension WeatherPage {
+    static var scopedStyles: CSSSheet? = layout + theme
+
+    static let layout = css {
+        host {
+            display("block")
+            maxWidth("860px")
+            margin("0 auto")
+            padding("0 var(--sw-space-lg) var(--sw-space-xl)")
+        }
+        rule("h1") {
+            fontSize("1.4rem")
+            margin("0")
+        }
+        rule(".search-box input") {
+            width("100%")
+            property("box-sizing", "border-box")
+            padding("var(--sw-space-sm) var(--sw-space-md)")
+            borderRadius("var(--sw-radius)")
+            fontSize("1rem")
+        }
+        rule(".search-results") {
+            listStyle("none")
+            margin("0")
+            padding("var(--sw-space-xs)")
+            display("flex")
+            flexDirection("column")
+            gap("var(--sw-space-xs)")
+        }
+        rule(".search-hit") {
+            width("100%")
+            textAlign("left")
+            padding("var(--sw-space-xs) var(--sw-space-md)")
+            borderRadius("var(--sw-radius)")
+            cursor("pointer")
+        }
+    }
+
+    static let theme = css {
+        rule(".search-box input") {
+            border("1px solid color-mix(in srgb, var(--sw-text) 20%, transparent)")
+            background("var(--sw-surface)")
+            color("var(--sw-text)")
+        }
+        rule(".search-results") {
+            background("var(--sw-surface)")
+            border("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
+            borderRadius("var(--sw-radius)")
+        }
+        rule(".search-hit") {
+            border("none")
+            background("transparent")
+            color("var(--sw-text)")
+            property("font", "inherit")
+        }
+        rule(".search-hit:hover") {
+            background("color-mix(in srgb, var(--sw-accent) 15%, transparent)")
+        }
+        rule(".search-status") {
+            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
+            margin("0")
+        }
+        rule(".error") {
+            color("light-dark(#b91c1c, #fca5a5)")
+            margin("0")
+        }
+        rule(".unit-select") {
+            padding("var(--sw-space-xs) var(--sw-space-sm)")
+            borderRadius("var(--sw-radius)")
+            property("font", "inherit")
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Weather/WeatherPage.swift": ##"""
+// Sources/App/Weather/WeatherPage.swift
+//
+// Pinned-city weather over Open-Meteo. Demonstrates:
+// - `.task(rerunOn:)` as a debouncer — 300 ms after the last keystroke the
+//   raw input text is committed to `debouncedText`; superseded sleeps are
+//   cancelled and their writes dropped by the runtime,
+// - a conditional, text-keyed geocoding query (one request per settled
+//   prefix, cached for an hour),
+// - per-card weather queries keyed on (city, unit) — toggling °C → °F
+//   refetches, toggling back paints instantly from cache,
+// - SwiflowUI stacks + tokens for the whole layout.
+import Swiflow
+import SwiflowDOM
+import SwiflowQuery
+import SwiflowUI
+
+@MainActor @Component
+final class WeatherPage {
+    @State var searchText: String = ""
+    @State var debouncedText: String = ""
+    @State var pinned: [City] = City.seeds
+    @State var unit: String = "celsius"
+
+    var body: VNode {
+        let results: QueryState<GeoSearchResponse>? =
+            debouncedText.count >= 2 ? query(CitySearchQuery(name: debouncedText)) : nil
+
+        return VStack(spacing: .md, .class("page")) {
+            embed { NavBar() }
+
+            HStack(spacing: .sm, align: .center, .class("toolbar")) {
+                h1("🌍 Weather")
+                select(.class("unit-select"), .selection($unit)) {
+                    option("°C", .attr("value", "celsius"))
+                    option("°F", .attr("value", "fahrenheit"))
+                }
+            }
+
+            VStack(spacing: .xs, .class("search-box")) {
+                input(.attr("type", "search"),
+                      .attr("placeholder", "Search a city to pin…"),
+                      .value($searchText))
+                if let results {
+                    if let cities = results.data?.results, !cities.isEmpty {
+                        ul(.class("search-results")) {
+                            for city in cities {
+                                li(.key("hit-\(city.id)")) {
+                                    button(city.fullName, .class("search-hit"),
+                                           .on(.click) { self.pin(city) })
+                                }
+                            }
+                        }
+                    } else if results.isLoading {
+                        p("Searching…", .class("search-status"))
+                    } else if results.error != nil {
+                        p("Search unavailable — check your connection.", .class("error"))
+                    } else {
+                        p("No matches for “\(debouncedText)”.", .class("search-status"))
+                    }
+                }
+            }
+
+            HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
+                for city in pinned {
+                    // Embedded instances are reused at a (type, key) position —
+                    // the factory runs on first mount only, so a changed prop
+                    // never reaches a live instance. Encoding `unit` in the
+                    // embed key remounts the card on toggle; the cache (keyed
+                    // on city + unit) makes the swap back instant.
+                    div(.key("city-\(city.id)")) {
+                        embed("card-\(city.id)-\(unit)") {
+                            CityCard(city: city, unit: self.unit,
+                                     onUnpin: { self.unpin(city) })
+                        }
+                    }
+                }
+            }
+            if pinned.isEmpty {
+                p("Nothing pinned — search above to add a city.", .class("search-status"))
+            }
+        }
+        // Debounce: each keystroke re-keys this task; the previous sleep is
+        // cancelled and only a 300 ms-settled value reaches `debouncedText`.
+        .task(rerunOn: searchText) {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            self.debouncedText = self.searchText
+        }
+    }
+
+    func pin(_ city: City) {
+        if !pinned.contains(where: { $0.id == city.id }) {
+            pinned.append(city)
+        }
+        searchText = ""
+        debouncedText = ""
+    }
+
+    func unpin(_ city: City) {
+        pinned.removeAll { $0.id == city.id }
+    }
+}
+
+"""##,
+                "Sources/App/Weather/WeatherQueries.swift": ##"""
+// Sources/App/Weather/WeatherQueries.swift
+import SwiflowQuery
+
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
+
+/// Percent-encode a user-typed query for a URL. Foundation's
+/// `addingPercentEncoding` isn't available under WASM, so this defers to the
+/// browser's `encodeURIComponent`. (Host fallback is identity — the host
+/// build only typechecks, it never fetches.)
+func urlEncoded(_ s: String) -> String {
+    #if canImport(JavaScriptKit)
+    return JSObject.global.encodeURIComponent.function?(s).string ?? s
+    #else
+    return s
+    #endif
+}
+
+/// Geocode a (debounced) city-name fragment. The caller gates on
+/// `name.count >= 2`; `query()` is render-scoped, so a query simply not
+/// observed this render drops its subscription — conditional calls are fine.
+struct CitySearchQuery: Query {
+    let name: String
+
+    var queryKey: QueryKey { ["geocode", .string(name.lowercased())] }
+    /// Place names don't move; retyping the same prefix within the hour is a
+    /// pure cache hit.
+    var staleTime: Duration { .seconds(3600) }
+
+    func fetch() async throws -> GeoSearchResponse {
+        try await API.geocoding.get("/v1/search?name=\(urlEncoded(name))&count=5")
+    }
+}
+
+/// Current conditions + today's range for one pinned city. Keyed on
+/// (city id, unit) — `latitude`/`longitude` ride along as captured
+/// dependencies, excluded from the key per the `Query` contract.
+struct CurrentWeatherQuery: Query {
+    let city: City
+    let unit: String   // "celsius" | "fahrenheit"
+
+    var queryKey: QueryKey { ["weather", .int(city.id), .string(unit)] }
+    var tags: Set<QueryTag> { ["weather"] }
+
+    /// Fresh for a minute: re-renders, re-pins, and tab switches inside that
+    /// window paint from cache with zero requests.
+    var staleTime: Duration { .seconds(60) }
+    /// Background refresh every 5 minutes while a card is on screen.
+    var refetchInterval: Duration? { .seconds(300) }
+
+    func fetch() async throws -> Forecast {
+        try await API.forecast.get(
+            "/v1/forecast?latitude=\(city.latitude)&longitude=\(city.longitude)"
+            + "&current=temperature_2m,weather_code,wind_speed_10m"
+            + "&daily=temperature_2m_max,temperature_2m_min"
+            + "&timezone=auto&temperature_unit=\(unit)"
+        )
+    }
+}
+
+extension City {
+    /// Starter pins (real Open-Meteo geocoding records, fetched 2026-06-11)
+    /// so the dashboard shows live data before the first search.
+    static let seeds: [City] = [
+        City(id: 6077243, name: "Montréal", latitude: 45.50884, longitude: -73.58781,
+             country: "Canada", admin1: "Quebec"),
+        City(id: 1850147, name: "Tokyo", latitude: 35.6895, longitude: 139.69171,
+             country: "Japan", admin1: "Tokyo"),
+        City(id: 2267057, name: "Lisbon", latitude: 38.72509, longitude: -9.1498,
+             country: "Portugal", admin1: "Lisbon District"),
+    ]
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mission Control</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
+        Template(
             name: "QueryDemo",
             files: [
                 ".gitignore": ##"""

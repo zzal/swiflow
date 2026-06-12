@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 import vm from "node:vm";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -46,18 +47,39 @@ class MockCacheStorage {
 class MockResponse {
   constructor(body, init = {}) { this.body = body; this.ok = init.ok ?? true; this.status = init.status ?? 200; }
   async json() { return typeof this.body === "string" ? JSON.parse(this.body) : this.body; }
+  async arrayBuffer() {
+    // Verification path: the SW hashes a clone's bytes before caching.
+    return new TextEncoder().encode(String(this.body)).buffer;
+  }
   clone() { return new MockResponse(this.body, { ok: this.ok, status: this.status }); }
+}
+
+/// sha256 hex of a string — what `crypto.subtle.digest` inside the SW will
+/// compute for a MockResponse carrying that string body.
+export function sha256Hex(str) {
+  return createHash("sha256").update(str).digest("hex");
+}
+
+// The SW resolves manifest-relative URLs against its own location.
+export const SW_ORIGIN = "https://x.test";
+
+/// The default mock network body for `url` (absolute). DEFAULT_MANIFEST's
+/// hashes are computed from these, so default-handler installs verify clean.
+export function defaultBodyFor(absUrl) {
+  return `net:${absUrl}`;
 }
 
 export function loadServiceWorker({ manifest, fetchHandler } = {}) {
   const listeners = new Map();
   const caches = new MockCacheStorage();
+  const fetchLog = []; // every non-manifest URL fetched, in order
   const fetchImpl = fetchHandler ?? (async (urlOrReq) => {
     const url = typeof urlOrReq === "string" ? urlOrReq : urlOrReq.url;
     if (url.endsWith("swiflow-manifest.json")) {
       return new MockResponse(JSON.stringify(manifest));
     }
-    return new MockResponse(`net:${url}`);
+    fetchLog.push(url);
+    return new MockResponse(defaultBodyFor(url));
   });
 
   const self = {
@@ -67,7 +89,7 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
     },
     skipWaiting: async () => {},
     clients: { claim: async () => {}, matchAll: async () => [] },
-    location: { href: "https://x.test/swiflow-sw.js" },
+    location: { href: `${SW_ORIGIN}/swiflow-sw.js` },
   };
 
   const ctx = vm.createContext({
@@ -78,6 +100,8 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
     Request: class { constructor(url) { this.url = url; } },
     URL,
     console,
+    // Node's WebCrypto — the SW's hash verification uses crypto.subtle.
+    crypto: globalThis.crypto,
   });
 
   const src = readFileSync(swPath, "utf8");
@@ -92,16 +116,24 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
     return ev;
   }
 
-  return { fire, caches, listeners };
+  return { fire, caches, listeners, fetchLog };
 }
+
+// Hashes match what the default fetch handler returns for each (absolutized)
+// URL, so an unmodified install passes content verification.
+const WASM_URL = "/.build/.../App.wasm";
+const RUNTIME_URLS = [
+  "/.build/.../index.js",
+  "/.build/.../instantiate.js",
+  "/.build/.../runtime.js",
+  "/.build/.../platforms/browser.js",
+];
 
 export const DEFAULT_MANIFEST = {
   version: "1",
-  wasm: { url: "/.build/.../App.wasm", sha256: "a".repeat(64) },
-  runtime: [
-    { url: "/.build/.../index.js",       sha256: "b".repeat(64) },
-    { url: "/.build/.../instantiate.js", sha256: "c".repeat(64) },
-    { url: "/.build/.../runtime.js",     sha256: "d".repeat(64) },
-    { url: "/.build/.../platforms/browser.js", sha256: "e".repeat(64) },
-  ],
+  wasm: { url: WASM_URL, sha256: sha256Hex(defaultBodyFor(`${SW_ORIGIN}${WASM_URL}`)) },
+  runtime: RUNTIME_URLS.map(url => ({
+    url,
+    sha256: sha256Hex(defaultBodyFor(`${SW_ORIGIN}${url}`)),
+  })),
 };
