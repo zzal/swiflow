@@ -7,71 +7,57 @@ struct FormTests {
     @Suite("Validator")
     struct ValidatorTests {
 
-        @Test(".required rejects empty string")
-        func requiredRejectsEmpty() {
-            #expect(Validator.required().validate("") == "Required")
+        @Test(".required rejects only the empty string", arguments: [
+            ("", "Required"),
+            ("a", nil),
+        ] as [(String, String?)])
+        func required(input: String, expected: String?) {
+            #expect(Validator.required().validate(input) == expected)
         }
 
-        @Test(".required accepts non-empty string")
-        func requiredAcceptsNonEmpty() {
-            #expect(Validator.required().validate("a") == nil)
+        @Test(".minLength rejects below threshold, accepts at or above", arguments: [
+            ("ab", "Must be at least 3 characters"),
+            ("abc", nil),
+            ("abcd", nil),
+        ] as [(String, String?)])
+        func minLength(input: String, expected: String?) {
+            #expect(Validator.minLength(3).validate(input) == expected)
         }
 
-        @Test(".minLength rejects short string")
-        func minLengthRejectsShort() {
-            #expect(Validator.minLength(3).validate("ab") == "Must be at least 3 characters")
+        @Test(".maxLength rejects above limit, accepts at or below", arguments: [
+            ("abcd", "Must be at most 3 characters"),
+            ("abc", nil),
+            ("ab", nil),
+        ] as [(String, String?)])
+        func maxLength(input: String, expected: String?) {
+            #expect(Validator.maxLength(3).validate(input) == expected)
         }
 
-        @Test(".minLength accepts string at or above threshold")
-        func minLengthAcceptsAtThreshold() {
-            #expect(Validator.minLength(3).validate("abc") == nil)
-            #expect(Validator.minLength(3).validate("abcd") == nil)
+        @Test(".email accepts valid addresses and rejects malformed ones", arguments: [
+            ("a@b.com", true),
+            ("notanemail", false),
+            ("@b.com", false),
+        ])
+        func email(input: String, isValid: Bool) {
+            #expect((Validator<String>.email.validate(input) == nil) == isValid)
         }
 
-        @Test(".maxLength rejects long string")
-        func maxLengthRejectsLong() {
-            #expect(Validator.maxLength(3).validate("abcd") == "Must be at most 3 characters")
-        }
-
-        @Test(".maxLength accepts string at or below limit")
-        func maxLengthAcceptsAtLimit() {
-            #expect(Validator.maxLength(3).validate("abc") == nil)
-            #expect(Validator.maxLength(3).validate("ab") == nil)
-        }
-
-        @Test(".email accepts valid address")
-        func emailAcceptsValid() {
-            #expect(Validator<String>.email.validate("a@b.com") == nil)
-        }
-
-        @Test(".email rejects invalid addresses")
-        func emailRejectsInvalid() {
-            #expect(Validator<String>.email.validate("notanemail") != nil)
-            #expect(Validator<String>.email.validate("@b.com") != nil)
-        }
-
-        @Test(".regex accepts matching string")
-        func regexAccepts() {
+        @Test(".regex validates against the pattern", arguments: [
+            ("123", nil),
+            ("abc", "Digits only"),
+        ] as [(String, String?)])
+        func regex(input: String, expected: String?) {
             let v = Validator<String>.regex(/^\d+$/, message: "Digits only")
-            #expect(v.validate("123") == nil)
+            #expect(v.validate(input) == expected)
         }
 
-        @Test(".regex rejects non-matching string")
-        func regexRejects() {
-            let v = Validator<String>.regex(/^\d+$/, message: "Digits only")
-            #expect(v.validate("abc") == "Digits only")
-        }
-
-        @Test(".custom rejects when check returns false")
-        func customRejects() {
+        @Test(".custom returns the message exactly when the check fails", arguments: [
+            ("hello", "Must have a number"),
+            ("hello1", nil),
+        ] as [(String, String?)])
+        func custom(input: String, expected: String?) {
             let v = Validator<String>.custom("Must have a number") { $0.contains { $0.isNumber } }
-            #expect(v.validate("hello") == "Must have a number")
-        }
-
-        @Test(".custom accepts when check returns true")
-        func customAccepts() {
-            let v = Validator<String>.custom("Must have a number") { $0.contains { $0.isNumber } }
-            #expect(v.validate("hello1") == nil)
+            #expect(v.validate(input) == expected)
         }
 
         @Test("required before minLength: empty field shows Required not minLength message")

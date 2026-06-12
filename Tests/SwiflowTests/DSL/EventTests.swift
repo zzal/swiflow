@@ -4,28 +4,32 @@ import Testing
 
 @Suite("Event enum")
 struct EventTests {
-    @Test("Simple cases map to their DOM names")
-    func simpleCases() {
-        #expect(Event.click.domName == "click")
-        #expect(Event.input.domName == "input")
-        #expect(Event.change.domName == "change")
-        #expect(Event.submit.domName == "submit")
-        #expect(Event.keydown.domName == "keydown")
-        #expect(Event.keyup.domName == "keyup")
-        #expect(Event.keypress.domName == "keypress")
-        #expect(Event.focus.domName == "focus")
-        #expect(Event.blur.domName == "blur")
-        #expect(Event.mousedown.domName == "mousedown")
-        #expect(Event.mouseup.domName == "mouseup")
-        #expect(Event.mousemove.domName == "mousemove")
-        #expect(Event.mouseenter.domName == "mouseenter")
-        #expect(Event.mouseleave.domName == "mouseleave")
+    @Test("Simple cases map to their DOM names", arguments: [
+        (Event.click, "click"),
+        (Event.input, "input"),
+        (Event.change, "change"),
+        (Event.submit, "submit"),
+        (Event.keydown, "keydown"),
+        (Event.keyup, "keyup"),
+        (Event.keypress, "keypress"),
+        (Event.focus, "focus"),
+        (Event.blur, "blur"),
+        (Event.mousedown, "mousedown"),
+        (Event.mouseup, "mouseup"),
+        (Event.mousemove, "mousemove"),
+        (Event.mouseenter, "mouseenter"),
+        (Event.mouseleave, "mouseleave"),
+    ])
+    func simpleCases(event: Event, domName: String) {
+        #expect(event.domName == domName)
     }
 
-    @Test("Custom event uses the provided name verbatim")
-    func customEvent() {
-        #expect(Event.custom("animationend").domName == "animationend")
-        #expect(Event.custom("my-app:foo").domName == "my-app:foo")
+    @Test("Custom event uses the provided name verbatim", arguments: [
+        "animationend",
+        "my-app:foo",
+    ])
+    func customEvent(name: String) {
+        #expect(Event.custom(name).domName == name)
     }
 
     @Test("Events are hashable and equatable")
