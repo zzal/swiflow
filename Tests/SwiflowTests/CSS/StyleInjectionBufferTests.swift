@@ -2,7 +2,10 @@
 import Testing
 @testable import Swiflow
 
-@Suite(.serialized)
+// Mutates the @MainActor StyleInjectionRegistry global, but every test body
+// is synchronous @MainActor — bodies run atomically with no suspension
+// points, so tests cannot interleave and no .serialized is needed.
+@Suite("StyleInjectionBuffer")
 @MainActor
 struct StyleInjectionBufferTests {
 

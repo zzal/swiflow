@@ -2,7 +2,11 @@
 import Testing
 @testable import Swiflow
 
-@Suite(.serialized)
+// Sets the @MainActor HandlerAmbient.current global with defer-restore, but
+// both test bodies are synchronous @MainActor — they run atomically with no
+// suspension points, so the ambient cannot leak across tests and no
+// .serialized is needed.
+@Suite("Event modifiers via ambient registry")
 @MainActor
 struct EventModifierAmbientTests {
 

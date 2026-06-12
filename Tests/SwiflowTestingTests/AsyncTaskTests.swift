@@ -32,12 +32,13 @@ private final class Profile {
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite("Async .task via harness")
 struct AsyncTaskTests {
 
-    // No global reset: each `AsyncTestHarness` owns its `TestRenderer`'s
-    // `TaskScope`, so `settle()` only ever awaits this test's own tasks —
-    // isolated from sibling suites that share the process-global runtime.
+    // No global reset and no .serialized: each `AsyncTestHarness` owns its
+    // `TestRenderer`'s `TaskScope`, so `settle()` only ever awaits this
+    // test's own tasks — isolated from siblings that share the
+    // process-global runtime.
 
     @Test func settleDrivesTaskToSuccess() async throws {
         let h = AsyncTestHarness(Profile(userID: 1) { id in "User#\(id)" })

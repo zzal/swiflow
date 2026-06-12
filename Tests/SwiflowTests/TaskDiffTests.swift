@@ -2,14 +2,14 @@ import Testing
 @testable import Swiflow
 
 @MainActor
-@Suite(.serialized)
+@Suite("Task diff/reconcile")
 struct TaskDiffTests {
 
     // Each test owns a TaskScope; `inScope` installs it around the synchronous
     // diff/start calls (re-installing before each one, since `currentScope` is a
-    // process-global ambient that a concurrently-running suite may have moved
-    // during an `await`). This isolates these tests from sibling suites without
-    // any global reset.
+    // process-global ambient that a concurrently-running test may have moved
+    // during an `await`). This isolates these tests from siblings — in this
+    // suite and others — without any global reset or .serialized.
     let scope = TaskScope()
 
     @discardableResult

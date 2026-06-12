@@ -1,7 +1,12 @@
 import Testing
 import Swiflow
 
-@Suite("HandlerRegistry multi-root", .serialized)
+// @MainActor (not .serialized) like the sibling HandlerRegistry suites:
+// globalTable is nonisolated(unsafe) under the documented contract that all
+// mutations happen on the main actor, and these bodies are synchronous, so
+// they run atomically there.
+@Suite("HandlerRegistry multi-root")
+@MainActor
 struct HandlerRegistryMultiRootTests {
 
     @Test("Two registries produce non-overlapping handler IDs")

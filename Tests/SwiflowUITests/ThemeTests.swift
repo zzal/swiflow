@@ -3,7 +3,10 @@ import Testing
 import Swiflow
 @testable import SwiflowUI
 
-@Suite("Theme", .serialized)
+// installBaseStylesEmitsOnce mutates the @MainActor StyleInjectionRegistry
+// global, but both test bodies are synchronous @MainActor — they run
+// atomically with no suspension points, so no .serialized is needed.
+@Suite("Theme")
 @MainActor
 struct ThemeTests {
     @Test func baseSheetContainsRootTokens() {

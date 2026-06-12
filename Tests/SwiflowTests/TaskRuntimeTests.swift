@@ -2,13 +2,14 @@ import Testing
 @testable import Swiflow
 
 @MainActor
-@Suite(.serialized)
+@Suite("Task runtime")
 struct TaskRuntimeTests {
 
     // Each test gets its own TaskScope (swift-testing makes a fresh suite
     // instance per test). In-flight tasks register here, isolated from other
-    // suites sharing the process — no global reset needed: slot IDs are
-    // globally unique so `liveGenerations` keys never collide across tests.
+    // tests sharing the process — no global reset or .serialized needed:
+    // slot IDs are globally unique so `liveGenerations` keys never collide
+    // across tests.
     let scope = TaskScope()
 
     /// Spawn a task in this test's scope — mirrors how a renderer installs its
