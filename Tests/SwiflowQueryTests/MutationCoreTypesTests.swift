@@ -11,12 +11,12 @@ private struct Count: Query {
 @Suite("Mutation/coreTypes")
 @MainActor
 struct MutationCoreTypesTests {
-    @Test func invalidationCasesEquate() {
+    @Test("Invalidation equality distinguishes .exact from .prefix") func invalidationCasesEquate() {
         #expect(Invalidation.prefix(["a"]) == .prefix(["a"]))
         #expect(Invalidation.exact(["a", 1]) != .prefix(["a", 1]))
     }
 
-    @Test func updateCarriesKeyAndTransforms() {
+    @Test(".update carries the query's key and writes the transformed value") func updateCarriesKeyAndTransforms() {
         let edit = OptimisticEdit.update(Count()) { $0 + 1 }
         #expect(edit.key == ["count"])
         guard case .write(let next) = edit.apply(10) else {
@@ -25,14 +25,14 @@ struct MutationCoreTypesTests {
         #expect((next as? Int) == 11)
     }
 
-    @Test func updateReportsNoValueWhenAbsent() {
+    @Test(".update reports .noValue when the cache holds nothing for the key") func updateReportsNoValueWhenAbsent() {
         let edit = OptimisticEdit.update(Count()) { $0 + 1 }
         guard case .noValue = edit.apply(nil) else {
             Issue.record("absent value should report .noValue"); return
         }
     }
 
-    @Test func updateFlagsTypeMismatchOnWrongType() {
+    @Test(".update reports .typeMismatch naming both types when the cached value has the wrong type") func updateFlagsTypeMismatchOnWrongType() {
         let edit = OptimisticEdit.update(Count()) { $0 + 1 }
         guard case .typeMismatch(let expected, let actual) = edit.apply("not an int") else {
             Issue.record("wrong cached type should report .typeMismatch"); return

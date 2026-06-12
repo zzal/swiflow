@@ -206,7 +206,7 @@ struct BuildCommandArgvTests {
         ])
     }
 
-    @Test func releaseBuildDefinesSwiflowRelease() {
+    @Test("Release builds pass -DSWIFLOW_RELEASE as an -Xswiftc pair") func releaseBuildDefinesSwiflowRelease() {
         let args = BuildInvocation(
             swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
             projectPath: URL(fileURLWithPath: "/tmp/demo"),
@@ -221,7 +221,7 @@ struct BuildCommandArgvTests {
         if let idx { #expect(idx > 0 && args[idx - 1] == "-Xswiftc") }
     }
 
-    @Test func devBuildDoesNotDefineSwiflowRelease() {
+    @Test("Dev builds do NOT define SWIFLOW_RELEASE") func devBuildDoesNotDefineSwiflowRelease() {
         let args = BuildInvocation(
             swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
             projectPath: URL(fileURLWithPath: "/tmp/demo"),

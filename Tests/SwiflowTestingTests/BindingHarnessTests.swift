@@ -18,7 +18,7 @@ private final class EchoInput {
 @MainActor
 struct BindingHarnessTests {
 
-    @Test func valueBindingRoundTripsThroughHarness() {
+    @Test("harness.input(value:) round-trips through a .value binding into the rendered output") func valueBindingRoundTripsThroughHarness() {
         let harness = render(EchoInput())
         #expect(harness.allText.contains("echo: "))
 

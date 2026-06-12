@@ -60,19 +60,19 @@ struct DevCommandTests {
         Set(paths.map { URL(fileURLWithPath: $0) })
     }
 
-    @Test func swiftOnlyChangesRebuildAndHMRSwap() {
+    @Test("Swift-only changes trigger a rebuild and an HMR swap broadcast") func swiftOnlyChangesRebuildAndHMRSwap() {
         let d = DevCommand.changeDispatch(for: urls(["/p/Sources/App/Main.swift"]))
         #expect(d == .init(rebuild: true, broadcast: .hmrSwap))
     }
 
-    @Test func webOnlyChangesReloadWithoutRebuild() {
+    @Test("HTML/JS-only changes broadcast a reload without rebuilding") func webOnlyChangesReloadWithoutRebuild() {
         let d = DevCommand.changeDispatch(for: urls(["/p/index.html"]))
         #expect(d == .init(rebuild: false, broadcast: .reload))
         let js = DevCommand.changeDispatch(for: urls(["/p/styles.js"]))
         #expect(js == .init(rebuild: false, broadcast: .reload))
     }
 
-    @Test func mixedChangesRebuildAndReload() {
+    @Test("Mixed Swift+web changes rebuild and broadcast a full reload") func mixedChangesRebuildAndReload() {
         let d = DevCommand.changeDispatch(
             for: urls(["/p/Sources/App/Main.swift", "/p/index.html"]))
         #expect(d == .init(rebuild: true, broadcast: .reload))

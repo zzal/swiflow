@@ -35,7 +35,7 @@ struct EventPayloadFidelityTests {
     /// Audit finding (Unit 9 HIGH): EventInfo never carried targetChecked, so
     /// `.checked` bindings were untestable. The driver sends it on every
     /// dispatch with a checkable target.
-    @Test func checkTogglesACheckedBinding() {
+    @Test("check() carries targetChecked so a .checked binding toggles") func checkTogglesACheckedBinding() {
         let harness = render(CheckboxForm())
         #expect(harness.find("p")?.text == "not agreed")
 
@@ -47,7 +47,7 @@ struct EventPayloadFidelityTests {
     /// Audit finding (Unit 9 HIGH): blur() dispatched with no targetValue,
     /// while the browser always snapshots target.value — validate-on-blur
     /// handlers worked in production and saw nil under test.
-    @Test func blurCarriesTheCurrentTargetValue() {
+    @Test("blur() snapshots the input's current value into targetValue, like the browser") func blurCarriesTheCurrentTargetValue() {
         let harness = render(BlurValidator())
 
         harness.blur()

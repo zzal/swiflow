@@ -10,7 +10,7 @@ import Testing
 @MainActor
 struct EventModifierAmbientTests {
 
-    @Test func postfixOnRegistersThroughAmbientRegistry() {
+    @Test("Postfix .on registers its handler in the ambient registry and dispatches") func postfixOnRegistersThroughAmbientRegistry() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
         defer { HandlerAmbient.current = nil }
@@ -27,7 +27,7 @@ struct EventModifierAmbientTests {
         #expect(fired)
     }
 
-    @Test func attributeOnRegistersThroughAmbientRegistry() {
+    @Test("Attribute.on registers through the ambient registry and delivers the event payload") func attributeOnRegistersThroughAmbientRegistry() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
         defer { HandlerAmbient.current = nil }

@@ -36,7 +36,7 @@ struct QueryClientInvalidateTests {
         return e
     }
 
-    @Test func prefixCascadeRefetchesMatches() async {
+    @Test("Prefix invalidate refetches every key under the prefix and nothing else") func prefixCascadeRefetchesMatches() async {
         let client = QueryClient(clock: ManualClock())
         let bag = OwnerBag()
         var u1 = 0, u1posts = 0, teams = 0
@@ -52,7 +52,7 @@ struct QueryClientInvalidateTests {
         #expect(teams == 0)
     }
 
-    @Test func exactInvalidatesOnlyTheExactKey() async {
+    @Test("exact: true invalidates only the exact key, not its descendants") func exactInvalidatesOnlyTheExactKey() async {
         let client = QueryClient(clock: ManualClock())
         let bag = OwnerBag()
         var u1 = 0, u1posts = 0
@@ -65,7 +65,7 @@ struct QueryClientInvalidateTests {
         #expect(u1posts == 0)
     }
 
-    @Test func tagCascadeRefetchesMatches() async {
+    @Test("Tag invalidate refetches only entries carrying that tag") func tagCascadeRefetchesMatches() async {
         let client = QueryClient(clock: ManualClock())
         let bag = OwnerBag()
         var a = 0, b = 0

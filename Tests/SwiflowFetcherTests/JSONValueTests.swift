@@ -51,18 +51,18 @@ struct JSONValueTests {
         #expect(JSONValue.array([.string("a"), .null]).jsonString == #"["a",null]"#)
     }
 
-    @Test func nonFiniteDoublesSerializeAsNull() {
+    @Test("Infinity and NaN serialize as null") func nonFiniteDoublesSerializeAsNull() {
         #expect(JSONValue.double(.infinity).jsonString == "null")
         #expect(JSONValue.double(-.infinity).jsonString == "null")
         #expect(JSONValue.double(.nan).jsonString == "null")
     }
 
-    @Test func nonFiniteInsideContainersIsNull() {
+    @Test("Non-finite doubles nested in arrays and objects also serialize as null") func nonFiniteInsideContainersIsNull() {
         #expect(JSONValue.array([.double(.nan), .int(1)]).jsonString == "[null,1]")
         #expect(JSONValue.object(["x": .double(.infinity)]).jsonString == #"{"x":null}"#)
     }
 
-    @Test func finiteDoublesAreUnchanged() {
+    @Test("Finite doubles serialize numerically, unaffected by the non-finite guard") func finiteDoublesAreUnchanged() {
         #expect(JSONValue.double(2.5).jsonString == "2.5")
         #expect(JSONValue.double(0).jsonString == "0.0")
     }

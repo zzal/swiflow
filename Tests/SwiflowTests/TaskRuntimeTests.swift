@@ -23,11 +23,11 @@ struct TaskRuntimeTests {
         for t in scope.inFlightTasks() { await t.value }
     }
 
-    @Test func noTokenMeansWriteIsKept() {
+    @Test("Writes outside any task token are always kept") func noTokenMeansWriteIsKept() {
         #expect(SwiflowTaskRuntime.shouldDropWrite() == false)
     }
 
-    @Test func tokenPropagatesAcrossAwait() async {
+    @Test("The task-local token survives a suspension point") func tokenPropagatesAcrossAwait() async {
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())
         var sawTokenAfterAwait = false
         start(slot) {
@@ -38,7 +38,7 @@ struct TaskRuntimeTests {
         #expect(sawTokenAfterAwait == true)
     }
 
-    @Test func supersededTaskWriteIsDropped() async {
+    @Test("Restarting a slot drops the stale run's writes but keeps the fresh run's") func supersededTaskWriteIsDropped() async {
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())
         var staleSawDrop = false
         var freshSawKeep = false
@@ -56,7 +56,7 @@ struct TaskRuntimeTests {
         #expect(freshSawKeep == true)
     }
 
-    @Test func cancelledSlotDropsLateWrite() async {
+    @Test("A write arriving after its slot is cancelled is dropped") func cancelledSlotDropsLateWrite() async {
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())
         var sawDrop = false
         start(slot) {
@@ -68,7 +68,7 @@ struct TaskRuntimeTests {
         #expect(sawDrop == true)
     }
 
-    @Test func stateWriteIsRevertedUnderStaleToken() async {
+    @Test("@State didSet reverts a write made under a stale task token") func stateWriteIsRevertedUnderStaleToken() async {
         let probe = GuardProbe()
         // Allocate a slot and bump it twice so generation 1 is stale.
         let slot = TaskSlot(id: SwiflowTaskRuntime.allocateSlotID())

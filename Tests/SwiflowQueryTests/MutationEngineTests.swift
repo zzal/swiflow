@@ -23,7 +23,7 @@ struct MutationEngineTests {
     }
     private func settle(_ c: QueryClient) async { for t in c.inFlightTasks() { await t.value } }
 
-    @Test func successSetsData() async {
+    @Test("Successful mutate publishes .success with the output and no error") func successSetsData() async {
         let client = QueryClient(clock: ManualClock())
         let (h, rt) = wiredHandle(Save { $0.count }, client)
         h.mutate("abcd")
@@ -33,7 +33,7 @@ struct MutationEngineTests {
         #expect(rt.error == nil)
     }
 
-    @Test func failureSetsError() async {
+    @Test("Failed mutate publishes .error with the thrown error and no data") func failureSetsError() async {
         let client = QueryClient(clock: ManualClock())
         let (h, rt) = wiredHandle(Save { _ in throw Boom.nope }, client)
         h.mutate("x")
@@ -43,7 +43,7 @@ struct MutationEngineTests {
         #expect(rt.data == nil)
     }
 
-    @Test func mutateAsyncReturnsAndRethrows() async throws {
+    @Test("mutateAsync returns the output on success and rethrows on failure while still storing the error") func mutateAsyncReturnsAndRethrows() async throws {
         let client = QueryClient(clock: ManualClock())
         let (ok, _) = wiredHandle(Save { $0.count }, client)
         let out = try await ok.mutateAsync("hello")
@@ -54,7 +54,7 @@ struct MutationEngineTests {
         #expect(rt.status == .error)        // same error also stored on the handle
     }
 
-    @Test func resetReturnsToIdle() async {
+    @Test("reset() returns a settled handle to .idle and clears its data") func resetReturnsToIdle() async {
         let client = QueryClient(clock: ManualClock())
         let (h, rt) = wiredHandle(Save { $0.count }, client)
         h.mutate("ab"); await settle(client)

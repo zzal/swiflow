@@ -4,14 +4,14 @@ import Testing
 @Suite("QueryEntry")
 @MainActor
 struct QueryEntryTests {
-    @Test func absentEntryReadsAsLoading() {
+    @Test("A snapshot of an absent entry reads as loading and fetching with no data") func absentEntryReadsAsLoading() {
         let s = makeSnapshot(from: nil, as: Int.self)
         #expect(s.data == nil)
         #expect(s.isLoading)
         #expect(s.isFetching)
     }
 
-    @Test func presentValueNotFetchingIsSettled() {
+    @Test("A fetched value with nothing in flight snapshots as settled success") func presentValueNotFetchingIsSettled() {
         let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
         e.value = 7
         e.lastFetched = .zero
@@ -22,7 +22,7 @@ struct QueryEntryTests {
         #expect(s.isSuccess)
     }
 
-    @Test func inFlightFetchWithDataIsBackgroundFetching() {
+    @Test("Existing data plus an in-flight task snapshots as background fetching, not loading") func inFlightFetchWithDataIsBackgroundFetching() {
         let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
         e.value = 7
         e.lastFetched = .zero
@@ -33,7 +33,7 @@ struct QueryEntryTests {
         #expect(s.isFetching)
     }
 
-    @Test func backgroundStateDefaults() {
+    @Test("A new entry starts with default background config and clean retry bookkeeping") func backgroundStateDefaults() {
         let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
         #expect(e.staleTime == .zero)
         #expect(e.refetchInterval == nil)

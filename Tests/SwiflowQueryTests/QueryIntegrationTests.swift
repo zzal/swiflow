@@ -97,13 +97,13 @@ private enum DemoError: Error { case boom }
 @Suite("Query/integration")
 @MainActor
 struct QueryIntegrationTests {
-    @Test func loadsOnMount() async throws {
+    @Test("Mounting a component fetches and renders its query data") func loadsOnMount() async throws {
         let h = AsyncTestHarness(Profile(userID: 1) { "User#\($0)" }, clock: ManualClock())
         try await h.settle()
         #expect(h.allText.contains("User#1"))
     }
 
-    @Test func refetchesOnKeyChange() async throws {
+    @Test("Changing the query key refetches and renders the new key's data") func refetchesOnKeyChange() async throws {
         let vm = Profile(userID: 1) { "User#\($0)" }
         let h = AsyncTestHarness(vm, clock: ManualClock())
         try await h.settle()
@@ -115,7 +115,7 @@ struct QueryIntegrationTests {
         #expect(h.allText.contains("User#2"))
     }
 
-    @Test func dedupesConcurrentSameKey() async throws {
+    @Test("Two concurrent observations of the same key share a single fetch") func dedupesConcurrentSameKey() async throws {
         let counter = FetchCounter()
         let h = AsyncTestHarness(
             Pair { id in counter.bump(); return "User#\(id)" },
@@ -125,7 +125,7 @@ struct QueryIntegrationTests {
         #expect(counter.value == 1)   // one fetch despite two observations
     }
 
-    @Test func invalidateRefetchesMountedObserver() async throws {
+    @Test("invalidate forces a refetch for a mounted observer") func invalidateRefetchesMountedObserver() async throws {
         let counter = FetchCounter()
         let h = AsyncTestHarness(
             Profile(userID: 1) { id in counter.bump(); return "User#\(id)" },
@@ -142,7 +142,7 @@ struct QueryIntegrationTests {
     // Validates the TestRenderer's non-root rerender bracketing: a NESTED
     // component re-rendering on its OWN @State change must reconcile its
     // query (refetch the new key), matching the browser renderer.
-    @Test func nestedComponentReconcilesOnOwnStateChange() async throws {
+    @Test("A nested component re-rendering on its own @State change reconciles its query and refetches") func nestedComponentReconcilesOnOwnStateChange() async throws {
         let child = Child(n: 1) { "User#\($0)" }
         let h = AsyncTestHarness(Parent(child: child), clock: ManualClock())
         try await h.settle()
@@ -156,7 +156,7 @@ struct QueryIntegrationTests {
 
     // Error path (spec §9): a failed revalidation surfaces `error`, retains the
     // prior `data`, and leaves the entry stale so a later trigger retries.
-    @Test func failedRevalidationSurfacesErrorAndKeepsData() async throws {
+    @Test("A failed revalidation surfaces the error, keeps prior data, and stays stale for retry") func failedRevalidationSurfacesErrorAndKeepsData() async throws {
         let box = FailBox()
         let h = AsyncTestHarness(ErrLoader(box: box), clock: ManualClock())
         try await h.settle()

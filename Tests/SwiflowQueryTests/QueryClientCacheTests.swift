@@ -22,7 +22,7 @@ struct QueryClientCacheTests {
         _ = owner   // retain through settle
     }
 
-    @Test func setThenGet() async {
+    @Test("setQueryData is readable back through both the typed and erased getters") func setThenGet() async {
         let client = QueryClient(clock: ManualClock())
         await seed(client, ["n"], 1)
         client.setQueryData(["n"], 42)
@@ -30,13 +30,13 @@ struct QueryClientCacheTests {
         #expect(client.getQueryDataErased(["n"]) as? Int == 42)
     }
 
-    @Test func setIsNoOpOnAbsentEntry() {
+    @Test("setQueryData on a key with no entry is a no-op") func setIsNoOpOnAbsentEntry() {
         let client = QueryClient(clock: ManualClock())
         client.setQueryData(["missing"], 99)               // no entry → no-op
         #expect(client.getQueryData(["missing"], as: Int.self) == nil)
     }
 
-    @Test func setBumpsGenerationAndCancelsInFlight() async {
+    @Test("setQueryData bumps the generation, drops in-flight work, and leaves the entry stale") func setBumpsGenerationAndCancelsInFlight() async {
         let client = QueryClient(clock: ManualClock())
         await seed(client, ["n"], 1)
         let entry = client.entries[["n"]]!

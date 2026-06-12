@@ -20,7 +20,7 @@ struct QueryClientReconcileTests {
         )
     }
 
-    @Test func newKeySubscribesAndFetches() async {
+    @Test("A newly observed key subscribes the owner and triggers an initial fetch") func newKeySubscribesAndFetches() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         var calls = 0
@@ -31,7 +31,7 @@ struct QueryClientReconcileTests {
         #expect(client.hasLiveSubscribers(["a"]))
     }
 
-    @Test func droppedKeyUnsubscribes() async {
+    @Test("A key dropped from the observation set loses its subscription") func droppedKeyUnsubscribes() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         let sched = SyncScheduler { _ in }
@@ -43,7 +43,7 @@ struct QueryClientReconcileTests {
         #expect(client.hasLiveSubscribers(["b"]))
     }
 
-    @Test func retainedKeyDoesNotRefetch() async {
+    @Test("Re-reconciling a retained key does not fetch again") func retainedKeyDoesNotRefetch() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         let sched = SyncScheduler { _ in }
@@ -55,7 +55,7 @@ struct QueryClientReconcileTests {
         #expect(calls == 1)
     }
 
-    @Test func dropComponentUnsubscribesAll() async {
+    @Test("dropComponent unsubscribes the owner from every key it observed") func dropComponentUnsubscribesAll() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         client.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
@@ -69,7 +69,7 @@ struct QueryClientReconcileTests {
     // Regression: a second component newly-observing a key while the first
     // component's fetch for it is still in flight must dedup AND must not leave
     // the entry reporting `isFetching` after that fetch resolves.
-    @Test func secondSubscriberMidFlightDoesNotStickFetching() async {
+    @Test("A second subscriber arriving mid-flight dedups and does not leave isFetching wedged") func secondSubscriberMidFlightDoesNotStickFetching() async {
         let client = QueryClient(clock: ManualClock())
         let a = AnyComponent(Dummy())
         let b = AnyComponent(Dummy())
@@ -103,7 +103,7 @@ struct QueryClientReconcileTests {
 }
 
 extension QueryClientReconcileTests {
-    @Test func reconcileCopiesBackgroundConfigOntoEntry() async {
+    @Test("Reconcile copies the query's background config onto its entry") func reconcileCopiesBackgroundConfigOntoEntry() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         client.willEvaluate(owner: owner, scheduler: SyncScheduler { _ in })

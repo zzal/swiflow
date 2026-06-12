@@ -15,7 +15,7 @@ private struct N: Query {
 @Suite("QueryClient/observer")
 @MainActor
 struct QueryObserverConformanceTests {
-    @Test func willObserveDidReconcilesAndFetches() async {
+    @Test("The willEvaluate/observe/didEvaluate cycle reconciles the observation and fetches") func willObserveDidReconcilesAndFetches() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
 
@@ -28,7 +28,7 @@ struct QueryObserverConformanceTests {
         #expect(client.entries[["n", 5]]?.value as? Int == 5)
     }
 
-    @Test func queryWithoutActiveClientReturnsLoading() {
+    @Test("query() outside an active render observer returns a loading snapshot") func queryWithoutActiveClientReturnsLoading() {
         RenderObserverBox.current = nil
         let owner = Dummy()
         let snap = owner.query(N(id: 1))

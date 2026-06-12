@@ -4,7 +4,7 @@ import Testing
 
 @Suite("element(_:attributes:children:) array factory")
 struct ArrayElementFactoryTests {
-    @Test func buildsElementWithAttributesAndChildren() {
+    @Test("element(_:attributes:children:) applies tag, attributes, style, and children") func buildsElementWithAttributesAndChildren() {
         let node = element("div",
                            attributes: [.class("row"), .style("display", "flex")],
                            children: [text("hi")])
@@ -15,7 +15,7 @@ struct ArrayElementFactoryTests {
         #expect(data.children.count == 1)
     }
 
-    @Test func defaultsAreEmpty() {
+    @Test("Omitted attributes and children default to empty") func defaultsAreEmpty() {
         let node = element("span")
         guard case .element(let data) = node else { Issue.record("not an element"); return }
         #expect(data.tag == "span")

@@ -9,16 +9,16 @@ struct RouterModeTests {
         Router(path: "/", mode: mode, navigate: { _ in }, replace: { _ in }, back: {})
     }
 
-    @Test func hashModeHrefsCarryTheHashPrefix() {
+    @Test("Hash-mode hrefs prefix the path with #") func hashModeHrefsCarryTheHashPrefix() {
         #expect(router(mode: .hash).href(forPath: "/about") == "#/about")
         #expect(router(mode: .hash).href(forPath: "/search?q=x") == "#/search?q=x")
     }
 
-    @Test func historyModeHrefsAreThePathItself() {
+    @Test("History-mode hrefs are the bare path") func historyModeHrefsAreThePathItself() {
         #expect(router(mode: .history).href(forPath: "/about") == "/about")
     }
 
-    @Test func defaultRouterModeIsHash() {
+    @Test("The mode-less Router init keeps compiling and defaults to .hash") func defaultRouterModeIsHash() {
         // Backward compat: the 4-argument init (no mode) must keep compiling
         // and default to .hash, matching RouterRoot's default.
         let r = Router(path: "/", navigate: { _ in }, replace: { _ in }, back: {})

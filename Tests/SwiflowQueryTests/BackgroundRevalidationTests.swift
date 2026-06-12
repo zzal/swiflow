@@ -6,7 +6,7 @@ import Swiflow
 @Suite("Background/scaffold")
 @MainActor
 struct BackgroundScaffoldTests {
-    @Test func initialReconcileFetchesOnce() async {
+    @Test("Mount reconcile triggers exactly one initial fetch") func initialReconcileFetchesOnce() async {
         let bg = BG()
         await bg.settle()
         #expect(bg.probe.calls == 1)            // mount triggered one fetch
@@ -16,7 +16,7 @@ struct BackgroundScaffoldTests {
 @Suite("Background/polling")
 @MainActor
 struct BackgroundPollingTests {
-    @Test func pollFiresAtInterval() async {
+    @Test("Polling refetches only once refetchInterval has fully elapsed") func pollFiresAtInterval() async {
         let bg = BG(refetchInterval: .seconds(5))
         await bg.settle()
         #expect(bg.probe.calls == 1)
@@ -25,13 +25,13 @@ struct BackgroundPollingTests {
         await bg.advance(.seconds(1))           // now 5s since last fetch → poll
         #expect(bg.probe.calls == 2)
     }
-    @Test func noPollWithoutInterval() async {
+    @Test("Without a refetchInterval no poll ever fires") func noPollWithoutInterval() async {
         let bg = BG()                            // refetchInterval nil
         await bg.settle()
         await bg.advance(.seconds(9999))
         #expect(bg.probe.calls == 1)
     }
-    @Test func neverSucceededDoesNotPoll() async {
+    @Test("A query that never succeeded does not poll — the deadline measures from last success") func neverSucceededDoesNotPoll() async {
         let bg = BG(refetchInterval: .seconds(5))
         bg.probe.failuresRemaining = 1           // initial fetch fails → lastFetched stays nil
         await bg.settle()
@@ -44,7 +44,7 @@ struct BackgroundPollingTests {
 @Suite("Background/retry")
 @MainActor
 struct BackgroundRetryTests {
-    @Test func retriesWithBackoffThenSucceeds() async {
+    @Test("Failed fetch retries on the backoff schedule and resets retry state on success") func retriesWithBackoffThenSucceeds() async {
         let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(1), maxDelay: .seconds(30)))
         bg.probe.failuresRemaining = 2           // fail #1 (initial), fail #2 (retry), then succeed
         await bg.settle()
@@ -58,7 +58,7 @@ struct BackgroundRetryTests {
         #expect(bg.entry.nextRetryDue == nil)           // reset on success
         #expect(bg.entry.failureCount == 0)
     }
-    @Test func stopsAfterMaxRetries() async {
+    @Test("Retries stop after maxRetries with nothing further scheduled") func stopsAfterMaxRetries() async {
         let bg = BG(retry: RetryPolicy(maxRetries: 2, baseDelay: .seconds(1), maxDelay: .seconds(30)))
         bg.probe.failuresRemaining = 99          // always fails
         await bg.settle()                        // attempt 1
@@ -74,7 +74,7 @@ struct BackgroundRetryTests {
 @Suite("Background/focus")
 @MainActor
 struct BackgroundFocusTests {
-    @Test func focusRefetchesStaleOnly() async {
+    @Test("Focus refetches only entries that have gone stale") func focusRefetchesStaleOnly() async {
         let bg = BG(staleTime: .seconds(10))
         await bg.settle()                        // fetch #1 at t=0
         bg.clock.advance(by: .seconds(5))        // still fresh (<10s)
@@ -84,13 +84,13 @@ struct BackgroundFocusTests {
         await bg.focus()
         #expect(bg.probe.calls == 2)             // stale → refetched
     }
-    @Test func focusSkipsWhenOptedOut() async {
+    @Test("refetchOnFocus: false suppresses the focus refetch even when stale") func focusSkipsWhenOptedOut() async {
         let bg = BG(staleTime: .zero, refetchOnFocus: false)  // always stale, but opted out
         await bg.settle()
         await bg.focus()
         #expect(bg.probe.calls == 1)
     }
-    @Test func doubleFocusCoalesces() async {
+    @Test("Back-to-back focus events coalesce into a single refetch") func doubleFocusCoalesces() async {
         let bg = BG(staleTime: .zero)            // staleTime .zero → stale immediately after a fetch
         await bg.settle()                        // fetch #1 done
         bg.client.focusChanged(visible: true)    // spawns fetch #2 (in-flight, not awaited)
@@ -103,7 +103,7 @@ struct BackgroundFocusTests {
 @Suite("Background/supersede")
 @MainActor
 struct BackgroundSupersedeTests {
-    @Test func invalidateClearsPendingRetry() async {
+    @Test("invalidate clears a pending retry synchronously, before its refetch settles") func invalidateClearsPendingRetry() async {
         let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(5), maxDelay: .seconds(30)))
         bg.probe.failuresRemaining = 1           // initial fetch fails → schedules retry at t=5
         await bg.settle()
@@ -118,7 +118,7 @@ struct BackgroundSupersedeTests {
         await bg.settle()
         #expect(bg.entry.nextRetryDue == nil)    // still clear after the refetch settles
     }
-    @Test func setQueryDataClearsPendingRetry() async {
+    @Test("setQueryData clears a pending retry and resets failureCount") func setQueryDataClearsPendingRetry() async {
         let bg = BG(retry: RetryPolicy(maxRetries: 3, baseDelay: .seconds(5), maxDelay: .seconds(30)))
         bg.probe.failuresRemaining = 1
         await bg.settle()
@@ -135,7 +135,7 @@ struct BackgroundPollRetryTests {
     /// A polling query whose poll fails enters the retry cycle; once retries are
     /// exhausted it resumes polling (failures never update `lastFetched`, so the
     /// poll deadline still measures from the last success).
-    @Test func failedPollRetriesThenResumesPolling() async {
+    @Test("A failed poll enters the retry cycle, then polling resumes once retries exhaust") func failedPollRetriesThenResumesPolling() async {
         let bg = BG(refetchInterval: .seconds(5),
                     retry: RetryPolicy(maxRetries: 1, baseDelay: .seconds(1), maxDelay: .seconds(30)))
         await bg.settle()                         // fetch #1 succeeds at t=0

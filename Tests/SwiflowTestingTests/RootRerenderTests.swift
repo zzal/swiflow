@@ -39,7 +39,7 @@ struct RootRerenderTests {
     /// diff only that subtree; production re-renders from root. The parent's
     /// body reads shared state the child mutates — it must refresh under test
     /// exactly as it does in the browser.
-    @Test func parentRefreshesWhenChildMutatesSharedState() {
+    @Test("A child's @State change re-renders from the root so the parent sees mutated shared state") func parentRefreshesWhenChildMutatesSharedState() {
         let harness = render(SharedLabelParent())
         #expect(harness.find("p")?.text == "label: before")
 

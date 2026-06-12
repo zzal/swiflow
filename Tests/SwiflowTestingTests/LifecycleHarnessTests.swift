@@ -22,7 +22,7 @@ private final class LifecycleProbe {
 @MainActor
 struct LifecycleHarnessTests {
 
-    @Test func lifecycleHooksFireUnderTest() {
+    @Test("onAppear/onChange/onDisappear fire on mount, re-render, and unmount under the harness") func lifecycleHooksFireUnderTest() {
         let probe = LifecycleProbe()
         let harness = render(probe)
 
@@ -35,7 +35,7 @@ struct LifecycleHarnessTests {
         #expect(probe.log == ["appear", "change", "disappear"], "onDisappear must fire on unmount")
     }
 
-    @Test func doubleUnmountFiresOnDisappearOnce() {
+    @Test("Calling unmount twice fires onDisappear only once") func doubleUnmountFiresOnDisappearOnce() {
         let probe = LifecycleProbe()
         let harness = render(probe)
         harness.unmount()

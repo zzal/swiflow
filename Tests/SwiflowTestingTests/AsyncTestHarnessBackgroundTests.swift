@@ -19,7 +19,7 @@ import SwiflowQuery
 @Suite("AsyncTestHarness/background")
 @MainActor
 struct AsyncTestHarnessBackgroundTests {
-    @Test func advanceDrivesPolling() async throws {
+    @Test("advance(by:) on the manual clock triggers a refetchInterval poll") func advanceDrivesPolling() async throws {
         PollQ.calls = 0
         let h = AsyncTestHarness(Poller(), clock: ManualClock())
         try await h.settle()

@@ -57,7 +57,7 @@ struct MutationOptimismTests {
         return MutationHandle(runtime: rt, mutation: m)
     }
 
-    @Test func optimisticValueVisibleBeforePerformResolves() async {
+    @Test("The optimistic write is visible in the cache before perform resolves") func optimisticValueVisibleBeforePerformResolves() async {
         let client = QueryClient(clock: ManualClock())
         await seedList(client, ["a"])
         let gate = Gate()
@@ -69,7 +69,7 @@ struct MutationOptimismTests {
         for t in client.inFlightTasks() { await t.value }
     }
 
-    @Test func rollbackRestoresOnFailure() async {
+    @Test("Failure rolls the cache back to the pre-optimistic value") func rollbackRestoresOnFailure() async {
         let client = QueryClient(clock: ManualClock())
         await seedList(client, ["a"])
         let gate = Gate()
@@ -81,7 +81,7 @@ struct MutationOptimismTests {
         #expect(client.getQueryData(["todos"], as: [String].self) == ["a"])             // rolled back
     }
 
-    @Test func invalidationRefetchesOnSuccess() async {
+    @Test("Success fires the declared invalidations, refetching live observers") func invalidationRefetchesOnSuccess() async {
         let client = QueryClient(clock: ManualClock())
         // A live observer with a fetch counter to prove invalidation refetched.
         let owner = AnyComponent(Dummy())

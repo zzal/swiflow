@@ -31,7 +31,7 @@ struct CacheEvictionTests {
 
     // 1. After the last subscriber drops, the entry survives one stamping tick
     //    and is evicted only once the clock has advanced past gcTime.
-    @Test func entryIsEvictedGCTimeAfterLastSubscriberDrops() async {
+    @Test("Entry is evicted only once gcTime has elapsed after the last subscriber drops") func entryIsEvictedGCTimeAfterLastSubscriberDrops() async {
         let clock = ManualClock()
         let client = QueryClient(clock: clock)
         let owner = AnyComponent(Dummy())
@@ -54,7 +54,7 @@ struct CacheEvictionTests {
 
     // 2. An entry with a live subscriber is never evicted, no matter how long
     //    the clock advances.
-    @Test func entryWithLiveSubscriberIsNeverEvicted() async {
+    @Test("An entry with a live subscriber is never evicted, however far the clock advances") func entryWithLiveSubscriberIsNeverEvicted() async {
         let clock = ManualClock()
         let client = QueryClient(clock: clock)
         let owner = AnyComponent(Dummy())
@@ -70,7 +70,7 @@ struct CacheEvictionTests {
 
     // 3. Re-observing the same key within the gcTime window keeps the entry and
     //    its cached value — the warm-cache back-nav path.
-    @Test func reObservationWithinGCTimeKeepsTheCachedValue() async {
+    @Test("Re-observing within the gcTime window keeps the entry and its cached value") func reObservationWithinGCTimeKeepsTheCachedValue() async {
         let clock = ManualClock()
         let client = QueryClient(clock: clock)
         let sched = SyncScheduler { _ in }
@@ -101,7 +101,7 @@ struct CacheEvictionTests {
     // 4. Eviction cancels an in-flight fetch. The fetch hangs via `Task.sleep`,
     //    which throws on cancellation; the surrounding `inFlight` task is the
     //    one the GC sweep cancels, so awaiting it afterward reports cancelled.
-    @Test func evictionCancelsAnInFlightFetch() async {
+    @Test("Evicting an entry cancels its in-flight fetch task") func evictionCancelsAnInFlightFetch() async {
         let clock = ManualClock()
         let client = QueryClient(clock: clock)
         let owner = AnyComponent(Dummy())
@@ -130,7 +130,7 @@ struct CacheEvictionTests {
     // 5. `invalidate` is a no-op for an already-evicted key: the public API
     //    iterates surviving entries only, so it neither crashes nor resurrects
     //    the entry. Pins that contract against the eviction path.
-    @Test func invalidateAfterEvictionIsNoOp() async {
+    @Test("invalidate on an already-evicted key neither crashes nor resurrects the entry") func invalidateAfterEvictionIsNoOp() async {
         let clock = ManualClock()
         let client = QueryClient(clock: clock)
         let owner = AnyComponent(Dummy())

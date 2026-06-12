@@ -4,7 +4,7 @@ import Testing
 @MainActor
 struct TaskModifierTests {
 
-    @Test func taskBindingsAreExcludedFromEquality() {
+    @Test("ElementData equality ignores taskBindings") func taskBindingsAreExcludedFromEquality() {
         // Two ElementData identical except for taskBindings must compare equal
         // (closures aren't Equatable; taskBindings is out-of-band, like refBindings).
         let a = ElementData(tag: "div")
@@ -13,7 +13,7 @@ struct TaskModifierTests {
         #expect(a == b)
     }
 
-    @Test func taskBindingsDefaultEmpty() {
+    @Test("A fresh element has no task bindings") func taskBindingsDefaultEmpty() {
         #expect(ElementData(tag: "div").taskBindings.isEmpty)
     }
 
@@ -22,14 +22,14 @@ struct TaskModifierTests {
         return data.taskBindings
     }
 
-    @Test func bareTaskAppendsBindingWithNoDependency() {
+    @Test(".task without rerunOn records a binding with a nil dependency") func bareTaskAppendsBindingWithNoDependency() {
         let node = div { }.task { }
         let bs = bindings(of: node)
         #expect(bs.count == 1)
         #expect(bs[0].dependency == nil)
     }
 
-    @Test func taskRerunOnAppendsBindingWithDependency() {
+    @Test(".task(rerunOn:) records a dependency that compares equal only to the same value") func taskRerunOnAppendsBindingWithDependency() {
         let node = div { }.task(rerunOn: 7) { }
         let bs = bindings(of: node)
         #expect(bs.count == 1)
@@ -38,14 +38,14 @@ struct TaskModifierTests {
         #expect(bs[0].dependency?.equals(AnyEquatableBox(8)) == false)
     }
 
-    @Test func multipleTasksStackInOrder() {
+    @Test("Chained .task modifiers append bindings in declaration order") func multipleTasksStackInOrder() {
         let node = div { }.task(rerunOn: 1) { }.task { }
         #expect(bindings(of: node).count == 2)
         #expect(bindings(of: node)[0].dependency != nil)
         #expect(bindings(of: node)[1].dependency == nil)
     }
 
-    @Test func taskOnNonElementIsDiagnosedAndPassesThrough() {
+    @Test(".task on a non-element node emits a diagnostic and returns the node unchanged") func taskOnNonElementIsDiagnosedAndPassesThrough() {
         var captured: [String] = []
         let prior = _swiflowDiagnosticOverride
         _swiflowDiagnosticOverride = { captured.append($0) }

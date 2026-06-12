@@ -56,7 +56,7 @@ struct MutationRollbackGuardTests {
 
     // 1. A failed mutation whose optimistic key was SUPERSEDED by a later write
     //    does NOT roll back (the newer value survives).
-    @Test func failedRollbackSkipsWhenKeyWasSupersededSinceOptimisticWrite() async {
+    @Test("Rollback is skipped when a concurrent write superseded the key after the optimistic write") func failedRollbackSkipsWhenKeyWasSupersededSinceOptimisticWrite() async {
         let client = QueryClient(clock: ManualClock())
         let key: QueryKey = ["item"]
         let v0 = "original"
@@ -90,7 +90,7 @@ struct MutationRollbackGuardTests {
 
     // 2. A failed mutation whose key was NOT touched since its optimistic write
     //    DOES roll back to the prior (control case).
-    @Test func failedRollbackRestoresPriorWhenKeyUntouched() async {
+    @Test("Rollback restores the prior value when the key was untouched since the optimistic write") func failedRollbackRestoresPriorWhenKeyUntouched() async {
         let client = QueryClient(clock: ManualClock())
         let key: QueryKey = ["item"]
         let v0 = "original"

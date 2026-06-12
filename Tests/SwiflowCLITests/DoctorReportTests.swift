@@ -4,7 +4,7 @@ import Testing
 
 @Suite struct DoctorReportTests {
 
-    @Test func failsWhenWasmOptMissing() {
+    @Test("Missing wasm-opt fails the report and names binaryen in the summary") func failsWhenWasmOptMissing() {
         let report = DoctorReport(
             swift: .found("Swift 6.3"),
             wasmSDK: .found("6.3-RELEASE_wasm"),
@@ -16,7 +16,7 @@ import Testing
         #expect(report.summary.contains("binaryen"))
     }
 
-    @Test func failsWhenMacToolchainMissing() {
+    @Test("Missing swift.org toolchain fails the report") func failsWhenMacToolchainMissing() {
         let report = DoctorReport(
             swift: .found("Swift 6.3"),
             wasmSDK: .found("6.3-RELEASE_wasm"),
@@ -27,7 +27,7 @@ import Testing
         #expect(report.summary.contains("swift.org toolchain"))
     }
 
-    @Test func macToolchainNotApplicableDoesNotFail() {
+    @Test("A nil macToolchain row (Linux) is excluded from the report and the exit code") func macToolchainNotApplicableDoesNotFail() {
         // Linux: the macOS toolchain row is nil — absent from the report
         // and excluded from the exit code.
         let report = DoctorReport(

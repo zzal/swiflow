@@ -11,13 +11,13 @@ private struct Save: Mutation {
 @Suite("Mutation/protocol")
 @MainActor
 struct MutationProtocolTests {
-    @Test func defaultsAreEmpty() {
+    @Test("Default optimistic edits and invalidations are empty") func defaultsAreEmpty() {
         let m = Save { _ in 1 }
         #expect(m.optimistic("x").isEmpty)
         #expect(m.invalidations(input: "x", output: 1).isEmpty)
     }
 
-    @Test func performRuns() async throws {
+    @Test("perform runs the mutation body and returns its output") func performRuns() async throws {
         let m = Save { $0.count }
         let out = try await m.perform("abcd")
         #expect(out == 4)

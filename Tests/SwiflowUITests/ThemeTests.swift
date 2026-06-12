@@ -9,7 +9,7 @@ import Swiflow
 @Suite("Theme")
 @MainActor
 struct ThemeTests {
-    @Test func baseSheetContainsRootTokens() {
+    @Test("Base stylesheet defines :root tokens and leaves :root unscoped") func baseSheetContainsRootTokens() {
         let css = SwiflowUI.baseStyleSheet.cssString(scopeClass: "")
         #expect(css.contains(":root"))
         #expect(css.contains("--sw-space-md"))
@@ -18,7 +18,7 @@ struct ThemeTests {
         #expect(!css.contains(".swiflow"))
     }
 
-    @Test func installBaseStylesEmitsOnce() {
+    @Test("installBaseStyles emits the base sheet once even when called twice") func installBaseStylesEmitsOnce() {
         StyleInjectionRegistry.reset()
         var ids: [String] = []
         StyleInjectionRegistry.emit = { id, _ in ids.append(id) }

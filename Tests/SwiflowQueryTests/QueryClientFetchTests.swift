@@ -12,7 +12,7 @@ struct QueryClientFetchTests {
         for t in client.inFlightTasks() { await t.value }
     }
 
-    @Test func startFetchPopulatesEntryAndNotifies() async {
+    @Test("startFetch commits the value, clears inFlight, and marks subscribers dirty") func startFetchPopulatesEntryAndNotifies() async {
         var marks = 0
         let scheduler = SyncScheduler { _ in marks += 1 }
         let client = QueryClient(clock: ManualClock())
@@ -33,7 +33,7 @@ struct QueryClientFetchTests {
         #expect(marks >= 1)
     }
 
-    @Test func secondStartFetchDedupes() async {
+    @Test("A second startFetch while one is in flight is ignored") func secondStartFetchDedupes() async {
         var calls = 0
         let client = QueryClient(clock: ManualClock())
         let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
@@ -46,7 +46,7 @@ struct QueryClientFetchTests {
         #expect(calls == 1)
     }
 
-    @Test func supersededResultIsDropped() async {
+    @Test("A fetch result superseded by a generation bump is dropped, not committed") func supersededResultIsDropped() async {
         let client = QueryClient(clock: ManualClock())
         let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
         entry.boxedFetch = { 1 }
@@ -61,7 +61,7 @@ struct QueryClientFetchTests {
     // Regression (C1): an `invalidate` that installs a NEW in-flight fetch while
     // the OLD one is still completing must not let the old fetch's commit nil
     // out the new fetch's `inFlight` handle (which would break dedup + settle).
-    @Test func supersedingFetchSurvivesStaleCompletion() async {
+    @Test("The superseding fetch's inFlight handle survives the stale fetch's completion") func supersedingFetchSurvivesStaleCompletion() async {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
         let sched = SyncScheduler { _ in }

@@ -21,7 +21,7 @@ struct TaskDiffTests {
         for t in scope.inFlightTasks() { await t.value }
     }
 
-    @Test func startTasksSpawnsOnePerBinding() async {
+    @Test("startTasks spawns one slot and one run per declared binding") func startTasksSpawnsOnePerBinding() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var ran = 0
         inScope {
@@ -35,7 +35,7 @@ struct TaskDiffTests {
         #expect(ran == 2)
     }
 
-    @Test func reconcileRerunsOnlyWhenDependencyChanges() async {
+    @Test("Reconcile reruns a task only when its rerunOn dependency value changes") func reconcileRerunsOnlyWhenDependencyChanges() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
         inScope { startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: { runs += 1 })]) }
@@ -53,7 +53,7 @@ struct TaskDiffTests {
         #expect(runs == 2)
     }
 
-    @Test func gainingOrLosingDependencyReruns() async {
+    @Test("Switching between nil and a value dependency reruns the task in both directions") func gainingOrLosingDependencyReruns() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
         inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })]) }
@@ -71,7 +71,7 @@ struct TaskDiffTests {
         #expect(runs == 3)
     }
 
-    @Test func bareTaskNeverReruns() async {
+    @Test("A dependency-free task runs once at mount and never on reconcile") func bareTaskNeverReruns() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         var runs = 0
         inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { runs += 1 })]) }
@@ -81,7 +81,7 @@ struct TaskDiffTests {
         #expect(runs == 1)   // bare task ran once, never again
     }
 
-    @Test func cancelTasksTearsDownSlots() async {
+    @Test("cancelTasks clears the node's slots and cancels in-flight work") func cancelTasksTearsDownSlots() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         inScope { startTasks(on: node, [TaskBinding(dependency: nil, body: { try? await Task.sleep(nanoseconds: 1_000_000_000) })]) }
         #expect(node.taskSlots.count == 1)
@@ -91,7 +91,7 @@ struct TaskDiffTests {
         #expect(scope.inFlightTasks().isEmpty)
     }
 
-    @Test func changingTaskCountFiresDiagnostic() async {
+    @Test("Declaring a different `.task` count across renders fires a diagnostic but still grows the slots") func changingTaskCountFiresDiagnostic() async {
         let node = MountNode(handle: 1, vnode: .element(ElementData(tag: "div")))
         inScope { startTasks(on: node, [TaskBinding(dependency: AnyEquatableBox(1), body: {})]) }
         await drain()
@@ -113,7 +113,7 @@ struct TaskDiffTests {
         #expect(node.taskSlots.count == 2)
     }
 
-    @Test func mountStartsTasksDeclaredInBody() async {
+    @Test("Mounting a vnode through diff starts its declared `.task` bodies") func mountStartsTasksDeclaredInBody() async {
         var ran = false
         let node = VNode.element(ElementData(tag: "div")).task { ran = true }
         let result = inScope { diff(mounted: nil, next: node, handles: HandleAllocator(), handlers: HandlerRegistry()) }
@@ -122,7 +122,7 @@ struct TaskDiffTests {
         #expect(ran == true)
     }
 
-    @Test func destroyCancelsTasks() async {
+    @Test("Destroying a subtree during diff cancels its in-flight tasks") func destroyCancelsTasks() async {
         var node = VNode.element(ElementData(tag: "div")).task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }

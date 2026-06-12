@@ -4,13 +4,13 @@ import Testing
 @Suite("QueryClient/staleness")
 @MainActor
 struct QueryClientStalenessTests {
-    @Test func neverFetchedAlwaysNeedsFetch() {
+    @Test("A never-fetched entry always needs a fetch") func neverFetchedAlwaysNeedsFetch() {
         let client = QueryClient(clock: ManualClock())
         let e = QueryEntry(valuesEqual: { _, _ in true })
         #expect(client.needsFetch(e, staleTime: .seconds(30)))
     }
 
-    @Test func zeroStaleTimeIsAlwaysStale() {
+    @Test("staleTime .zero makes an entry stale the instant it is fetched") func zeroStaleTimeIsAlwaysStale() {
         let clock = ManualClock(.seconds(100))
         let client = QueryClient(clock: clock)
         let e = QueryEntry(valuesEqual: { _, _ in true })
@@ -18,7 +18,7 @@ struct QueryClientStalenessTests {
         #expect(client.needsFetch(e, staleTime: .zero))
     }
 
-    @Test func freshWithinStaleTimeDoesNotFetch() {
+    @Test("An entry is fresh within staleTime and becomes stale once it elapses") func freshWithinStaleTimeDoesNotFetch() {
         let clock = ManualClock(.seconds(100))
         let client = QueryClient(clock: clock)
         let e = QueryEntry(valuesEqual: { _, _ in true })

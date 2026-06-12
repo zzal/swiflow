@@ -40,13 +40,13 @@ struct AsyncTaskTests {
     // test's own tasks — isolated from siblings that share the
     // process-global runtime.
 
-    @Test func settleDrivesTaskToSuccess() async throws {
+    @Test("settle() runs a mounted .task to completion and renders the loaded state") func settleDrivesTaskToSuccess() async throws {
         let h = AsyncTestHarness(Profile(userID: 1) { id in "User#\(id)" })
         try await h.settle()
         #expect(h.allText.contains("User#1"))
     }
 
-    @Test func supersededRunDoesNotClobberNewerState() async throws {
+    @Test("A superseded task run's writes are dropped so stale data never reaches the DOM") func supersededRunDoesNotClobberNewerState() async throws {
         // The mount spawns task A (userID 1) but it has not run yet (no MainActor
         // suspension since `start`). Changing the dependency and flushing makes
         // reconcile cancel A and start B (userID 2) — both still pending. `settle`
@@ -62,14 +62,14 @@ struct AsyncTaskTests {
         #expect(h.allText.contains("User#1") == false)
     }
 
-    @Test func settleThrowsOnRunawayLoop() async {
+    @Test("settle(maxRounds:) throws SettleError on a task that reruns forever") func settleThrowsOnRunawayLoop() async {
         let h = AsyncTestHarness(Runaway())
         await #expect(throws: AsyncTestHarness.SettleError.self) {
             try await h.settle(maxRounds: 5)
         }
     }
 
-    @Test func changingDependencyRefetchesAfterSettle() async throws {
+    @Test("Changing the rerunOn dependency after settling refetches and replaces the old data") func changingDependencyRefetchesAfterSettle() async throws {
         let vm = Profile(userID: 1) { id in "User#\(id)" }
         let h = AsyncTestHarness(vm)
         try await h.settle()                 // task A fully completes

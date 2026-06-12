@@ -11,19 +11,19 @@ private struct Echo: Query {
 @Suite("Query")
 @MainActor
 struct QueryProtocolTests {
-    @Test func defaultsAreEmptyTagsAndZeroStaleTime() {
+    @Test("Query defaults to empty tags and zero staleTime") func defaultsAreEmptyTagsAndZeroStaleTime() {
         let q = Echo(id: 3)
         #expect(q.tags.isEmpty)
         #expect(q.staleTime == .zero)
         #expect(q.queryKey == ["echo", 3])
     }
 
-    @Test func fetchReturnsValue() async throws {
+    @Test("fetch runs the query body and returns its value") func fetchReturnsValue() async throws {
         let v = try await Echo(id: 3).fetch()
         #expect(v == 30)
     }
 
-    @Test func queryStateDefaultsAndSuccess() {
+    @Test("QueryState starts with no data; data with fetching settled counts as success") func queryStateDefaultsAndSuccess() {
         let empty = QueryState<Int>()
         #expect(empty.data == nil)
         #expect(!empty.isSuccess)
@@ -33,14 +33,14 @@ struct QueryProtocolTests {
         #expect(loaded.data == 42)
     }
 
-    @Test func backgroundConfigDefaults() {
+    @Test("Background config defaults to no polling, focus refetch on, and the default retry policy") func backgroundConfigDefaults() {
         let p = PlainQ()
         #expect(p.refetchInterval == nil)
         #expect(p.refetchOnFocus == true)
         #expect(p.retry == .default)
     }
 
-    @Test func backgroundConfigOverrides() {
+    @Test("A query's declared background config overrides the protocol defaults") func backgroundConfigOverrides() {
         let t = TunedQ()
         #expect(t.refetchInterval == .seconds(5))
         #expect(t.refetchOnFocus == false)

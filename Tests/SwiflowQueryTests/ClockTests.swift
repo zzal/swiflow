@@ -3,7 +3,7 @@ import Testing
 
 @Suite("Clock")
 struct ClockTests {
-    @Test func manualClockStartsAndAdvances() {
+    @Test("ManualClock starts at its seed instant and advances by exact durations") func manualClockStartsAndAdvances() {
         let clock = ManualClock(.seconds(10))
         #expect(clock.now() == .seconds(10))
         clock.advance(by: .seconds(5))

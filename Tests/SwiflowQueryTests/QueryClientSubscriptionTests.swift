@@ -13,7 +13,7 @@ private final class Dummy: Component {
 struct QueryClientSubscriptionTests {
     private func makeOwner() -> AnyComponent { AnyComponent(Dummy()) }
 
-    @Test func notifyMarksAllLiveSubscribers() {
+    @Test("notify marks every live subscriber of the key dirty") func notifyMarksAllLiveSubscribers() {
         var marked: [ObjectIdentifier] = []
         let scheduler = SyncScheduler { marked.append(ObjectIdentifier($0.instance)) }
         let client = QueryClient(clock: ManualClock())
@@ -29,7 +29,7 @@ struct QueryClientSubscriptionTests {
         #expect(marked.contains(ObjectIdentifier(b.instance)))
     }
 
-    @Test func unsubscribeStopsNotifications() {
+    @Test("An unsubscribed owner receives no further notifications") func unsubscribeStopsNotifications() {
         var markCount = 0
         let scheduler = SyncScheduler { _ in markCount += 1 }
         let client = QueryClient(clock: ManualClock())
@@ -41,7 +41,7 @@ struct QueryClientSubscriptionTests {
         #expect(markCount == 0)
     }
 
-    @Test func subscribeIsIdempotentPerOwner() {
+    @Test("Duplicate subscribe calls for the same owner notify only once") func subscribeIsIdempotentPerOwner() {
         var markCount = 0
         let scheduler = SyncScheduler { _ in markCount += 1 }
         let client = QueryClient(clock: ManualClock())

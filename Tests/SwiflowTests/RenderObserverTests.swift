@@ -21,7 +21,7 @@ private final class Recorder: RenderObserver {
 @Suite("RenderObserver")
 @MainActor
 struct RenderObserverTests {
-    @Test func firesAroundComponentBodyEval() {
+    @Test("Mounting a component fires willEvaluate/didEvaluate exactly once around body evaluation") func firesAroundComponentBodyEval() {
         let rec = Recorder()
         RenderObserverBox.current = rec
         defer { RenderObserverBox.current = nil }

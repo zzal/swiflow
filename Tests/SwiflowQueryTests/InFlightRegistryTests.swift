@@ -5,7 +5,7 @@ import Testing
 @Suite("InFlightRegistry")
 @MainActor
 struct InFlightRegistryTests {
-    @Test func trackedTaskAppearsThenSelfRemoves() async {
+    @Test("A tracked task appears in current() and self-removes on completion") func trackedTaskAppearsThenSelfRemoves() async {
         let reg = InFlightRegistry()
         reg.track { try? await Task.sleep(for: .milliseconds(1)) }
         let handles = reg.current()
@@ -14,7 +14,7 @@ struct InFlightRegistryTests {
         #expect(reg.current().isEmpty)   // self-removed on completion
     }
 
-    @Test func concurrentTrackedTasksGetDistinctSlots() async {
+    @Test("Concurrent tracked tasks get distinct slots instead of overwriting each other") func concurrentTrackedTasksGetDistinctSlots() async {
         let reg = InFlightRegistry()
         reg.track { try? await Task.sleep(for: .milliseconds(1)) }
         reg.track { try? await Task.sleep(for: .milliseconds(1)) }
@@ -23,7 +23,7 @@ struct InFlightRegistryTests {
         #expect(reg.current().isEmpty)
     }
 
-    @Test func clientFoldsMutationTasksIntoInFlight() async {
+    @Test("QueryClient folds tracked mutation tasks into inFlightTasks()") func clientFoldsMutationTasksIntoInFlight() async {
         let client = QueryClient(clock: ManualClock())
         let started = client.inFlightTasks().count
         client.inFlightMutations.track { try? await Task.sleep(for: .milliseconds(1)) }

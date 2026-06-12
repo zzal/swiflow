@@ -92,7 +92,7 @@ struct MutationIntegrationTests {
 
     // After an optimistic append, on success the list should contain the real
     // server value (not the draft) once the invalidation refetch settles.
-    @Test func optimisticThenInvalidationReconciles() async throws {
+    @Test("On success the invalidation refetch replaces the optimistic draft with server truth") func optimisticThenInvalidationReconciles() async throws {
         var server = ["a"]
         let h = AsyncTestHarness(
             Board(load: { server }, outcome: { title in server.append(title); return title }),
@@ -108,7 +108,7 @@ struct MutationIntegrationTests {
     }
 
     // On failure the optimistic entry is rolled back; the prior list is preserved.
-    @Test func rollbackOnFailureKeepsPriorList() async throws {
+    @Test("On failure the optimistic draft rolls back and the prior list is preserved") func rollbackOnFailureKeepsPriorList() async throws {
         let h = AsyncTestHarness(
             Board(load: { ["a"] }, outcome: { _ in throw Boom.nope }),
             clock: ManualClock())
@@ -123,7 +123,7 @@ struct MutationIntegrationTests {
     // wired at mount (because @Component.bind() always fires at wireState time,
     // regardless of body content). This means the very first mutate — with no
     // prior re-render — correctly invalidates the shared query client.
-    @Test func mountWiresClientEvenWithoutBodyReference() async throws {
+    @Test("@MutationState is wired at mount even when body never reads the handle, so the first mutate invalidates") func mountWiresClientEvenWithoutBodyReference() async throws {
         var fetches = 0
 
         // Mount a Board so ["todos"] has a live observer on the shared client.
@@ -156,7 +156,7 @@ struct MutationIntegrationTests {
     // we fully control the gate and the live observer's fetch closure. The Board
     // component's query reconcile would overwrite the entry's boxedFetch, making
     // fetch counting unreliable, so we use the lower-level wired-runtime pattern.
-    @Test func resetDoesNotCancelInFlightPerform() async throws {
+    @Test("reset() returns state to .idle but the in-flight perform still completes and invalidates") func resetDoesNotCancelInFlightPerform() async throws {
         let client = QueryClient(clock: ManualClock())
 
         // Seed ["todos"] with a live observer that counts fetches.

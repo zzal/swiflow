@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct StyleInjectionBufferTests {
 
-    @Test func injectionsBeforeTheSinkFlushWhenItArrives() {
+    @Test("Injections made before the emit sink exists flush when it is installed") func injectionsBeforeTheSinkFlushWhenItArrives() {
         StyleInjectionRegistry.reset()
         StyleInjectionRegistry.emit = nil
         var emitted: [(String, String)] = []
@@ -27,7 +27,7 @@ struct StyleInjectionBufferTests {
         StyleInjectionRegistry.reset()
     }
 
-    @Test func onceSemanticsSurviveTheBuffer() {
+    @Test("A duplicate ID buffered pre-sink still emits only once after the sink arrives") func onceSemanticsSurviveTheBuffer() {
         StyleInjectionRegistry.reset()
         StyleInjectionRegistry.emit = nil
         var emitted: [String] = []
@@ -43,7 +43,7 @@ struct StyleInjectionBufferTests {
         StyleInjectionRegistry.reset()
     }
 
-    @Test func resetClearsThePendingBuffer() {
+    @Test("reset() drops buffered emits instead of replaying them to a later sink") func resetClearsThePendingBuffer() {
         StyleInjectionRegistry.reset()
         StyleInjectionRegistry.emit = nil
         StyleInjectionRegistry.injectOnce(id: "swiflow-stale") { ".s{}" }

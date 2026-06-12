@@ -8,7 +8,7 @@ import Swiflow
 @Suite("StyleInjectionRegistry")
 @MainActor
 struct StyleInjectionRegistryTests {
-    @Test func emitsOncePerID() {
+    @Test("injectOnce emits a given ID's CSS exactly once") func emitsOncePerID() {
         StyleInjectionRegistry.reset()
         var emitted: [(String, String)] = []
         StyleInjectionRegistry.emit = { id, css in emitted.append((id, css)) }
@@ -21,7 +21,7 @@ struct StyleInjectionRegistryTests {
         #expect(emitted.first?.1 == "x{}")
     }
 
-    @Test func cssClosureNotEvaluatedWhenGuarded() {
+    @Test("Guarded repeat injection short-circuits without building the CSS string") func cssClosureNotEvaluatedWhenGuarded() {
         StyleInjectionRegistry.reset()
         StyleInjectionRegistry.emit = { _, _ in }
         defer { StyleInjectionRegistry.emit = nil }
@@ -31,7 +31,7 @@ struct StyleInjectionRegistryTests {
         #expect(builds == 1)   // second call short-circuits before building css
     }
 
-    @Test func resetReArms() {
+    @Test("reset() re-arms an already-injected ID for a fresh emit") func resetReArms() {
         StyleInjectionRegistry.reset()
         var count = 0
         StyleInjectionRegistry.emit = { _, _ in count += 1 }
@@ -42,7 +42,7 @@ struct StyleInjectionRegistryTests {
         #expect(count == 2)
     }
 
-    @Test func injectOnceReturnsWhetherItEmitted() {
+    @Test("injectOnce returns true on first emit and false when guarded") func injectOnceReturnsWhetherItEmitted() {
         StyleInjectionRegistry.reset()
         StyleInjectionRegistry.emit = { _, _ in }
         defer { StyleInjectionRegistry.emit = nil }

@@ -7,7 +7,7 @@ import SwiftSyntaxMacrosTestSupport
 struct MutationStateMacroTests {
     private let macros: [String: Macro.Type] = ["MutationState": MutationStateMacro.self]
 
-    @Test func emitsRuntimeAndProjection() {
+    @Test("@MutationState expands to a private runtime plus a $-prefixed MutationHandle projection") func emitsRuntimeAndProjection() {
         assertMacroExpansion(
             """
             @MutationState var create: CreateTodo
