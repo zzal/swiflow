@@ -200,4 +200,36 @@ final class CSSStructuralParserTests: XCTestCase {
         let r = CSSStructuralParser.parse(".x { background: url(oops")
         XCTAssertEqual(r.diagnostics, [.init(message: "unterminated url()", line: 1, column: 18)])
     }
+
+    // MARK: - :host rewriting
+
+    func testBareHostBecomesAmpersand() {
+        let r = CSSStructuralParser.parse(":host { display: block; }")
+        XCTAssertEqual(r.segments, [.scoped("& { display: block; }")])
+    }
+
+    func testFunctionalHostBecomesIsSelector() {
+        let r = CSSStructuralParser.parse(":host(.dark) .row { color: white; }")
+        XCTAssertEqual(r.segments, [.scoped("&:is(.dark) .row { color: white; }")])
+    }
+
+    func testHostInsideNestedMediaIsRewritten() {
+        let r = CSSStructuralParser.parse("@media (max-width: 600px) { :host { padding: 0; } }")
+        XCTAssertEqual(r.segments, [.scoped("@media (max-width: 600px) { & { padding: 0; } }")])
+    }
+
+    func testHostContextAndStringsAreNotRewritten() {
+        // :host-context shares the ":host" prefix; string content is opaque.
+        let r = CSSStructuralParser.parse(".x { content: \":host\"; } :host-context(.dark) { color: red; }")
+        XCTAssertEqual(r.segments, [
+            .scoped(".x { content: \":host\"; }"),
+            .scoped(":host-context(.dark) { color: red; }"),
+        ])
+    }
+
+    func testHostIsNotRewrittenInHoistedSegments() {
+        // Hoisted rules render outside the wrapper, where '&' has no meaning.
+        let r = CSSStructuralParser.parse("body { color: red; }")
+        XCTAssertEqual(r.segments, [.hoisted("body { color: red; }")])
+    }
 }

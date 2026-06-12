@@ -344,8 +344,70 @@ enum CSSStructuralParser {
         }
     }
 
-    // MARK: - :host rewriting (Task 3)
+    // MARK: - :host rewriting
 
-    /// Placeholder until Task 3 — identity for now.
-    static func rewriteHostSelectors(_ css: String) -> String { css }
+    /// Rewrites `:host` → `&` and `:host(<sel>)` → `&:is(<sel>)`, skipping
+    /// string and comment content. Run on scoped segments only — inside the
+    /// `.<scopeClass> { … }` wrapper, `&` is the component root.
+    static func rewriteHostSelectors(_ css: String) -> String {
+        let chars = Array(css)
+        var out = ""
+        var i = 0
+
+        func isHost(at j: Int) -> Bool {
+            let token: [Character] = [":", "h", "o", "s", "t"]
+            guard j + token.count <= chars.count else { return false }
+            for (k, t) in token.enumerated() where chars[j + k] != t { return false }
+            // Reject identifier continuation (e.g. ":host-context", ":hostile").
+            if j + token.count < chars.count {
+                let next = chars[j + token.count]
+                if next.isLetter || next.isNumber || next == "-" || next == "_" { return false }
+            }
+            return true
+        }
+
+        while i < chars.count {
+            let c = chars[i]
+            if c == "/" && i + 1 < chars.count && chars[i + 1] == "*" {
+                out += "/*"
+                i += 2
+                while i < chars.count {
+                    if chars[i] == "*" && i + 1 < chars.count && chars[i + 1] == "/" {
+                        out += "*/"
+                        i += 2
+                        break
+                    }
+                    out.append(chars[i])
+                    i += 1
+                }
+            } else if c == "\"" || c == "'" {
+                let quote = c
+                out.append(c)
+                i += 1
+                while i < chars.count {
+                    let s = chars[i]
+                    out.append(s)
+                    i += 1
+                    if s == "\\" && i < chars.count {
+                        out.append(chars[i])
+                        i += 1
+                    } else if s == quote {
+                        break
+                    }
+                }
+            } else if c == ":" && isHost(at: i) {
+                i += 5 // ":host"
+                if i < chars.count && chars[i] == "(" {
+                    out += "&:is("
+                    i += 1
+                } else {
+                    out += "&"
+                }
+            } else {
+                out.append(c)
+                i += 1
+            }
+        }
+        return out
+    }
 }
