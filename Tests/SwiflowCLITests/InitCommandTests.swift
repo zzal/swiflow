@@ -201,6 +201,16 @@ struct InitCommandArgvTests {
         let tmp = try InitCommandTests.makeTempDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
+        // The premise is "no $SWIFLOW_SOURCE", but contributor shells commonly
+        // export it (dev-mode path dep against a checkout), which made this
+        // test fail locally while passing in CI. Clear it for the duration and
+        // restore afterward so the test is hermetic either way. Safe under
+        // parallel execution: every other test that cares passes
+        // --swiflow-source explicitly, and the flag outranks the env var.
+        let inherited = ProcessInfo.processInfo.environment["SWIFLOW_SOURCE"]
+        unsetenv("SWIFLOW_SOURCE")
+        defer { if let inherited { setenv("SWIFLOW_SOURCE", inherited, 1) } }
+
         // No --swiflow-source, no --swiflow-version, no $SWIFLOW_SOURCE → must
         // succeed and pin the generated Package.swift to the CLI's own version.
         let cmd = try InitCommand.parse(["Demo", "--path", tmp.path])
