@@ -349,6 +349,16 @@ enum CSSStructuralParser {
     /// Rewrites `:host` → `&` and `:host(<sel>)` → `&:is(<sel>)`, skipping
     /// string and comment content. Run on scoped segments only — inside the
     /// `.<scopeClass> { … }` wrapper, `&` is the component root.
+    ///
+    /// Unquoted `url()` tokens are NOT guarded here — a literal `:host`
+    /// substring inside one (e.g. `url(http://x/:host)`) would be rewritten.
+    /// Accepted: no real stylesheet URL carries a bare `:host` path segment,
+    /// and quoted url("…") forms are already skipped as strings.
+    ///
+    /// Specificity note: `:host(<sel>)` becomes `&:is(<sel>)` inside the
+    /// `.<scopeClass>` wrapper, so it weighs (0,1,0) more than real
+    /// Shadow-DOM `:host(<sel>)` — an inherent trade-off of light-DOM
+    /// scope emulation.
     static func rewriteHostSelectors(_ css: String) -> String {
         let chars = Array(css)
         var out = ""

@@ -228,8 +228,19 @@ final class CSSStructuralParserTests: XCTestCase {
     }
 
     func testHostIsNotRewrittenInHoistedSegments() {
-        // Hoisted rules render outside the wrapper, where '&' has no meaning.
-        let r = CSSStructuralParser.parse("body { color: red; }")
-        XCTAssertEqual(r.segments, [.hoisted("body { color: red; }")])
+        // Hoisted rules render outside the wrapper, where '&' has no meaning —
+        // the :host text must survive untouched.
+        let r = CSSStructuralParser.parse("body :host { color: red; }")
+        XCTAssertEqual(r.segments, [.hoisted("body :host { color: red; }")])
+    }
+
+    func testBareHostWithTrailingPseudoClass() {
+        let r = CSSStructuralParser.parse(":host:hover { background: blue; }")
+        XCTAssertEqual(r.segments, [.scoped("&:hover { background: blue; }")])
+    }
+
+    func testFunctionalHostWithTrailingPseudoClass() {
+        let r = CSSStructuralParser.parse(":host(.dark):hover { opacity: .8; }")
+        XCTAssertEqual(r.segments, [.scoped("&:is(.dark):hover { opacity: .8; }")])
     }
 }
