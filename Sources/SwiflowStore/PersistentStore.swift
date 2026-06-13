@@ -34,9 +34,26 @@ public final class PersistentStore {
     /// The opened `IDBDatabase`, cached after the first `database()` call.
     private var database: JSObject?
 
-    public init(database: String = "swiflow", store: String = "kv") {
-        self.databaseName = database
+    /// - Parameters:
+    ///   - database: IndexedDB database name. When omitted it defaults to the
+    ///     document title (the app's name) — so the DB shows up as "Mission
+    ///     Control" rather than a generic "swiflow" — falling back to "swiflow"
+    ///     if the page has no title. Pass an explicit name to pin it; note that
+    ///     changing the name later starts a fresh, empty database (data under
+    ///     the old name is orphaned, not migrated).
+    ///   - store: object-store name within the database.
+    public init(database: String? = nil, store: String = "kv") {
+        self.databaseName = database ?? Self.appName()
         self.storeName = store
+    }
+
+    /// The document title — the closest thing to an app name available at
+    /// runtime — or "swiflow" when the page sets no title.
+    private static func appName() -> String {
+        if let title = JSObject.global.document.object?.title.string, !title.isEmpty {
+            return title
+        }
+        return "swiflow"
     }
 
     // MARK: - Public API
@@ -167,7 +184,7 @@ private final class ClosureRetainer {
 /// off-WASM; `load` always yields `nil`, writes are no-ops.
 @MainActor
 public final class PersistentStore {
-    public init(database: String = "swiflow", store: String = "kv") {}
+    public init(database: String? = nil, store: String = "kv") {}
     public func load<T: Decodable>(_ type: T.Type, forKey key: String) async throws -> T? { nil }
     public func save<T: Encodable>(_ value: T, forKey key: String) async throws {}
     public func remove(forKey key: String) async throws {}
