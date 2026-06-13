@@ -10,6 +10,7 @@
 import Swiflow
 import SwiflowDOM
 import SwiflowQuery
+import SwiflowStore
 import SwiflowUI
 
 @MainActor @Component
@@ -18,6 +19,13 @@ final class QuakesPage {
     @State var window: String = "day"
     /// Wall-clock anchor for relative timestamps, ticked by the bare `.task`.
     @State var nowMs: Double = 0
+
+    /// The filter selections outlive this page (the router recreates it on every
+    /// navigation), so they're persisted to IndexedDB and rehydrated on mount —
+    /// the @State values above are just first-visit defaults.
+    private let store = PersistentStore()
+    private static let magnitudeKey = "quakes-magnitude"
+    private static let windowKey = "quakes-window"
 
     var body: VNode {
         let feed = query(QuakeFeedQuery(magnitude: magnitude, window: window))
@@ -76,6 +84,26 @@ final class QuakesPage {
                 self.nowMs = epochNowMs()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
+        }
+        // Rehydrate the saved filter selections on mount.
+        .task { await self.hydrate() }
+    }
+
+    private func hydrate() async {
+        if let m = try? await store.load(String.self, forKey: Self.magnitudeKey) { magnitude = m }
+        if let w = try? await store.load(String.self, forKey: Self.windowKey) { window = w }
+    }
+
+    /// Persist each filter when it changes. `onChange(of:)` seeds silently on the
+    /// first call and fires only on a real change, so neither write clobbers the
+    /// value `hydrate()` restores. Distinct `key:`s — the default `#function`
+    /// would collide between the two calls.
+    func onChange() {
+        onChange(of: magnitude, key: "magnitude") { m in
+            Task { try? await self.store.save(m, forKey: Self.magnitudeKey) }
+        }
+        onChange(of: window, key: "window") { w in
+            Task { try? await self.store.save(w, forKey: Self.windowKey) }
         }
     }
 }

@@ -2364,6 +2364,7 @@ extension QuakesPage {
 import Swiflow
 import SwiflowDOM
 import SwiflowQuery
+import SwiflowStore
 import SwiflowUI
 
 @MainActor @Component
@@ -2372,6 +2373,13 @@ final class QuakesPage {
     @State var window: String = "day"
     /// Wall-clock anchor for relative timestamps, ticked by the bare `.task`.
     @State var nowMs: Double = 0
+
+    /// The filter selections outlive this page (the router recreates it on every
+    /// navigation), so they're persisted to IndexedDB and rehydrated on mount —
+    /// the @State values above are just first-visit defaults.
+    private let store = PersistentStore()
+    private static let magnitudeKey = "quakes-magnitude"
+    private static let windowKey = "quakes-window"
 
     var body: VNode {
         let feed = query(QuakeFeedQuery(magnitude: magnitude, window: window))
@@ -2430,6 +2438,26 @@ final class QuakesPage {
                 self.nowMs = epochNowMs()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
+        }
+        // Rehydrate the saved filter selections on mount.
+        .task { await self.hydrate() }
+    }
+
+    private func hydrate() async {
+        if let m = try? await store.load(String.self, forKey: Self.magnitudeKey) { magnitude = m }
+        if let w = try? await store.load(String.self, forKey: Self.windowKey) { window = w }
+    }
+
+    /// Persist each filter when it changes. `onChange(of:)` seeds silently on the
+    /// first call and fires only on a real change, so neither write clobbers the
+    /// value `hydrate()` restores. Distinct `key:`s — the default `#function`
+    /// would collide between the two calls.
+    func onChange() {
+        onChange(of: magnitude, key: "magnitude") { m in
+            Task { try? await self.store.save(m, forKey: Self.magnitudeKey) }
+        }
+        onChange(of: window, key: "window") { w in
+            Task { try? await self.store.save(w, forKey: Self.windowKey) }
         }
     }
 }
@@ -2713,11 +2741,12 @@ final class WeatherPage {
     @State var pinned: [City] = City.seeds
     @State var unit: String = "celsius"
 
-    /// Pins outlive this page: the router destroys `WeatherPage` on every
-    /// navigation, so the list is persisted to IndexedDB and rehydrated on
-    /// mount. `City.seeds` is just the first-ever-visit default.
+    /// Pins and the unit toggle outlive this page: the router destroys
+    /// `WeatherPage` on every navigation, so they're persisted to IndexedDB and
+    /// rehydrated on mount. `City.seeds` / "celsius" are just first-visit defaults.
     private let store = PersistentStore()
     private static let pinnedKey = "pinned-cities"
+    private static let unitKey = "weather-unit"
 
     var body: VNode {
         let results: QueryState<GeoSearchResponse>? =
@@ -2802,13 +2831,25 @@ final class WeatherPage {
         persist()
     }
 
+    /// Persist the unit toggle whenever it changes. `onChange(of:)` seeds
+    /// silently on the first call and fires only on a real change, so it never
+    /// clobbers the value `bootstrap()` rehydrates.
+    func onChange() {
+        onChange(of: unit, key: "unit") { newUnit in
+            Task { try? await self.store.save(newUnit, forKey: Self.unitKey) }
+        }
+    }
+
     // MARK: - Persistence + geolocation
 
-    /// Restore persisted pins (keeping `City.seeds` only on a first-ever visit),
-    /// then ask the browser for the current location and pin it first.
+    /// Restore persisted pins + unit (keeping the defaults only on a first-ever
+    /// visit), then ask the browser for the current location and pin it first.
     private func bootstrap() async {
         if let saved = try? await store.load([City].self, forKey: Self.pinnedKey) {
             pinned = saved
+        }
+        if let savedUnit = try? await store.load(String.self, forKey: Self.unitKey) {
+            unit = savedUnit
         }
         guard let fix = await Geolocation.currentPosition(),
               let here = try? await reverseGeocodedCity(latitude: fix.latitude, longitude: fix.longitude) else {

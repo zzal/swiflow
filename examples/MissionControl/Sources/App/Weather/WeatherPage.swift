@@ -22,11 +22,12 @@ final class WeatherPage {
     @State var pinned: [City] = City.seeds
     @State var unit: String = "celsius"
 
-    /// Pins outlive this page: the router destroys `WeatherPage` on every
-    /// navigation, so the list is persisted to IndexedDB and rehydrated on
-    /// mount. `City.seeds` is just the first-ever-visit default.
+    /// Pins and the unit toggle outlive this page: the router destroys
+    /// `WeatherPage` on every navigation, so they're persisted to IndexedDB and
+    /// rehydrated on mount. `City.seeds` / "celsius" are just first-visit defaults.
     private let store = PersistentStore()
     private static let pinnedKey = "pinned-cities"
+    private static let unitKey = "weather-unit"
 
     var body: VNode {
         let results: QueryState<GeoSearchResponse>? =
@@ -111,13 +112,25 @@ final class WeatherPage {
         persist()
     }
 
+    /// Persist the unit toggle whenever it changes. `onChange(of:)` seeds
+    /// silently on the first call and fires only on a real change, so it never
+    /// clobbers the value `bootstrap()` rehydrates.
+    func onChange() {
+        onChange(of: unit, key: "unit") { newUnit in
+            Task { try? await self.store.save(newUnit, forKey: Self.unitKey) }
+        }
+    }
+
     // MARK: - Persistence + geolocation
 
-    /// Restore persisted pins (keeping `City.seeds` only on a first-ever visit),
-    /// then ask the browser for the current location and pin it first.
+    /// Restore persisted pins + unit (keeping the defaults only on a first-ever
+    /// visit), then ask the browser for the current location and pin it first.
     private func bootstrap() async {
         if let saved = try? await store.load([City].self, forKey: Self.pinnedKey) {
             pinned = saved
+        }
+        if let savedUnit = try? await store.load(String.self, forKey: Self.unitKey) {
+            unit = savedUnit
         }
         guard let fix = await Geolocation.currentPosition(),
               let here = try? await reverseGeocodedCity(latitude: fix.latitude, longitude: fix.longitude) else {
