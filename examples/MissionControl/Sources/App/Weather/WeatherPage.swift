@@ -12,6 +12,7 @@
 import Swiflow
 import SwiflowDOM
 import SwiflowQuery
+import SwiflowStore
 import SwiflowUI
 
 @MainActor @Component
@@ -20,6 +21,12 @@ final class WeatherPage {
     @State var debouncedText: String = ""
     @State var pinned: [City] = City.seeds
     @State var unit: String = "celsius"
+
+    /// Pins outlive this page: the router destroys `WeatherPage` on every
+    /// navigation, so the list is persisted to IndexedDB and rehydrated on
+    /// mount. `City.seeds` is just the first-ever-visit default.
+    private let store = PersistentStore()
+    private static let pinnedKey = "pinned-cities"
 
     var body: VNode {
         let results: QueryState<GeoSearchResponse>? =
@@ -85,6 +92,9 @@ final class WeatherPage {
             try? await Task.sleep(nanoseconds: 300_000_000)
             self.debouncedText = self.searchText
         }
+        // Runs once per mount (i.e. on every return to this page): rehydrate the
+        // saved pins, then refresh the geolocated first card.
+        .task { await self.bootstrap() }
     }
 
     func pin(_ city: City) {
@@ -93,9 +103,35 @@ final class WeatherPage {
         }
         searchText = ""
         debouncedText = ""
+        persist()
     }
 
     func unpin(_ city: City) {
         pinned.removeAll { $0.id == city.id }
+        persist()
+    }
+
+    // MARK: - Persistence + geolocation
+
+    /// Restore persisted pins (keeping `City.seeds` only on a first-ever visit),
+    /// then ask the browser for the current location and pin it first.
+    private func bootstrap() async {
+        if let saved = try? await store.load([City].self, forKey: Self.pinnedKey) {
+            pinned = saved
+        }
+        guard let fix = await Geolocation.currentPosition(),
+              let here = try? await reverseGeocodedCity(latitude: fix.latitude, longitude: fix.longitude) else {
+            return   // unavailable / denied / lookup failed → keep the list as-is
+        }
+        // Keep "current location" unique and first; replace any prior fix.
+        pinned.removeAll { $0.isCurrentLocation }
+        pinned.insert(here, at: 0)
+        persist()
+    }
+
+    /// Fire-and-forget save — `@State` mutations already repainted; persistence
+    /// trails behind without blocking the UI.
+    private func persist() {
+        Task { try? await store.save(pinned, forKey: Self.pinnedKey) }
     }
 }

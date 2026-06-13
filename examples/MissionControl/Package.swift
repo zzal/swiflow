@@ -27,6 +27,7 @@ let package = Package(
                 .product(name: "SwiflowRouter", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
                 .product(name: "SwiflowFetcher", package: "Swiflow"),
+                .product(name: "SwiflowStore", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
