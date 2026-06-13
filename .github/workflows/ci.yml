@@ -318,7 +318,11 @@ jobs:
     # PR-only: a full release WASM build is expensive and we only need
     # the gate when something is about to merge.
     if: github.event_name == 'pull_request'
+    # A job-level `permissions:` block replaces (not extends) the workflow
+    # default, so `contents: read` must be restated or `actions/checkout`
+    # gets a token that can't read the repo ("Repository not found").
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
