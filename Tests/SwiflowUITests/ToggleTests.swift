@@ -1,6 +1,7 @@
 // Tests/SwiflowUITests/ToggleTests.swift
+// Toggle is now a SWITCH (role=switch + track/thumb). The checkbox lives in CheckboxTests.
 import Testing
-@testable import Swiflow   // HandlerAmbient / HandlerRegistry for the .checked / .on(.blur) paths
+@testable import Swiflow
 @testable import SwiflowUI
 
 @MainActor private func el(_ node: VNode?) -> ElementData? {
@@ -8,10 +9,20 @@ import Testing
     return nil
 }
 
-// root div -> label row (child 0) -> the <input> among the label's children.
-@MainActor private func checkboxOf(_ root: VNode) -> ElementData? {
+@MainActor private func inputOf(_ root: VNode) -> ElementData? {
     guard let r = el(root), let labelEl = el(r.children.first) else { return nil }
     return labelEl.children.lazy.compactMap { el($0) }.first { $0.tag == "input" }
+}
+
+@MainActor private func rowOf(_ root: VNode) -> ElementData? { el(el(root)?.children.first) }
+
+@MainActor private func hasClass(_ root: VNode, _ cls: String) -> Bool {
+    guard let r = el(root) else { return false }
+    func walk(_ d: ElementData) -> Bool {
+        if d.attributes["class"]?.split(separator: " ").map(String.init).contains(cls) == true { return true }
+        return d.children.contains { el($0).map(walk) ?? false }
+    }
+    return walk(r)
 }
 
 @MainActor private func errorOf(_ root: VNode) -> ElementData? {
@@ -36,84 +47,72 @@ import Testing
     return body()
 }
 
-@Suite("Toggle")
+@Suite("Toggle (switch)")
 @MainActor
 struct ToggleTests {
     private let unused = Binding<Bool>(get: { false }, set: { _ in })
 
-    @Test("renders a checkbox row with label beside the control, no error by default") func rendersRow() {
-        let node = building { Toggle("Subscribe", isOn: unused) }
-        let root = el(node)!
-        #expect(root.tag == "div")
-        #expect(root.attributes["class"] == "sw-toggle")
-        #expect(el(root.children.first)!.attributes["class"] == "sw-toggle__row")
-        let box = checkboxOf(node)!
-        #expect(box.tag == "input")
-        #expect(box.attributes["type"] == "checkbox")
-        #expect(box.attributes["aria-invalid"] == "false")
-        #expect(allText(node).contains("Subscribe"))
+    @Test("renders a switch: role=switch checkbox + track/thumb, label beside") func rendersSwitch() {
+        let node = building { Toggle("Dark mode", isOn: unused) }
+        #expect(el(node)!.attributes["class"] == "sw-switch")
+        #expect(rowOf(node)!.attributes["class"] == "sw-switch__row")
+        let input = inputOf(node)!
+        #expect(input.attributes["type"] == "checkbox")
+        #expect(input.attributes["role"] == "switch")          // announced as a switch, not a checkbox
+        #expect(input.attributes["aria-invalid"] == "false")
+        #expect(hasClass(node, "sw-switch__track"))            // the visual track…
+        #expect(hasClass(node, "sw-switch__thumb"))            // …and the sliding thumb
+        #expect(allText(node).contains("Dark mode"))
         #expect(errorOf(node) == nil)
     }
 
-    @Test("checked binding reflects on render and writes back on change") func checkedBindingRoundTrips() {
-        let registry = HandlerRegistry()
-        HandlerAmbient.current = registry
-        defer { HandlerAmbient.current = nil }
-        var on = true
-        let binding = Binding<Bool>(get: { on }, set: { on = $0 })
-        let box = checkboxOf(Toggle("X", isOn: binding))!
-        if case .bool(let b)? = box.properties["checked"] { #expect(b == true) }
-        else { Issue.record("checked property not a bool") }
-        registry.dispatch(id: box.handlers["change"]!.id, event: EventInfo(type: "change", targetChecked: false))
-        #expect(on == false)
-    }
-
-    @Test("an error sets aria-invalid and renders a role=alert message") func errorChrome() {
-        let node = building { Toggle("Accept", isOn: unused, error: "You must accept") }
-        #expect(checkboxOf(node)!.attributes["aria-invalid"] == "true")
-        #expect(errorOf(node)!.attributes["role"] == "alert")
-        #expect(allText(node).contains("You must accept"))
-    }
-
-    @Test("disabled and required lower to the expected attributes + row modifier") func disabledAndRequired() {
-        let node = building { Toggle("X", isOn: unused, required: true, disabled: true) }
-        let box = checkboxOf(node)!
-        #expect(box.attributes["disabled"] == "")
-        #expect(box.attributes["aria-required"] == "true")
-        #expect(el(el(node)!.children.first)!.attributes["class"] == "sw-toggle__row sw-toggle__row--disabled")
-    }
-
-    @Test("caller attributes coexist with the binding (change still writes back)") func callerAttrsKeepBinding() {
+    @Test("checked binding reflects on render and writes back on change") func checkedRoundTrips() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
         defer { HandlerAmbient.current = nil }
         var on = false
         let binding = Binding<Bool>(get: { on }, set: { on = $0 })
-        let box = checkboxOf(Toggle("X", isOn: binding, .attr("name", "n")))!
-        #expect(box.attributes["name"] == "n")
-        registry.dispatch(id: box.handlers["change"]!.id, event: EventInfo(type: "change", targetChecked: true))
-        #expect(on == true)   // the binding's write-back survived alongside the caller attr
+        let input = inputOf(Toggle("X", isOn: binding))!
+        if case .bool(let b)? = input.properties["checked"] { #expect(b == false) }
+        else { Issue.record("checked property not a bool") }
+        registry.dispatch(id: input.handlers["change"]!.id, event: EventInfo(type: "change", targetChecked: true))
+        #expect(on == true)
     }
 
-    @Test("caller attributes and class land on the checkbox") func callerAttributesOnCheckbox() {
-        let box = checkboxOf(building { Toggle("X", isOn: unused, .attr("name", "subscribe"), .class("mine")) })!
-        #expect(box.attributes["name"] == "subscribe")
-        #expect(box.attributes["class"] == "mine")
+    @Test("an error sets aria-invalid and renders a role=alert message") func errorChrome() {
+        let node = building { Toggle("X", isOn: unused, error: "Required") }
+        #expect(inputOf(node)!.attributes["aria-invalid"] == "true")
+        #expect(errorOf(node)!.attributes["role"] == "alert")
+        #expect(allText(node).contains("Required"))
+    }
+
+    @Test("disabled and required lower to attributes + the row modifier") func disabledAndRequired() {
+        let node = building { Toggle("X", isOn: unused, required: true, disabled: true) }
+        let input = inputOf(node)!
+        #expect(input.attributes["disabled"] == "")
+        #expect(input.attributes["aria-required"] == "true")
+        #expect(rowOf(node)!.attributes["class"] == "sw-switch__row sw-switch__row--disabled")
+    }
+
+    @Test("caller attributes and class land on the input") func callerAttributes() {
+        let input = inputOf(building { Toggle("X", isOn: unused, .attr("name", "darkmode"), .class("mine")) })!
+        #expect(input.attributes["name"] == "darkmode")
+        #expect(input.attributes["class"] == "mine")
     }
 
     @Test("Field convenience renders the error when touched + invalid") func fieldConvenienceError() {
         var value = false
         var ctrl = FormController()
-        ctrl.touched.insert("terms")
+        ctrl.touched.insert("on")
         let vb = Binding<Bool>(get: { value }, set: { value = $0 })
         let cb = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
-        let field = Field("terms", vb, cb, .custom("Required") { $0 })   // valid only when true
-        let node = building { Toggle("Accept", field: field) }
-        #expect(checkboxOf(node)!.attributes["aria-invalid"] == "true")
+        let field = Field("on", vb, cb, .custom("Required") { $0 })   // valid only when true
+        let node = building { Toggle("X", field: field) }
+        #expect(inputOf(node)!.attributes["aria-invalid"] == "true")
         #expect(errorOf(node) != nil)
     }
 
-    @Test("Field convenience wires blur to markTouched") func fieldConvenienceBlurMarksTouched() {
+    @Test("Field convenience wires blur to markTouched") func fieldConvenienceBlur() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
         defer { HandlerAmbient.current = nil }
@@ -121,10 +120,19 @@ struct ToggleTests {
         var ctrl = FormController()
         let vb = Binding<Bool>(get: { value }, set: { value = $0 })
         let cb = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
-        let field = Field("terms", vb, cb, .custom("Required") { $0 })
-        let box = checkboxOf(Toggle("Accept", field: field))!
-        #expect(ctrl.touched.contains("terms") == false)
-        registry.dispatch(id: box.handlers["blur"]!.id, event: EventInfo(type: "blur"))
-        #expect(ctrl.touched.contains("terms"))
+        let field = Field("on", vb, cb, .custom("Required") { $0 })
+        let input = inputOf(Toggle("X", field: field))!
+        #expect(ctrl.touched.contains("on") == false)
+        registry.dispatch(id: input.handlers["blur"]!.id, event: EventInfo(type: "blur"))
+        #expect(ctrl.touched.contains("on"))
+    }
+
+    @Test("switch stylesheet is token-driven: track + thumb, accent when on") func stylesheet() {
+        let css = formControlsSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-switch__track"))
+        #expect(css.contains(".sw-switch__thumb"))
+        #expect(css.contains("input:checked + .sw-switch__track"))   // accent when on
+        #expect(css.contains("var(--sw-accent)"))
+        #expect(css.contains("var(--sw-duration)"))                  // slide honors reduced-motion
     }
 }

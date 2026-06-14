@@ -1,21 +1,21 @@
 // Sources/SwiflowUI/Toggle.swift
 import Swiflow
 
-/// A labelled checkbox. Stateless free function: a native `<input type="checkbox">`
-/// with the label BESIDE it — the `<label>` wraps both (implicit association, no
-/// id), styled via the shared `.sw-toggle` chrome. The native checkbox gives
-/// Space-to-toggle + role for free (native-leaning a11y); `accent-color` reads
-/// `--sw-accent` so the check honors the theme + media layers. An optional `error:`
-/// shows a `role="alert"` message and sets `aria-invalid` (e.g. a required
-/// "accept terms" box). Caller `Attribute...`/`.class` land on the `<input>` —
+/// A switch — for a binary **setting that takes effect immediately** (dark mode,
+/// notifications on/off). For *selection / confirmation* that's submitted with a
+/// form ("I accept the terms", multi-select), use ``Checkbox`` instead.
+///
+/// Stateless free function. Built on a native `<input type="checkbox">` with
+/// `role="switch"` (so it keeps Space-to-toggle, focus, and state natively but is
+/// announced as a switch), visually presented as a sliding track + thumb. The
+/// real input is visually hidden; the wrapping `<label>` makes the whole control
+/// clickable. Every value reads a `--sw-*` token (track `--sw-border`→`--sw-accent`,
+/// thumb `--sw-surface`, slide via `--sw-duration` so reduced-motion stops it), so
+/// the M2 media layers apply. Caller `Attribute...`/`.class` land on the `<input>` —
 /// don't pass `.checked`/`.on(.change)` (they'd overwrite the binding; use `isOn:`).
 ///
-/// Renders a plain `role=checkbox`, not `role=switch`: a switch would force us to
-/// manage `aria-checked` by hand and lose the native checkbox semantics. No `size:`
-/// axis — the `1.1em` box already scales with font size, unlike a padded text input.
-///
-///     Toggle("Subscribe to updates", isOn: $subscribed)
-///     Toggle("I accept the terms", field: termsField, required: true)
+///     Toggle("Dark mode", isOn: $isDark)
+///     Toggle("Email notifications", field: notifyField)
 @MainActor
 public func Toggle(
     _ label: String,
@@ -26,14 +26,12 @@ public func Toggle(
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
-    toggleControl(label: label, binding: isOn, error: error, required: required,
+    switchControl(label: label, binding: isOn, error: error, required: required,
                   disabled: disabled, attributes: attributes, onBlur: onBlur)
 }
 
-/// `Field`-integrated convenience (mirrors `TextField(field:)`): pulls the bound
-/// value, error display + `aria-invalid`, and blur→`markTouched` from a `Field`.
-/// `markTouched` fires on blur (not the toggle's own `change`) — consistent with
-/// TextField, and it keeps off the `change` key the binding's write-back owns.
+/// `Field`-integrated convenience (mirrors `TextField(field:)`): wires the bound
+/// value, error + `aria-invalid`, and blur→`markTouched`.
 @MainActor
 public func Toggle(
     _ label: String,
@@ -42,15 +40,12 @@ public func Toggle(
     disabled: Bool = false,
     _ attributes: Attribute...
 ) -> VNode {
-    toggleControl(label: label, binding: field.binding, error: field.error, required: required,
+    switchControl(label: label, binding: field.binding, error: field.error, required: required,
                   disabled: disabled, attributes: attributes, onBlur: { field.markTouched() })
 }
 
-/// Toggle's row layout (checkbox then label text). The chrome — input attribute
-/// assembly + error node — is shared with the other form controls; only the
-/// layout differs (see `FieldChrome.swift`).
 @MainActor
-private func toggleControl(
+private func switchControl(
     label labelText: String,
     binding: Binding<Bool>,
     error: String?,
@@ -63,19 +58,20 @@ private func toggleControl(
     installFieldStyles()
 
     let inputAttrs = controlInputAttributes(
-        [.attr("type", "checkbox"), .checked(binding)],
+        [.attr("type", "checkbox"), .attr("role", "switch"), .checked(binding)],
         error: error, required: required, disabled: disabled, onBlur: onBlur, caller: attributes
     )
 
-    // Dim the whole row when disabled via a Swift-computed modifier class rather
-    // than `:has(input:disabled)` — deterministic, no selector-support dependency.
-    let rowClass = disabled ? "sw-toggle__row sw-toggle__row--disabled" : "sw-toggle__row"
+    let rowClass = disabled ? "sw-switch__row sw-switch__row--disabled" : "sw-switch__row"
     var rootChildren: [VNode] = [
         element("label", attributes: [.class(rowClass)], children: [
             element("input", attributes: inputAttrs),
-            element("span", attributes: [.class("sw-toggle__label-text")], children: [text(labelText)]),
+            element("span", attributes: [.class("sw-switch__track")], children: [
+                element("span", attributes: [.class("sw-switch__thumb")]),
+            ]),
+            element("span", attributes: [.class("sw-switch__label-text")], children: [text(labelText)]),
         ]),
     ]
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-toggle")], children: rootChildren)
+    return element("div", attributes: [.class("sw-switch")], children: rootChildren)
 }
