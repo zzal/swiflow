@@ -14,6 +14,7 @@ struct ThemeTests {
         #expect(css.contains(":root"))
         #expect(css.contains("--sw-space-md"))
         #expect(css.contains("--sw-accent"))
+        #expect(css.contains("--sw-border"))        // border tokens consumed by Divider
         // :root must NOT be scoped (CSSSheet leaves it alone).
         #expect(!css.contains(".swiflow"))
     }

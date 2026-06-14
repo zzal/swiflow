@@ -20,6 +20,8 @@ public enum SwiflowUI {
           --sw-accent: light-dark(#3b82f6, #60a5fa);
           --sw-surface: light-dark(#ffffff, #1a1a1a);
           --sw-text: light-dark(#111111, #f5f5f5);
+          --sw-border: light-dark(#e5e7eb, #333333);
+          --sw-border-width: 1px;
         }
         """)
     }
