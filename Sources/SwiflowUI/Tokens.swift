@@ -40,7 +40,8 @@ public enum CrossAlign: Equatable {
 /// stays token-driven and reskinnable.
 public enum ControlSize: Equatable {
     case sm, md, lg
-    public var cssSuffix: String {
+    /// The `--<control>--<size>` modifier-class token (e.g. `sw-btn--sm`).
+    public var modifierClass: String {
         switch self {
         case .sm: return "sm"
         case .md: return "md"

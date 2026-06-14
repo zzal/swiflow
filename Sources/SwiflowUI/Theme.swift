@@ -58,6 +58,8 @@ public enum SwiflowUI {
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);
+          --sw-accent-hover: light-dark(#2563eb, #7cb0fb);
+          --sw-accent-active: light-dark(#1d4ed8, #93c1fc);
           --sw-accent-text: light-dark(#ffffff, #0b1220);
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);

@@ -8,7 +8,8 @@ import Swiflow
 /// (and respond to the media-feature layers) with no API change.
 public enum ButtonVariant: Equatable {
     case primary, secondary, ghost
-    public var cssSuffix: String {
+    /// The `sw-btn--<variant>` modifier-class token.
+    public var modifierClass: String {
         switch self {
         case .primary:   return "primary"
         case .secondary: return "secondary"
@@ -26,7 +27,12 @@ public enum ButtonVariant: Equatable {
 ///
 /// Caller `Attribute...` apply last (last-write-wins) so they can override
 /// `type` etc.; a caller `.class(_:)` is MERGED with the skin classes rather
-/// than clobbering them (see `splitClasses`).
+/// than clobbering them (see `splitClasses`). SwiflowUI reserves the `sw-` class
+/// prefix — don't author app CSS under it.
+///
+/// The label is a `String` for v1; `action` is deliberately a *labeled* trailing
+/// closure so a future `@ChildrenBuilder` label overload (icon + text) can take
+/// the unlabeled trailing-closure slot without breaking callers.
 ///
 ///     Button("Save") { store.save() }
 ///     Button("Delete", variant: .ghost, size: .sm, disabled: !canDelete) { delete() }
@@ -40,10 +46,10 @@ public func Button(
     action: @escaping @MainActor () -> Void
 ) -> VNode {
     ensureBaseStyles()
-    installButtonStyles()
+    installControlSheet(id: "sw-button", buttonStyleSheet)
 
     let (callerClasses, callerRest) = splitClasses(attributes)
-    let classValue = (["sw-btn", "sw-btn--\(variant.cssSuffix)", "sw-btn--\(size.cssSuffix)"]
+    let classValue = (["sw-btn", "sw-btn--\(variant.modifierClass)", "sw-btn--\(size.modifierClass)"]
         + callerClasses).joined(separator: " ")
 
     var attrs: [Attribute] = [.class(classValue), .attr("type", "button")]
@@ -70,6 +76,7 @@ let buttonStyleSheet: CSSSheet = css {
       border: var(--sw-border-width) solid transparent;
       border-radius: var(--sw-radius);
       font: inherit;
+      font-weight: 500;
       line-height: 1.2;
       cursor: pointer;
       transition: background-color var(--sw-duration) var(--sw-ease),
@@ -90,37 +97,25 @@ let buttonStyleSheet: CSSSheet = css {
     .sw-btn--md { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-btn--lg { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
 
-    /* variants */
+    /* variants — hover/active read dedicated tokens so they stay dark-mode-correct */
     .sw-btn--primary {
       background-color: var(--sw-accent);
       color: var(--sw-accent-text);
     }
-    .sw-btn--primary:hover:not(:disabled) {
-      background-color: color-mix(in oklab, var(--sw-accent) 88%, black);
-    }
+    .sw-btn--primary:hover:not(:disabled)  { background-color: var(--sw-accent-hover); }
+    .sw-btn--primary:active:not(:disabled) { background-color: var(--sw-accent-active); }
     .sw-btn--secondary {
       background-color: var(--sw-surface);
       color: var(--sw-text);
       border-color: var(--sw-border);
     }
-    .sw-btn--secondary:hover:not(:disabled) {
-      background-color: var(--sw-surface-2);
-    }
+    .sw-btn--secondary:hover:not(:disabled),
+    .sw-btn--secondary:active:not(:disabled) { background-color: var(--sw-surface-2); }
     .sw-btn--ghost {
       background-color: transparent;
       color: var(--sw-accent);
     }
-    .sw-btn--ghost:hover:not(:disabled) {
-      background-color: var(--sw-surface-2);
-    }
+    .sw-btn--ghost:hover:not(:disabled),
+    .sw-btn--ghost:active:not(:disabled) { background-color: var(--sw-surface-2); }
     """)
-}
-
-/// Injects `buttonStyleSheet` into `<head>` exactly once (per the
-/// `StyleInjectionRegistry` once-guard). Called by every `Button`.
-@MainActor
-func installButtonStyles() {
-    StyleInjectionRegistry.injectOnce(id: "sw-button") {
-        buttonStyleSheet.cssString(scopeClass: "")
-    }
 }

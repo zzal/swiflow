@@ -68,16 +68,35 @@ struct ButtonTests {
         #expect(b.attributes["type"] == "submit")
     }
 
+    @Test("multiple caller classes all merge; an empty class adds no stray separator") func mergesMultipleAndEmptyClasses() {
+        let b = elementOf(building { Button("X", .class("a"), .class(""), .class("b")) {} })!
+        #expect(b.attributes["class"] == "sw-btn sw-btn--primary sw-btn--md a b")
+    }
+
+    @Test("a class nested in a .compound is merged, not flattened last over the skin") func mergesCompoundClass() {
+        let b = elementOf(building { Button("X", .compound([.class("nested"), .id("go")])) {} })!
+        #expect(b.attributes["class"] == "sw-btn sw-btn--primary sw-btn--md nested")
+        #expect(b.attributes["id"] == "go")   // the compound's non-class part still applies
+    }
+
     @Test("button stylesheet reads tokens and defines interaction states") func stylesheetIsTokenDriven() {
         let css = buttonStyleSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-btn"))
         #expect(css.contains("var(--sw-accent)"))
-        #expect(css.contains("var(--sw-duration)"))     // transition honors reduced-motion
-        #expect(css.contains("var(--sw-focus-ring)"))   // focus ring honors prefers-contrast
+        #expect(css.contains("var(--sw-accent-hover)"))  // hover reads a token, not in-component color-mix
+        #expect(css.contains("var(--sw-duration)"))      // transition honors reduced-motion
+        #expect(css.contains("var(--sw-focus-ring)"))    // focus ring honors prefers-contrast
         #expect(css.contains("var(--sw-disabled-opacity)"))
         #expect(css.contains(":focus-visible"))
         #expect(css.contains(":disabled"))
+        #expect(css.contains(":hover:not(:disabled)"))
+        #expect(css.contains(":active:not(:disabled)"))  // press feedback (touch has no hover)
         #expect(css.contains(".sw-btn--primary"))
         #expect(css.contains(".sw-btn--ghost"))
+    }
+
+    @Test("button stylesheet has balanced braces (guards the hand-authored raw block)") func bracesBalanced() {
+        let css = buttonStyleSheet.cssString(scopeClass: "")
+        #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }
