@@ -26,6 +26,10 @@ const ROUTER_DEMO_PROJECT = join(ROUTER_DEMO_TMP, "demo");
 const SW_DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-sw-e2e-"));
 const SW_DEMO_PROJECT = join(SW_DEMO_TMP, "demo");
 
+// EdgeCases e2e: built IN-PLACE from examples/EdgeCases (no scaffold). The
+// edgecases.spec.ts file pins its own baseURL to :3003 (see that file).
+const EDGECASES_DIR = join(REPO_ROOT, "examples", "EdgeCases");
+
 // Build swiflow CLI if not present. execFileSync (no shell) so paths
 // don't need quoting and there's no shell-interpolation surface.
 if (!existsSync(SWIFLOW)) {
@@ -109,6 +113,15 @@ export default defineConfig({
       url: "http://127.0.0.1:3002",
       reuseExistingServer: false,
       timeout: 30_000,  // static server starts instantly; generous for CI
+    },
+    {
+      // EdgeCases built in-place via `swiflow dev` on :3003. edgecases.spec.ts
+      // pins its own baseURL to :3003, so it hits this server rather than the
+      // Counter app on :3000.
+      command: `'${SWIFLOW}' dev --path '${EDGECASES_DIR}' --port 3003`,
+      url: "http://127.0.0.1:3003",
+      reuseExistingServer: false,
+      timeout: 300_000,
     },
   ],
   projects: [
