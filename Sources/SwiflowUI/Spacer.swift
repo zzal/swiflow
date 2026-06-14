@@ -7,6 +7,9 @@ import Swiflow
 /// space equally. `minLength` sets the spacer's `flex-basis` — its size before
 /// it grows — using a `--sw-space-*` token (or raw length).
 ///
+/// Has no effect outside a flex container (a grid cell, block flow, or the
+/// document root): the expansion relies entirely on `flex-grow`.
+///
 /// No `aria-*` is added: an empty `<div>` carries no semantics, so per the
 /// native-leaning a11y baseline there's nothing to annotate.
 @MainActor

@@ -7,6 +7,10 @@ import Swiflow
 /// `.template` passes a raw `grid-template-columns` value through untouched.
 /// Integer and string literals map to `.count` / `.template`, so callers write
 /// `Grid(columns: 3)` or `Grid(columns: "1fr 2fr")` directly.
+///
+/// The string path is raw: only the integer/`.count` form gets the
+/// `minmax(0, 1fr)` safety floor. `Grid(columns: "3")` emits an invalid
+/// `grid-template-columns: 3` — use `Grid(columns: 3)` for an N-column grid.
 public enum GridColumns: Equatable, ExpressibleByIntegerLiteral, ExpressibleByStringLiteral {
     case count(Int)
     case template(String)

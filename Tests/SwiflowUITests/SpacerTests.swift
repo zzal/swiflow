@@ -39,4 +39,8 @@ struct SpacerTests {
         #expect(data.attributes["class"] == "push")
         #expect(data.style["flex-grow"] == "1")
     }
+
+    @Test("Caller style wins over the spacer's flex-grow (last-write-wins)") func callerStyleDefeatsGrow() {
+        #expect(styleOf(Spacer(.style("flex-grow", "0")))["flex-grow"] == "0")
+    }
 }
