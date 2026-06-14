@@ -12,6 +12,9 @@ on:
       - 'docs/**'
       - 'LICENSE'
   pull_request:
+    # `labeled` is included so that adding the `run-e2e` label triggers a run
+    # for the otherwise-skipped Playwright E2E job (see its `if:` gate).
+    types: [opened, synchronize, reopened, labeled]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -242,9 +245,10 @@ jobs:
   playwright-e2e:
     name: Playwright E2E
     runs-on: ubuntu-22.04
-    # PR-only: Playwright + Chromium binaries + a full WASM build is
-    # expensive; gate behind the merge boundary.
-    if: github.event_name == 'pull_request'
+    # Opt-in: Playwright + Chromium + a full WASM build is expensive and burns
+    # CI minutes, so this runs only on PRs carrying the `run-e2e` label. Add the
+    # label to trigger it (the `labeled` trigger above re-runs the workflow).
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v4
 
@@ -318,7 +322,11 @@ jobs:
     # PR-only: a full release WASM build is expensive and we only need
     # the gate when something is about to merge.
     if: github.event_name == 'pull_request'
+    # A job-level `permissions:` block replaces (not extends) the workflow
+    # default, so `contents: read` must be restated or `actions/checkout`
+    # gets a token that can't read the repo ("Repository not found").
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
@@ -348,6 +356,17 @@ jobs:
               https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
               --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
           fi
+
+      - name: Install binaryen (wasm-opt) for release wasm optimisation
+        # `swiflow build` (via the PackageToJS plugin) only runs wasm-opt when
+        # it's on PATH; without it the release wasm ships unoptimised (~2x its
+        # opt size), so the gate would measure the wrong artifact against an
+        # optimised baseline. Pinned for deterministic output.
+        run: |
+          BINARYEN=version_130
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN}/binaryen-${BINARYEN}-x86_64-linux.tar.gz" | tar -xz
+          echo "$PWD/binaryen-${BINARYEN}/bin" >> "$GITHUB_PATH"
+          "$PWD/binaryen-${BINARYEN}/bin/wasm-opt" --version
 
       - name: Measure Counter bundle
         run: scripts/measure-bundle.sh

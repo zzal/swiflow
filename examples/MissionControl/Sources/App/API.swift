@@ -22,6 +22,10 @@ enum API {
     static let geocoding = HTTPClient(baseURL: "https://geocoding-api.open-meteo.com")
     static let forecast = HTTPClient(baseURL: "https://api.open-meteo.com")
     static let usgs = HTTPClient(baseURL: "https://earthquake.usgs.gov")
+    /// Open-Meteo's geocoder is forward-only (name → coords); BigDataCloud's
+    /// `reverse-geocode-client` is the keyless, CORS-open reverse of that, used
+    /// to label the browser-geolocated "current location" pin with a real place.
+    static let reverseGeocoding = HTTPClient(baseURL: "https://api.bigdatacloud.net")
 }
 
 /// Wall-clock epoch milliseconds via JS `Date.now()` — Foundation's `Date`
@@ -46,7 +50,9 @@ struct GeoSearchResponse: Decodable, Equatable, Sendable {
     let results: [City]?
 }
 
-struct City: Decodable, Equatable, Hashable, Sendable {
+// `Codable` (not just `Decodable`): the pinned list is persisted to IndexedDB
+// via `SwiflowStore`, which encodes it back out.
+struct City: Codable, Equatable, Hashable, Sendable {
     let id: Int
     let name: String
     let latitude: Double
@@ -58,6 +64,38 @@ struct City: Decodable, Equatable, Hashable, Sendable {
     var fullName: String {
         [name, admin1, country].compactMap(\.self).joined(separator: ", ")
     }
+
+    /// Sentinel id for the geolocated "current location" pin, so it can be
+    /// recognised, replaced with a fresh fix, and kept first in the list.
+    static let currentLocationID = -1
+    var isCurrentLocation: Bool { id == City.currentLocationID }
+}
+
+// MARK: - BigDataCloud reverse geocoding
+// GET /data/reverse-geocode-client?latitude=…&longitude=…&localityLanguage=en
+// {"city":"Montreal","locality":"Ville-Marie","principalSubdivision":"Quebec",
+//  "countryName":"Canada", …} — fields can be empty strings when unknown.
+
+struct ReverseGeocodeResponse: Decodable, Equatable, Sendable {
+    let city: String?
+    let locality: String?
+    let principalSubdivision: String?
+    let countryName: String?
+}
+
+/// Resolve a coordinate to a labelled `City` (sentinel `currentLocationID`) for
+/// the geolocated pin. Falls back to "Current location" when the reverse
+/// geocoder returns no usable place name.
+func reverseGeocodedCity(latitude: Double, longitude: Double) async throws -> City {
+    let place: ReverseGeocodeResponse = try await API.reverseGeocoding.get(
+        "/data/reverse-geocode-client?latitude=\(latitude)&longitude=\(longitude)&localityLanguage=en"
+    )
+    let name = [place.city, place.locality]
+        .compactMap(\.self)
+        .first(where: { !$0.isEmpty }) ?? "Current location"
+    return City(id: City.currentLocationID, name: name,
+                latitude: latitude, longitude: longitude,
+                country: place.countryName, admin1: place.principalSubdivision)
 }
 
 // MARK: - Open-Meteo forecast

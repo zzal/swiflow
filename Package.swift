@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
         .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
         .library(name: "SwiflowFetcher", targets: ["SwiflowFetcher"]),
+        .library(name: "SwiflowStore", targets: ["SwiflowStore"]),
         .library(name: "SwiflowUI", targets: ["SwiflowUI"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
@@ -112,6 +113,22 @@ let package = Package(
             path: "Sources/SwiflowFetcher",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Browser-persistence primitive: an async key/value store over
+        // IndexedDB. The `PersistentStore` is WASM-only (behind
+        // `#if canImport(JavaScriptKit)`); the `JSONValueEncoder` — the encode
+        // counterpart to JavaScriptKit's `JSValueDecoder`, which JavaScriptKit
+        // doesn't ship — is pure Swift and host-tested. Reuses SwiflowFetcher's
+        // `JSONValue`/`.jsonString` for the wire format.
+        .target(
+            name: "SwiflowStore",
+            dependencies: [
+                "SwiflowFetcher",
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
+            ],
+            path: "Sources/SwiflowStore",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .target(
             name: "SwiflowUI",
             dependencies: [
@@ -161,6 +178,12 @@ let package = Package(
             name: "SwiflowFetcherTests",
             dependencies: ["SwiflowFetcher"],
             path: "Tests/SwiflowFetcherTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SwiflowStoreTests",
+            dependencies: ["SwiflowStore"],
+            path: "Tests/SwiflowStoreTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

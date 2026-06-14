@@ -1858,6 +1858,7 @@ let package = Package(
                 .product(name: "SwiflowRouter", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
                 .product(name: "SwiflowFetcher", package: "Swiflow"),
+                .product(name: "SwiflowStore", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -1944,6 +1945,10 @@ enum API {
     static let geocoding = HTTPClient(baseURL: "https://geocoding-api.open-meteo.com")
     static let forecast = HTTPClient(baseURL: "https://api.open-meteo.com")
     static let usgs = HTTPClient(baseURL: "https://earthquake.usgs.gov")
+    /// Open-Meteo's geocoder is forward-only (name → coords); BigDataCloud's
+    /// `reverse-geocode-client` is the keyless, CORS-open reverse of that, used
+    /// to label the browser-geolocated "current location" pin with a real place.
+    static let reverseGeocoding = HTTPClient(baseURL: "https://api.bigdatacloud.net")
 }
 
 /// Wall-clock epoch milliseconds via JS `Date.now()` — Foundation's `Date`
@@ -1968,7 +1973,9 @@ struct GeoSearchResponse: Decodable, Equatable, Sendable {
     let results: [City]?
 }
 
-struct City: Decodable, Equatable, Hashable, Sendable {
+// `Codable` (not just `Decodable`): the pinned list is persisted to IndexedDB
+// via `SwiflowStore`, which encodes it back out.
+struct City: Codable, Equatable, Hashable, Sendable {
     let id: Int
     let name: String
     let latitude: Double
@@ -1980,6 +1987,38 @@ struct City: Decodable, Equatable, Hashable, Sendable {
     var fullName: String {
         [name, admin1, country].compactMap(\.self).joined(separator: ", ")
     }
+
+    /// Sentinel id for the geolocated "current location" pin, so it can be
+    /// recognised, replaced with a fresh fix, and kept first in the list.
+    static let currentLocationID = -1
+    var isCurrentLocation: Bool { id == City.currentLocationID }
+}
+
+// MARK: - BigDataCloud reverse geocoding
+// GET /data/reverse-geocode-client?latitude=…&longitude=…&localityLanguage=en
+// {"city":"Montreal","locality":"Ville-Marie","principalSubdivision":"Quebec",
+//  "countryName":"Canada", …} — fields can be empty strings when unknown.
+
+struct ReverseGeocodeResponse: Decodable, Equatable, Sendable {
+    let city: String?
+    let locality: String?
+    let principalSubdivision: String?
+    let countryName: String?
+}
+
+/// Resolve a coordinate to a labelled `City` (sentinel `currentLocationID`) for
+/// the geolocated pin. Falls back to "Current location" when the reverse
+/// geocoder returns no usable place name.
+func reverseGeocodedCity(latitude: Double, longitude: Double) async throws -> City {
+    let place: ReverseGeocodeResponse = try await API.reverseGeocoding.get(
+        "/data/reverse-geocode-client?latitude=\(latitude)&longitude=\(longitude)&localityLanguage=en"
+    )
+    let name = [place.city, place.locality]
+        .compactMap(\.self)
+        .first(where: { !$0.isEmpty }) ?? "Current location"
+    return City(id: City.currentLocationID, name: name,
+                latitude: latitude, longitude: longitude,
+                country: place.countryName, admin1: place.principalSubdivision)
 }
 
 // MARK: - Open-Meteo forecast
@@ -2325,6 +2364,7 @@ extension QuakesPage {
 import Swiflow
 import SwiflowDOM
 import SwiflowQuery
+import SwiflowStore
 import SwiflowUI
 
 @MainActor @Component
@@ -2333,6 +2373,13 @@ final class QuakesPage {
     @State var window: String = "day"
     /// Wall-clock anchor for relative timestamps, ticked by the bare `.task`.
     @State var nowMs: Double = 0
+
+    /// The filter selections outlive this page (the router recreates it on every
+    /// navigation), so they're persisted to IndexedDB and rehydrated on mount —
+    /// the @State values above are just first-visit defaults.
+    private let store = PersistentStore()
+    private static let magnitudeKey = "quakes-magnitude"
+    private static let windowKey = "quakes-window"
 
     var body: VNode {
         let feed = query(QuakeFeedQuery(magnitude: magnitude, window: window))
@@ -2391,6 +2438,26 @@ final class QuakesPage {
                 self.nowMs = epochNowMs()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
+        }
+        // Rehydrate the saved filter selections on mount.
+        .task { await self.hydrate() }
+    }
+
+    private func hydrate() async {
+        if let m = try? await store.load(String.self, forKey: Self.magnitudeKey) { magnitude = m }
+        if let w = try? await store.load(String.self, forKey: Self.windowKey) { window = w }
+    }
+
+    /// Persist each filter when it changes. `onChange(of:)` seeds silently on the
+    /// first call and fires only on a real change, so neither write clobbers the
+    /// value `hydrate()` restores. Distinct `key:`s — the default `#function`
+    /// would collide between the two calls.
+    func onChange() {
+        onChange(of: magnitude, key: "magnitude") { m in
+            Task { try? await self.store.save(m, forKey: Self.magnitudeKey) }
+        }
+        onChange(of: window, key: "window") { w in
+            Task { try? await self.store.save(w, forKey: Self.windowKey) }
         }
     }
 }
@@ -2508,6 +2575,68 @@ final class CityCard {
 }
 
 """##,
+                "Sources/App/Weather/Geolocation.swift": ##"""
+// Sources/App/Weather/Geolocation.swift
+//
+// A one-shot bridge to the browser's `navigator.geolocation`. This is a browser
+// API (not persistence), so it stays in the example rather than the framework.
+// It mirrors Swiflow's JS-interop discipline: retain the callback `JSClosure`s
+// until one fires, and fail soft — a denied permission or missing API resolves
+// to `nil` so the caller just keeps its existing pins.
+
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
+
+enum Geolocation {
+    /// Ask the browser for the current position once. Resolves to `nil` if
+    /// geolocation is unavailable or the user denies/errors out.
+    @MainActor
+    static func currentPosition() async -> (latitude: Double, longitude: Double)? {
+        #if canImport(JavaScriptKit)
+        await withCheckedContinuation { (continuation: CheckedContinuation<(latitude: Double, longitude: Double)?, Never>) in
+            guard let geolocation = JSObject.global.navigator.object?.geolocation.object else {
+                continuation.resume(returning: nil)
+                return
+            }
+
+            // Retain the handlers across this synchronous setup via a retainer ↔
+            // closures cycle; the first to fire breaks it (see SwiflowStore's
+            // PersistentStore for the same pattern).
+            let retainer = ClosureRetainer()
+            let onSuccess = JSClosure { args in
+                retainer.closures = []
+                guard let position = args.first,
+                      let lat = position.coords.latitude.number,
+                      let lon = position.coords.longitude.number else {
+                    continuation.resume(returning: nil)
+                    return .undefined
+                }
+                continuation.resume(returning: (lat, lon))
+                return .undefined
+            }
+            let onError = JSClosure { _ in
+                retainer.closures = []
+                continuation.resume(returning: nil)
+                return .undefined
+            }
+            retainer.closures = [onSuccess, onError]
+
+            _ = geolocation.getCurrentPosition!(JSValue.object(onSuccess), JSValue.object(onError))
+        }
+        #else
+        return nil
+        #endif
+    }
+}
+
+#if canImport(JavaScriptKit)
+private final class ClosureRetainer {
+    var closures: [JSClosure] = []
+}
+#endif
+
+"""##,
                 "Sources/App/Weather/WeatherPage+Styles.swift": ##"""
 // Sources/App/Weather/WeatherPage+Styles.swift
 import Swiflow
@@ -2602,6 +2731,7 @@ extension WeatherPage {
 import Swiflow
 import SwiflowDOM
 import SwiflowQuery
+import SwiflowStore
 import SwiflowUI
 
 @MainActor @Component
@@ -2610,6 +2740,13 @@ final class WeatherPage {
     @State var debouncedText: String = ""
     @State var pinned: [City] = City.seeds
     @State var unit: String = "celsius"
+
+    /// Pins and the unit toggle outlive this page: the router destroys
+    /// `WeatherPage` on every navigation, so they're persisted to IndexedDB and
+    /// rehydrated on mount. `City.seeds` / "celsius" are just first-visit defaults.
+    private let store = PersistentStore()
+    private static let pinnedKey = "pinned-cities"
+    private static let unitKey = "weather-unit"
 
     var body: VNode {
         let results: QueryState<GeoSearchResponse>? =
@@ -2675,6 +2812,9 @@ final class WeatherPage {
             try? await Task.sleep(nanoseconds: 300_000_000)
             self.debouncedText = self.searchText
         }
+        // Runs once per mount (i.e. on every return to this page): rehydrate the
+        // saved pins, then refresh the geolocated first card.
+        .task { await self.bootstrap() }
     }
 
     func pin(_ city: City) {
@@ -2683,10 +2823,48 @@ final class WeatherPage {
         }
         searchText = ""
         debouncedText = ""
+        persist()
     }
 
     func unpin(_ city: City) {
         pinned.removeAll { $0.id == city.id }
+        persist()
+    }
+
+    /// Persist the unit toggle whenever it changes. `onChange(of:)` seeds
+    /// silently on the first call and fires only on a real change, so it never
+    /// clobbers the value `bootstrap()` rehydrates.
+    func onChange() {
+        onChange(of: unit, key: "unit") { newUnit in
+            Task { try? await self.store.save(newUnit, forKey: Self.unitKey) }
+        }
+    }
+
+    // MARK: - Persistence + geolocation
+
+    /// Restore persisted pins + unit (keeping the defaults only on a first-ever
+    /// visit), then ask the browser for the current location and pin it first.
+    private func bootstrap() async {
+        if let saved = try? await store.load([City].self, forKey: Self.pinnedKey) {
+            pinned = saved
+        }
+        if let savedUnit = try? await store.load(String.self, forKey: Self.unitKey) {
+            unit = savedUnit
+        }
+        guard let fix = await Geolocation.currentPosition(),
+              let here = try? await reverseGeocodedCity(latitude: fix.latitude, longitude: fix.longitude) else {
+            return   // unavailable / denied / lookup failed → keep the list as-is
+        }
+        // Keep "current location" unique and first; replace any prior fix.
+        pinned.removeAll { $0.isCurrentLocation }
+        pinned.insert(here, at: 0)
+        persist()
+    }
+
+    /// Fire-and-forget save — `@State` mutations already repainted; persistence
+    /// trails behind without blocking the UI.
+    private func persist() {
+        Task { try? await store.save(pinned, forKey: Self.pinnedKey) }
     }
 }
 
