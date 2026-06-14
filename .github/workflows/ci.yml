@@ -12,6 +12,9 @@ on:
       - 'docs/**'
       - 'LICENSE'
   pull_request:
+    # `labeled` is included so that adding the `run-e2e` label triggers a run
+    # for the otherwise-skipped Playwright E2E job (see its `if:` gate).
+    types: [opened, synchronize, reopened, labeled]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -242,9 +245,10 @@ jobs:
   playwright-e2e:
     name: Playwright E2E
     runs-on: ubuntu-22.04
-    # PR-only: Playwright + Chromium binaries + a full WASM build is
-    # expensive; gate behind the merge boundary.
-    if: github.event_name == 'pull_request'
+    # Opt-in: Playwright + Chromium + a full WASM build is expensive and burns
+    # CI minutes, so this runs only on PRs carrying the `run-e2e` label. Add the
+    # label to trigger it (the `labeled` trigger above re-runs the workflow).
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v4
 
