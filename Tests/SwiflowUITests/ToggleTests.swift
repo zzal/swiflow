@@ -127,12 +127,20 @@ struct ToggleTests {
         #expect(ctrl.touched.contains("on"))
     }
 
-    @Test("switch stylesheet is token-driven: track + thumb, accent when on") func stylesheet() {
+    @Test("the input is the immediate previous sibling of the track (adjacency the CSS needs)") func inputPrecedesTrack() {
+        let row = rowOf(building { Toggle("X", isOn: unused) })!
+        let kids = row.children.compactMap { el($0) }
+        let i = kids.firstIndex { $0.tag == "input" }!
+        #expect(kids[i + 1].attributes["class"] == "sw-switch__track")   // `:checked + .track` depends on this
+    }
+
+    @Test("switch stylesheet is token-driven: track + thumb, accent when on, visible focus") func stylesheet() {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-switch__track"))
         #expect(css.contains(".sw-switch__thumb"))
-        #expect(css.contains("input:checked + .sw-switch__track"))   // accent when on
+        #expect(css.contains("input:checked + .sw-switch__track"))            // accent when on
+        #expect(css.contains("input:focus-visible + .sw-switch__track"))      // focus ring moved to the track
         #expect(css.contains("var(--sw-accent)"))
-        #expect(css.contains("var(--sw-duration)"))                  // slide honors reduced-motion
+        #expect(css.contains("var(--sw-duration)"))                           // slide honors reduced-motion
     }
 }
