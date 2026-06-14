@@ -1,14 +1,17 @@
 // tests/playwright/playwright.config.ts
 //
 // Default config — runs ALL specs against ALL servers (CI uses this).
-// Counter (:3000) + MiniRouter (:3001) dev servers, plus the release SW demo
-// served statically on :3002.
+// Counter (:3000) + MiniRouter (:3001) dev servers, the release SW demo served
+// statically on :3002, and EdgeCases built in-place on :3003.
 //
-// Demo projects are scaffolded + persisted by `prepareDemo()` (see harness.ts):
-// each lives under .e2e-cache/<key>/demo and reuses its .build between runs.
-// Set SWIFLOW_E2E_CLEAN=1 (or `npm run test:clean`) to force fresh cold builds.
+// Counter/router/sw demos are scaffolded + persisted by `prepareDemo()` (see
+// harness.ts): each lives under .e2e-cache/<key>/demo and reuses its .build
+// between runs. Set SWIFLOW_E2E_CLEAN=1 (or `npm run test:clean`) to force fresh
+// cold builds. EdgeCases builds in-place from examples/EdgeCases (no scaffold);
+// edgecases.spec.ts pins its own baseURL to :3003.
 import { defineConfig } from "@playwright/test";
-import { SWIFLOW, prepareDemo } from "./harness";
+import { join } from "node:path";
+import { SWIFLOW, REPO_ROOT, prepareDemo } from "./harness";
 
 const DEMO_PROJECT = prepareDemo({ key: "counter" });
 const ROUTER_DEMO_PROJECT = prepareDemo({ key: "router", template: "MiniRouter" });
@@ -16,6 +19,10 @@ const ROUTER_DEMO_PROJECT = prepareDemo({ key: "router", template: "MiniRouter" 
 // to avoid fighting HMR), so the SW demo is built with `swiflow build`. The
 // build writes swiflow-manifest.json to the project root, where the SW resolves it.
 const SW_DEMO_PROJECT = prepareDemo({ key: "sw", release: true });
+
+// EdgeCases e2e: built IN-PLACE from examples/EdgeCases (no scaffold). The
+// edgecases.spec.ts file pins its own baseURL to :3003 (see that file).
+const EDGECASES_DIR = join(REPO_ROOT, "examples", "EdgeCases");
 
 export default defineConfig({
   testDir: ".",
@@ -51,6 +58,15 @@ export default defineConfig({
       url: "http://127.0.0.1:3002",
       reuseExistingServer: false,
       timeout: 30_000,  // static server starts instantly; generous for CI
+    },
+    {
+      // EdgeCases built in-place via `swiflow dev` on :3003. edgecases.spec.ts
+      // pins its own baseURL to :3003, so it hits this server rather than the
+      // Counter app on :3000.
+      command: `'${SWIFLOW}' dev --path '${EDGECASES_DIR}' --port 3003`,
+      url: "http://127.0.0.1:3003",
+      reuseExistingServer: false,
+      timeout: 300_000,
     },
   ],
   projects: [
