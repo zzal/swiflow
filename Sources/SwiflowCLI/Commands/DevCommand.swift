@@ -34,6 +34,15 @@ struct DevCommand: AsyncParsableCommand {
     )
     var swiftSDK: String?
 
+    @Flag(
+        name: .customLong("experimental-compile-cache"),
+        help: ArgumentHelp(
+            "Experimental: share a module cache across projects to speed cold builds.",
+            visibility: .hidden
+        )
+    )
+    var experimentalCompileCache: Bool = false
+
     func run() async throws {
         let runner = SystemProcessRunner()
 
@@ -87,6 +96,19 @@ struct DevCommand: AsyncParsableCommand {
             ? nil
             : MacToolchainProbe.swiftLatestBundleIdentifier()
 
+        // 3.5 Experimental opt-in: resolve a shared module-cache directory. Wired
+        //     into the initial build + the per-save full-build fallback; the fast
+        //     bypass rebuilder replays its own captured commands and is already
+        //     near-instant, so it doesn't need it.
+        let compileCacheDir = CompileCache.directory(
+            flagEnabled: experimentalCompileCache,
+            environment: ProcessInfo.processInfo.environment
+        )
+        if let compileCacheDir {
+            try? FileManager.default.createDirectory(at: compileCacheDir, withIntermediateDirectories: true)
+            print("swiflow: experimental compile cache → \(compileCacheDir.path)")
+        }
+
         // 4. Initial build. Failures here exit non-zero (Phase 2c
         //    decision §6 — nothing to serve if the first build fails).
         let invocation = BuildInvocation(
@@ -94,7 +116,8 @@ struct DevCommand: AsyncParsableCommand {
             projectPath: projectURL,
             swiftSDK: sdk,
             toolchainBundleID: toolchainBundleID,
-            configuration: .dev
+            configuration: .dev,
+            compileCacheDir: compileCacheDir
         )
         print("swiflow: initial build (dev configuration)...")
         do {

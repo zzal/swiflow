@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:clean": "SWIFLOW_E2E_CLEAN=1 playwright test",
     "test:counter": "playwright test --config=playwright.counter.config.ts",
     "test:edgecases": "playwright test --config=playwright.edgecases.config.ts",
     "test:router": "playwright test --config=playwright.router.config.ts",

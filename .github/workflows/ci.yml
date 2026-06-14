@@ -306,6 +306,12 @@ jobs:
 
       - name: Run Playwright e2e
         working-directory: Tests/playwright
+        # CI keeps the clean-room guarantee: SWIFLOW_E2E_CLEAN forces the harness
+        # to re-scaffold every demo from scratch rather than reuse a persisted
+        # .e2e-cache (which CI doesn't cache anyway). The .build cache restored
+        # above still warms compilation.
+        env:
+          SWIFLOW_E2E_CLEAN: "1"
         run: npm test
 
       - name: Upload Playwright trace on failure
