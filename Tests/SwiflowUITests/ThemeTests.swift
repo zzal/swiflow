@@ -1,5 +1,6 @@
 // Tests/SwiflowUITests/ThemeTests.swift
 import Testing
+import Foundation
 import Swiflow
 @testable import SwiflowUI
 
@@ -14,7 +15,8 @@ struct ThemeTests {
     @Test("Base stylesheet defines :root tokens and leaves :root unscoped") func baseSheetContainsRootTokens() {
         let css = sheet
         #expect(css.contains(":root"))
-        #expect(css.contains("color-scheme: light dark"))   // enables light-dark() responsiveness
+        // Load-bearing for both light-dark() AND native form-control dark rendering (M4).
+        #expect(css.contains("color-scheme: light dark"))
         #expect(css.contains("--sw-space-md"))
         #expect(css.contains("--sw-accent"))
         #expect(css.contains("--sw-border"))
@@ -26,8 +28,9 @@ struct ThemeTests {
         let css = sheet
         for token in [
             "--sw-radius-sm", "--sw-surface-2", "--sw-text-muted", "--sw-accent-text",
-            "--sw-danger", "--sw-success", "--sw-transition", "--sw-anim-duration",
-            "--sw-overlay-bg", "--sw-backdrop-blur",
+            "--sw-danger", "--sw-success", "--sw-duration", "--sw-ease", "--sw-anim-play",
+            "--sw-focus-ring", "--sw-focus-ring-width", "--sw-disabled-opacity",
+            "--sw-overlay-bg", "--sw-backdrop",
         ] {
             #expect(css.contains(token), "missing token \(token)")
         }
@@ -39,18 +42,46 @@ struct ThemeTests {
         #expect(css.contains("@media (prefers-reduced-motion: reduce)"))
         #expect(css.contains("@media (prefers-reduced-transparency: reduce)"))
         #expect(css.contains("@media (color-gamut: p3)"))
+        #expect(css.contains("@supports (color: color(display-p3 0 0 0))"))  // p3 syntax gate
     }
 
-    @Test("Reduced-motion layer collapses the motion tokens") func reducedMotionRepoints() {
+    @Test("Reduced-motion layer collapses duration and pauses animation") func reducedMotionRepoints() {
         let css = sheet
-        #expect(css.contains("--sw-transition: none"))
-        #expect(css.contains("--sw-anim-duration: 0s"))
+        #expect(css.contains("--sw-duration: 0s"))
+        #expect(css.contains("--sw-anim-play: paused"))
     }
 
     @Test("Contrast layer thickens the border and color-gamut upgrades to display-p3") func contrastAndGamutRepoints() {
         let css = sheet
         #expect(css.contains("--sw-border-width: 2px"))   // prefers-contrast: more
         #expect(css.contains("color(display-p3"))         // color-gamut: p3
+    }
+
+    @Test("Override layers are emitted after the base :root so they win the cascade") func overridesComeAfterBase() {
+        let css = sheet
+        let base = css.range(of: "--sw-border-width: 1px")
+        let override = css.range(of: "@media (prefers-contrast: more)")
+        #expect(base != nil && override != nil)
+        if let base, let override { #expect(base.lowerBound < override.lowerBound) }
+    }
+
+    @Test("The reduced-motion layer re-points only motion tokens (no cross-clobber)") func reducedMotionLayerIsolated() {
+        // Each chunk after splitting on the at-rule keyword is one block's body.
+        let block = sheet.components(separatedBy: "@media").first { $0.contains("prefers-reduced-motion") }
+        #expect(block != nil)
+        if let block {
+            #expect(block.contains("--sw-duration: 0s"))
+            #expect(block.contains("--sw-anim-play: paused"))
+            // Non-motion tokens must not appear in this layer.
+            #expect(!block.contains("--sw-accent"))
+            #expect(!block.contains("--sw-border-width"))
+            #expect(!block.contains("--sw-overlay-bg"))
+        }
+    }
+
+    @Test("The raw sheet has balanced braces (guards against truncation/merge)") func bracesBalanced() {
+        let css = sheet
+        #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 
     @Test("installBaseStyles emits the base sheet once even when called twice") func installBaseStylesEmitsOnce() {

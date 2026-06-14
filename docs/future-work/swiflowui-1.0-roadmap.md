@@ -56,12 +56,12 @@ Token layers (base values at `:root`; each media block overrides only the affect
 |---------------|---------------------|--------|
 | `light-dark()` / `prefers-color-scheme` | `--sw-surface`, `--sw-text`, `--sw-accent`, … | light/dark palettes (already in v0) |
 | `prefers-contrast: more` | text/border/accent colors, `--sw-border-width` | stronger contrast, heavier borders |
-| `prefers-reduced-motion: reduce` | `--sw-transition`, `--sw-anim-duration` → `0s`/`none` | components & overlays drop animation automatically |
-| `prefers-reduced-transparency: reduce` | `--sw-overlay-bg`, `--sw-backdrop-blur` → opaque/none | toasts & dialog backdrops become solid |
+| `prefers-reduced-motion: reduce` | `--sw-duration` → `0s`, `--sw-anim-play` → `paused` | transitions collapse & animations pause |
+| `prefers-reduced-transparency: reduce` | `--sw-overlay-bg` opaque, `--sw-backdrop` → `none` | toasts & dialog backdrops become solid |
 | `color-gamut: p3` | color tokens → `color(display-p3 …)` (sRGB fallback at `:root`) | richer color on capable displays |
 
 Consequences for the component set: `Alert`/`Prompt`/`Toast` reference
-`--sw-transition`/`--sw-overlay-bg`, so they honor reduced-motion / reduced-transparency with
+`--sw-duration`/`--sw-overlay-bg`, so they honor reduced-motion / reduced-transparency with
 zero per-component code; `Button`/`Card`/`Badge` re-skin entirely through these tokens. This
 is why **M2 (theming foundation) precedes every skinned component.**
 
@@ -126,7 +126,7 @@ milestone is independently shippable and gets its own brainstorm → plan → im
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
 - **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);
-  these read `--sw-transition`/`--sw-overlay-bg`, so reduced-motion/transparency just work.
+  these read `--sw-duration`/`--sw-overlay-bg`, so reduced-motion/transparency just work.
   Optionally land the small `EventInfo`-target-identity enabler here for click-outside.
 - **M7 — 1.0 cut:** theming polish (token audit, dark-mode + media-feature pass), expand
   `examples/SwiflowUIDemo` into a component gallery, README/styling-guide docs, version tag.
