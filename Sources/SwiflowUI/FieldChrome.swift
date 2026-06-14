@@ -114,6 +114,51 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--md input, .sw-field--md select, .sw-field--md textarea { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
 
+    /* --- Select: skinnable native <select> --- */
+    /* Fallback (all browsers): strip native chrome, draw a chevron. The base
+       rules above already give border/radius/surface/padding/focus/disabled. */
+    .sw-field select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right var(--sw-space-md) center;
+      background-size: 1em;
+      padding-right: calc(var(--sw-space-md) * 2 + 1em);
+    }
+    /* Modern (Customizable Select, 2024+): style the control AND its dropdown
+       picker, fully token-driven. Gated on @supports so older browsers keep the
+       fallback above (and the native, unstyled option popup). */
+    @supports (appearance: base-select) {
+      .sw-field select,
+      .sw-field ::picker(select) { appearance: base-select; }
+      .sw-field select {
+        background-image: none;            /* base-select supplies ::picker-icon */
+        padding-right: var(--sw-space-md);
+      }
+      .sw-field select::picker-icon {
+        color: var(--sw-text-muted);
+        transition: transform var(--sw-duration) var(--sw-ease);
+      }
+      .sw-field select:open::picker-icon { transform: rotate(180deg); }
+      .sw-field ::picker(select) {
+        background-color: var(--sw-surface);
+        border: var(--sw-border-width) solid var(--sw-border);
+        border-radius: var(--sw-radius);
+        padding: var(--sw-space-xs);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+      }
+      .sw-field option {
+        display: flex;
+        align-items: center;
+        gap: var(--sw-space-sm);
+        padding: var(--sw-space-sm) var(--sw-space-md);
+        border-radius: var(--sw-radius-sm);
+      }
+      .sw-field option:hover { background-color: var(--sw-surface-2); }
+      .sw-field option:checked { color: var(--sw-accent); }
+      .sw-field option::checkmark { color: var(--sw-accent); }
+    }
+
     /* --- Toggle: checkbox with the label BESIDE it --- */
     .sw-toggle { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
     .sw-toggle__row {

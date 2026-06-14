@@ -3325,6 +3325,7 @@ final class Demo {
     @State var name: String = ""
     @State var email: String = ""
     @State var subscribed: Bool = false
+    @State var color: String = ""
     @State var ctrl: FormController = FormController()
 
     var body: VNode {
@@ -3395,6 +3396,7 @@ final class Demo {
             VStack(spacing: .md, align: .stretch) {
                 TextField("Name", text: $name, placeholder: "Ada Lovelace")
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+                Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
                 Toggle("Subscribe to updates", isOn: $subscribed)
             }
             if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
