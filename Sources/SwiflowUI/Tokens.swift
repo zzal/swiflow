@@ -34,6 +34,21 @@ public enum CrossAlign: Equatable {
     }
 }
 
+/// Control sizing scale, shared across skinned controls (`Button` now, the M4
+/// form controls next). Maps to a `--<control>--<size>` modifier class; the
+/// concrete padding / font-size live in each control's stylesheet, so sizing
+/// stays token-driven and reskinnable.
+public enum ControlSize: Equatable {
+    case sm, md, lg
+    public var cssSuffix: String {
+        switch self {
+        case .sm: return "sm"
+        case .md: return "md"
+        case .lg: return "lg"
+        }
+    }
+}
+
 /// Main-axis distribution → `justify-content`.
 public enum MainAlign: Equatable {
     case start, center, end, between, around, evenly
