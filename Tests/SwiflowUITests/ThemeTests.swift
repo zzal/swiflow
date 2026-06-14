@@ -30,7 +30,7 @@ struct ThemeTests {
             "--sw-radius-sm", "--sw-surface-2", "--sw-text-muted", "--sw-accent-text",
             "--sw-danger", "--sw-success", "--sw-duration", "--sw-ease", "--sw-anim-play",
             "--sw-focus-ring", "--sw-focus-ring-width", "--sw-disabled-opacity",
-            "--sw-overlay-bg", "--sw-backdrop",
+            "--sw-overlay-bg", "--sw-backdrop", "--sw-accent-hover", "--sw-accent-active",
         ] {
             #expect(css.contains(token), "missing token \(token)")
         }

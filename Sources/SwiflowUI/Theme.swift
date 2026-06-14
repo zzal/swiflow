@@ -30,8 +30,10 @@ public enum SwiflowUI {
     ///
     /// Authored as one raw `:root` sheet because `:root`/`@media` must stay
     /// unscoped and raw CSS is the clearest representation of an unscoped token
-    /// contract. RAW IS ONLY FOR `:root` — scoped component sheets (M3+) must use
-    /// the `rule(_:)`/`media(_:)` builders so their rules get the scope class.
+    /// contract. RAW IS FOR UNSCOPED CSS ONLY — `:root` here, and the global
+    /// `.sw-*` utility-class sheets that stateless skinned controls inject (e.g.
+    /// `buttonStyleSheet`). Per-instance *scoped* component styles must use the
+    /// `rule(_:)`/`media(_:)` builders so their rules get the scope class.
     public static let baseStyleSheet: CSSSheet = css {
         raw("""
         :root {
@@ -56,6 +58,8 @@ public enum SwiflowUI {
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);
+          --sw-accent-hover: light-dark(#2563eb, #7cb0fb);
+          --sw-accent-active: light-dark(#1d4ed8, #93c1fc);
           --sw-accent-text: light-dark(#ffffff, #0b1220);
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);

@@ -70,12 +70,16 @@ is why **M2 (theming foundation) precedes every skinned component.**
 ## The 1.0 component set
 
 Conventions (consistent with the existing codebase):
-- **Stateless layout → free functions** returning `VNode` (matches `VStack`/`HStack`).
-- **Stateful controls & overlays → `@Component` classes** (matches `SwiflowRouter`'s `Link`).
-- **Styling:** each skinned component injects a token-only `scopedStyles` sheet via the
-  existing `installBaseStyles()` once-guard pattern (`Sources/SwiflowUI/Theme.swift`); every
-  color/space/radius reads a `--sw-*` var so apps re-skin via tokens or `#css` with no API
-  change. New tokens (e.g. `--sw-text-muted`, control padding scale) extend `baseStyleSheet`.
+- **Stateless components → free functions** returning `VNode` (matches `VStack`/`HStack`).
+  This covers layout *and* the controls (Button, the M4 form controls): they wrap native
+  elements + a `Binding` and hold no internal state, so native semantics (checkbox/radio/
+  select keyboard + roving focus) come for free.
+- **Only genuinely stateful components → `@Component` classes** (the overlays' queue/open
+  state; matches `SwiflowRouter`'s `Link`).
+- **Styling:** stateless controls inject a global, token-only `.sw-*` utility-class sheet once
+  via `installControlSheet(id:_:)` (raw CSS — the classes are unscoped); `@Component`s use
+  `scopedStyles` (auto-scoped to `.swiflow-<Type>`). Every color/space/radius reads a `--sw-*`
+  var so apps re-skin via tokens or `#css` with no API change.
 - **Data:** reuse existing `Binding<T>` two-way bindings (`Sources/Swiflow/DSL/EventModifiers.swift`)
   and `Form`/`Validator` (`Sources/Swiflow/Forms/Form.swift`) — no new state machinery.
 
@@ -86,10 +90,10 @@ Conventions (consistent with the existing codebase):
 | `Divider` | free fn | `<hr>`/styled rule | `role=separator` (native `<hr>`) | none |
 | `ZStack` | free fn | absolute/grid overlap | n/a | none |
 | `Button` | free fn / modifier | `<button>` | native button semantics | none |
-| `TextField` | `@Component` | `<input>`+`<label>` | label assoc, `aria-invalid` on error | none |
-| `Toggle` | `@Component` | `<input type=checkbox>` | native; optional switch role | none |
-| `Select` | `@Component` | `<select>` | native listbox semantics | none |
-| `RadioGroup` | `@Component` | `<input type=radio>` set | `role=radiogroup` + roving focus | none |
+| `TextField` | free fn | `<label>`-wrapped `<input>` | implicit label assoc, `aria-invalid` + `role=alert` error | none |
+| `Toggle` | free fn | `<label>`-wrapped `<input type=checkbox>` | native checkbox semantics | none |
+| `Select` | free fn | `<select>` | native listbox semantics | none |
+| `RadioGroup` | free fn | `<input type=radio>` name-group | native roving focus (shared `name`) | none |
 | `Spinner`/`ProgressView` | free fn | CSS animation / `<progress>` | `role=status`/`aria-busy` | none |
 | `Card` | free fn | styled surface div | n/a | none |
 | `Badge`/`Tag` | free fn | styled span | n/a | none |
@@ -120,9 +124,19 @@ milestone is independently shippable and gets its own brainstorm → plan → im
   skinned component follows. Load-bearing — see "Theming foundation" above.
 - **M3 — Button + skinned-control pattern:** `Button` (variant/size via tokens) as the first
   consumer of M2, proving the re-skin-via-token and override story end to end.
-- **M4 — Form controls:** `TextField`, `Toggle`, `Select`, `RadioGroup` — built on
-  `Binding`/`Form`, native elements, label association, `aria-invalid`/roving focus where
-  needed. Retires MissionControl's hand-rolled fields.
+- **M4 — Form controls:** `TextField`, `Toggle`, `Select`, `RadioGroup` — **stateless free
+  functions** wrapping native elements + a `Binding`, plus a `Field`-integrated convenience
+  that auto-wires error display + `aria-invalid` + blur→`markTouched`. Native elements give
+  roving focus/keyboard for free. Retires the hand-rolled `SignIn`/MissionControl fields.
+  (Done milestone-internally: `TextField` first to set the field-chrome pattern, then the rest.
+  Chrome-factoring is deferred to the **Toggle** step — TextField's `.sw-field` uses a column
+  layout that fits TextField/Select but NOT Toggle (label *beside* checkbox) or RadioGroup
+  (`<fieldset>`/`<legend>`); extract a layout-neutral "label + error + aria" helper + shared
+  input/error/size CSS once Toggle is the second consumer, rather than abstracting on one.
+  DONE at Toggle: `FieldChrome.swift` (`controlInputAttributes`, `fieldErrorNode`, `formControlsSheet`).
+  DONE at RadioGroup: the group/per-control split — `fieldGroupAttributes` puts group aria on the
+  `<fieldset>`, per-option radios get a simple assembly + a derived `Binding<Bool>`. **M4 COMPLETE**:
+  all four controls shipped (TextField/Toggle/Select/RadioGroup), each its own reviewed sub-step.)
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
 - **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);
