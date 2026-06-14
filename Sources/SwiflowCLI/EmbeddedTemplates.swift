@@ -3322,9 +3322,15 @@ import SwiflowUI
 
 @MainActor @Component
 final class Demo {
+    @State var name: String = ""
+    @State var email: String = ""
+    @State var ctrl: FormController = FormController()
+
     var body: VNode {
-        VStack(spacing: .lg, align: .stretch) {
-            h1("SwiflowUI — primitives & buttons")
+        let emailField = Field("email", $email, $ctrl, .required(), .email)
+
+        return VStack(spacing: .lg, align: .stretch) {
+            h1("SwiflowUI — primitives, buttons & forms")
 
             // --- Stacks --------------------------------------------------
             h2("Stacks")
@@ -3380,6 +3386,18 @@ final class Demo {
             p("Variants and sizes are skinned entirely by --sw-* tokens. Toggle your "
               + "system dark mode / increased contrast / reduced motion to see the "
               + "@media token layers re-skin them with no code change.")
+
+            Divider()
+
+            // --- Form controls -------------------------------------------
+            h2("Form controls")
+            VStack(spacing: .md, align: .stretch) {
+                TextField("Name", text: $name, placeholder: "Ada Lovelace")
+                TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+            }
+            if !name.isEmpty { p("Hello, \(name)!") }
+            p("TextField binds to @State. The email field uses Field(...) + validators — "
+              + "blur it empty (or with bad input) to see the role=alert error and aria-invalid.")
         }
         .padding(.xl)
     }
