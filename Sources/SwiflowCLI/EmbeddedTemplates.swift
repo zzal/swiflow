@@ -3324,6 +3324,7 @@ import SwiflowUI
 final class Demo {
     @State var name: String = ""
     @State var email: String = ""
+    @State var subscribed: Bool = false
     @State var ctrl: FormController = FormController()
 
     var body: VNode {
@@ -3394,8 +3395,9 @@ final class Demo {
             VStack(spacing: .md, align: .stretch) {
                 TextField("Name", text: $name, placeholder: "Ada Lovelace")
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+                Toggle("Subscribe to updates", isOn: $subscribed)
             }
-            if !name.isEmpty { p("Hello, \(name)!") }
+            if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
             p("TextField binds to @State. The email field uses Field(...) + validators — "
               + "blur it empty (or with bad input) to see the role=alert error and aria-invalid.")
         }

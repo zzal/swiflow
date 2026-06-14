@@ -87,24 +87,12 @@ private func fieldControl(
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
     ensureBaseStyles()
-    installControlSheet(id: "sw-field", fieldStyleSheet)
+    installFieldStyles()
 
-    let (callerClasses, callerRest) = splitClasses(attributes)
-
-    var inputAttrs: [Attribute] = [
-        .attr("type", type.attributeValue),
-        .value(binding),
-        .attr("aria-invalid", error != nil ? "true" : "false"),
-    ]
-    if required { inputAttrs.append(.attr("aria-required", "true")) }  // a11y signal only; native `required` would fire its own validation
-    if !placeholder.isEmpty { inputAttrs.append(.attr("placeholder", placeholder)) }
-    if disabled { inputAttrs.append(.attr("disabled", true)) }
-    if let onBlur { inputAttrs.append(.on(.blur, perform: onBlur)) }
-    if !callerClasses.isEmpty { inputAttrs.append(.class(callerClasses.joined(separator: " "))) }
-    // Caller wins on the input for plain attrs (type override, name, autocomplete…).
-    // Do NOT pass `.value`/`.on(.input)` — they'd overwrite the binding's handler;
-    // drive the value through `text:`/`field:` instead.
-    inputAttrs += callerRest
+    var base: [Attribute] = [.attr("type", type.attributeValue), .value(binding)]
+    if !placeholder.isEmpty { base.append(.attr("placeholder", placeholder)) }
+    let inputAttrs = controlInputAttributes(base, error: error, required: required,
+                                            disabled: disabled, onBlur: onBlur, caller: attributes)
 
     var rootChildren: [VNode] = [
         element("label", attributes: [.class("sw-field__label")], children: [
@@ -112,76 +100,7 @@ private func fieldControl(
             element("input", attributes: inputAttrs),
         ]),
     ]
-    if let error {
-        rootChildren.append(
-            element("p", attributes: [.class("sw-field__error"), .attr("role", "alert")],
-                    children: [text(error)])
-        )
-    }
+    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
     return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
                    children: rootChildren)
-}
-
-/// The shared global `.sw-field` stylesheet for the form controls (TextField now;
-/// Select/Toggle/RadioGroup reuse the input/select base + error chrome). Injected
-/// once; every value reads a `--sw-*` token so it reskins and honors the media
-/// layers (reduced-motion via `--sw-duration`, contrast via `--sw-focus-ring`/
-/// `--sw-border-width`, dark via `light-dark()`).
-let fieldStyleSheet: CSSSheet = css {
-    raw("""
-    .sw-field {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-space-xs);
-    }
-    .sw-field__label {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sw-space-xs);
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--sw-text);
-    }
-    .sw-field input,
-    .sw-field select,
-    .sw-field textarea {
-      font: inherit;
-      width: 100%;
-      box-sizing: border-box;
-      padding: var(--sw-space-sm) var(--sw-space-md);   /* fallback; the size modifier overrides */
-      border: var(--sw-border-width) solid var(--sw-border);
-      border-radius: var(--sw-radius);
-      background-color: var(--sw-surface);
-      color: var(--sw-text);
-      transition: border-color var(--sw-duration) var(--sw-ease);
-    }
-    .sw-field input:focus-visible,
-    .sw-field select:focus-visible,
-    .sw-field textarea:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
-      border-color: var(--sw-focus-ring);
-    }
-    .sw-field input:disabled,
-    .sw-field select:disabled,
-    .sw-field textarea:disabled {
-      opacity: var(--sw-disabled-opacity);
-      cursor: not-allowed;
-    }
-    .sw-field input[aria-invalid="true"],
-    .sw-field select[aria-invalid="true"],
-    .sw-field textarea[aria-invalid="true"] {
-      border-color: var(--sw-danger);
-    }
-    .sw-field__error {
-      margin: 0;
-      font-size: 0.8125rem;
-      color: var(--sw-danger);
-    }
-
-    /* sizes (padding + font come from the size modifier, not the base rule) */
-    .sw-field--sm input, .sw-field--sm select, .sw-field--sm textarea { padding: var(--sw-space-xs) var(--sw-space-sm); font-size: 0.875rem; }
-    .sw-field--md input, .sw-field--md select, .sw-field--md textarea { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
-    .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
-    """)
 }
