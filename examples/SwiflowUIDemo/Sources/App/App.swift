@@ -10,10 +10,12 @@ final class Demo {
     @State var color: String = ""
     @State var plan: String = "Free"
     @State var isDark: Bool = false
+    @State var accepted: Bool = false
     @State var ctrl: FormController = FormController()
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
+        let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
 
         return VStack(spacing: .lg, align: .stretch) {
             // A Toggle wired to `color-scheme` re-themes the whole demo: every
@@ -88,11 +90,13 @@ final class Demo {
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
                 Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
                 RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
-                Toggle("Subscribe to updates", isOn: $subscribed)
+                Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
+                Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
             }
             if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
-            p("TextField binds to @State. The email field uses Field(...) + validators — "
-              + "blur it empty (or with bad input) to see the role=alert error and aria-invalid.")
+            p("Toggle is a switch (an immediate setting — like Dark mode, top-right); Checkbox is for "
+              + "confirmation. The email + terms fields use Field(...) + validators — interact then blur "
+              + "to see the role=alert error and aria-invalid.")
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
