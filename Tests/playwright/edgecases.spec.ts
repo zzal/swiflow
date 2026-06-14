@@ -23,6 +23,13 @@ async function expectSurvived(input: Locator, value: string, tag: string) {
 }
 
 test.describe("EdgeCases reconciliation traps", () => {
+  // Pin these specs to the dedicated EdgeCases dev server. Without this, the
+  // default playwright.config.ts (global baseURL :3000) runs them against the
+  // Counter app and every getByTestId times out. Mirrors router.spec.ts's
+  // per-file baseURL override; harmless under playwright.edgecases.config.ts
+  // (whose global baseURL is already :3003).
+  test.use({ baseURL: "http://127.0.0.1:3003" });
+
   test("trap1: conditional before sentinel — node identity + value survive toggle", async ({ page }) => {
     await page.goto("/");
     const input = await seedSentinel(page, "trap1-input", "hello", "t1");
