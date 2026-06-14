@@ -134,10 +134,9 @@ milestone is independently shippable and gets its own brainstorm → plan → im
   (`<fieldset>`/`<legend>`); extract a layout-neutral "label + error + aria" helper + shared
   input/error/size CSS once Toggle is the second consumer, rather than abstracting on one.
   DONE at Toggle: `FieldChrome.swift` (`controlInputAttributes`, `fieldErrorNode`, `formControlsSheet`).
-  Next deferral: `controlInputAttributes` bundles group-level aria (invalid/required) with the
-  per-control input — fine for the 3 single-input controls, but **RadioGroup** needs group-level
-  aria/error on a `<fieldset>`/`<legend>` + per-option assembly on each radio. Split the helper
-  (per-control vs `fieldGroupAttributes`) when **RadioGroup** is the consumer, not before.)
+  DONE at RadioGroup: the group/per-control split — `fieldGroupAttributes` puts group aria on the
+  `<fieldset>`, per-option radios get a simple assembly + a derived `Binding<Bool>`. **M4 COMPLETE**:
+  all four controls shipped (TextField/Toggle/Select/RadioGroup), each its own reviewed sub-step.)
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
 - **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);

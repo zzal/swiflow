@@ -49,6 +49,29 @@ func fieldErrorNode(_ error: String?) -> VNode? {
                    children: [text(error)])
 }
 
+/// Group-level attributes for a fieldset-based control (RadioGroup): the merged
+/// root class, the GROUP's `aria-invalid`/`aria-required`, and native `disabled`
+/// (a disabled `<fieldset>` disables every control inside it). The per-OPTION
+/// radios get their own simple assembly — group aria lives here, on the fieldset,
+/// not on each radio. The group analog of `controlInputAttributes`: single-input
+/// controls put aria on their one input; a group puts it on the fieldset.
+@MainActor
+func fieldGroupAttributes(
+    _ baseClasses: [String],
+    error: String?,
+    required: Bool,
+    disabled: Bool,
+    caller: [Attribute]
+) -> [Attribute] {
+    let (callerClasses, callerRest) = splitClasses(caller)
+    var attrs: [Attribute] = [.class((baseClasses + callerClasses).joined(separator: " "))]
+    attrs.append(.attr("aria-invalid", error != nil ? "true" : "false"))
+    if required { attrs.append(.attr("aria-required", "true")) }
+    if disabled { attrs.append(.attr("disabled", true)) }   // native <fieldset disabled> cascades
+    attrs += callerRest
+    return attrs
+}
+
 /// Injects the shared form-controls stylesheet once (idempotent once-guard).
 @MainActor
 func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsSheet) }
@@ -185,6 +208,49 @@ let formControlsSheet: CSSSheet = css {
       outline-offset: 2px;
     }
     .sw-toggle__row--disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: not-allowed;
+    }
+
+    /* --- RadioGroup: <fieldset>/<legend> + native radios (shared name = roving focus) --- */
+    .sw-radio {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-space-xs);
+      border: none;            /* reset the native fieldset chrome */
+      margin: 0;
+      padding: 0;
+      min-width: 0;
+    }
+    .sw-radio__legend {
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--sw-text);
+      margin-bottom: var(--sw-space-xs);
+    }
+    .sw-radio__option {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--sw-space-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    .sw-radio input[type="radio"] {
+      flex: none;
+      width: 1.1em;
+      height: 1.1em;
+      accent-color: var(--sw-accent);
+      cursor: pointer;
+    }
+    .sw-radio input:focus-visible {
+      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
+      outline-offset: 2px;
+    }
+    /* The group has no single input to mark, so signal the error on the legend. */
+    .sw-radio[aria-invalid="true"] .sw-radio__legend { color: var(--sw-danger); }
+    .sw-radio:disabled .sw-radio__option {
       opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }

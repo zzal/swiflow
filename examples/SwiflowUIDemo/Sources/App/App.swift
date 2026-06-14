@@ -8,6 +8,7 @@ final class Demo {
     @State var email: String = ""
     @State var subscribed: Bool = false
     @State var color: String = ""
+    @State var plan: String = "Free"
     @State var ctrl: FormController = FormController()
 
     var body: VNode {
@@ -79,6 +80,7 @@ final class Demo {
                 TextField("Name", text: $name, placeholder: "Ada Lovelace")
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
                 Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+                RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
                 Toggle("Subscribe to updates", isOn: $subscribed)
             }
             if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
