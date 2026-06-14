@@ -1,9 +1,9 @@
 // Tests/playwright/playwright.counter.config.ts
 //
-// Counter-only Playwright config. Runs ONLY counter.spec.ts against ONLY
-// the Counter dev server on :3000 — skips the MiniRouter (:3001) dev
-// server and the SW release demo (:3002). Use this for fast local
-// iteration on the Counter / `@State` / HMR happy path.
+// Counter-only Playwright config. Runs ONLY counter.spec.ts +
+// devtools-api.spec.ts against ONLY the Counter dev server on :3000 — skips the
+// MiniRouter (:3001) dev server and the SW release demo (:3002). Use this for
+// fast local iteration on the Counter / `@State` / HMR happy path.
 //
 //     npm run test:counter
 //     # or directly:
@@ -12,40 +12,14 @@
 // CI continues to use the default playwright.config.ts, which runs ALL
 // servers and ALL specs.
 //
-// The Counter demo setup (scaffold via `swiflow init`) is intentionally
-// duplicated from playwright.config.ts rather than extracted to a shared
-// module: Playwright eagerly evaluates config files at load time, so
-// sharing setup via module import introduces hoist-ordering and side-
-// effect-on-import concerns that aren't worth ~20 lines of avoided
-// duplication. Mirror playwright.sw.config.ts's split decision.
+// Demo scaffolding/persistence lives in harness.ts (a side-effect-free module
+// whose `prepareDemo()` runs at the same point the inline setup used to). The
+// demo persists under .e2e-cache/counter/demo across runs; SWIFLOW_E2E_CLEAN=1
+// forces a fresh cold build.
 import { defineConfig } from "@playwright/test";
-import { mkdtempSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { SWIFLOW, prepareDemo } from "./harness";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "..", "..");
-const SWIFLOW = join(REPO_ROOT, ".build", "release", "swiflow");
-
-const DEMO_TMP = mkdtempSync(join(tmpdir(), "swiflow-e2e-"));
-const DEMO_PROJECT = join(DEMO_TMP, "demo");
-
-if (!existsSync(SWIFLOW)) {
-  console.log("Building swiflow CLI (release) for the e2e harness...");
-  execFileSync(
-    "swift",
-    ["build", "-c", "release", "--product", "swiflow"],
-    { cwd: REPO_ROOT, stdio: "inherit" }
-  );
-}
-
-execFileSync(
-  SWIFLOW,
-  ["init", "demo", "--path", DEMO_TMP, "--swiflow-source", REPO_ROOT],
-  { stdio: "inherit" }
-);
+const DEMO_PROJECT = prepareDemo({ key: "counter" });
 
 export default defineConfig({
   testDir: ".",

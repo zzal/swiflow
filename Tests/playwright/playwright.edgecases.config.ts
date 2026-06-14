@@ -2,23 +2,15 @@
 //
 // Builds examples/EdgeCases IN-PLACE (swiflow dev --path …) on :3003 — no
 // `swiflow init` scaffold, so the e2e tests the real example source directly.
-// Mirrors playwright.counter.config.ts's release-CLI-build guard.
+// The example's own examples/EdgeCases/.build already persists between runs, so
+// there's no .e2e-cache demo here; we just reuse the shared CLI guard.
 import { defineConfig } from "@playwright/test";
-import { existsSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { SWIFLOW, REPO_ROOT, ensureCli } from "./harness";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "..", "..");
-const SWIFLOW = join(REPO_ROOT, ".build", "release", "swiflow");
 const EXAMPLE_DIR = join(REPO_ROOT, "examples", "EdgeCases");
 
-if (!existsSync(SWIFLOW)) {
-  console.log("Building swiflow CLI (release) for the e2e harness...");
-  execFileSync("swift", ["build", "-c", "release", "--product", "swiflow"],
-    { cwd: REPO_ROOT, stdio: "inherit" });
-}
+ensureCli();
 
 export default defineConfig({
   testDir: ".",

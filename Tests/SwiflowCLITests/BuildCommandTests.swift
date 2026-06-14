@@ -246,6 +246,65 @@ struct BuildCommandArgvTests {
         #expect(stub.calls[0].arguments.contains("release"))
         #expect(!stub.calls[0].arguments.contains("-g"))
     }
+
+    // MARK: - Experimental compile cache (opt-in, off by default)
+
+    @Test("No compile cache by default — argv omits -module-cache-path")
+    func noCompileCacheByDefault() {
+        let args = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil
+            // compileCacheDir omitted — defaults to nil (off).
+        ).composeArguments()
+        #expect(!args.contains("-module-cache-path"))
+    }
+
+    @Test("compileCacheDir threads -module-cache-path as an -Xswiftc pair before `js`")
+    func compileCacheThreadsModuleCachePath() {
+        let args = BuildInvocation(
+            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
+            projectPath: URL(fileURLWithPath: "/tmp/demo"),
+            swiftSDK: "swift-6.3-RELEASE_wasm",
+            toolchainBundleID: nil,
+            configuration: .dev,
+            compileCacheDir: URL(fileURLWithPath: "/shared/mc")
+        ).composeArguments()
+
+        let idx = args.firstIndex(of: "-module-cache-path")
+        #expect(idx != nil)
+        if let idx {
+            // -Xswiftc -module-cache-path -Xswiftc /shared/mc, all before `js`.
+            #expect(args[idx - 1] == "-Xswiftc")
+            #expect(args[idx + 1] == "-Xswiftc")
+            #expect(args[idx + 2] == "/shared/mc")
+            let jsIdx = args.firstIndex(of: "js")!
+            #expect(idx < jsIdx)
+        }
+    }
+
+    @Test("CompileCache.directory: off unless flag or env opts in")
+    func compileCacheResolutionOff() {
+        #expect(CompileCache.directory(flagEnabled: false, environment: [:]) == nil)
+        #expect(CompileCache.directory(flagEnabled: false, environment: ["SWIFLOW_COMPILE_CACHE": ""]) == nil)
+        #expect(CompileCache.directory(flagEnabled: false, environment: ["SWIFLOW_COMPILE_CACHE": "0"]) == nil)
+    }
+
+    @Test("CompileCache.directory: flag enables the default location")
+    func compileCacheResolutionFlag() {
+        let dir = CompileCache.directory(flagEnabled: true, environment: [:])
+        #expect(dir?.path.hasSuffix(".swiflow/module-cache") == true)
+    }
+
+    @Test("CompileCache.directory: env '1' enables; absolute env path overrides location")
+    func compileCacheResolutionEnv() {
+        let enabled = CompileCache.directory(flagEnabled: false, environment: ["SWIFLOW_COMPILE_CACHE": "1"])
+        #expect(enabled?.path.hasSuffix(".swiflow/module-cache") == true)
+
+        let custom = CompileCache.directory(flagEnabled: false, environment: ["SWIFLOW_COMPILE_CACHE": "/custom/mc"])
+        #expect(custom?.path == "/custom/mc")
+    }
 }
 
 // MARK: - End-to-end (gated on WASM SDK presence)

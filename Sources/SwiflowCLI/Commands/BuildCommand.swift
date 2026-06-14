@@ -60,6 +60,38 @@ enum BuildConfiguration: Equatable {
     case dev
 }
 
+/// Experimental, opt-in cross-project compile caching (OFF by default).
+///
+/// Wires `-Xswiftc -module-cache-path <shared>` so compiled Clang/explicit
+/// module artifacts (.pcm) are reused across separate projects' fresh `.build`
+/// dirs. Measured ~29% faster on a cold cross-project WASM build (reproducible
+/// under reversed A/B ordering). It only reuses intermediate modules, so it adds
+/// no new output divergence — note the WASM build is already not bit-reproducible
+/// build-to-build even without the cache (verified by a same-flags control).
+///
+/// CAS (`-cache-compile-job` / `-enable-cas`) was evaluated and does NOT work on
+/// the `swift package js` (PackageToJS) plugin path in Swift 6.3.2: it requires
+/// explicit module builds the plugin doesn't enable ("`-cache-compile-job`
+/// cannot be used without explicit module build"). Only the module cache is wired.
+enum CompileCache {
+    /// Resolve the shared module-cache directory when enabled, else `nil` (off).
+    ///
+    /// Enabled by the `--experimental-compile-cache` flag OR a non-empty,
+    /// non-"0" `SWIFLOW_COMPILE_CACHE` env var. When that env var is an absolute
+    /// path it overrides the default location (`~/.swiflow/module-cache`).
+    static func directory(flagEnabled: Bool, environment: [String: String]) -> URL? {
+        let envValue = environment["SWIFLOW_COMPILE_CACHE"]
+        let envEnables = envValue.map { !$0.isEmpty && $0 != "0" } ?? false
+        guard flagEnabled || envEnables else { return nil }
+
+        if let envValue, envValue.hasPrefix("/") {
+            return URL(fileURLWithPath: envValue, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".swiflow/module-cache", isDirectory: true)
+    }
+}
+
 /// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
 struct BuildInvocation: Sendable {
     let swiftExecutable: URL
@@ -67,19 +99,24 @@ struct BuildInvocation: Sendable {
     let swiftSDK: String
     let toolchainBundleID: String?
     let configuration: BuildConfiguration
+    /// Experimental, opt-in: a shared module-cache directory threaded as
+    /// `-Xswiftc -module-cache-path`. `nil` = off (the default). See `CompileCache`.
+    let compileCacheDir: URL?
 
     init(
         swiftExecutable: URL,
         projectPath: URL,
         swiftSDK: String,
         toolchainBundleID: String?,
-        configuration: BuildConfiguration = .release
+        configuration: BuildConfiguration = .release,
+        compileCacheDir: URL? = nil
     ) {
         self.swiftExecutable = swiftExecutable
         self.projectPath = projectPath
         self.swiftSDK = swiftSDK
         self.toolchainBundleID = toolchainBundleID
         self.configuration = configuration
+        self.compileCacheDir = compileCacheDir
     }
 
     /// Composes the `swift package js` argv without side effects.
@@ -132,6 +169,14 @@ struct BuildInvocation: Sendable {
             // isn't forwarded by the plugin (it errors with
             // "Unexpected arguments: -Xswiftc -g").
             pluginArgs.append(contentsOf: ["--debug-info-format", "dwarf"])
+        }
+        // Experimental cross-project compile caching. A shared module-cache
+        // directory lets the Clang/explicit module artifacts (JavaScriptKit's C
+        // shims, swift-syntax C shims, …) be reused across separate projects'
+        // fresh .build dirs — measured ~29% faster on a cold cross-project WASM
+        // build. `-module-cache-path` is a swift-package global, so it precedes `js`.
+        if let compileCacheDir {
+            prePluginArgs.append(contentsOf: ["-Xswiftc", "-module-cache-path", "-Xswiftc", compileCacheDir.path])
         }
         return prePluginArgs + pluginArgs
     }
@@ -187,6 +232,15 @@ struct BuildCommand: AsyncParsableCommand {
     )
     var swiftSDK: String?
 
+    @Flag(
+        name: .customLong("experimental-compile-cache"),
+        help: ArgumentHelp(
+            "Experimental: share a module cache across projects to speed cold builds.",
+            visibility: .hidden
+        )
+    )
+    var experimentalCompileCache: Bool = false
+
     func run() async throws {
         let runner = SystemProcessRunner()
 
@@ -238,12 +292,23 @@ struct BuildCommand: AsyncParsableCommand {
             toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
         }
 
+        // 3.5 Experimental opt-in: resolve a shared module-cache directory.
+        let compileCacheDir = CompileCache.directory(
+            flagEnabled: experimentalCompileCache,
+            environment: ProcessInfo.processInfo.environment
+        )
+        if let compileCacheDir {
+            try? FileManager.default.createDirectory(at: compileCacheDir, withIntermediateDirectories: true)
+            print("swiflow: experimental compile cache → \(compileCacheDir.path)")
+        }
+
         // 4. Run the build.
         let invocation = BuildInvocation(
             swiftExecutable: swift,
             projectPath: projectURL,
             swiftSDK: sdk,
-            toolchainBundleID: toolchainBundleID
+            toolchainBundleID: toolchainBundleID,
+            compileCacheDir: compileCacheDir
         )
 
         print("swiflow: building with swift-sdk=\(sdk)\(toolchainBundleID.map { " toolchain=\($0)" } ?? "")")
