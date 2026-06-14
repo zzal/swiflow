@@ -182,9 +182,9 @@ let formControlsSheet: CSSSheet = css {
       .sw-field option::checkmark { color: var(--sw-accent); }
     }
 
-    /* --- Toggle: checkbox with the label BESIDE it --- */
-    .sw-toggle { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
-    .sw-toggle__row {
+    /* --- Checkbox: native checkbox with the label BESIDE it (selection/confirm) --- */
+    .sw-check { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
+    .sw-check__row {
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -192,25 +192,73 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .sw-toggle input[type="checkbox"] {
+    .sw-check input[type="checkbox"] {
       flex: none;
       width: 1.1em;
       height: 1.1em;
       accent-color: var(--sw-accent);
       cursor: pointer;
     }
-    .sw-toggle input:focus-visible {
+    .sw-check input:focus-visible {
       outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
       outline-offset: 2px;
     }
-    .sw-toggle input[aria-invalid="true"] {
+    .sw-check input[aria-invalid="true"] {
       outline: var(--sw-border-width) solid var(--sw-danger);
       outline-offset: 2px;
     }
-    .sw-toggle__row--disabled {
+    .sw-check__row--disabled {
       opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }
+
+    /* --- Toggle: a switch (immediate on/off setting) — track + sliding thumb --- */
+    .sw-switch { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
+    .sw-switch__row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--sw-space-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    /* The native checkbox drives state/keyboard but is visually hidden; the track
+       + thumb are the visual, and the wrapping <label> makes the whole row click. */
+    .sw-switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      margin: 0;
+    }
+    .sw-switch__track {
+      flex: none;
+      position: relative;
+      width: 2.25em;
+      height: 1.25em;
+      border-radius: 1em;
+      background-color: var(--sw-border);
+      transition: background-color var(--sw-duration) var(--sw-ease);
+    }
+    .sw-switch__thumb {
+      position: absolute;
+      top: 50%;
+      left: 0.15em;
+      width: 0.95em;
+      height: 0.95em;
+      border-radius: 50%;
+      background-color: var(--sw-surface);
+      transform: translateY(-50%);
+      transition: transform var(--sw-duration) var(--sw-ease);
+    }
+    .sw-switch input:checked + .sw-switch__track { background-color: var(--sw-accent); }
+    .sw-switch input:checked + .sw-switch__track .sw-switch__thumb { transform: translate(1em, -50%); }
+    .sw-switch input:focus-visible + .sw-switch__track {
+      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
+      outline-offset: 2px;
+    }
+    .sw-switch input:disabled + .sw-switch__track { opacity: var(--sw-disabled-opacity); }
+    .sw-switch__row--disabled { cursor: not-allowed; }
 
     /* --- RadioGroup: <fieldset>/<legend> + native radios (shared name = roving focus) --- */
     .sw-radio {
