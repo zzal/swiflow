@@ -13,8 +13,13 @@ import Swiflow
 /// (`type` + `value`/`checked`), then `aria-invalid`, optional `aria-required`,
 /// `disabled`, the optional blur handler, and the merged caller attributes
 /// (applied last so they win on plain attrs). A caller `.class` merges; other
-/// caller attrs append. Callers must NOT pass `.value`/`.on` for the bound event
-/// — that would overwrite the binding's handler.
+/// caller attrs append.
+///
+/// FOOTGUN: callers must NOT pass the binding's own event handler — `.value` /
+/// `.on(.input)` for text inputs, `.checked` / `.on(.change)` for Toggle/Select.
+/// `callerRest` applies last and handlers are last-write-wins per event key, so a
+/// duplicate would silently overwrite the binding's write-back. Drive the value
+/// through the control's `text:`/`isOn:`/`field:` parameter instead.
 @MainActor
 func controlInputAttributes(
     _ base: [Attribute],
@@ -46,14 +51,16 @@ func fieldErrorNode(_ error: String?) -> VNode? {
 
 /// Injects the shared form-controls stylesheet once (idempotent once-guard).
 @MainActor
-func installFieldStyles() { installControlSheet(id: "sw-forms", fieldStyleSheet) }
+func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsSheet) }
 
 /// The one stylesheet for all form controls: the column-input chrome
 /// (TextField/Select), the checkbox-row chrome (Toggle), and the shared error
 /// message. Every value reads a `--sw-*` token, so the M2 media-feature layers
 /// (reduced-motion via `--sw-duration`, contrast via `--sw-focus-ring`/
 /// `--sw-border-width`, dark via `light-dark()`, p3) apply with no per-control code.
-let fieldStyleSheet: CSSSheet = css {
+/// Keep each control's selector root (`.sw-field` vs `.sw-toggle`) disjoint so the
+/// shared blob can't cross-style layouts.
+let formControlsSheet: CSSSheet = css {
     raw("""
     /* shared validation-error message */
     .sw-field-error {
@@ -132,7 +139,7 @@ let fieldStyleSheet: CSSSheet = css {
       outline: var(--sw-border-width) solid var(--sw-danger);
       outline-offset: 2px;
     }
-    .sw-toggle__row:has(input:disabled) {
+    .sw-toggle__row--disabled {
       opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }

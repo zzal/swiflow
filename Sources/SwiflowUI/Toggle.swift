@@ -7,7 +7,12 @@ import Swiflow
 /// Space-to-toggle + role for free (native-leaning a11y); `accent-color` reads
 /// `--sw-accent` so the check honors the theme + media layers. An optional `error:`
 /// shows a `role="alert"` message and sets `aria-invalid` (e.g. a required
-/// "accept terms" box). Caller `Attribute...`/`.class` land on the `<input>`.
+/// "accept terms" box). Caller `Attribute...`/`.class` land on the `<input>` —
+/// don't pass `.checked`/`.on(.change)` (they'd overwrite the binding; use `isOn:`).
+///
+/// Renders a plain `role=checkbox`, not `role=switch`: a switch would force us to
+/// manage `aria-checked` by hand and lose the native checkbox semantics. No `size:`
+/// axis — the `1.1em` box already scales with font size, unlike a padded text input.
 ///
 ///     Toggle("Subscribe to updates", isOn: $subscribed)
 ///     Toggle("I accept the terms", field: termsField, required: true)
@@ -27,6 +32,8 @@ public func Toggle(
 
 /// `Field`-integrated convenience (mirrors `TextField(field:)`): pulls the bound
 /// value, error display + `aria-invalid`, and blur→`markTouched` from a `Field`.
+/// `markTouched` fires on blur (not the toggle's own `change`) — consistent with
+/// TextField, and it keeps off the `change` key the binding's write-back owns.
 @MainActor
 public func Toggle(
     _ label: String,
@@ -60,8 +67,11 @@ private func toggleControl(
         error: error, required: required, disabled: disabled, onBlur: onBlur, caller: attributes
     )
 
+    // Dim the whole row when disabled via a Swift-computed modifier class rather
+    // than `:has(input:disabled)` — deterministic, no selector-support dependency.
+    let rowClass = disabled ? "sw-toggle__row sw-toggle__row--disabled" : "sw-toggle__row"
     var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-toggle__row")], children: [
+        element("label", attributes: [.class(rowClass)], children: [
             element("input", attributes: inputAttrs),
             element("span", attributes: [.class("sw-toggle__label-text")], children: [text(labelText)]),
         ]),

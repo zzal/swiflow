@@ -144,7 +144,7 @@ struct TextFieldTests {
     }
 
     @Test("field stylesheet is token-driven, error-aware, and brace-balanced") func stylesheet() {
-        let css = fieldStyleSheet.cssString(scopeClass: "")
+        let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-field"))
         #expect(css.contains("var(--sw-border)"))
         #expect(css.contains("var(--sw-focus-ring)"))   // focus honors prefers-contrast

@@ -75,10 +75,24 @@ struct ToggleTests {
         #expect(allText(node).contains("You must accept"))
     }
 
-    @Test("disabled and required lower to the expected attributes") func disabledAndRequired() {
-        let box = checkboxOf(building { Toggle("X", isOn: unused, required: true, disabled: true) })!
+    @Test("disabled and required lower to the expected attributes + row modifier") func disabledAndRequired() {
+        let node = building { Toggle("X", isOn: unused, required: true, disabled: true) }
+        let box = checkboxOf(node)!
         #expect(box.attributes["disabled"] == "")
         #expect(box.attributes["aria-required"] == "true")
+        #expect(el(el(node)!.children.first)!.attributes["class"] == "sw-toggle__row sw-toggle__row--disabled")
+    }
+
+    @Test("caller attributes coexist with the binding (change still writes back)") func callerAttrsKeepBinding() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        defer { HandlerAmbient.current = nil }
+        var on = false
+        let binding = Binding<Bool>(get: { on }, set: { on = $0 })
+        let box = checkboxOf(Toggle("X", isOn: binding, .attr("name", "n")))!
+        #expect(box.attributes["name"] == "n")
+        registry.dispatch(id: box.handlers["change"]!.id, event: EventInfo(type: "change", targetChecked: true))
+        #expect(on == true)   // the binding's write-back survived alongside the caller attr
     }
 
     @Test("caller attributes and class land on the checkbox") func callerAttributesOnCheckbox() {

@@ -27,7 +27,8 @@ public enum TextFieldType: Equatable {
 /// is announced. Every value reads a `--sw-*` token, so the M2 media-feature
 /// layers apply automatically. Caller `Attribute...` (and a caller `.class`)
 /// land on the `<input>` and apply last, so they win / extend (autocomplete,
-/// name, maxlength, …).
+/// name, maxlength, …) — but don't pass `.value`/`.on(.input)` (they'd overwrite
+/// the binding; drive the value through `text:`).
 ///
 ///     TextField("Name", text: $name)
 ///     TextField("Email", text: $email, type: .email, error: emailError)

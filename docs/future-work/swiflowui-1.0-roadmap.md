@@ -132,7 +132,12 @@ milestone is independently shippable and gets its own brainstorm → plan → im
   Chrome-factoring is deferred to the **Toggle** step — TextField's `.sw-field` uses a column
   layout that fits TextField/Select but NOT Toggle (label *beside* checkbox) or RadioGroup
   (`<fieldset>`/`<legend>`); extract a layout-neutral "label + error + aria" helper + shared
-  input/error/size CSS once Toggle is the second consumer, rather than abstracting on one.)
+  input/error/size CSS once Toggle is the second consumer, rather than abstracting on one.
+  DONE at Toggle: `FieldChrome.swift` (`controlInputAttributes`, `fieldErrorNode`, `formControlsSheet`).
+  Next deferral: `controlInputAttributes` bundles group-level aria (invalid/required) with the
+  per-control input — fine for the 3 single-input controls, but **RadioGroup** needs group-level
+  aria/error on a `<fieldset>`/`<legend>` + per-option assembly on each radio. Split the helper
+  (per-control vs `fieldGroupAttributes`) when **RadioGroup** is the consumer, not before.)
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
 - **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);
