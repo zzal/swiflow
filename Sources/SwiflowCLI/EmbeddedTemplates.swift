@@ -3327,13 +3327,20 @@ final class Demo {
     @State var subscribed: Bool = false
     @State var color: String = ""
     @State var plan: String = "Free"
+    @State var isDark: Bool = false
     @State var ctrl: FormController = FormController()
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
 
         return VStack(spacing: .lg, align: .stretch) {
-            h1("SwiflowUI — primitives, buttons & forms")
+            // A Toggle wired to `color-scheme` re-themes the whole demo: every
+            // --sw-* token is light-dark(), so flipping the scheme flips them all.
+            HStack(align: .center) {
+                h1("SwiflowUI — primitives, buttons & forms")
+                Spacer()
+                Toggle("Dark mode", isOn: $isDark)
+            }
 
             // --- Stacks --------------------------------------------------
             h2("Stacks")
@@ -3406,6 +3413,12 @@ final class Demo {
               + "blur it empty (or with bad input) to see the role=alert error and aria-invalid.")
         }
         .padding(.xl)
+        // Forcing `color-scheme` on the root makes every descendant's light-dark()
+        // token resolve to this scheme — overriding the OS preference live.
+        .style("color-scheme", isDark ? "dark" : "light")
+        .style("background", "var(--sw-surface)")
+        .style("color", "var(--sw-text)")
+        .style("min-height", "100vh")
     }
 
     /// A small surfaced tile used to fill the grid demo.
