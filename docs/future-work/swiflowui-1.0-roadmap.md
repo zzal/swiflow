@@ -128,7 +128,11 @@ milestone is independently shippable and gets its own brainstorm → plan → im
   functions** wrapping native elements + a `Binding`, plus a `Field`-integrated convenience
   that auto-wires error display + `aria-invalid` + blur→`markTouched`. Native elements give
   roving focus/keyboard for free. Retires the hand-rolled `SignIn`/MissionControl fields.
-  (Done milestone-internally: `TextField` first to set the field-chrome pattern, then the rest.)
+  (Done milestone-internally: `TextField` first to set the field-chrome pattern, then the rest.
+  Chrome-factoring is deferred to the **Toggle** step — TextField's `.sw-field` uses a column
+  layout that fits TextField/Select but NOT Toggle (label *beside* checkbox) or RadioGroup
+  (`<fieldset>`/`<legend>`); extract a layout-neutral "label + error + aria" helper + shared
+  input/error/size CSS once Toggle is the second consumer, rather than abstracting on one.)
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
 - **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);

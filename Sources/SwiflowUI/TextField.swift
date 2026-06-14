@@ -39,12 +39,13 @@ public func TextField(
     placeholder: String = "",
     error: String? = nil,
     size: ControlSize = .md,
+    required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     fieldControl(label: label, binding: text, type: type, placeholder: placeholder,
-                 error: error, size: size, disabled: disabled,
+                 error: error, size: size, required: required, disabled: disabled,
                  attributes: attributes, onBlur: onBlur)
 }
 
@@ -61,11 +62,12 @@ public func TextField(
     type: TextFieldType = .text,
     placeholder: String = "",
     size: ControlSize = .md,
+    required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...
 ) -> VNode {
     fieldControl(label: label, binding: field.binding, type: type, placeholder: placeholder,
-                 error: field.error, size: size, disabled: disabled,
+                 error: field.error, size: size, required: required, disabled: disabled,
                  attributes: attributes, onBlur: { field.markTouched() })
 }
 
@@ -79,6 +81,7 @@ private func fieldControl(
     placeholder: String,
     error: String?,
     size: ControlSize,
+    required: Bool,
     disabled: Bool,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
@@ -93,11 +96,15 @@ private func fieldControl(
         .value(binding),
         .attr("aria-invalid", error != nil ? "true" : "false"),
     ]
+    if required { inputAttrs.append(.attr("aria-required", "true")) }  // a11y signal only; native `required` would fire its own validation
     if !placeholder.isEmpty { inputAttrs.append(.attr("placeholder", placeholder)) }
     if disabled { inputAttrs.append(.attr("disabled", true)) }
     if let onBlur { inputAttrs.append(.on(.blur, perform: onBlur)) }
     if !callerClasses.isEmpty { inputAttrs.append(.class(callerClasses.joined(separator: " "))) }
-    inputAttrs += callerRest   // caller wins on the input (type override, name, etc.)
+    // Caller wins on the input for plain attrs (type override, name, autocomplete…).
+    // Do NOT pass `.value`/`.on(.input)` — they'd overwrite the binding's handler;
+    // drive the value through `text:`/`field:` instead.
+    inputAttrs += callerRest
 
     var rootChildren: [VNode] = [
         element("label", attributes: [.class("sw-field__label")], children: [
@@ -132,6 +139,7 @@ let fieldStyleSheet: CSSSheet = css {
       flex-direction: column;
       gap: var(--sw-space-xs);
       font-size: 0.875rem;
+      font-weight: 500;
       color: var(--sw-text);
     }
     .sw-field input,
@@ -140,6 +148,7 @@ let fieldStyleSheet: CSSSheet = css {
       font: inherit;
       width: 100%;
       box-sizing: border-box;
+      padding: var(--sw-space-sm) var(--sw-space-md);   /* fallback; the size modifier overrides */
       border: var(--sw-border-width) solid var(--sw-border);
       border-radius: var(--sw-radius);
       background-color: var(--sw-surface);

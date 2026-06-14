@@ -127,6 +127,22 @@ struct TextFieldTests {
         #expect(ctrl.touched.contains("email"))
     }
 
+    @Test("Field convenience shows no error and aria-invalid=false while untouched, even if invalid") func fieldConvenienceUntouched() {
+        var value = ""                               // empty → would fail .required()
+        var ctrl = FormController()                  // but NOT touched
+        let vb = Binding<String>(get: { value }, set: { value = $0 })
+        let cb = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
+        let field = Field("email", vb, cb, .required())
+        let node = building { TextField("Email", field: field) }
+        #expect(inputOf(node)!.attributes["aria-invalid"] == "false")
+        #expect(errorOf(node) == nil)                // error stays hidden until the field is touched
+    }
+
+    @Test("required emits aria-required; default does not") func requiredAriaOnly() {
+        #expect(inputOf(building { TextField("X", text: unused, required: true) })!.attributes["aria-required"] == "true")
+        #expect(inputOf(building { TextField("X", text: unused) })!.attributes["aria-required"] == nil)
+    }
+
     @Test("field stylesheet is token-driven, error-aware, and brace-balanced") func stylesheet() {
         let css = fieldStyleSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-field"))

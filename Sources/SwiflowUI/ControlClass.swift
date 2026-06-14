@@ -1,9 +1,9 @@
 // Sources/SwiflowUI/ControlClass.swift
 //
-// Shared helpers for stateless skinned controls (Button now; Card/Badge/Spinner
-// next). Stateful @Component controls (M4 TextField/Toggle/Select/RadioGroup)
-// use the framework's `scopedStyles`/`CSSInjector` seam instead and do NOT use
-// these.
+// Shared helpers for stateless skinned controls — Button, the M4 form controls
+// (TextField/Toggle/Select/RadioGroup), and the M5 Card/Badge/Spinner. Only the
+// genuinely stateful overlays (M6) use the framework's `@Component`
+// `scopedStyles`/`CSSInjector` seam instead and do NOT use these.
 import Swiflow
 
 /// Splits caller-supplied attributes into (their `class` values, everything
