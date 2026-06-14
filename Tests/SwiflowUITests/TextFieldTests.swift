@@ -151,6 +151,7 @@ struct TextFieldTests {
         #expect(css.contains("var(--sw-duration)"))     // transition honors reduced-motion
         #expect(css.contains("var(--sw-danger)"))
         #expect(css.contains("[aria-invalid=\"true\"]"))
+        #expect(css.contains("font-weight: normal"))   // controls don't inherit the label's 500 weight
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }
