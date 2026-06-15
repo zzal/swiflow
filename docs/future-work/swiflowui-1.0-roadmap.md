@@ -118,8 +118,11 @@ its tokens — including the media-feature layers — are the contract every con
 milestone is independently shippable and gets its own brainstorm → plan → implement cycle.
 
 **Status (2026-06-15): M1–M6 shipped and merged.** M7 in progress — the HelloWorld
-dogfood (#18) and the docs (this guide + `docs/guides/swiflowui.md` /
-`swiflowui-theming.md`) are done; remaining: theming-verification pass + version tag.
+dogfood (#18), the docs (`docs/guides/swiflowui.md` / `swiflowui-theming.md`), and the
+theming-verification pass (emitted-CSS in `ThemeTests` + runtime `emulateMedia` in
+`theming.spec.ts`) are done. Remaining: a version/milestone marker — and note the
+framework as a whole is pre-1.0 (0.1.x), so this is a SwiflowUI-component-library
+milestone (CHANGELOG/roadmap close-out), NOT a project v1.0 tag.
 
 - **M1 — Layout primitives:** `Grid`, `Spacer`, `Divider`, `ZStack`. Pure CSS-first, no
   state, no deps. Finishes the v0 layout story. Extend `Tokens.swift` as needed.
@@ -154,8 +157,10 @@ dogfood (#18) and the docs (this guide + `docs/guides/swiflowui.md` /
   `examples/SwiflowUIDemo` into a component gallery, README/styling-guide docs, version tag.
   In progress: SwiflowUIDemo already showcases every category (gallery effectively done); the
   HelloWorld **dogfood** (#18) retired its hand-rolled Toast/SignIn; **docs** shipped
-  (`docs/guides/swiflowui.md` + `swiflowui-theming.md`, README updated). Remaining: a
-  theming-verification pass (emitted-CSS + `emulateMedia` Playwright) and the version tag.
+  (`docs/guides/swiflowui.md` + `swiflowui-theming.md`, README updated); **theming-verification**
+  done (emitted-CSS in `ThemeTests` + runtime `emulateMedia` in `theming.spec.ts`). Remaining:
+  a component-library milestone marker (CHANGELOG/close-out) — the framework is pre-1.0, so this
+  is not a project v1.0 tag.
 
 ## Deferred to 1.1+ (explicitly out of 1.0)
 

@@ -23,7 +23,7 @@ const DEMO_PROJECT = prepareDemo({ key: "counter" });
 
 export default defineConfig({
   testDir: ".",
-  testMatch: ["counter.spec.ts", "devtools-api.spec.ts"],
+  testMatch: ["counter.spec.ts", "devtools-api.spec.ts", "theming.spec.ts"],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
   use: {
