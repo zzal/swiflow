@@ -3234,6 +3234,7 @@ let package = Package(
             name: "App",
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
                 // The fetch + JSON-decode story now lives in the SwiflowFetcher
                 // module (graduated from this example's old Net.swift); it pulls
@@ -3326,6 +3327,7 @@ See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagr
 """##,
                 "Sources/App/App.swift": ##"""
 import SwiflowDOM
+import SwiflowUI
 import SwiflowQuery
 import SwiflowFetcher
 
@@ -3409,20 +3411,22 @@ final class TodoApp {
 
     var body: VNode {
         let list = query(TodoList())
-        return div {
+        return VStack(spacing: .lg, align: .stretch) {
             h1("Todo CRUD")
             p("Reads via query(); writes via @MutationState with optimistic updates — against a real Bun + SQLite API.")
 
-            div {
-                input(.value($draft), .attr("placeholder", "New todo…"),
-                      .on(.input) { self.draft = $0.targetValue ?? "" })
-                button("Add", .on(.click) {
+            // Add bar: a SwiflowUI TextField + Button; `align: .end` bottom-aligns
+            // the button with the input (the field's label sits above it).
+            HStack(spacing: .sm, align: .end) {
+                TextField("New todo", text: $draft, placeholder: "What needs doing?")
+                    .style("flex", "1")
+                Button("Add", disabled: $add.isPending) {
                     let t = self.draft
                     guard !t.isEmpty, !t.allSatisfy(\.isWhitespace) else { return }
                     self.$add.mutate(t)
                     self.draft = ""
-                }, .attr("disabled", $add.isPending))
-                if list.isFetching { span { text(" ⟳ syncing…") } }
+                }
+                if list.isFetching { Spinner(size: .sm, label: "Syncing") }
             }
 
             if list.isLoading { p("Loading…") }
@@ -3432,19 +3436,23 @@ final class TodoApp {
             if $remove.isError { p("Delete failed.") }
 
             if let todos = list.data {
-                ul {
+                VStack(spacing: .sm, align: .stretch) {
                     for todo in todos {
-                        li(.key("todo-\(todo.id)")) {
-                            input(.attr("type", "checkbox"),
-                                  .checked(Binding(get: { todo.done },
-                                                   set: { self.$toggle.mutate(.init(id: todo.id, done: $0)) })))
-                            span { text(todo.title) }
-                            button("✕", .on(.click) { self.$remove.mutate(todo.id) })
+                        // Keyed row: the checkbox carries the title as its label
+                        // (toggling either toggles done); ✕ deletes.
+                        HStack(spacing: .sm, align: .center, justify: .between, .key("todo-\(todo.id)")) {
+                            Checkbox(todo.title, isOn: Binding(get: { todo.done },
+                                                              set: { self.$toggle.mutate(.init(id: todo.id, done: $0)) }))
+                            Button("✕", variant: .ghost, size: .sm,
+                                   .attr("aria-label", "Delete \(todo.title)")) { self.$remove.mutate(todo.id) }
                         }
                     }
                 }
             }
         }
+        .padding(.xl)
+        .style("max-width", "40rem")
+        .style("margin", "0 auto")
     }
 }
 

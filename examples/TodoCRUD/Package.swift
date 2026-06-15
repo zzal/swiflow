@@ -16,6 +16,7 @@ let package = Package(
             name: "App",
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
                 .product(name: "SwiflowQuery", package: "Swiflow"),
                 // The fetch + JSON-decode story now lives in the SwiflowFetcher
                 // module (graduated from this example's old Net.swift); it pulls
