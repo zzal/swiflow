@@ -23,26 +23,26 @@ extension Counter {
         """)
 
     // ---- layout ----
-    // The component root carries .card itself, so that rule compounds with
-    // the scope class via `&.card`; :host styles the same element at the
-    // lower specificity the DSL's host {} block had.
+    // The component root is now a plain wrapper (:host) holding the visible `.card`
+    // plus a sibling ToastStack. `container-type` + the card chrome live on `.card`:
+    // a query container establishes a containing block, so keeping it OFF the wrapper
+    // lets the fixed-position toast anchor to the viewport rather than the card.
     static let layout = #css("""
         :host {
           display: block;
-          max-width: 520px;
-          margin: 2.5rem auto;
-          padding: 2rem;
-          container-type: inline-size;
         }
-        &.card {
+        .card {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          max-width: 520px;
+          margin: 2.5rem auto;
           padding: 1.75rem;
           border-radius: 16px;
           background: var(--surface);
           border: 1px solid var(--border);
           box-shadow: 0 1px 0 var(--border), 0 24px 48px -32px rgb(0 0 0 / .25);
+          container-type: inline-size;
         }
         .header {
           display: flex;
@@ -76,25 +76,6 @@ extension Counter {
           flex-wrap: wrap;
           gap: 0.5rem;
         }
-        .greeting-row {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-        }
-        .greeting-row input {
-          flex: 1;
-          padding: 0.4rem 0.6rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: Canvas;
-          color: CanvasText;
-        }
-        .checkbox-row {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-          cursor: pointer;
-        }
         .inspector {
           border: 1px solid var(--border);
           border-radius: 10px;
@@ -127,6 +108,9 @@ extension Counter {
         """)
 
     // ---- theme ----
+    // Buttons/inputs/checkbox are now SwiflowUI components (their own token sheets) —
+    // the old bare `button`/`input`/`.secondary` rules are gone so they don't override
+    // the `.sw-*` styling. Only the card-specific surfaces remain here.
     static let theme = #css("""
         .count {
           margin: 0;
@@ -134,31 +118,6 @@ extension Counter {
           font-weight: 600;
           color: var(--accent);
           transition: --accent .25s ease;
-        }
-        button {
-          padding: 0.4rem 0.9rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: var(--accent);
-          color: Canvas;
-          cursor: pointer;
-          font-size: 0.95rem;
-        }
-        .secondary {
-          background: transparent;
-          color: var(--text);
-        }
-        button:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
-        }
-        input:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
-        }
-        .checkbox-row:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
         }
 
         /* <dialog> + ::backdrop styling, animated entirely in CSS — no JS, no
@@ -181,9 +140,6 @@ extension Counter {
         .signin-dialog[open] {
           opacity: 1;
           transform: translateY(0) scale(1);
-        }
-        .signin-dialog .signin {
-          padding: 1.5rem;
         }
         .signin-dialog::backdrop {
           background: color-mix(in oklab, Canvas 30%, transparent);
@@ -213,24 +169,19 @@ extension Counter {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        :host {
+        .card {
           animation: counter-in 0.3s ease forwards;
         }
         """)
 
     // ---- responsive ----
-    // @container nests inside the scope wrapper, so its rules stay scoped
-    // through the normal pipeline — no hand-pasted `.swiflow-Counter` prefix
-    // and no coupling to the scope-class naming scheme.
+    // @container nests inside the scope wrapper; the container is `.card`, so this
+    // queries the card's inline-size and stacks the actions on narrow widths.
     static let responsive = #css("""
         @container (max-width: 380px) {
           .actions {
             flex-direction: column;
             align-items: stretch;
-          }
-          &.card {
-            padding: 1.25rem;
-            gap: 0.75rem;
           }
         }
         """)
