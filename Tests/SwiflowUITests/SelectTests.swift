@@ -73,6 +73,24 @@ struct SelectTests {
         #expect(allText(.element(opts[0])) == "Choose…")
     }
 
+    @Test("the option matching the bound value is marked selected (mount-order fix)") func selectedOptionMarked() {
+        // A non-first initial/persisted value must render selected — the bound value
+        // property lands before the options exist, so `selected` is what shows it at mount.
+        let binding = Binding<String>(get: { "2.5" }, set: { _ in })
+        let opts = optionsOf(building {
+            Select("Magnitude", selection: binding,
+                   options: [SelectOption("all", "All"), SelectOption("1.0", "M1.0+"), SelectOption("2.5", "M2.5+")])
+        })
+        #expect(opts[0].attributes["selected"] == nil)   // "all" not selected
+        #expect(opts[2].attributes["selected"] == "")    // "2.5" (3rd option) selected
+    }
+
+    @Test("with a placeholder and an empty binding, the placeholder option is selected") func placeholderSelectedWhenEmpty() {
+        let opts = optionsOf(building { Select("X", selection: unused, options: ["Red"], placeholder: "Choose…") })
+        #expect(opts[0].attributes["selected"] == "")    // empty-value placeholder matches the "" binding
+        #expect(opts[1].attributes["selected"] == nil)
+    }
+
     @Test("the selection binding reflects on render and writes back on change") func selectionRoundTrips() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry

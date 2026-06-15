@@ -34,30 +34,28 @@ final class QuakesPage {
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
                 h1("🌐 Live seismic feed")
+                // Background-poll indicator: SwiflowUI Spinner (role=status, token-driven,
+                // pauses under reduced-motion). The list stays put (stale-while-revalidate).
                 if feed.isFetching {
-                    span(.class("live-dot"), .attr("title", "refreshing")) { text("⟳") }
+                    Spinner(size: .sm, label: "Refreshing")
                 }
             }
 
-            HStack(spacing: .sm, align: .center, .class("filters")) {
-                label("Magnitude", .attr("for", "mag"))
-                // The `selected` attrs mirror the initial @State: at mount the
-                // select's bound `value` property lands before its <option>
-                // children, so without them the browser falls back to the
-                // first option.
-                select(.id("mag"), .selection($magnitude)) {
-                    option("All", .attr("value", "all"))
-                    option("M1.0+", .attr("value", "1.0"))
-                    option("M2.5+", .attr("value", "2.5"), .attr("selected", ""))
-                    option("M4.5+", .attr("value", "4.5"))
-                    option("Significant", .attr("value", "significant"))
-                }
-                label("Window", .attr("for", "win"))
-                select(.id("win"), .selection($window)) {
-                    option("Past hour", .attr("value", "hour"))
-                    option("Past day", .attr("value", "day"), .attr("selected", ""))
-                    option("Past week", .attr("value", "week"))
-                }
+            // SwiflowUI Select marks the bound option `selected`, so the persisted
+            // magnitude/window (rehydrated below) renders correctly at mount.
+            HStack(spacing: .sm, align: .end, .class("filters")) {
+                Select("Magnitude", selection: $magnitude, options: [
+                    SelectOption("all", "All"),
+                    SelectOption("1.0", "M1.0+"),
+                    SelectOption("2.5", "M2.5+"),
+                    SelectOption("4.5", "M4.5+"),
+                    SelectOption("significant", "Significant"),
+                ])
+                Select("Window", selection: $window, options: [
+                    SelectOption("hour", "Past hour"),
+                    SelectOption("day", "Past day"),
+                    SelectOption("week", "Past week"),
+                ])
             }
 
             if let data = feed.data {
