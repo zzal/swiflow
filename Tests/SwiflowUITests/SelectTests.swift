@@ -148,6 +148,12 @@ struct SelectTests {
         #expect(css.contains("::picker(select)"))
         #expect(css.contains("::picker-icon"))
         #expect(css.contains("option::checkmark"))
+        // Chevron unification: the modern picker-icon masks the shared chevron and fills
+        // it with the muted token (same as the Dropdown caret); the fallback bakes the
+        // muted color into the SVG and swaps light/dark, so both branches are dark-adaptive.
+        #expect(css.contains("background-color: var(--sw-text-muted)"))   // masked, token-colored
+        #expect(css.contains("mask: url("))                               // not content:url (which bakes black)
+        #expect(css.contains("background-image: light-dark("))            // fallback adapts to scheme
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }

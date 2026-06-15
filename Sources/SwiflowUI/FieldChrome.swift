@@ -76,6 +76,17 @@ func fieldGroupAttributes(
 @MainActor
 func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsSheet) }
 
+/// The "expand more" chevron as an inline SVG data-URI, at a given `stroke`. One geometry
+/// (path + width) is the single source of truth for the chevron everywhere it appears.
+/// `swChevronDownSVG` (currentColor) feeds the *masks*: the Select `::picker-icon` and the
+/// Dropdown caret each fill a box with `var(--sw-text-muted)` and clip it to this shape, so
+/// they're token-colored and dark-adaptive. The fallback `<select>` (no Customizable Select)
+/// can't mask, so it bakes the muted color into the SVG and swaps light/dark via `light-dark()`.
+func chevronDownSVG(stroke: String) -> String {
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='\(stroke)' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E"
+}
+let swChevronDownSVG = chevronDownSVG(stroke: "currentColor")
+
 /// The one stylesheet for all form controls: the column-input chrome
 /// (TextField/Select), the Checkbox row, the Toggle switch (track + thumb), the
 /// RadioGroup fieldset, and the shared error message. Every value reads a `--sw-*`
@@ -144,7 +155,12 @@ let formControlsSheet: CSSSheet = css {
        rules above already give border/radius/surface/padding/focus/disabled. */
     .sw-field select {
       appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+      /* Same chevron geometry as the mask path, baked at --sw-text-muted's base light/dark
+         values and swapped via light-dark(). A baked SVG can't read the token, so it tracks
+         base light/dark but not the prefers-contrast layer (the masked branch below does). */
+      background-image: light-dark(
+        url("\(chevronDownSVG(stroke: "%235b616b"))"),
+        url("\(chevronDownSVG(stroke: "%239ca3af"))"));
       background-repeat: no-repeat;
       background-position: right var(--sw-space-md) center;
       background-size: 1em;
@@ -160,11 +176,20 @@ let formControlsSheet: CSSSheet = css {
         background-image: none;            /* base-select supplies ::picker-icon */
         padding-right: var(--sw-space-md);
       }
+      /* Replace the UA glyph: same SVG + mask technique as the Dropdown caret (here on a
+         replaced-content pseudo rather than a span), so it fills with var(--sw-text-muted)
+         and is dark-adaptive. content:url(svg) would bake black — currentColor doesn't
+         resolve in ::picker-icon content. (Verified painting under Customizable Select.) */
       .sw-field select::picker-icon {
-        color: var(--sw-text-muted);
-        transition: transform var(--sw-duration) var(--sw-ease);
+        content: "";
+        width: 1em;
+        height: 1em;
+        background-color: var(--sw-text-muted);
+        -webkit-mask: url("\(swChevronDownSVG)") center / contain no-repeat;
+        mask: url("\(swChevronDownSVG)") center / contain no-repeat;
+        transition: rotate var(--sw-duration) var(--sw-ease);
       }
-      .sw-field select:open::picker-icon { transform: rotate(180deg); }
+      .sw-field select:open::picker-icon { rotate: 180deg; }
       .sw-field ::picker(select) {
         background-color: var(--sw-surface);
         border: var(--sw-border-width) solid var(--sw-border);
