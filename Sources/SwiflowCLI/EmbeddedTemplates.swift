@@ -1351,6 +1351,7 @@ let package = Package(
             name: "App",
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
                 .product(name: "SwiflowRouter", package: "Swiflow"),
             ],
             path: "Sources/App"
@@ -1436,6 +1437,7 @@ final class NavBar: Component {
 import Swiflow
 import SwiflowDOM
 import SwiflowRouter
+import SwiflowUI
 import JavaScriptKit
 
 final class AboutPage: Component {
@@ -1446,12 +1448,13 @@ final class AboutPage: Component {
         // Accessing self.router from a click handler (outside body) would see the
         // default no-op.
         let back = router.back
-        return div {
+        return VStack(spacing: .md, align: .start) {
             embed { NavBar() }
             h1("About")
             p("This demo exercises RouterRoot, Route, Link, and programmatic navigation.")
-            button("Back", .on(.click) { _ in back() })
+            Button("Back") { back() }
         }
+        .padding(.lg)
     }
 }
 
@@ -1459,15 +1462,17 @@ final class AboutPage: Component {
                 "Sources/App/Pages/HomePage.swift": ##"""
 import Swiflow
 import SwiflowDOM
+import SwiflowUI
 import JavaScriptKit
 
 final class HomePage: Component {
     var body: VNode {
-        div {
+        VStack(spacing: .md, align: .start) {
             embed { NavBar() }
             h1("Home")
             p("Welcome to the {{NAME}} demo.")
         }
+        .padding(.lg)
     }
 }
 
@@ -1476,6 +1481,7 @@ final class HomePage: Component {
 import Swiflow
 import SwiflowDOM
 import SwiflowRouter
+import SwiflowUI
 import JavaScriptKit
 
 final class UsersPage: Component {
@@ -1491,12 +1497,13 @@ final class UsersPage: Component {
         // is set by the diff. Accessing self.router from a click handler (outside
         // body) would see the default no-op.
         let navigate = router.navigate
-        return div {
+        return VStack(spacing: .md, align: .start) {
             embed { NavBar() }
             h1("User: \(userId)")
             p("Loaded via the :id route param.")
-            button("Go Home", .on(.click) { _ in navigate("/") })
+            Button("Go Home") { navigate("/") }
         }
+        .padding(.lg)
     }
 }
 

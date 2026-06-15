@@ -1,6 +1,7 @@
 import Swiflow
 import SwiflowDOM
 import SwiflowRouter
+import SwiflowUI
 import JavaScriptKit
 
 final class AboutPage: Component {
@@ -11,11 +12,12 @@ final class AboutPage: Component {
         // Accessing self.router from a click handler (outside body) would see the
         // default no-op.
         let back = router.back
-        return div {
+        return VStack(spacing: .md, align: .start) {
             embed { NavBar() }
             h1("About")
             p("This demo exercises RouterRoot, Route, Link, and programmatic navigation.")
-            button("Back", .on(.click) { _ in back() })
+            Button("Back") { back() }
         }
+        .padding(.lg)
     }
 }

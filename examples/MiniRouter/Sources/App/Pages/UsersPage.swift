@@ -1,6 +1,7 @@
 import Swiflow
 import SwiflowDOM
 import SwiflowRouter
+import SwiflowUI
 import JavaScriptKit
 
 final class UsersPage: Component {
@@ -16,11 +17,12 @@ final class UsersPage: Component {
         // is set by the diff. Accessing self.router from a click handler (outside
         // body) would see the default no-op.
         let navigate = router.navigate
-        return div {
+        return VStack(spacing: .md, align: .start) {
             embed { NavBar() }
             h1("User: \(userId)")
             p("Loaded via the :id route param.")
-            button("Go Home", .on(.click) { _ in navigate("/") })
+            Button("Go Home") { navigate("/") }
         }
+        .padding(.lg)
     }
 }
