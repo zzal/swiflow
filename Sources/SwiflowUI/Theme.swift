@@ -64,11 +64,12 @@ public enum SwiflowUI {
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);
 
-          /* borders & focus ring */
+          /* borders, focus ring & elevation */
           --sw-border: light-dark(#e5e7eb, #333333);
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 2px;
+          --sw-shadow: light-dark(0 1px 3px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.5));
 
           /* motion — components name their own properties:
              transition: <prop> var(--sw-duration) var(--sw-ease)
