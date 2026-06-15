@@ -67,7 +67,7 @@ still the baseline.
 - **`SwiflowQuery`** — TanStack-Query / SWR-style data layer. A `Query` is a value that fetches itself (`fetch()`) and is identified by a typed hierarchical `queryKey` (`["users", .int(id)]`); `query(_:)` in `body` returns a `QueryState` (`data` / `error` / `isLoading` / `isFetching`) backed by a per-root `QueryClient` cache with request dedup, stale-while-revalidate (`staleTime` default `.zero`), and key-prefix + tag invalidation. Deterministic to test via `AsyncTestHarness` + `ManualClock`. See [query guide](docs/guides/query.md).
 - **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. `AsyncTestHarness` + `settle()` / `flush()` for deterministic async task tests. See [testing guide](docs/guides/testing.md).
 - **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 571 Swift tests across 117 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter, MiniRouter, progress overlay, SW cache, DevTools API contract). Guides: [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+- 571 Swift tests across 117 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter, MiniRouter, progress overlay, SW cache, DevTools API contract). Guides: [SwiflowUI](docs/guides/swiflowui.md), [SwiflowUI theming](docs/guides/swiflowui-theming.md), [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
 
 ### Chrome DevTools panel
 
@@ -248,6 +248,7 @@ Run `swiflow doctor` after building the CLI to verify your toolchain is complete
   siblings, mixed keyed/unkeyed siblings, component-body anchor cycles
   (depth ≥ 32).
 - **`SwiflowDOM`** — WASM-only renderer + JavaScriptKit bridge.
+- **`SwiflowUI`** — accessible, token-driven component library: layout (`VStack`/`HStack`/`Grid`), controls (`Button`, `TextField`, `Toggle`, `Checkbox`, `Select`, `RadioGroup`), feedback (`Spinner`, `ProgressView`, `Card`, `Badge`), and native overlays (`Alert`, `Prompt`, `Toast`). Every value reads a `--sw-*` token, so apps re-skin via tokens and adapt to dark mode / contrast / reduced motion with no component code. See the [SwiflowUI guide](docs/guides/swiflowui.md) and [theming guide](docs/guides/swiflowui-theming.md).
 - **`swiflow` CLI** — `init` scaffolds, `build` wraps `swift package js`, `dev`
   starts a Hummingbird HTTP + WebSocket server with file-watch full-reload.
 - **JS driver** — vanilla JS, ~200 lines, embedded into the CLI binary as
