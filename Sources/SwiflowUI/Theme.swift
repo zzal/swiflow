@@ -54,7 +54,7 @@ public enum SwiflowUI {
           --sw-surface: light-dark(#ffffff, #1a1a1a);
           --sw-surface-2: light-dark(#f3f4f6, #242424);
           --sw-text: light-dark(#111111, #f5f5f5);
-          --sw-text-muted: light-dark(#6b7280, #9ca3af);
+          --sw-text-muted: light-dark(#5b616b, #9ca3af);
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);
@@ -63,6 +63,12 @@ public enum SwiflowUI {
           --sw-accent-text: light-dark(#ffffff, #0b1220);
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);
+          /* "strong" = readable as TEXT on a soft tint of the same hue. Darker in
+             light (the base token is mid-tone there → fails WCAG on a pale tint);
+             unchanged in dark (the base token is already light → passes). See Badge. */
+          --sw-accent-strong: light-dark(#1d4ed8, #60a5fa);
+          --sw-danger-strong: light-dark(#b91c1c, #f87171);
+          --sw-success-strong: light-dark(#15803d, #4ade80);
 
           /* borders, focus ring & elevation */
           --sw-border: light-dark(#e5e7eb, #333333);
@@ -95,6 +101,7 @@ public enum SwiflowUI {
             --sw-border: light-dark(#000000, #ffffff);
             --sw-border-width: 2px;
             --sw-focus-ring-width: 3px;
+            --sw-shadow: 0 0 0 var(--sw-border-width) var(--sw-border);  /* solid ring, not a soft shadow */
           }
         }
 

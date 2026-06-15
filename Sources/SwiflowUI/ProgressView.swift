@@ -8,15 +8,24 @@ import Swiflow
 ///
 ///     ProgressView(value: 0.6)
 @MainActor
-public func ProgressView(value: Double, _ attributes: Attribute...) -> VNode {
+public func ProgressView(value: Double, label: String? = nil, _ attributes: Attribute...) -> VNode {
     ensureBaseStyles()
     installControlSheet(id: "sw-progress", progressStyleSheet)
 
     let clamped = max(0, min(1, value))
+    // Round in Double space (no Int cast — see wasm32 Int gotcha) so the serialized
+    // attribute stays clean: String(0.1 + 0.2) would be "0.30000000000000004".
+    let rounded = (clamped * 1000).rounded() / 1000
+
     let (callerClasses, callerRest) = splitClasses(attributes)
     let classValue = (["sw-progress"] + callerClasses).joined(separator: " ")
-    return element("progress",
-                   attributes: [.class(classValue), .attr("value", String(clamped)), .attr("max", "1")] + callerRest)
+    var attrs: [Attribute] = [.class(classValue)]
+    if let label { attrs.append(.attr("aria-label", label)) }   // bare <progress> has no accessible name
+    // <progress> has no user interaction, so its `value` IDL property stays in sync
+    // with the content attribute — setAttribute reflects on re-render (unlike <input>).
+    attrs.append(.attr("value", String(rounded)))
+    attrs.append(.attr("max", "1"))
+    return element("progress", attributes: attrs + callerRest)
 }
 
 let progressStyleSheet: CSSSheet = css {
