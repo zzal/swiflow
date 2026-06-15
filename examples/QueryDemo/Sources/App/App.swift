@@ -1,5 +1,6 @@
 // Sources/App/App.swift
 import SwiflowDOM
+import SwiflowUI
 import SwiflowQuery
 
 struct User: Equatable, Sendable { let id: Int; let name: String }
@@ -59,23 +60,26 @@ final class QueryDemo {
         let u = query(UserByID(id: userID))
         // Keep rename mutation in sync with the current userID.
         self.rename = RenameUser(id: userID, api: FakeAPI())
-        return div {
+        return VStack(spacing: .lg, align: .start) {
             h1("Query demo")
-            div {
+            HStack(spacing: .sm, align: .center) {
                 if let user = u.data { p("Loaded: \(user.name)") }
                 else if u.isLoading { p("Loading…") }
-                if u.isFetching { span { text(" ⟳") } }
+                if u.isFetching { Spinner(size: .sm, label: "Fetching") }
             }
-            button("Next user", .on(.click) { self.userID += 1 })
-            div {
+            Button("Next user") { self.userID += 1 }
+
+            VStack(spacing: .sm, align: .start) {
                 h2("Rename user")
-                input(.value($newName), .on(.input) { self.newName = $0.targetValue ?? "" })
-                button("Rename", .on(.click) { self.$rename.mutate(self.newName) },
-                       .attr("disabled", $rename.isPending))
+                HStack(spacing: .sm, align: .end) {
+                    TextField("New name", text: $newName)
+                    Button("Rename", disabled: $rename.isPending) { self.$rename.mutate(self.newName) }
+                }
                 if $rename.isPending { p("Renaming…") }
                 if $rename.isError { p("Error renaming user.") }
             }
         }
+        .padding(.xl)
     }
 }
 
