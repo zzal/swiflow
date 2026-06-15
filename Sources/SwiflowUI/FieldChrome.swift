@@ -107,6 +107,7 @@ let formControlsSheet: CSSSheet = css {
     .sw-field select,
     .sw-field textarea {
       font: inherit;
+      font-weight: normal;   /* `font: inherit` pulls weight 500 from .sw-field__label; controls aren't a label */
       width: 100%;
       box-sizing: border-box;
       padding: var(--sw-space-sm) var(--sw-space-md);   /* fallback; the size modifier overrides */
