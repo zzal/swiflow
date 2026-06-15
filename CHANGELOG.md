@@ -20,6 +20,23 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- **SwiflowUI — accessible, token-driven component library.** A component set
+  for building real UIs without dropping to raw HTML: layout
+  (`VStack`/`HStack`/`Grid`/`Spacer`/`Divider`), controls (`Button`,
+  `TextField`, `Toggle`, `Checkbox`, `Select`, `RadioGroup`), feedback
+  (`Spinner`, `ProgressView`, `Card`, `Badge`), and native overlays (`Alert`,
+  `Prompt`, `Toast`). Built on semantic HTML (`<button>`, `<input>`,
+  `<dialog>`, the Popover API), so roles/keyboard/focus come from the platform;
+  ARIA is added only where a component departs from native. Every value reads a
+  `--sw-*` token, so apps re-skin via token overrides and adapt to dark mode,
+  `prefers-contrast`, `prefers-reduced-motion`, `prefers-reduced-transparency`,
+  and wide-gamut displays with no component code — verified in the emitted CSS
+  (`ThemeTests`) and at runtime (`Tests/playwright/theming.spec.ts`). The
+  HelloWorld scaffold is built from it (retiring its hand-rolled toast +
+  sign-in form). Add `.product(name: "SwiflowUI", package: "Swiflow")`; see
+  [`docs/guides/swiflowui.md`](docs/guides/swiflowui.md) and
+  [`docs/guides/swiflowui-theming.md`](docs/guides/swiflowui-theming.md).
+  **Stability: stable for pre-1.0 usage.**
 - **`#css` macro — real CSS in Swift.** Write actual CSS in a string literal
   (`#css(""" .row { display: grid; } """)`); the macro validates structure at
   compile time (unbalanced braces, malformed declarations, `@import` are
