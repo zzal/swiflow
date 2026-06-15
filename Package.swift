@@ -133,6 +133,11 @@ let package = Package(
             name: "SwiflowUI",
             dependencies: [
                 "Swiflow",
+                // M6 overlays (Alert/Prompt/Toast) call native showModal()/showPopover()
+                // via Ref<JSObject>, gated behind `#if canImport(JavaScriptKit)`. Declared
+                // explicitly so the C shim is in SwiflowUI's link closure (host + wasm),
+                // mirroring SwiflowRouter/SwiflowStore.
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             ],
             path: "Sources/SwiflowUI",
             swiftSettings: [.swiftLanguageMode(.v6)]

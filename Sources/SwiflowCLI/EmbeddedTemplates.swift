@@ -3330,6 +3330,8 @@ final class Demo {
     @State var isDark: Bool = false
     @State var accepted: Bool = false
     @State var ctrl: FormController = FormController()
+    @State var confirmDelete: Bool = false
+    @State var deleteResult: String = ""
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -3443,6 +3445,24 @@ final class Demo {
             ProgressView(value: 0.6)
             p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
               + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
+
+            Divider()
+
+            // --- Overlays ------------------------------------------------
+            h2("Overlays")
+            HStack(spacing: .md, align: .center) {
+                Button("Delete item…", variant: .secondary) { self.confirmDelete = true }
+                if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
+            }
+            p("Alert is a native <dialog>.showModal() — top layer, backdrop, focus trap and "
+              + "ESC-to-close all native. Bind isPresented; dismiss via ESC or the buttons. "
+              + "The backdrop solidifies under prefers-reduced-transparency and the open "
+              + "animation collapses under prefers-reduced-motion, both via tokens.")
+            Alert("Delete this item?", isPresented: $confirmDelete,
+                  message: "This can't be undone.") {
+                Button("Cancel", variant: .secondary) { self.confirmDelete = false }
+                Button("Delete") { self.deleteResult = "Item deleted"; self.confirmDelete = false }
+            }
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
