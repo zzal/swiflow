@@ -76,7 +76,7 @@ public enum SwiflowUI {
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 2px;
-          --sw-shadow: light-dark(0 4px 12px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.55));
+          --sw-shadow: light-dark(0 24px 48px -32px rgb(0 0 0 / 0.25), 0 24px 48px -16px rgb(0 0 0 / 0.45));
 
           /* motion — components name their own properties:
              transition: <prop> var(--sw-duration) var(--sw-ease)
