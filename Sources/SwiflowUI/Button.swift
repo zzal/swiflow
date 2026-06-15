@@ -45,6 +45,44 @@ public func Button(
     _ attributes: Attribute...,
     action: @escaping @MainActor () -> Void
 ) -> VNode {
+    buttonNode(title, variant: variant, size: size, disabled: disabled,
+               type: .button, attributes: attributes, action: action)
+}
+
+/// The native `<button>` `type`. `.submit`/`.reset` belong to a `<form>` and carry
+/// **no** click action — the enclosing form owns the behavior.
+public enum ButtonType: String { case button, submit, reset }
+
+/// Form-button variant: renders `type="submit"`/`"reset"` with **no** click handler,
+/// because the enclosing `<form>` drives the action (e.g. a `Prompt`'s confirm button,
+/// where the form's `submit` is the single source of truth). No trailing closure — a
+/// submit button conceptually has no action of its own.
+///
+///     Button("Rename", type: .submit)   // inside a <form method="dialog">
+@MainActor
+public func Button(
+    _ title: String,
+    variant: ButtonVariant = .primary,
+    size: ControlSize = .md,
+    disabled: Bool = false,
+    type: ButtonType,
+    _ attributes: Attribute...
+) -> VNode {
+    buttonNode(title, variant: variant, size: size, disabled: disabled,
+               type: type, attributes: attributes, action: nil)
+}
+
+/// Shared lowering. `action == nil` ⇒ no click handler is registered (form buttons).
+@MainActor
+private func buttonNode(
+    _ title: String,
+    variant: ButtonVariant,
+    size: ControlSize,
+    disabled: Bool,
+    type: ButtonType,
+    attributes: [Attribute],
+    action: (@MainActor () -> Void)?
+) -> VNode {
     ensureBaseStyles()
     installControlSheet(id: "sw-button", buttonStyleSheet)
 
@@ -52,11 +90,11 @@ public func Button(
     let classValue = (["sw-btn", "sw-btn--\(variant.modifierClass)", "sw-btn--\(size.modifierClass)"]
         + callerClasses).joined(separator: " ")
 
-    var attrs: [Attribute] = [.class(classValue), .attr("type", "button")]
+    var attrs: [Attribute] = [.class(classValue), .attr("type", type.rawValue)]
     if disabled {
-        attrs.append(.attr("disabled", true))   // no click handler on a disabled button
-    } else {
-        attrs.append(.on(.click, perform: action))
+        attrs.append(.attr("disabled", true))           // no click handler on a disabled button
+    } else if let action {
+        attrs.append(.on(.click, perform: action))      // submit/reset pass nil → no handler; the form drives them
     }
     attrs += callerRest   // caller wins on everything except the merged class
 

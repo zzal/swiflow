@@ -67,10 +67,10 @@ final class AlertDialog {
 
     var body: VNode {
         ensureBaseStyles()
-        installControlSheet(id: "sw-alert", alertStyleSheet)
+        installDialogChrome()
 
         var attrs: [Attribute] = [
-            .class("sw-alert"),
+            .class("sw-dialog sw-alert"),                 // shared modal chrome + internal alert marker
             .attr("role", "alertdialog"),                 // an alert that requires a response
             .attr("aria-labelledby", titleID),            // name = the visible <h2> (stays in sync)
             // Native close (ESC, close(), or a form method=dialog) → sync the binding back.
@@ -85,12 +85,12 @@ final class AlertDialog {
         #endif
 
         var children: [VNode] = [
-            element("h2", attributes: [.class("sw-alert__title"), .attr("id", titleID)], children: [text(title)]),
+            element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
         ]
         if let message {
-            children.append(element("p", attributes: [.class("sw-alert__message"), .attr("id", messageID)], children: [text(message)]))
+            children.append(element("p", attributes: [.class("sw-dialog__message"), .attr("id", messageID)], children: [text(message)]))
         }
-        children.append(element("div", attributes: [.class("sw-alert__actions")], children: actions()))
+        children.append(element("div", attributes: [.class("sw-dialog__actions")], children: actions()))
         return element("dialog", attributes: attrs, children: children)
     }
 
@@ -121,60 +121,9 @@ final class AlertDialog {
     }
 }
 
-/// Global `.sw-alert` sheet (the dialog state selectors — `[open]`, `::backdrop`,
-/// `@starting-style` — are cleanest as unscoped raw CSS). Backdrop reads the M2
-/// overlay tokens, so reduced-transparency solidifies it; transitions read
-/// `--sw-duration`, so reduced-motion drops the animation.
-///
-/// `@starting-style` + `transition-behavior: allow-discrete` are Baseline 2024
-/// (Chrome 117+, Safari 17.4+, Firefox 129+). On older engines the dialog still
-/// *functions* — `showModal()` works — it just snaps open/closed without the
-/// transition. Graceful degradation, intentional floor.
-let alertStyleSheet: CSSSheet = css {
-    raw("""
-    .sw-alert {
-      margin: auto;                       /* center in the viewport */
-      min-width: 30ch;
-      max-width: min(90vw, 28rem);
-      border: none;
-      border-radius: var(--sw-radius);
-      background-color: var(--sw-surface);
-      color: var(--sw-text);
-      padding: var(--sw-space-lg);
-      box-shadow: var(--sw-shadow);
-      opacity: 0;
-      transform: translateY(8px) scale(0.98);
-      transition: opacity var(--sw-duration) var(--sw-ease),
-                  transform var(--sw-duration) var(--sw-ease),
-                  overlay var(--sw-duration) var(--sw-ease) allow-discrete,
-                  display var(--sw-duration) var(--sw-ease) allow-discrete;
-    }
-    .sw-alert[open] {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-    @starting-style {
-      .sw-alert[open] { opacity: 0; transform: translateY(8px) scale(0.98); }
-    }
-    .sw-alert::backdrop {
-      background-color: var(--sw-overlay-bg);
-      -webkit-backdrop-filter: var(--sw-backdrop);
-      backdrop-filter: var(--sw-backdrop);
-    }
-    .sw-alert__title {
-      margin: 0 0 var(--sw-space-sm);
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .sw-alert__message {
-      margin: 0 0 var(--sw-space-lg);
-      color: var(--sw-text-muted);
-    }
-    .sw-alert__actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: var(--sw-space-sm);
-    }
-    """)
-}
+// Alert has no chrome of its own — it renders the shared `.sw-dialog` slots
+// (`__title`/`__message`/`__actions`, see `DialogChrome.swift`). The `sw-alert`
+// class is a SwiflowUI-internal semantic marker — it distinguishes an alert from a
+// prompt dialog in the DOM and reserves a seam for SwiflowUI's own future variant
+// rules (e.g. a destructive-alert treatment). It is NOT an app override hook: apps
+// don't author `sw-*` CSS (that prefix is reserved — see ControlClass.swift).

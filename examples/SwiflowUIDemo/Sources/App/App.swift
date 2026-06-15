@@ -14,6 +14,8 @@ final class Demo {
     @State var ctrl: FormController = FormController()
     @State var confirmDelete: Bool = false
     @State var deleteResult: String = ""
+    @State var showRename: Bool = false
+    @State var fileName: String = "untitled"
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -134,16 +136,24 @@ final class Demo {
             h2("Overlays")
             HStack(spacing: .md, align: .center) {
                 Button("Delete item…", variant: .secondary) { self.confirmDelete = true }
+                Button("Rename \(fileName)…", variant: .secondary) { self.showRename = true }
                 if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
             }
-            p("Alert is a native <dialog>.showModal() — top layer, backdrop, focus trap and "
-              + "ESC-to-close all native. Bind isPresented; dismiss via ESC or the buttons. "
-              + "The backdrop solidifies under prefers-reduced-transparency and the open "
-              + "animation collapses under prefers-reduced-motion, both via tokens.")
+            p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
+              + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
+              + "wraps a <form method=\"dialog\">, so Enter submits. The backdrop solidifies under "
+              + "prefers-reduced-transparency and the open animation collapses under "
+              + "prefers-reduced-motion, both via tokens.")
             Alert("Delete this item?", isPresented: $confirmDelete,
                   message: "This can't be undone.") {
                 Button("Cancel", variant: .secondary) { self.confirmDelete = false }
                 Button("Delete") { self.deleteResult = "Item deleted"; self.confirmDelete = false }
+            }
+            Prompt("Rename file", isPresented: $showRename, text: $fileName,
+                   message: "Enter a new name", placeholder: "untitled",
+                   confirmTitle: "Rename") { newName in
+                // fileName is already bound; this is where an app would persist the change.
+                self.fileName = newName.isEmpty ? "untitled" : newName
             }
         }
         .padding(.xl)

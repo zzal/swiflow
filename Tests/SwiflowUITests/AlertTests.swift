@@ -52,10 +52,10 @@ struct AlertTests {
         }
         let d = el(node)!
         #expect(d.tag == "dialog")
-        #expect(d.attributes["class"] == "sw-alert")
+        #expect(d.attributes["class"] == "sw-dialog sw-alert")   // shared modal chrome + alert hook
         #expect(d.attributes["role"] == "alertdialog")     // alert (requires a response), not a plain dialog
-        let titleEl = firstWithClass(d, "sw-alert__title")!
-        let msgEl = firstWithClass(d, "sw-alert__message")!
+        let titleEl = firstWithClass(d, "sw-dialog__title")!
+        let msgEl = firstWithClass(d, "sw-dialog__message")!
         #expect(titleEl.tag == "h2")
         #expect(msgEl.tag == "p")
         // accessible name = the visible <h2>; description = the message <p> (id-associated, not aria-label)
@@ -64,7 +64,7 @@ struct AlertTests {
         #expect(titleEl.attributes["id"] != nil)
         #expect(d.attributes["aria-describedby"] == msgEl.attributes["id"])
         #expect(msgEl.attributes["id"] != nil)
-        #expect(firstWithClass(d, "sw-alert__actions") != nil)
+        #expect(firstWithClass(d, "sw-dialog__actions") != nil)
         #expect(allText(node).contains("Delete this item?"))
         #expect(allText(node).contains("This can't be undone."))
         #expect(allText(node).contains("Cancel"))
@@ -73,10 +73,10 @@ struct AlertTests {
 
     @Test("message is optional — omitting it drops the paragraph and the aria-describedby") func noMessage() {
         let d = el(building { AlertDialog(title: "Heads up", isPresented: dismissed, message: nil) { [Button("OK") {}] }.body })!
-        #expect(firstWithClass(d, "sw-alert__message") == nil)
+        #expect(firstWithClass(d, "sw-dialog__message") == nil)
         #expect(d.attributes["aria-describedby"] == nil)     // no message → nothing to describe
         #expect(d.attributes["aria-labelledby"] != nil)      // title still names it
-        #expect(firstWithClass(d, "sw-alert__title") != nil)
+        #expect(firstWithClass(d, "sw-dialog__title") != nil)
     }
 
     @Test("the native close event (incl. ESC) writes isPresented back to false when open") func closeWritesBinding() {
@@ -115,17 +115,19 @@ struct AlertTests {
         if case .component = node {} else { Issue.record("expected an embedded component node, got \(node)") }
     }
 
-    @Test("stylesheet: modal backdrop + @starting-style entry, every value token-driven") func stylesheet() {
-        let css = alertStyleSheet.cssString(scopeClass: "")
-        #expect(css.contains(".sw-alert"))
+    @Test("shared dialog chrome: modal backdrop + @starting-style entry + 30ch, all token-driven") func chromeStylesheet() {
+        let css = dialogChromeSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-dialog"))
         #expect(css.contains("min-width: 30ch"))
-        #expect(css.contains(".sw-alert[open]"))
-        #expect(css.contains(".sw-alert::backdrop"))
+        #expect(css.contains(".sw-dialog[open]"))
+        #expect(css.contains(".sw-dialog::backdrop"))
         #expect(css.contains("@starting-style"))
         #expect(css.contains("var(--sw-overlay-bg)"))   // M2 overlay token → reduced-transparency solidifies it
         #expect(css.contains("var(--sw-backdrop)"))
         #expect(css.contains("var(--sw-duration)"))      // → reduced-motion collapses the animation
         #expect(css.contains("allow-discrete"))          // dialog stays painted through the exit transition
         #expect(css.contains("var(--sw-shadow)"))
+        #expect(css.contains(".sw-dialog__title"))       // shared title/message/actions slots
+        #expect(css.contains(".sw-dialog__actions"))
     }
 }
