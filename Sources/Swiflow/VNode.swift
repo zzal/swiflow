@@ -167,14 +167,24 @@ public struct EventInfo: Equatable, Sendable {
     /// `nil` for events without a `checked` property on the target.
     public let targetChecked: Bool?
 
+    /// True when the event's target IS the element the handler is bound to
+    /// (`event.target === event.currentTarget`) — the event originated on this
+    /// element itself rather than bubbling up from a descendant. Enables
+    /// "did the user act on the element itself, not its contents?" patterns,
+    /// e.g. backdrop-click-to-dismiss on a `<dialog>` (a backdrop click targets
+    /// the dialog; a click on its content targets a child).
+    public let isSelfTarget: Bool
+
     public init(
         type: String,
         targetValue: String? = nil,
-        targetChecked: Bool? = nil
+        targetChecked: Bool? = nil,
+        isSelfTarget: Bool = false
     ) {
         self.type = type
         self.targetValue = targetValue
         self.targetChecked = targetChecked
+        self.isSelfTarget = isSelfTarget
     }
 
     /// `targetValue` parsed as an `Int`; `nil` if absent or unparseable.

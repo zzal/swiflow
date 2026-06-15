@@ -51,4 +51,14 @@ struct EventInfoAccessorsTests {
         let e = EventInfo(type: "input", targetValue: "xx")
         #expect(e.targetDoubleValue == nil)
     }
+
+    @Test("isSelfTarget defaults to false")
+    func selfTargetDefault() {
+        #expect(EventInfo(type: "click").isSelfTarget == false)
+    }
+
+    @Test("isSelfTarget roundtrips when set")
+    func selfTargetRoundtrip() {
+        #expect(EventInfo(type: "click", isSelfTarget: true).isSelfTarget == true)
+    }
 }

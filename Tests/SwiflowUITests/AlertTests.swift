@@ -115,6 +115,37 @@ struct AlertTests {
         if case .component = node {} else { Issue.record("expected an embedded component node, got \(node)") }
     }
 
+    // MARK: backdrop dismissal (EventInfo.isSelfTarget)
+
+    @Test("content is wrapped in .sw-dialog__body so a backdrop click is the only self-target") func bodyWrapper() {
+        let d = el(building { AlertDialog(title: "T", isPresented: dismissed, message: "m") { [text("x")] }.body })!
+        let body = firstWithClass(d, "sw-dialog__body")!
+        #expect(body.tag == "div")
+        // title/message/actions are nested inside the body, not direct dialog children
+        #expect(firstWithClass(body, "sw-dialog__title") != nil)
+        #expect(firstWithClass(body, "sw-dialog__actions") != nil)
+    }
+
+    @Test("dismissOnBackdrop is off by default — no click handler on the dialog (no dead handler)") func noBackdropHandlerByDefault() {
+        let d = el(building { AlertDialog(title: "T", isPresented: dismissed) { [text("x")] }.body })!
+        #expect(d.handlers["click"] == nil)
+    }
+
+    @Test("dismissOnBackdrop: a backdrop click (isSelfTarget) closes; a content click does not") func backdropDismiss() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        defer { HandlerAmbient.current = nil }
+        var presented = true
+        let binding = Binding<Bool>(get: { presented }, set: { presented = $0 })
+        let d = el(AlertDialog(title: "T", isPresented: binding, dismissOnBackdrop: true) { [text("x")] }.body)!
+        // content click (target is a child) → stays open
+        registry.dispatch(id: d.handlers["click"]!.id, event: EventInfo(type: "click", isSelfTarget: false))
+        #expect(presented == true)
+        // backdrop click (target IS the dialog) → closes
+        registry.dispatch(id: d.handlers["click"]!.id, event: EventInfo(type: "click", isSelfTarget: true))
+        #expect(presented == false)
+    }
+
     @Test("shared dialog chrome: modal backdrop + @starting-style entry + 30ch, all token-driven") func chromeStylesheet() {
         let css = dialogChromeSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-dialog"))

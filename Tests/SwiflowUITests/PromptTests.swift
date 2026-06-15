@@ -145,6 +145,38 @@ struct PromptTests {
         if case .component = node {} else { Issue.record("expected an embedded component node, got \(node)") }
     }
 
+    // MARK: backdrop dismissal (EventInfo.isSelfTarget)
+
+    @Test("content (incl. the form) is wrapped in .sw-dialog__body") func bodyWrapper() {
+        let d = el(building { makePrompt(isPresented: stayClosed, text: noText).body })!
+        let body = firstWithClass(d, "sw-dialog__body")!
+        #expect(body.tag == "div")
+        #expect(firstWithClass(body, "sw-prompt__form") != nil)
+    }
+
+    @Test("dismissOnBackdrop is off by default — no click handler on the dialog") func noBackdropHandlerByDefault() {
+        let d = el(building { makePrompt(isPresented: stayClosed, text: noText).body })!
+        #expect(d.handlers["click"] == nil)
+    }
+
+    @Test("dismissOnBackdrop: a backdrop click cancels (closes, no onSubmit); a content click does not") func backdropCancels() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        defer { HandlerAmbient.current = nil }
+        var submitted: String?
+        var presented = true
+        let d = el(PromptDialog(
+            title: "Rename", isPresented: Binding(get: { presented }, set: { presented = $0 }),
+            text: noText, message: "New name", placeholder: "", confirmTitle: "OK",
+            cancelTitle: "Cancel", dismissOnBackdrop: true, onSubmit: { submitted = $0 }
+        ).body)!
+        registry.dispatch(id: d.handlers["click"]!.id, event: EventInfo(type: "click", isSelfTarget: false))
+        #expect(presented == true)   // content click → stays open
+        registry.dispatch(id: d.handlers["click"]!.id, event: EventInfo(type: "click", isSelfTarget: true))
+        #expect(presented == false)  // backdrop click → cancels
+        #expect(submitted == nil)    // …and never calls onSubmit
+    }
+
     @Test("prompt stylesheet stacks the field above the actions, token-driven") func stylesheet() {
         let css = promptStyleSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-prompt__form"))

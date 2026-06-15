@@ -26,6 +26,8 @@ import JavaScriptKit
 /// > presentation (the component is `embed`-reused; the `isPresented`/`text` bindings
 /// > stay live). Key the embed yourself if you need that chrome to change while mounted.
 @MainActor
+/// Set `dismissOnBackdrop: true` to cancel (close without `onSubmit`) on a backdrop
+/// click, in addition to ESC + Cancel. Off by default.
 public func Prompt(
     _ title: String,
     isPresented: Binding<Bool>,
@@ -34,12 +36,13 @@ public func Prompt(
     placeholder: String = "",
     confirmTitle: String = "OK",
     cancelTitle: String = "Cancel",
+    dismissOnBackdrop: Bool = false,
     onSubmit: @escaping (String) -> Void
 ) -> VNode {
     embed {
         PromptDialog(title: title, isPresented: isPresented, text: text, message: message,
                      placeholder: placeholder, confirmTitle: confirmTitle,
-                     cancelTitle: cancelTitle, onSubmit: onSubmit)
+                     cancelTitle: cancelTitle, dismissOnBackdrop: dismissOnBackdrop, onSubmit: onSubmit)
     }
 }
 
@@ -55,6 +58,7 @@ final class PromptDialog {
     private let isPresented: Binding<Bool>
     private let textBinding: Binding<String>   // not `text` — that would shadow the text(_:) node factory
     private let onSubmit: (String) -> Void
+    private let dismissOnBackdrop: Bool
     private let titleID: String
     #if canImport(JavaScriptKit)
     private let dialogRef = Ref<JSObject>()
@@ -62,7 +66,7 @@ final class PromptDialog {
 
     init(title: String, isPresented: Binding<Bool>, text: Binding<String>, message: String?,
          placeholder: String, confirmTitle: String, cancelTitle: String,
-         onSubmit: @escaping (String) -> Void) {
+         dismissOnBackdrop: Bool = false, onSubmit: @escaping (String) -> Void) {
         self.title = title
         self.isPresented = isPresented
         self.textBinding = text
@@ -70,6 +74,7 @@ final class PromptDialog {
         self.placeholder = placeholder
         self.confirmTitle = confirmTitle
         self.cancelTitle = cancelTitle
+        self.dismissOnBackdrop = dismissOnBackdrop
         self.onSubmit = onSubmit
         self.titleID = nextSwID("sw-prompt-title")
     }
@@ -86,6 +91,11 @@ final class PromptDialog {
             // ESC closes natively → keep the binding in sync (guarded so we don't echo our own close).
             .on(.custom("close")) { if self.isPresented.get() { self.isPresented.set(false) } },
         ]
+        if dismissOnBackdrop {
+            // Backdrop click (targets the <dialog> itself) cancels — never calls onSubmit.
+            // Content clicks target a child (the body/form), so they don't dismiss.
+            attrs.append(.on(.click) { if $0.isSelfTarget { self.isPresented.set(false) } })
+        }
         #if canImport(JavaScriptKit)
         attrs.append(.refBinding(AnyRefBinding(dialogRef)))
         #endif
@@ -112,10 +122,13 @@ final class PromptDialog {
                 ]),
             ])
 
-        return element("dialog", attributes: attrs, children: [
+        // Inner body carries the padding (DialogChrome) so the dialog box coincides
+        // with it — keeping a backdrop click the only self-target for dismiss-on-tap.
+        let bodyNode = element("div", attributes: [.class("sw-dialog__body")], children: [
             element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
             formNode,
         ])
+        return element("dialog", attributes: attrs, children: [bodyNode])
     }
 
     func onAppear() { syncOpenState() }
