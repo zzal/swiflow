@@ -39,7 +39,8 @@ let cardStyleSheet: CSSSheet = css {
       border-radius: var(--sw-radius);
       padding: var(--sw-space-lg);
     }
-    .sw-card--elevated { box-shadow: var(--sw-shadow); }
+    /* hairline edge + the big soft drop (matches the HelloWorld card lift) */
+    .sw-card--elevated { box-shadow: 0 1px 0 var(--sw-border), var(--sw-shadow); }
     .sw-card--outlined { border: var(--sw-border-width) solid var(--sw-border); }
     """)
 }

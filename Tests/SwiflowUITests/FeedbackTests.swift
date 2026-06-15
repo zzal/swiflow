@@ -109,7 +109,8 @@ struct CardTests {
     @Test("stylesheet: elevated uses --sw-shadow, outlined uses --sw-border, on --sw-surface") func stylesheet() {
         let css = cardStyleSheet.cssString(scopeClass: "")
         #expect(css.contains("background-color: var(--sw-surface)"))
-        #expect(css.contains(".sw-card--elevated { box-shadow: var(--sw-shadow); }"))
+        #expect(css.contains(".sw-card--elevated"))
+        #expect(css.contains("box-shadow: 0 1px 0 var(--sw-border), var(--sw-shadow)"))
         #expect(css.contains("var(--sw-border)"))
     }
 }
