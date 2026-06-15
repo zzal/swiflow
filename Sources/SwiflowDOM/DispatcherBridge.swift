@@ -9,7 +9,7 @@ import Swiflow
 ///
 /// The registered closure expects two arguments from JS:
 /// 1. `handlerId: Number` — the integer ID stored in `HandlerRegistry`.
-/// 2. `eventPayload: Object` — `{ type: String, targetValue: String? }`.
+/// 2. `eventPayload: Object` — `{ type, targetValue?, targetChecked?, isSelfTarget }`.
 enum DispatcherBridge {
     /// Strong reference holding the `JSClosure` so it isn't deallocated.
     nonisolated(unsafe) private static var installed: JSClosure?
@@ -33,6 +33,7 @@ enum DispatcherBridge {
             let type = payload.type.string ?? ""
             let targetValue = payload.targetValue.string
             let targetChecked = payload.targetChecked.boolean
+            let isSelfTarget = payload.isSelfTarget.boolean ?? false
 
             MainActor.assumeIsolated {
                 HandlerRegistry.dispatchGlobal(
@@ -40,7 +41,8 @@ enum DispatcherBridge {
                     event: EventInfo(
                         type: type,
                         targetValue: targetValue,
-                        targetChecked: targetChecked
+                        targetChecked: targetChecked,
+                        isSelfTarget: isSelfTarget
                     )
                 )
             }

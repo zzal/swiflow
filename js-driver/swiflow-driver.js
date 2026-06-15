@@ -65,7 +65,11 @@
   /**
    * Serialize a DOM event into the shape Swift expects.
    * EventInfo carries: type, optional targetValue (for value-bearing
-   * inputs), and optional targetChecked (for checkbox/radio inputs).
+   * inputs), optional targetChecked (for checkbox/radio inputs), and
+   * isSelfTarget (target === currentTarget — true when the event fired on the
+   * bound element itself, not bubbled from a descendant). Called synchronously
+   * from the listener wrapper, so `currentTarget` is the element the listener
+   * is attached to.
    */
   function serializeEvent(event) {
     const target = event.target;
@@ -77,6 +81,7 @@
       type: event.type,
       targetValue: targetValue,
       targetChecked: targetChecked,
+      isSelfTarget: target === event.currentTarget,
     };
   }
 

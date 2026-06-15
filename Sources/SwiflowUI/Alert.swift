@@ -28,14 +28,22 @@ import JavaScriptKit
 /// > That's the right model for an alert — its text is fixed per logical alert. If
 /// > you genuinely need the content to change while mounted, key the embed yourself:
 /// > `embed("\(title)") { … }`.
+///
+/// Set `dismissOnBackdrop: true` to also close when the user clicks the backdrop
+/// (outside the card). Off by default — an alert asks for a deliberate response, so
+/// accidental backdrop-dismissal is usually unwanted; opt in for casual alerts.
 @MainActor
 public func Alert(
     _ title: String,
     isPresented: Binding<Bool>,
     message: String? = nil,
+    dismissOnBackdrop: Bool = false,
     @ChildrenBuilder actions: @escaping () -> [VNode]
 ) -> VNode {
-    embed { AlertDialog(title: title, isPresented: isPresented, message: message, actions: actions) }
+    embed {
+        AlertDialog(title: title, isPresented: isPresented, message: message,
+                    dismissOnBackdrop: dismissOnBackdrop, actions: actions)
+    }
 }
 
 /// The stateful implementation behind `Alert`. A `@Component` because a *modal*
@@ -47,6 +55,7 @@ final class AlertDialog {
     private let title: String
     private let message: String?
     private let isPresented: Binding<Bool>
+    private let dismissOnBackdrop: Bool
     private let actions: () -> [VNode]
     // Stable ids for ARIA wiring, captured once at init (not per body) so they're
     // stable across re-renders and never collide between two instances.
@@ -56,10 +65,12 @@ final class AlertDialog {
     private let dialogRef = Ref<JSObject>()
     #endif
 
-    init(title: String, isPresented: Binding<Bool>, message: String? = nil, actions: @escaping () -> [VNode]) {
+    init(title: String, isPresented: Binding<Bool>, message: String? = nil,
+         dismissOnBackdrop: Bool = false, actions: @escaping () -> [VNode]) {
         self.title = title
         self.isPresented = isPresented
         self.message = message
+        self.dismissOnBackdrop = dismissOnBackdrop
         self.actions = actions
         self.titleID = nextSwID("sw-alert-title")
         self.messageID = nextSwID("sw-alert-msg")
@@ -80,18 +91,27 @@ final class AlertDialog {
             .on(.custom("close")) { if self.isPresented.get() { self.isPresented.set(false) } },
         ]
         if message != nil { attrs.append(.attr("aria-describedby", messageID)) }  // description = the message
+        if dismissOnBackdrop {
+            // A backdrop click targets the <dialog> itself (isSelfTarget); a click on
+            // the .sw-dialog__body or its content targets a child, so this only fires
+            // for true backdrop clicks. ESC + the action buttons still close it too.
+            attrs.append(.on(.click) { if $0.isSelfTarget { self.isPresented.set(false) } })
+        }
         #if canImport(JavaScriptKit)
         attrs.append(.refBinding(AnyRefBinding(dialogRef)))
         #endif
 
-        var children: [VNode] = [
+        var bodyChildren: [VNode] = [
             element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
         ]
         if let message {
-            children.append(element("p", attributes: [.class("sw-dialog__message"), .attr("id", messageID)], children: [text(message)]))
+            bodyChildren.append(element("p", attributes: [.class("sw-dialog__message"), .attr("id", messageID)], children: [text(message)]))
         }
-        children.append(element("div", attributes: [.class("sw-dialog__actions")], children: actions()))
-        return element("dialog", attributes: attrs, children: children)
+        bodyChildren.append(element("div", attributes: [.class("sw-dialog__actions")], children: actions()))
+        // Inner body holds the padding (see DialogChrome) so the dialog box coincides
+        // with it — that's what keeps a backdrop click the only self-target.
+        let bodyNode = element("div", attributes: [.class("sw-dialog__body")], children: bodyChildren)
+        return element("dialog", attributes: attrs, children: [bodyNode])
     }
 
     func onAppear() { syncOpenState() }

@@ -3124,17 +3124,21 @@ final class Demo {
             }
             p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
               + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
-              + "wraps a <form method=\"dialog\">, so Enter submits. The backdrop solidifies under "
-              + "prefers-reduced-transparency and the open animation collapses under "
-              + "prefers-reduced-motion, both via tokens.")
+              + "wraps a <form method=\"dialog\">, so Enter submits. The Delete alert demands a "
+              + "deliberate choice (no backdrop dismiss); Rename opts into dismissOnBackdrop, so "
+              + "clicking outside cancels it. Backdrop solidifies under prefers-reduced-transparency "
+              + "and the open animation collapses under prefers-reduced-motion, both via tokens.")
+            // A destructive confirm: backdrop dismiss left OFF (the default) so it's not
+            // closed by accident.
             Alert("Delete this item?", isPresented: $confirmDelete,
                   message: "This can't be undone.") {
                 Button("Cancel", variant: .secondary) { self.confirmDelete = false }
                 Button("Delete") { self.deleteResult = "Item deleted"; self.confirmDelete = false }
             }
+            // Rename opts into backdrop-to-cancel (clicking outside closes without renaming).
             Prompt("Rename file", isPresented: $showRename, text: $fileName,
                    message: "Enter a new name", placeholder: "untitled",
-                   confirmTitle: "Rename") { newName in
+                   confirmTitle: "Rename", dismissOnBackdrop: true) { newName in
                 // fileName is already bound; this is where an app would persist the change.
                 self.fileName = newName.isEmpty ? "untitled" : newName
             }

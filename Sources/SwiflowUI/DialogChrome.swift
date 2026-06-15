@@ -24,7 +24,11 @@ let dialogChromeSheet: CSSSheet = css {
       border-radius: var(--sw-radius);
       background-color: var(--sw-surface);
       color: var(--sw-text);
-      padding: var(--sw-space-lg);
+      /* Padding lives on .sw-dialog__body, NOT here: with zero padding the dialog
+         box coincides with the body, so a click on the visible card targets the
+         body (a child) and only a true backdrop click targets the dialog itself —
+         that's what makes `EventInfo.isSelfTarget` backdrop-only for dismiss-on-tap. */
+      padding: 0;
       box-shadow: var(--sw-shadow);
       opacity: 0;
       transform: translateY(8px) scale(0.98);
@@ -44,6 +48,9 @@ let dialogChromeSheet: CSSSheet = css {
       background-color: var(--sw-overlay-bg);
       -webkit-backdrop-filter: var(--sw-backdrop);
       backdrop-filter: var(--sw-backdrop);
+    }
+    .sw-dialog__body {
+      padding: var(--sw-space-lg);
     }
     .sw-dialog__title {
       margin: 0 0 var(--sw-space-sm);
