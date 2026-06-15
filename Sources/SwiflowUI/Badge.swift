@@ -46,9 +46,11 @@ let badgeStyleSheet: CSSSheet = css {
       line-height: 1.4;
       white-space: nowrap;
     }
+    /* Soft tint bg + the "-strong" text token: the base token is mid-tone in light
+       mode and would fail WCAG on the pale tint; -strong darkens it there. */
     .sw-badge--neutral { background-color: var(--sw-surface-2); color: var(--sw-text-muted); }
-    .sw-badge--accent  { background-color: color-mix(in oklab, var(--sw-accent) 15%, var(--sw-surface)); color: var(--sw-accent); }
-    .sw-badge--danger  { background-color: color-mix(in oklab, var(--sw-danger) 15%, var(--sw-surface)); color: var(--sw-danger); }
-    .sw-badge--success { background-color: color-mix(in oklab, var(--sw-success) 15%, var(--sw-surface)); color: var(--sw-success); }
+    .sw-badge--accent  { background-color: color-mix(in oklab, var(--sw-accent) 15%, var(--sw-surface)); color: var(--sw-accent-strong); }
+    .sw-badge--danger  { background-color: color-mix(in oklab, var(--sw-danger) 15%, var(--sw-surface)); color: var(--sw-danger-strong); }
+    .sw-badge--success { background-color: color-mix(in oklab, var(--sw-success) 15%, var(--sw-surface)); color: var(--sw-success-strong); }
     """)
 }

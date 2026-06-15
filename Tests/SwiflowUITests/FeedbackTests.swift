@@ -23,18 +23,27 @@ import Swiflow
 @Suite("Spinner")
 @MainActor
 struct SpinnerTests {
-    @Test("renders a role=status span with size class and an accessible label") func renders() {
-        let s = el(Spinner())!
+    @Test("renders a role=status span with size class and a hidden text label") func renders() {
+        let node = Spinner()
+        let s = el(node)!
         #expect(s.tag == "span")
         #expect(s.attributes["class"] == "sw-spinner sw-spinner--md")
         #expect(s.attributes["role"] == "status")
-        #expect(s.attributes["aria-label"] == "Loading")
+        // label rides as visually-hidden text content (not aria-label) for live-region reliability
+        #expect(el(s.children.first)!.attributes["class"] == "sw-visually-hidden")
+        #expect(allText(node) == "Loading")
     }
 
     @Test("size + custom label lower as expected") func sizeAndLabel() {
-        let s = el(Spinner(size: .lg, label: "Loading results"))!
-        #expect(s.attributes["class"] == "sw-spinner sw-spinner--lg")
-        #expect(s.attributes["aria-label"] == "Loading results")
+        let node = Spinner(size: .lg, label: "Loading results")
+        #expect(el(node)!.attributes["class"] == "sw-spinner sw-spinner--lg")
+        #expect(allText(node) == "Loading results")
+    }
+
+    @Test("caller attributes and class merge onto the spinner") func callerMerge() {
+        let s = el(Spinner(.class("inline"), .attr("id", "load")))!
+        #expect(s.attributes["class"] == "sw-spinner sw-spinner--md inline")
+        #expect(s.attributes["id"] == "load")
     }
 
     @Test("stylesheet gates the spin on --sw-anim-play so reduced-motion freezes it") func stylesheet() {
@@ -42,6 +51,7 @@ struct SpinnerTests {
         #expect(css.contains("animation-play-state: var(--sw-anim-play)"))
         #expect(css.contains("@keyframes sw-spin"))
         #expect(css.contains("var(--sw-accent)"))
+        #expect(css.contains(".sw-visually-hidden"))
     }
 }
 
@@ -59,6 +69,15 @@ struct ProgressViewTests {
     @Test("value is clamped to 0...1") func clamps() {
         #expect(el(ProgressView(value: 1.5))!.attributes["value"] == "1.0")
         #expect(el(ProgressView(value: -0.5))!.attributes["value"] == "0.0")
+    }
+
+    @Test("value is rounded so no float dust leaks into the attribute") func roundsValue() {
+        #expect(el(ProgressView(value: 0.1 + 0.2))!.attributes["value"] == "0.3")   // not 0.30000000000000004
+    }
+
+    @Test("label lowers to aria-label; omitted by default") func ariaLabel() {
+        #expect(el(ProgressView(value: 0.5, label: "Upload"))!.attributes["aria-label"] == "Upload")
+        #expect(el(ProgressView(value: 0.5))!.attributes["aria-label"] == nil)
     }
 
     @Test("stylesheet styles the native progress track + value, token-driven") func stylesheet() {
@@ -111,9 +130,16 @@ struct BadgeTests {
         #expect(el(Badge("!", variant: .danger))!.attributes["class"] == "sw-badge sw-badge--danger")
     }
 
-    @Test("stylesheet uses soft color-mix tints (no extra text tokens)") func stylesheet() {
+    @Test("caller attributes and class merge onto the badge") func callerMerge() {
+        let b = el(Badge("X", .class("pill"), .attr("title", "info")))!
+        #expect(b.attributes["class"] == "sw-badge sw-badge--neutral pill")
+        #expect(b.attributes["title"] == "info")
+    }
+
+    @Test("stylesheet uses soft color-mix tint bg + the -strong text token (WCAG in light mode)") func stylesheet() {
         let css = badgeStyleSheet.cssString(scopeClass: "")
         #expect(css.contains("color-mix(in oklab, var(--sw-danger)"))
-        #expect(css.contains("var(--sw-surface-2)"))   // neutral
+        #expect(css.contains("var(--sw-danger-strong)"))   // darker text → passes WCAG on the pale light tint
+        #expect(css.contains("var(--sw-surface-2)"))        // neutral
     }
 }

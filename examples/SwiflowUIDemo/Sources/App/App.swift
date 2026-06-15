@@ -130,7 +130,7 @@ final class Demo {
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
         // token resolve to this scheme — overriding the OS preference live.
         .style("color-scheme", isDark ? "dark" : "light")
-        .style("background", "var(--sw-surface)")
+        .style("background", "var(--sw-bg)")   // page/canvas, so the surface cards lift off it
         .style("color", "var(--sw-text)")
         .style("min-height", "100vh")
     }

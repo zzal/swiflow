@@ -31,6 +31,7 @@ struct ThemeTests {
             "--sw-danger", "--sw-success", "--sw-duration", "--sw-ease", "--sw-anim-play",
             "--sw-focus-ring", "--sw-focus-ring-width", "--sw-disabled-opacity",
             "--sw-overlay-bg", "--sw-backdrop", "--sw-accent-hover", "--sw-accent-active", "--sw-shadow",
+            "--sw-accent-strong", "--sw-danger-strong", "--sw-success-strong", "--sw-bg",
         ] {
             #expect(css.contains(token), "missing token \(token)")
         }
