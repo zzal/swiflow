@@ -1,6 +1,7 @@
 // Sources/App/Quakes/QuakeRow.swift
 import Swiflow
 import SwiflowDOM
+import SwiflowUI
 
 /// One feed row. A plain VNode factory (not a component) so the list can key
 /// rows directly with `.key(quake.id)`.
@@ -8,20 +9,23 @@ import SwiflowDOM
 func quakeRow(_ quake: Quake, nowMs: Double) -> VNode {
     let mag = quake.properties.mag
     return li(.key(quake.id), .class("quake-row")) {
-        span(.class("mag \(magnitudeClass(mag))")) {
-            text(mag.map { "M \(($0 * 10).rounded() / 10)" } ?? "M ?")
-        }
+        // SwiflowUI Badge for the magnitude pill; `justify-self` keeps it left in
+        // the row's grid column (Badge brings its own pill styling + token colors).
+        Badge(mag.map { "M \(($0 * 10).rounded() / 10)" } ?? "M ?",
+              variant: magnitudeBadge(mag),
+              .style("justify-self", "start"))
         span(.class("place")) { text(quake.properties.place ?? "Unknown location") }
         span(.class("when")) { text(relativeTime(fromMs: quake.properties.time, nowMs: nowMs)) }
     }
 }
 
-/// Badge color bucket: calm below M3, watchful to M5, alarming above.
-func magnitudeClass(_ mag: Double?) -> String {
+/// Severity bucket → Badge variant: calm below M3, watchful to M5, alarming above.
+/// The default theme has no amber/warning token, so "watchful" maps to `.accent`.
+func magnitudeBadge(_ mag: Double?) -> BadgeVariant {
     switch mag ?? 0 {
-    case ..<3:   "mag-low"
-    case ..<5:   "mag-mid"
-    default:     "mag-high"
+    case ..<3:   .success
+    case ..<5:   .accent
+    default:     .danger
     }
 }
 

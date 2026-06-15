@@ -38,23 +38,23 @@ final class WeatherPage {
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
                 h1("🌍 Weather")
-                select(.class("unit-select"), .selection($unit)) {
-                    option("°C", .attr("value", "celsius"))
-                    option("°F", .attr("value", "fahrenheit"))
-                }
+                Select("Units", selection: $unit, options: [
+                    SelectOption("celsius", "°C"),
+                    SelectOption("fahrenheit", "°F"),
+                ])
             }
 
             VStack(spacing: .xs, .class("search-box")) {
-                input(.attr("type", "search"),
-                      .attr("placeholder", "Search a city to pin…"),
-                      .value($searchText))
+                TextField("Search cities", text: $searchText, type: .search,
+                          placeholder: "Search a city to pin…")
                 if let results {
                     if let cities = results.data?.results, !cities.isEmpty {
                         ul(.class("search-results")) {
                             for city in cities {
                                 li(.key("hit-\(city.id)")) {
-                                    button(city.fullName, .class("search-hit"),
-                                           .on(.click) { self.pin(city) })
+                                    Button(city.fullName, variant: .ghost, size: .sm,
+                                           .style("width", "100%"),
+                                           .style("justify-content", "flex-start")) { self.pin(city) }
                                 }
                             }
                         }

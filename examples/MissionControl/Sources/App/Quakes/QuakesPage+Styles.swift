@@ -19,12 +19,6 @@ extension QuakesPage {
           margin: 0;
         }
 
-        .filters select {
-          padding: var(--sw-space-xs) var(--sw-space-sm);
-          border-radius: var(--sw-radius);
-          font: inherit;
-        }
-
         .feed-meta {
           margin: 0;
           color: color-mix(in srgb, var(--sw-text) 60%, transparent);
@@ -56,36 +50,6 @@ extension QuakesPage {
 
         .error {
           color: light-dark(#b91c1c, #fca5a5);
-        }
-
-        .mag {
-          justify-self: start;
-          padding: 2px var(--sw-space-sm);
-          border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 700;
-          font-variant-numeric: tabular-nums;
-        }
-        .mag-low {
-          background: color-mix(in srgb, light-dark(#16a34a, #4ade80) 18%, transparent);
-          color: light-dark(#166534, #4ade80);
-        }
-        .mag-mid {
-          background: color-mix(in srgb, light-dark(#d97706, #fbbf24) 18%, transparent);
-          color: light-dark(#92400e, #fbbf24);
-        }
-        .mag-high {
-          background: color-mix(in srgb, light-dark(#dc2626, #f87171) 22%, transparent);
-          color: light-dark(#991b1b, #f87171);
-        }
-
-        @keyframes mc-spin {
-          to { transform: rotate(360deg); }
-        }
-        .live-dot {
-          display: inline-block;
-          color: var(--sw-accent);
-          animation: mc-spin 1s linear infinite;
         }
         """)
 }

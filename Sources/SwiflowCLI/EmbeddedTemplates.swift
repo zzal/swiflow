@@ -1946,6 +1946,7 @@ struct QuakeFeedQuery: Query {
 // Sources/App/Quakes/QuakeRow.swift
 import Swiflow
 import SwiflowDOM
+import SwiflowUI
 
 /// One feed row. A plain VNode factory (not a component) so the list can key
 /// rows directly with `.key(quake.id)`.
@@ -1953,20 +1954,23 @@ import SwiflowDOM
 func quakeRow(_ quake: Quake, nowMs: Double) -> VNode {
     let mag = quake.properties.mag
     return li(.key(quake.id), .class("quake-row")) {
-        span(.class("mag \(magnitudeClass(mag))")) {
-            text(mag.map { "M \(($0 * 10).rounded() / 10)" } ?? "M ?")
-        }
+        // SwiflowUI Badge for the magnitude pill; `justify-self` keeps it left in
+        // the row's grid column (Badge brings its own pill styling + token colors).
+        Badge(mag.map { "M \(($0 * 10).rounded() / 10)" } ?? "M ?",
+              variant: magnitudeBadge(mag),
+              .style("justify-self", "start"))
         span(.class("place")) { text(quake.properties.place ?? "Unknown location") }
         span(.class("when")) { text(relativeTime(fromMs: quake.properties.time, nowMs: nowMs)) }
     }
 }
 
-/// Badge color bucket: calm below M3, watchful to M5, alarming above.
-func magnitudeClass(_ mag: Double?) -> String {
+/// Severity bucket → Badge variant: calm below M3, watchful to M5, alarming above.
+/// The default theme has no amber/warning token, so "watchful" maps to `.accent`.
+func magnitudeBadge(_ mag: Double?) -> BadgeVariant {
     switch mag ?? 0 {
-    case ..<3:   "mag-low"
-    case ..<5:   "mag-mid"
-    default:     "mag-high"
+    case ..<3:   .success
+    case ..<5:   .accent
+    default:     .danger
     }
 }
 
@@ -2005,12 +2009,6 @@ extension QuakesPage {
           margin: 0;
         }
 
-        .filters select {
-          padding: var(--sw-space-xs) var(--sw-space-sm);
-          border-radius: var(--sw-radius);
-          font: inherit;
-        }
-
         .feed-meta {
           margin: 0;
           color: color-mix(in srgb, var(--sw-text) 60%, transparent);
@@ -2042,36 +2040,6 @@ extension QuakesPage {
 
         .error {
           color: light-dark(#b91c1c, #fca5a5);
-        }
-
-        .mag {
-          justify-self: start;
-          padding: 2px var(--sw-space-sm);
-          border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 700;
-          font-variant-numeric: tabular-nums;
-        }
-        .mag-low {
-          background: color-mix(in srgb, light-dark(#16a34a, #4ade80) 18%, transparent);
-          color: light-dark(#166534, #4ade80);
-        }
-        .mag-mid {
-          background: color-mix(in srgb, light-dark(#d97706, #fbbf24) 18%, transparent);
-          color: light-dark(#92400e, #fbbf24);
-        }
-        .mag-high {
-          background: color-mix(in srgb, light-dark(#dc2626, #f87171) 22%, transparent);
-          color: light-dark(#991b1b, #f87171);
-        }
-
-        @keyframes mc-spin {
-          to { transform: rotate(360deg); }
-        }
-        .live-dot {
-          display: inline-block;
-          color: var(--sw-accent);
-          animation: mc-spin 1s linear infinite;
         }
         """)
 }
@@ -2114,30 +2082,28 @@ final class QuakesPage {
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
                 h1("🌐 Live seismic feed")
+                // Background-poll indicator: SwiflowUI Spinner (role=status, token-driven,
+                // pauses under reduced-motion). The list stays put (stale-while-revalidate).
                 if feed.isFetching {
-                    span(.class("live-dot"), .attr("title", "refreshing")) { text("⟳") }
+                    Spinner(size: .sm, label: "Refreshing")
                 }
             }
 
-            HStack(spacing: .sm, align: .center, .class("filters")) {
-                label("Magnitude", .attr("for", "mag"))
-                // The `selected` attrs mirror the initial @State: at mount the
-                // select's bound `value` property lands before its <option>
-                // children, so without them the browser falls back to the
-                // first option.
-                select(.id("mag"), .selection($magnitude)) {
-                    option("All", .attr("value", "all"))
-                    option("M1.0+", .attr("value", "1.0"))
-                    option("M2.5+", .attr("value", "2.5"), .attr("selected", ""))
-                    option("M4.5+", .attr("value", "4.5"))
-                    option("Significant", .attr("value", "significant"))
-                }
-                label("Window", .attr("for", "win"))
-                select(.id("win"), .selection($window)) {
-                    option("Past hour", .attr("value", "hour"))
-                    option("Past day", .attr("value", "day"), .attr("selected", ""))
-                    option("Past week", .attr("value", "week"))
-                }
+            // SwiflowUI Select marks the bound option `selected`, so the persisted
+            // magnitude/window (rehydrated below) renders correctly at mount.
+            HStack(spacing: .sm, align: .end, .class("filters")) {
+                Select("Magnitude", selection: $magnitude, options: [
+                    SelectOption("all", "All"),
+                    SelectOption("1.0", "M1.0+"),
+                    SelectOption("2.5", "M2.5+"),
+                    SelectOption("4.5", "M4.5+"),
+                    SelectOption("significant", "Significant"),
+                ])
+                Select("Window", selection: $window, options: [
+                    SelectOption("hour", "Past hour"),
+                    SelectOption("day", "Past day"),
+                    SelectOption("week", "Past week"),
+                ])
             }
 
             if let data = feed.data {
@@ -2194,16 +2160,9 @@ final class QuakesPage {
 import Swiflow
 
 extension CityCard {
+    // The card surface (bg / shadow / radius / padding) now comes from SwiflowUI's
+    // `Card`; only the content typography is styled here.
     static var scopedStyles: CSSSheet? = css {
-        host {
-            display("block")
-            property("min-width", "200px")
-            padding("var(--sw-space-md) var(--sw-space-lg)")
-            borderRadius("calc(var(--sw-radius) * 1.5)")
-            background("var(--sw-surface)")
-            border("1px solid color-mix(in srgb, var(--sw-text) 12%, transparent)")
-            boxShadow("0 16px 32px -24px rgb(0 0 0 / .35)")
-        }
         rule(".city-name") {
             fontSize("1.05rem")
             margin("0")
@@ -2220,21 +2179,6 @@ extension CityCard {
             margin("0")
             color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
             fontSize("0.85rem")
-        }
-        rule(".unpin") {
-            border("none")
-            background("transparent")
-            color("color-mix(in srgb, var(--sw-text) 50%, transparent)")
-            cursor("pointer")
-            fontSize("0.9rem")
-            padding("0 var(--sw-space-xs)")
-        }
-        rule(".unpin:hover") {
-            color("light-dark(#b91c1c, #fca5a5)")
-        }
-        rule(".live-dot") {
-            color("var(--sw-accent)")
-            fontSize("0.9rem")
         }
         rule(".error") {
             color("light-dark(#b91c1c, #fca5a5)")
@@ -2268,33 +2212,36 @@ final class CityCard {
 
     var body: VNode {
         let weather = query(CurrentWeatherQuery(city: city, unit: unit))
-        return VStack(spacing: .sm, .class("city-card")) {
-            HStack(spacing: .sm, align: .center, justify: .between) {
-                h2(city.name, .class("city-name"))
-                button("✕", .class("unpin"),
-                       .attr("aria-label", "Unpin \(city.name)"),
-                       .on(.click) { self.onUnpin() })
-            }
-            if let f = weather.data {
-                let wmo = wmoDescription(f.current.weatherCode)
-                HStack(spacing: .sm, align: .center) {
-                    span(.class("temp")) {
-                        text("\(Int(f.current.temperature.rounded()))\(f.currentUnits.temperature)")
-                    }
-                    span(.class("wmo"), .attr("title", wmo.label)) { text(wmo.emoji) }
-                    if weather.isFetching {
-                        span(.class("live-dot")) { text("⟳") }
-                    }
+        // SwiflowUI Card supplies the surface (token bg/shadow/radius/padding); the
+        // card keeps a min-width so it tiles nicely in the wrapping grid.
+        return Card(variant: .elevated, .style("min-width", "12.5rem")) {
+            VStack(spacing: .sm) {
+                HStack(spacing: .sm, align: .center, justify: .between) {
+                    h2(city.name, .class("city-name"))
+                    Button("✕", variant: .ghost, size: .sm,
+                           .attr("aria-label", "Unpin \(city.name)")) { self.onUnpin() }
                 }
-                p(wmo.label, .class("wmo-label"))
-                if let high = f.daily.highs.first, let low = f.daily.lows.first {
-                    p("H \(Int(high.rounded()))° · L \(Int(low.rounded()))° · wind \(Int(f.current.windSpeed.rounded())) km/h",
-                      .class("range"))
+                if let f = weather.data {
+                    let wmo = wmoDescription(f.current.weatherCode)
+                    HStack(spacing: .sm, align: .center) {
+                        span(.class("temp")) {
+                            text("\(Int(f.current.temperature.rounded()))\(f.currentUnits.temperature)")
+                        }
+                        span(.class("wmo"), .attr("title", wmo.label)) { text(wmo.emoji) }
+                        if weather.isFetching {
+                            Spinner(size: .sm, label: "Updating")
+                        }
+                    }
+                    p(wmo.label, .class("wmo-label"))
+                    if let high = f.daily.highs.first, let low = f.daily.lows.first {
+                        p("H \(Int(high.rounded()))° · L \(Int(low.rounded()))° · wind \(Int(f.current.windSpeed.rounded())) km/h",
+                          .class("range"))
+                    }
+                } else if weather.isLoading {
+                    Spinner(size: .lg, label: "Loading weather")
+                } else if weather.error != nil {
+                    p("offline", .class("error"))
                 }
-            } else if weather.isLoading {
-                p("…", .class("temp"))
-            } else if weather.error != nil {
-                p("offline", .class("error"))
             }
         }
     }
@@ -2381,13 +2328,6 @@ extension WeatherPage {
             fontSize("1.4rem")
             margin("0")
         }
-        rule(".search-box input") {
-            width("100%")
-            property("box-sizing", "border-box")
-            padding("var(--sw-space-sm) var(--sw-space-md)")
-            borderRadius("var(--sw-radius)")
-            fontSize("1rem")
-        }
         rule(".search-results") {
             listStyle("none")
             margin("0")
@@ -2396,34 +2336,13 @@ extension WeatherPage {
             flexDirection("column")
             gap("var(--sw-space-xs)")
         }
-        rule(".search-hit") {
-            width("100%")
-            textAlign("left")
-            padding("var(--sw-space-xs) var(--sw-space-md)")
-            borderRadius("var(--sw-radius)")
-            cursor("pointer")
-        }
     }
 
     static let theme = css {
-        rule(".search-box input") {
-            border("1px solid color-mix(in srgb, var(--sw-text) 20%, transparent)")
-            background("var(--sw-surface)")
-            color("var(--sw-text)")
-        }
         rule(".search-results") {
             background("var(--sw-surface)")
             border("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
             borderRadius("var(--sw-radius)")
-        }
-        rule(".search-hit") {
-            border("none")
-            background("transparent")
-            color("var(--sw-text)")
-            property("font", "inherit")
-        }
-        rule(".search-hit:hover") {
-            background("color-mix(in srgb, var(--sw-accent) 15%, transparent)")
         }
         rule(".search-status") {
             color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
@@ -2432,11 +2351,6 @@ extension WeatherPage {
         rule(".error") {
             color("light-dark(#b91c1c, #fca5a5)")
             margin("0")
-        }
-        rule(".unit-select") {
-            padding("var(--sw-space-xs) var(--sw-space-sm)")
-            borderRadius("var(--sw-radius)")
-            property("font", "inherit")
         }
     }
 }
@@ -2483,23 +2397,23 @@ final class WeatherPage {
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
                 h1("🌍 Weather")
-                select(.class("unit-select"), .selection($unit)) {
-                    option("°C", .attr("value", "celsius"))
-                    option("°F", .attr("value", "fahrenheit"))
-                }
+                Select("Units", selection: $unit, options: [
+                    SelectOption("celsius", "°C"),
+                    SelectOption("fahrenheit", "°F"),
+                ])
             }
 
             VStack(spacing: .xs, .class("search-box")) {
-                input(.attr("type", "search"),
-                      .attr("placeholder", "Search a city to pin…"),
-                      .value($searchText))
+                TextField("Search cities", text: $searchText, type: .search,
+                          placeholder: "Search a city to pin…")
                 if let results {
                     if let cities = results.data?.results, !cities.isEmpty {
                         ul(.class("search-results")) {
                             for city in cities {
                                 li(.key("hit-\(city.id)")) {
-                                    button(city.fullName, .class("search-hit"),
-                                           .on(.click) { self.pin(city) })
+                                    Button(city.fullName, variant: .ghost, size: .sm,
+                                           .style("width", "100%"),
+                                           .style("justify-content", "flex-start")) { self.pin(city) }
                                 }
                             }
                         }

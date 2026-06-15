@@ -82,14 +82,23 @@ private func selectControl(
     let selectAttrs = controlInputAttributes([.selection(selection)], error: error, required: required,
                                              disabled: disabled, onBlur: onBlur, caller: attributes)
 
+    // Mark the option matching the bound value as `selected` so the right option
+    // renders at mount. The bound `value` *property* is applied before the <option>
+    // children exist, so without `selected` the browser falls back to the first
+    // option (the select-initial-value mount-order gotcha) — which loses any
+    // non-first initial/persisted value.
+    let current = selection.get()
     var optionNodes: [VNode] = []
     if !placeholder.isEmpty {
         // Empty-value first option; selecting it means "no choice" (fails `.required()`).
-        optionNodes.append(element("option", attributes: [.attr("value", "")], children: [text(placeholder)]))
+        var attrs: [Attribute] = [.attr("value", "")]
+        if current.isEmpty { attrs.append(.attr("selected", "")) }
+        optionNodes.append(element("option", attributes: attrs, children: [text(placeholder)]))
     }
     for option in options {
-        optionNodes.append(element("option", attributes: [.attr("value", option.value)],
-                                   children: [text(option.label)]))
+        var attrs: [Attribute] = [.attr("value", option.value)]
+        if option.value == current { attrs.append(.attr("selected", "")) }
+        optionNodes.append(element("option", attributes: attrs, children: [text(option.label)]))
     }
 
     var rootChildren: [VNode] = [
