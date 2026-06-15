@@ -117,6 +117,10 @@ Sequenced cheapest-first; the theming foundation (M2) lands before any skinned c
 its tokens — including the media-feature layers — are the contract every control reads. Each
 milestone is independently shippable and gets its own brainstorm → plan → implement cycle.
 
+**Status (2026-06-15): M1–M6 shipped and merged.** M7 in progress — the HelloWorld
+dogfood (#18) and the docs (this guide + `docs/guides/swiflowui.md` /
+`swiflowui-theming.md`) are done; remaining: theming-verification pass + version tag.
+
 - **M1 — Layout primitives:** `Grid`, `Spacer`, `Divider`, `ZStack`. Pure CSS-first, no
   state, no deps. Finishes the v0 layout story. Extend `Tokens.swift` as needed.
 - **M2 — Theming foundation:** the token taxonomy + the media-feature override layers
@@ -140,11 +144,18 @@ milestone is independently shippable and gets its own brainstorm → plan → im
   all four controls shipped (TextField/Toggle/Select/RadioGroup), each its own reviewed sub-step.)
 - **M5 — Feedback & display:** `Spinner`/`ProgressView`, `Card`, `Badge`/`Tag`. Cheap,
   high-visibility; pairs `Spinner` with the `.task` async story.
-- **M6 — Overlays:** `Toast` (Popover + queue) first, then `Alert`/`Prompt` (`<dialog>`);
-  these read `--sw-duration`/`--sw-overlay-bg`, so reduced-motion/transparency just work.
-  Optionally land the small `EventInfo`-target-identity enabler here for click-outside.
+- **M6 — Overlays:** `Toast`, `Alert`, `Prompt` — these read `--sw-duration`/`--sw-overlay-bg`,
+  so reduced-motion/transparency just work. **M6 COMPLETE**: `Alert` (#15) + `Prompt` (#16,
+  `<form method=dialog>` Enter-to-submit, shared `.sw-dialog` chrome) + `Toast` (#17, app-owned
+  `[ToastItem]` queue, hover/focus pause). Built `Alert`/`Prompt` first (modal `<dialog>`),
+  then `Toast` (fixed `ToastStack`, not the top layer). Click-outside still needs the deferred
+  `EventInfo`-target enabler — dismissal is ESC + explicit controls.
 - **M7 — 1.0 cut:** theming polish (token audit, dark-mode + media-feature pass), expand
   `examples/SwiflowUIDemo` into a component gallery, README/styling-guide docs, version tag.
+  In progress: SwiflowUIDemo already showcases every category (gallery effectively done); the
+  HelloWorld **dogfood** (#18) retired its hand-rolled Toast/SignIn; **docs** shipped
+  (`docs/guides/swiflowui.md` + `swiflowui-theming.md`, README updated). Remaining: a
+  theming-verification pass (emitted-CSS + `emulateMedia` Playwright) and the version tag.
 
 ## Deferred to 1.1+ (explicitly out of 1.0)
 
