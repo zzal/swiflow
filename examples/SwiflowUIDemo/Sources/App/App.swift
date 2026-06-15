@@ -16,6 +16,7 @@ final class Demo {
     @State var deleteResult: String = ""
     @State var showRename: Bool = false
     @State var fileName: String = "untitled"
+    @State var toasts: [ToastItem] = []
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -139,6 +140,11 @@ final class Demo {
                 Button("Rename \(fileName)…", variant: .secondary) { self.showRename = true }
                 if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
             }
+            HStack(spacing: .md, align: .center) {
+                Button("Toast: success", variant: .ghost) { self.toasts.append(ToastItem("Saved successfully", variant: .success)) }
+                Button("Toast: info", variant: .ghost) { self.toasts.append(ToastItem("Heads up — sync running")) }
+                Button("Toast: error", variant: .ghost) { self.toasts.append(ToastItem("Couldn't reach the server", variant: .danger)) }
+            }
             p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
               + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
               + "wraps a <form method=\"dialog\">, so Enter submits. The backdrop solidifies under "
@@ -155,6 +161,9 @@ final class Demo {
                 // fileName is already bound; this is where an app would persist the change.
                 self.fileName = newName.isEmpty ? "untitled" : newName
             }
+            // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
+            // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
+            ToastStack(toasts: $toasts)
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()

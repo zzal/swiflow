@@ -138,6 +138,8 @@ let package = Package(
                 // explicitly so the C shim is in SwiflowUI's link closure (host + wasm),
                 // mirroring SwiflowRouter/SwiflowStore.
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+                // Toast's auto-dismiss uses after()/TimerHandle from SwiflowDOM.
+                "SwiflowDOM",
             ],
             path: "Sources/SwiflowUI",
             swiftSettings: [.swiftLanguageMode(.v6)]
