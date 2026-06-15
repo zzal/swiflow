@@ -145,6 +145,16 @@ final class Demo {
                 Button("Toast: info", variant: .ghost) { self.toasts.append(ToastItem("Heads up — sync running")) }
                 Button("Toast: error", variant: .ghost) { self.toasts.append(ToastItem("Couldn't reach the server", variant: .danger)) }
             }
+            HStack(spacing: .md, align: .center) {
+                // Dropdown: a Popover-API menu anchored to its trigger; items close it on
+                // select (popovertargetaction=hide) and fire a toast here.
+                Dropdown("Actions") {
+                    DropdownItem("Edit") { self.toasts.append(ToastItem("Edit selected")) }
+                    DropdownItem("Duplicate") { self.toasts.append(ToastItem("Duplicated", variant: .success)) }
+                    DropdownDivider()
+                    DropdownItem("Delete", variant: .danger) { self.toasts.append(ToastItem("Deleted", variant: .danger)) }
+                }
+            }
             p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
               + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
               + "wraps a <form method=\"dialog\">, so Enter submits. The Delete alert demands a "
