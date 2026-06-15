@@ -77,12 +77,13 @@ func fieldGroupAttributes(
 func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsSheet) }
 
 /// The one stylesheet for all form controls: the column-input chrome
-/// (TextField/Select), the checkbox-row chrome (Toggle), and the shared error
-/// message. Every value reads a `--sw-*` token, so the M2 media-feature layers
-/// (reduced-motion via `--sw-duration`, contrast via `--sw-focus-ring`/
-/// `--sw-border-width`, dark via `light-dark()`, p3) apply with no per-control code.
-/// Keep each control's selector root (`.sw-field` vs `.sw-toggle`) disjoint so the
-/// shared blob can't cross-style layouts.
+/// (TextField/Select), the Checkbox row, the Toggle switch (track + thumb), the
+/// RadioGroup fieldset, and the shared error message. Every value reads a `--sw-*`
+/// token, so the M2 media-feature layers (reduced-motion via `--sw-duration`,
+/// contrast via `--sw-focus-ring`/`--sw-border-width`, dark via `light-dark()`, p3)
+/// apply with no per-control code. Keep each control's selector root (`.sw-field`
+/// vs `.sw-check` vs `.sw-switch` vs `.sw-radio`) disjoint so the shared blob can't
+/// cross-style layouts.
 let formControlsSheet: CSSSheet = css {
     raw("""
     /* shared validation-error message */
@@ -215,6 +216,7 @@ let formControlsSheet: CSSSheet = css {
     /* --- Toggle: a switch (immediate on/off setting) — track + sliding thumb --- */
     .sw-switch { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
     .sw-switch__row {
+      position: relative;            /* containing block for the visually-hidden input */
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -222,14 +224,21 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       cursor: pointer;
     }
-    /* The native checkbox drives state/keyboard but is visually hidden; the track
-       + thumb are the visual, and the wrapping <label> makes the whole row click. */
+    /* The native checkbox drives state/keyboard but is visually hidden via the
+       standard clip-based sr-only recipe (focusable, but takes no layout/scroll —
+       a plain 1px+opacity:0 box could nudge page scroll). The track + thumb are
+       the visual; the wrapping <label> forwards clicks to the input. */
     .sw-switch input {
       position: absolute;
       width: 1px;
       height: 1px;
-      opacity: 0;
-      margin: 0;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
     .sw-switch__track {
       flex: none;
@@ -243,7 +252,7 @@ let formControlsSheet: CSSSheet = css {
     .sw-switch__thumb {
       position: absolute;
       top: 50%;
-      left: 0.15em;
+      inset-inline-start: 0.15em;    /* logical, so it flips for RTL */
       width: 0.95em;
       height: 0.95em;
       border-radius: 50%;
@@ -253,12 +262,13 @@ let formControlsSheet: CSSSheet = css {
     }
     .sw-switch input:checked + .sw-switch__track { background-color: var(--sw-accent); }
     .sw-switch input:checked + .sw-switch__track .sw-switch__thumb { transform: translate(1em, -50%); }
+    [dir="rtl"] .sw-switch input:checked + .sw-switch__track .sw-switch__thumb { transform: translate(-1em, -50%); }
     .sw-switch input:focus-visible + .sw-switch__track {
       outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
       outline-offset: 2px;
     }
-    .sw-switch input:disabled + .sw-switch__track { opacity: var(--sw-disabled-opacity); }
-    .sw-switch__row--disabled { cursor: not-allowed; }
+    /* Dim the whole row when disabled (matches .sw-check), not just the track. */
+    .sw-switch__row--disabled { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
 
     /* --- RadioGroup: <fieldset>/<legend> + native radios (shared name = roving focus) --- */
     .sw-radio {

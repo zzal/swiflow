@@ -91,7 +91,8 @@ Conventions (consistent with the existing codebase):
 | `ZStack` | free fn | absolute/grid overlap | n/a | none |
 | `Button` | free fn / modifier | `<button>` | native button semantics | none |
 | `TextField` | free fn | `<label>`-wrapped `<input>` | implicit label assoc, `aria-invalid` + `role=alert` error | none |
-| `Toggle` | free fn | `<label>`-wrapped `<input type=checkbox>` | native checkbox semantics | none |
+| `Toggle` | free fn | `<input type=checkbox role=switch>` + track/thumb | a **switch** (immediate setting); `role=switch` | none |
+| `Checkbox` | free fn | `<label>`-wrapped `<input type=checkbox>` | a **checkbox** (selection/confirmation); native semantics | none |
 | `Select` | free fn | `<select>` | native listbox semantics | none |
 | `RadioGroup` | free fn | `<input type=radio>` name-group | native roving focus (shared `name`) | none |
 | `Spinner`/`ProgressView` | free fn | CSS animation / `<progress>` | `role=status`/`aria-busy` | none |
