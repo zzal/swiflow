@@ -21,7 +21,7 @@ final class Demo {
             // A Toggle wired to `color-scheme` re-themes the whole demo: every
             // --sw-* token is light-dark(), so flipping the scheme flips them all.
             HStack(align: .center) {
-                h1("SwiflowUI — primitives, buttons & forms")
+                h1("SwiflowUI — primitives, controls & feedback")
                 Spacer()
                 Toggle("Dark mode", isOn: $isDark)
             }
@@ -97,6 +97,34 @@ final class Demo {
             p("Toggle is a switch (an immediate setting — like Dark mode, top-right); Checkbox is for "
               + "confirmation. The email + terms fields use Field(...) + validators — interact then blur "
               + "to see the role=alert error and aria-invalid.")
+
+            Divider()
+
+            // --- Feedback & display --------------------------------------
+            h2("Feedback & display")
+            Grid(columns: 2, spacing: .md) {
+                Card {
+                    h3("Elevated Card")
+                    p("A surfaced container with a token shadow.")
+                    HStack(spacing: .sm, align: .center) {
+                        Spinner()
+                        Badge("New", variant: .accent)
+                        Badge("3")
+                    }
+                }
+                Card(variant: .outlined) {
+                    h3("Outlined Card")
+                    p("Bordered instead of shadowed.")
+                    HStack(spacing: .sm, align: .center) {
+                        Badge("Error", variant: .danger)
+                        Badge("Done", variant: .success)
+                        Badge("Muted")
+                    }
+                }
+            }
+            ProgressView(value: 0.6)
+            p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
+              + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
