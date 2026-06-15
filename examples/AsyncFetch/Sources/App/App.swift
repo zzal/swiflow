@@ -1,6 +1,7 @@
 // Sources/App/App.swift
 
 import SwiflowDOM
+import SwiflowUI
 
 @MainActor @Component
 final class AsyncFetch {
@@ -10,13 +11,18 @@ final class AsyncFetch {
     @State var state: String = "idle"
 
     var body: VNode {
-        div {
+        VStack(spacing: .md, align: .start) {
             h1("Async fetch demo")
-            p("Status: \(state)")
+            HStack(spacing: .sm, align: .center) {
+                p("Status: \(state)")
+                // hasPrefix is robust to the trailing ellipsis char.
+                if state.hasPrefix("loading") { Spinner(size: .sm, label: "Loading") }
+            }
             // The button is an action — clicking bumps `userID`, which is the
             // `.task`'s dependency, so the effect re-runs for the next user.
-            button("Load next user", .on(.click) { self.userID += 1 })
+            Button("Load next user") { self.userID += 1 }
         }
+        .padding(.xl)
         .task(rerunOn: userID) {
             self.state = "loading…"
             try? await Task.sleep(nanoseconds: 400_000_000)   // simulate latency
