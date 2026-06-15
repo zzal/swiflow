@@ -51,6 +51,7 @@ public enum SwiflowUI {
           --sw-radius: 8px;
 
           /* surfaces & text */
+          --sw-bg: light-dark(#f6f7f9, #0d0d0d);        /* page/canvas — surfaces lift off this */
           --sw-surface: light-dark(#ffffff, #1a1a1a);
           --sw-surface-2: light-dark(#f3f4f6, #242424);
           --sw-text: light-dark(#111111, #f5f5f5);
@@ -75,7 +76,7 @@ public enum SwiflowUI {
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 2px;
-          --sw-shadow: light-dark(0 1px 3px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.5));
+          --sw-shadow: light-dark(0 4px 12px rgb(0 0 0 / 0.12), 0 4px 16px rgb(0 0 0 / 0.55));
 
           /* motion — components name their own properties:
              transition: <prop> var(--sw-duration) var(--sw-ease)
