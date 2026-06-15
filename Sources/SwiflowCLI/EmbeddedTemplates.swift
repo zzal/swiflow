@@ -800,6 +800,7 @@ let package = Package(
             name: "App",
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -913,107 +914,90 @@ final class AboutPopover {
 // Sources/App/App.swift
 import Swiflow
 import SwiflowDOM
+import SwiflowUI
 import JavaScriptKit
 
-/// Counter — the {{NAME}} showcase root.
+/// Counter — the {{NAME}} showcase root, now dogfooding SwiflowUI.
 ///
-/// Wires the framework primitives + a curated set of modern HTML/CSS
-/// surfaces. See the design spec for the full picture; in summary:
-/// - `host { }` + Task-1 dual-selector class rules so scoped CSS hits the root.
-/// - Native `<dialog>` for Sign In: focus trap, Escape-to-close, ::backdrop,
-///   with a CSS-only open/close animation (`@starting-style` +
-///   `transition-behavior: allow-discrete`). No JS, no View Transition —
-///   gesture-immediate and robust across browsers.
-/// - Popover API + anchor positioning for About (declarative — no Swift handler).
-/// - `<details>` disclosure with animated open/close via `interpolate-size`.
-/// - `color-mix` + `light-dark` system colors — auto-themes from OS.
-/// - `@container` query on the card via the scoped `container(...)` primitive.
-/// - `@property --accent` registered custom property, animated on increment.
+/// The card's chrome and the modern-CSS surfaces are still hand-authored (that's
+/// what {{NAME}} showcases), but every reusable control is a SwiflowUI component:
+/// - `Button` for the actions (token-skinned).
+/// - `TextField` / `Checkbox` for the greeting + Celebrate inputs.
+/// - `ToastStack` (an app-owned `[ToastItem]` queue) replaces the hand-rolled toast.
+/// - `SignIn` (in the native `<dialog>`) is built from `TextField`/`Button`.
+///
+/// Still hand-rolled (no SwiflowUI equivalent in 1.0): the native `<dialog>` chrome,
+/// the `ⓘ` Popover-API trigger + `AboutPopover`, the `<details>` inspector.
+///
+/// The `ToastStack` is a sibling of `.card`, not a child: `.card` is a
+/// `container-type` query container, which establishes a containing block — a
+/// `position: fixed` toast nested inside would anchor to the card, not the viewport.
 @MainActor @Component
 final class Counter {
     @State var count: Int = 0
     @State var greeting: String = "Swiflow"
     @State var celebrate: Bool = false
-    @State var showToast: Bool = false
     @State var showSignIn: Bool = false
-    let greetingInput = Ref<JSObject>()
+    @State var toasts: [ToastItem] = []
     let signInDialog = Ref<JSObject>()
 
     var body: VNode {
-        div(.class("card")) {
-            header(.class("header")) {
-                h1("Hello, \(greeting)!\(celebrate ? " \u{1F389}" : "")",
-                   .class("greeting-heading"))
-                button("ⓘ",
-                       .class("info-trigger"),
-                       .attr("popovertarget", "about-popover"),
-                       .attr("aria-label", "About Swiflow"))
-            }
+        div {
+            div(.class("card")) {
+                header(.class("header")) {
+                    h1("Hello, \(greeting)!\(celebrate ? " \u{1F389}" : "")",
+                       .class("greeting-heading"))
+                    button("ⓘ",
+                           .class("info-trigger"),
+                           .attr("popovertarget", "about-popover"),
+                           .attr("aria-label", "About Swiflow"))
+                }
 
-            p("Count: \(count)",
-              .class("count"),
-              .attr("aria-live", "polite"))
+                p("Count: \(count)",
+                  .class("count"),
+                  .attr("aria-live", "polite"))
 
-            div(.class("actions")) {
-                button("Increment", .on(.click) { self.count += 1 })
-                button("Show toast", .class("secondary"),
-                       .on(.click) { self.showToast = true })
-                button("Sign in…", .class("secondary"),
-                       .on(.click) { self.openSignIn() })
-            }
+                div(.class("actions")) {
+                    Button("Increment") { self.count += 1 }
+                    Button("Show toast", variant: .secondary) {
+                        self.toasts.append(ToastItem("Saved!", variant: .success))
+                    }
+                    Button("Sign in…", variant: .secondary) { self.openSignIn() }
+                }
 
-            div(.class("greeting-row")) {
-                label("Greeting:", .attr("for", "g"))
-                input(.id("g"), .value($greeting), .ref(greetingInput))
-            }
+                TextField("Greeting", text: $greeting)
+                Checkbox("Celebrate", isOn: $celebrate)
 
-            label(.class("checkbox-row")) {
-                input(.attr("type", "checkbox"), .checked($celebrate))
-                text(" Celebrate")
-            }
+                details(.class("inspector")) {
+                    summary("What's running here?")
+                    ul(.class("inspector-list")) {
+                        li("Sign in… — opens a native <dialog> with a CSS open/close animation, built from SwiflowUI TextField + Button.")
+                        li("ⓘ — opens an `auto` popover anchored via CSS Anchor Positioning.")
+                        li("Show toast — pushes a SwiflowUI ToastStack notification (auto-dismiss, pause on hover/focus).")
+                    }
+                }
 
-            details(.class("inspector")) {
-                summary("What's running here?")
-                ul(.class("inspector-list")) {
-                    li("Sign in… — opens a native <dialog> with a CSS open/close animation.")
-                    li("ⓘ — opens an `auto` popover anchored via CSS Anchor Positioning.")
-                    li("Show toast — mounts a `manual` popover with a 2.5s auto-dismiss.")
+                embed { AboutPopover() }
+
+                // Dismissal: Escape (native <dialog>), or Cancel / Sign out / Close
+                // inside SignIn. Backdrop-click-to-close is omitted (EventInfo doesn't
+                // expose event.target identity).
+                dialog(.ref(signInDialog), .class("signin-dialog")) {
+                    if showSignIn {
+                        embed { SignIn(onClose: { self.closeSignIn() }) }
+                    }
                 }
             }
 
-            // The toast sits mid-list, *before* the dialog, on purpose — to
-            // demonstrate that a conditional child can live anywhere now. Each
-            // builder `if`/`for` is one stable `.fragment` slot, so toggling the
-            // toast off (its 2.5s auto-dismiss) empties its slot without shifting
-            // the dialog's slot — the dialog is never recreated. (This is what
-            // the "Toast auto-dismiss does not close an open dialog" e2e proves.)
-            if showToast {
-                embed { Toast(message: "Saved!", onDone: { self.showToast = false }) }
-            }
-
-            embed { AboutPopover() }
-
-            // Dismissal paths: Escape (native <dialog> behavior), Cancel /
-            // Sign out / Close buttons inside SignIn. Backdrop-click-to-close
-            // is omitted because EventInfo doesn't expose `event.target`
-            // identity, and a generic .on(.click) on the dialog catches
-            // every click that bubbles up from the form content.
-            dialog(.ref(signInDialog), .class("signin-dialog")) {
-                if showSignIn {
-                    embed { SignIn(onClose: { self.closeSignIn() }) }
-                }
-            }
+            // Sibling of .card (see the type doc): the fixed ToastStack anchors to the
+            // viewport, not the query-container card.
+            ToastStack(toasts: $toasts)
         }
     }
 
-    func onAppear() {
-        if let el = greetingInput.wrappedValue { _ = el.focus?() }
-    }
-
-    // Open/close are synchronous and tied directly to the click gesture — the
-    // dialog appears the same frame, and the fade/slide is handled entirely in
-    // CSS (see Counter+Styles.swift). showModal() must run before the @State
-    // change schedules its render so the [open] transition fires immediately.
+    // Open/close are synchronous and tied to the click gesture — the dialog appears
+    // the same frame, and the fade/slide is CSS (Counter+Styles.swift). showModal()
+    // must run before the @State change schedules its render so [open] transitions in.
     func openSignIn() {
         showSignIn = true
         if let el = signInDialog.wrappedValue { _ = el.showModal?() }
@@ -1060,26 +1044,26 @@ extension Counter {
         """)
 
     // ---- layout ----
-    // The component root carries .card itself, so that rule compounds with
-    // the scope class via `&.card`; :host styles the same element at the
-    // lower specificity the DSL's host {} block had.
+    // The component root is now a plain wrapper (:host) holding the visible `.card`
+    // plus a sibling ToastStack. `container-type` + the card chrome live on `.card`:
+    // a query container establishes a containing block, so keeping it OFF the wrapper
+    // lets the fixed-position toast anchor to the viewport rather than the card.
     static let layout = #css("""
         :host {
           display: block;
-          max-width: 520px;
-          margin: 2.5rem auto;
-          padding: 2rem;
-          container-type: inline-size;
         }
-        &.card {
+        .card {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          max-width: 520px;
+          margin: 2.5rem auto;
           padding: 1.75rem;
           border-radius: 16px;
           background: var(--surface);
           border: 1px solid var(--border);
           box-shadow: 0 1px 0 var(--border), 0 24px 48px -32px rgb(0 0 0 / .25);
+          container-type: inline-size;
         }
         .header {
           display: flex;
@@ -1113,25 +1097,6 @@ extension Counter {
           flex-wrap: wrap;
           gap: 0.5rem;
         }
-        .greeting-row {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-        }
-        .greeting-row input {
-          flex: 1;
-          padding: 0.4rem 0.6rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: Canvas;
-          color: CanvasText;
-        }
-        .checkbox-row {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-          cursor: pointer;
-        }
         .inspector {
           border: 1px solid var(--border);
           border-radius: 10px;
@@ -1164,6 +1129,9 @@ extension Counter {
         """)
 
     // ---- theme ----
+    // Buttons/inputs/checkbox are now SwiflowUI components (their own token sheets) —
+    // the old bare `button`/`input`/`.secondary` rules are gone so they don't override
+    // the `.sw-*` styling. Only the card-specific surfaces remain here.
     static let theme = #css("""
         .count {
           margin: 0;
@@ -1171,31 +1139,6 @@ extension Counter {
           font-weight: 600;
           color: var(--accent);
           transition: --accent .25s ease;
-        }
-        button {
-          padding: 0.4rem 0.9rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: var(--accent);
-          color: Canvas;
-          cursor: pointer;
-          font-size: 0.95rem;
-        }
-        .secondary {
-          background: transparent;
-          color: var(--text);
-        }
-        button:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
-        }
-        input:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
-        }
-        .checkbox-row:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
         }
 
         /* <dialog> + ::backdrop styling, animated entirely in CSS — no JS, no
@@ -1218,9 +1161,6 @@ extension Counter {
         .signin-dialog[open] {
           opacity: 1;
           transform: translateY(0) scale(1);
-        }
-        .signin-dialog .signin {
-          padding: 1.5rem;
         }
         .signin-dialog::backdrop {
           background: color-mix(in oklab, Canvas 30%, transparent);
@@ -1250,99 +1190,20 @@ extension Counter {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        :host {
+        .card {
           animation: counter-in 0.3s ease forwards;
         }
         """)
 
     // ---- responsive ----
-    // @container nests inside the scope wrapper, so its rules stay scoped
-    // through the normal pipeline — no hand-pasted `.swiflow-Counter` prefix
-    // and no coupling to the scope-class naming scheme.
+    // @container nests inside the scope wrapper; the container is `.card`, so this
+    // queries the card's inline-size and stacks the actions on narrow widths.
     static let responsive = #css("""
         @container (max-width: 380px) {
           .actions {
             flex-direction: column;
             align-items: stretch;
           }
-          &.card {
-            padding: 1.25rem;
-            gap: 0.75rem;
-          }
-        }
-        """)
-}
-
-"""##,
-                "Sources/App/SignIn+Styles.swift": ##"""
-// Sources/App/SignIn+Styles.swift
-import Swiflow
-
-extension SignIn {
-    // The component root carries .signin itself, so the rule compounds with
-    // the scope class via `&.signin` (what the DSL's dual emission matched).
-    static var scopedStyles: CSSSheet? = #css("""
-        &.signin {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          max-width: 320px;
-          font-family: system-ui, sans-serif;
-        }
-        .title {
-          margin: 0;
-          font-size: 1.25rem;
-        }
-        .field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-        input {
-          padding: 0.4rem 0.6rem;
-          border: 1px solid color-mix(in oklab, CanvasText 18%, transparent);
-          border-radius: 6px;
-          background: Canvas;
-          color: CanvasText;
-          font-size: 0.9375rem;
-          accent-color: CanvasText;
-        }
-        input:focus-visible {
-          outline: 2px solid color-mix(in oklab, CanvasText 50%, blue);
-          outline-offset: 2px;
-        }
-        .error {
-          margin: 0.125rem 0 0 0;
-          color: oklch(.55 .2 25);
-          font-size: 0.85rem;
-        }
-        .welcome {
-          margin: 0;
-          font-size: 1rem;
-        }
-        .actions {
-          display: flex;
-          gap: 0.5rem;
-        }
-        button {
-          padding: 0.4rem 0.9rem;
-          border: 1px solid color-mix(in oklab, CanvasText 18%, transparent);
-          border-radius: 6px;
-          background: color-mix(in oklab, Canvas 90%, CanvasText);
-          color: CanvasText;
-          cursor: pointer;
-          font-size: 0.9375rem;
-        }
-        button:focus-visible {
-          outline: 2px solid color-mix(in oklab, CanvasText 50%, blue);
-          outline-offset: 2px;
-        }
-        .secondary {
-          background: transparent;
-        }
-        button[disabled] {
-          opacity: 0.5;
-          cursor: not-allowed;
         }
         """)
 }
@@ -1351,9 +1212,13 @@ extension SignIn {
                 "Sources/App/SignIn.swift": ##"""
 // Sources/App/SignIn.swift
 import Swiflow
+import SwiflowUI
 
-/// SignIn — Phase 12b form validation demo, now hosted inside Counter's
-/// <dialog>. All inline .style(...) calls migrated to SignIn+Styles.swift.
+/// SignIn — a form-validation demo, hosted inside Counter's <dialog>. Dogfoods
+/// SwiflowUI: `TextField(field:)` for the labelled, validated fields (label + input
+/// + role=alert error + aria-invalid, with blur→markTouched wired) and `Button` for
+/// the actions, laid out with `VStack`/`HStack`. No hand-rolled field/button chrome
+/// or per-component CSS — it all comes from SwiflowUI's token-driven sheets.
 @MainActor @Component
 final class SignIn {
     @State var email: String    = ""
@@ -1372,173 +1237,34 @@ final class SignIn {
                        .custom("Must contain a number") { $0.contains { $0.isNumber } })
         let form = Form($ctrl) { em; pw }
 
-        return div(.class("signin")) {
+        return VStack(spacing: .md, align: .stretch) {
             if submitted {
-                p("Signed in as \(email)!", .class("welcome"))
-                div(.class("actions")) {
-                    button("Sign out", .class("secondary"), .on(.click) {
+                p("Signed in as \(email)!")
+                HStack(spacing: .sm) {
+                    Button("Sign out", variant: .secondary) {
                         self.submitted = false
                         self.email = ""
                         self.password = ""
                         self.ctrl = FormController()
-                    })
-                    button("Close", .on(.click) { self.onClose() })
+                    }
+                    Button("Close") { self.onClose() }
                 }
             } else {
-                h2("Sign In", .class("title"))
-
-                div(.class("field")) {
-                    label("Email", .attr("for", "signin-email"))
-                    input(.id("signin-email"),
-                          .attr("type", "email"),
-                          .value($email),
-                          .on(.blur) { em.markTouched() })
-                    if em.touched, let err = em.error {
-                        p(err, .class("error"))
+                h2("Sign In")
+                TextField("Email", field: em, type: .email)
+                TextField("Password", field: pw, type: .password)
+                HStack(spacing: .sm) {
+                    Button("Sign In", disabled: !form.isValid) {
+                        form.touchAll()
+                        guard form.isValid else { return }
+                        self.submitted = true
                     }
-                }
-
-                div(.class("field")) {
-                    label("Password", .attr("for", "signin-password"))
-                    input(.id("signin-password"),
-                          .attr("type", "password"),
-                          .value($password),
-                          .on(.blur) { pw.markTouched() })
-                    if pw.touched, let err = pw.error {
-                        p(err, .class("error"))
-                    }
-                }
-
-                div(.class("actions")) {
-                    button("Sign In",
-                           .attr("disabled", !form.isValid),
-                           .on(.click) {
-                               form.touchAll()
-                               guard form.isValid else { return }
-                               self.submitted = true
-                           })
-                    button("Reset", .class("secondary"), .on(.click) { form.reset() })
-                    button("Cancel", .class("secondary"), .on(.click) { self.onClose() })
+                    Button("Reset", variant: .secondary) { form.reset() }
+                    Button("Cancel", variant: .secondary) { self.onClose() }
                 }
             }
         }
-    }
-}
-
-"""##,
-                "Sources/App/Toast+Styles.swift": ##"""
-// Sources/App/Toast+Styles.swift
-import Swiflow
-
-extension Toast {
-    static var scopedStyles: CSSSheet? = layout + theme + animations
-
-    static let layout = #css("""
-        :host {
-          position: fixed;
-          inset-block-end: 1.5rem;
-          inset-inline: 0;
-          margin-inline: auto;
-          width: max-content;
-          max-width: min(90vw, 360px);
-          display: flex;
-          align-items: center;
-          gap: 0.625rem;
-          padding: 0.75rem 1rem;
-          /* Popover top-layer rendering resets these — set them explicitly. */
-          margin: auto auto 1.5rem auto;
-          inset: auto 0 0 0;
-          border: 0;
-        }
-        .icon {
-          display: grid;
-          place-items: center;
-          width: 1.25rem;
-          height: 1.25rem;
-          border-radius: 50%;
-          font-size: 0.8rem;
-        }
-        """)
-
-    static let theme = #css("""
-        :host {
-          background: color-mix(in oklab, Canvas 88%, CanvasText);
-          color: CanvasText;
-          border-radius: 999px;
-          border: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
-          box-shadow: 0 12px 32px -12px rgb(0 0 0 / .35), 0 2px 6px -2px rgb(0 0 0 / .15);
-          font-size: 0.9375rem;
-        }
-        .icon {
-          background: color-mix(in oklab, currentColor 18%, transparent);
-        }
-        """)
-
-    static let animations = #css("""
-        @keyframes toast-in {
-          from { opacity: 0; transform: translateY(12px) scale(.96); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes toast-out {
-          to { opacity: 0; transform: translateY(12px) scale(.98); }
-        }
-        :host {
-          animation: toast-in .22s cubic-bezier(.2,.7,.2,1) forwards;
-        }
-        """)
-}
-
-"""##,
-                "Sources/App/Toast.swift": ##"""
-// Sources/App/Toast.swift
-import Swiflow
-import SwiflowDOM
-import JavaScriptKit
-
-/// Toast — top-layer notification using the Popover API.
-///
-/// - `popover="manual"` keeps the toast on the top layer without
-///   light-dismiss (other clicks aren't hijacked).
-/// - Auto-dismisses after 2.5s via `after(_:do:)`; the timer is cancelled
-///   in `onDisappear` so an early parent unmount doesn't fire `onDone`.
-/// - `exitAnimation` / `exitDuration` still drive the exit animation when
-///   the parent toggles `showToast = false`.
-@MainActor @Component
-final class Toast {
-    let message: String
-    let onDone: () -> Void
-    let root = Ref<JSObject>()
-    var dismissTimer: TimerHandle?
-
-    init(message: String, onDone: @escaping () -> Void) {
-        self.message = message
-        self.onDone = onDone
-    }
-
-    static var exitAnimation: String? = "toast-out 0.2s ease forwards"
-    static var exitDuration: Double?  = 0.2
-
-    var body: VNode {
-        div(.attr("popover", "manual"),
-            .attr("role", "status"),
-            .attr("aria-live", "polite"),
-            .ref(root),
-            .on(.click) { self.onDone() }) {
-            span(.class("icon"), .attr("aria-hidden", "true")) { text("\u{2713}") }
-            text(message)
-        }
-    }
-
-    func onAppear() {
-        if let el = root.wrappedValue {
-            _ = el.showPopover?()
-        }
-        dismissTimer = after(2.5) { [weak self] in self?.onDone() }
-    }
-
-    func onDisappear() {
-        dismissTimer?.cancel()
-        dismissTimer = nil
+        .padding(.lg)   // the dialog has padding:0; the content pads itself
     }
 }
 

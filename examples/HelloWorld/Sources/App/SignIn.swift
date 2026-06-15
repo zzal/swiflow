@@ -1,8 +1,12 @@
 // Sources/App/SignIn.swift
 import Swiflow
+import SwiflowUI
 
-/// SignIn — Phase 12b form validation demo, now hosted inside Counter's
-/// <dialog>. All inline .style(...) calls migrated to SignIn+Styles.swift.
+/// SignIn — a form-validation demo, hosted inside Counter's <dialog>. Dogfoods
+/// SwiflowUI: `TextField(field:)` for the labelled, validated fields (label + input
+/// + role=alert error + aria-invalid, with blur→markTouched wired) and `Button` for
+/// the actions, laid out with `VStack`/`HStack`. No hand-rolled field/button chrome
+/// or per-component CSS — it all comes from SwiflowUI's token-driven sheets.
 @MainActor @Component
 final class SignIn {
     @State var email: String    = ""
@@ -21,55 +25,33 @@ final class SignIn {
                        .custom("Must contain a number") { $0.contains { $0.isNumber } })
         let form = Form($ctrl) { em; pw }
 
-        return div(.class("signin")) {
+        return VStack(spacing: .md, align: .stretch) {
             if submitted {
-                p("Signed in as \(email)!", .class("welcome"))
-                div(.class("actions")) {
-                    button("Sign out", .class("secondary"), .on(.click) {
+                p("Signed in as \(email)!")
+                HStack(spacing: .sm) {
+                    Button("Sign out", variant: .secondary) {
                         self.submitted = false
                         self.email = ""
                         self.password = ""
                         self.ctrl = FormController()
-                    })
-                    button("Close", .on(.click) { self.onClose() })
+                    }
+                    Button("Close") { self.onClose() }
                 }
             } else {
-                h2("Sign In", .class("title"))
-
-                div(.class("field")) {
-                    label("Email", .attr("for", "signin-email"))
-                    input(.id("signin-email"),
-                          .attr("type", "email"),
-                          .value($email),
-                          .on(.blur) { em.markTouched() })
-                    if em.touched, let err = em.error {
-                        p(err, .class("error"))
+                h2("Sign In")
+                TextField("Email", field: em, type: .email)
+                TextField("Password", field: pw, type: .password)
+                HStack(spacing: .sm) {
+                    Button("Sign In", disabled: !form.isValid) {
+                        form.touchAll()
+                        guard form.isValid else { return }
+                        self.submitted = true
                     }
-                }
-
-                div(.class("field")) {
-                    label("Password", .attr("for", "signin-password"))
-                    input(.id("signin-password"),
-                          .attr("type", "password"),
-                          .value($password),
-                          .on(.blur) { pw.markTouched() })
-                    if pw.touched, let err = pw.error {
-                        p(err, .class("error"))
-                    }
-                }
-
-                div(.class("actions")) {
-                    button("Sign In",
-                           .attr("disabled", !form.isValid),
-                           .on(.click) {
-                               form.touchAll()
-                               guard form.isValid else { return }
-                               self.submitted = true
-                           })
-                    button("Reset", .class("secondary"), .on(.click) { form.reset() })
-                    button("Cancel", .class("secondary"), .on(.click) { self.onClose() })
+                    Button("Reset", variant: .secondary) { form.reset() }
+                    Button("Cancel", variant: .secondary) { self.onClose() }
                 }
             }
         }
+        .padding(.lg)   // the dialog has padding:0; the content pads itself
     }
 }

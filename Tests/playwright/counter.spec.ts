@@ -72,15 +72,16 @@ test.describe("Counter demo", () => {
     expect(styles.viewTransitionName).toBe("none");
   });
 
-  test("Toast mounts as a popover and auto-dismisses", async ({ page }) => {
+  test("Toast (SwiflowUI ToastStack) appears and auto-dismisses", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Show toast" }).click();
     const toast = page.getByRole("status");
     await expect(toast).toBeVisible();
     await expect(toast).toContainText("Saved!");
-    await expect(toast).toHaveAttribute("popover", "manual");
-    // Auto-dismiss within ~3s (2.5s timer + exit animation). Give it 4s of slack.
-    await expect(toast).toHaveCount(0, { timeout: 4_000 });
+    // SwiflowUI's Toast is a role=status live region in a fixed ToastStack (not a
+    // popover). Auto-dismiss after the 4s default + exit animation; give 8s slack.
+    // (No hover/focus on the toast here, so the countdown isn't paused.)
+    await expect(toast).toHaveCount(0, { timeout: 8_000 });
   });
 
   test("Sign in dialog opens via showModal and closes on Escape", async ({ page }) => {
@@ -96,18 +97,18 @@ test.describe("Counter demo", () => {
 
   test("Toast auto-dismiss does not close an open dialog", async ({ page }) => {
     await page.goto("/");
-    // Regression: the toast is a conditional child. When its 2.5s timer
-    // unmounts it, index-based child diffing must not shift/recreate the
-    // dialog (a recreated modal <dialog> drops its top-layer state and
-    // vanishes). Open the dialog, fire the toast, wait past the auto-dismiss,
+    // The toast now lives in a separate ToastStack (sibling of the card), but the
+    // invariant still matters: a toast removing itself from its own queue must not
+    // disturb the open modal <dialog> (a recreated modal drops its top-layer state
+    // and vanishes). Open the dialog, fire the toast, wait past the auto-dismiss,
     // and assert the dialog is still open.
     await page.getByRole("button", { name: "Show toast" }).click();
     await page.getByRole("button", { name: "Sign in…" }).click();
     const dialog = page.locator("dialog.signin-dialog");
     await expect(dialog).toHaveAttribute("open", "");
-    // Wait for the toast to mount and then auto-dismiss (2.5s + exit).
+    // Wait for the toast to mount and then auto-dismiss (4s default + exit).
     await expect(page.getByRole("status")).toBeVisible();
-    await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4_000 });
+    await expect(page.getByRole("status")).toHaveCount(0, { timeout: 8_000 });
     // The dialog must have survived the toast's removal.
     await expect(dialog).toHaveAttribute("open", "");
     await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
