@@ -282,15 +282,19 @@ final class AutocompleteBox {
         } else {
             for (i, opt) in visible.enumerated() {
                 let cls = "sw-ac__option" + (i == activeIndex ? " sw-ac__option--active" : "")
-                // Options MUST stay non-focusable (no tabindex): clicking one must NOT blur
-                // the input, or the blur-revert would beat this commit — that's what lets a
-                // strict combobox keep focus on the input (APG) yet commit on click.
+                // Commit on MOUSEDOWN, not click. A real pointer press blurs the input even
+                // though options are non-focusable (WebKit/Safari do this), firing
+                // onInputBlur → closeList, which hides the popover before a `click` could
+                // land — so the click never commits (empty field) or a stale item sticks.
+                // mousedown fires BEFORE that blur, so the commit always wins; the trailing
+                // blur just re-shows the now-committed label. Options stay non-focusable so
+                // focus returns to the input (APG combobox model).
                 let optAttrs: [Attribute] = [
                     .class(cls),
                     .attr("id", optionID(i)),
                     .attr("role", "option"),
                     .attr("aria-selected", opt.value == committed ? "true" : "false"),
-                    .on(.click) { self.commit(opt) },
+                    .on(.mousedown) { self.commit(opt) },
                 ]
                 listChildren.append(element("div", attributes: optAttrs, children: [text(opt.label)]))
             }
