@@ -59,6 +59,30 @@ import Testing
                     caller: [], onBlur: onBlur)
 }
 
+private struct LoaderError: Error {}
+
+@MainActor private func makeAsyncBox(
+    selection: Binding<String>,
+    minChars: Int = 1,
+    loader: @escaping (String) async throws -> [SelectOption]
+) -> AutocompleteBox {
+    // debounce: 0 so tests can drive runSearch() without waiting.
+    AutocompleteBox(label: "City", selection: selection, options: [], placeholder: "Search…",
+                    error: nil, size: .md, required: false, disabled: false, filter: nil,
+                    caller: [], onBlur: nil, loader: loader, debounce: 0, minChars: minChars)
+}
+
+/// Build a body with the handler ambient set *synchronously* for just this call. The async
+/// tests `await runSearch()` between renders; the suite isn't serialized, so a sibling test
+/// can null the shared `HandlerAmbient.current` while we're suspended — set it per render
+/// rather than once-and-rely-across-await.
+@MainActor private func render(_ box: AutocompleteBox) -> ElementData {
+    let prev = HandlerAmbient.current
+    HandlerAmbient.current = HandlerRegistry()
+    defer { HandlerAmbient.current = prev }
+    return el(box.body)!
+}
+
 @Suite("Autocomplete")
 @MainActor
 struct AutocompleteTests {
@@ -282,6 +306,76 @@ struct AutocompleteTests {
         #expect(blurred)
     }
 
+    // MARK: async / remote loader  (use render(_:) — these await, so the ambient is set per build)
+
+    @Test("the async Autocomplete(loader:) free function lowers to an embedded component") func asyncEmbeds() {
+        let node = Autocomplete("City", selection: Cell("").binding, loader: { _ in [] })
+        if case .component = node {} else { Issue.record("expected a component node, got \(node)") }
+    }
+
+    @Test("async shows a 'type to search' hint below minChars, no options") func asyncHintBelowMinChars() {
+        let root = render(makeAsyncBox(selection: Cell("").binding, minChars: 2) { _ in [] })
+        #expect(firstWithClass(root, "sw-ac__status") != nil)        // hint row
+        #expect(allWithClass(root, "sw-ac__option").isEmpty)
+        #expect(firstWithClass(root, "sw-ac__empty") == nil)         // not "No results" — we haven't searched
+    }
+
+    @Test("async loader populates the panel with its results") func asyncResults() async {
+        let box = makeAsyncBox(selection: Cell("").binding) { q in
+            [SelectOption("ca", "Canada"), SelectOption("fr", "France")]
+                .filter { $0.label.lowercased().contains(q.lowercased()) }
+        }
+        firstTag(render(box), "input")!.handlers["input"]!.invoke(EventInfo(type: "input", targetValue: "can"))
+        await box.runSearch()
+        let opts = allWithClass(render(box), "sw-ac__option")
+        #expect(opts.count == 1)
+        #expect(opts.first!.children.contains { if case .text("Canada") = $0 { return true }; return false })
+    }
+
+    @Test("async loader empty result shows 'No results' (not the hint)") func asyncEmptyResults() async {
+        let box = makeAsyncBox(selection: Cell("").binding) { _ in [] }
+        firstTag(render(box), "input")!.handlers["input"]!.invoke(EventInfo(type: "input", targetValue: "zzz"))
+        await box.runSearch()
+        let root = render(box)
+        #expect(firstWithClass(root, "sw-ac__empty") != nil)
+        #expect(firstWithClass(root, "sw-ac__status") == nil)
+    }
+
+    @Test("async loader error shows the error row") func asyncError() async {
+        let box = makeAsyncBox(selection: Cell("").binding) { _ in throw LoaderError() }
+        firstTag(render(box), "input")!.handlers["input"]!.invoke(EventInfo(type: "input", targetValue: "x"))
+        await box.runSearch()
+        let root = render(box)
+        #expect(firstWithClass(root, "sw-ac__error")?.attributes["role"] == "alert")
+        #expect(allWithClass(root, "sw-ac__option").isEmpty)
+    }
+
+    @Test("async: a committed option's label persists when closed, even after results change") func asyncCommittedLabel() async {
+        let cell = Cell("")
+        let box = makeAsyncBox(selection: cell.binding) { q in
+            q.lowercased().contains("ca") ? [SelectOption("ca", "Canada")] : []
+        }
+        firstTag(render(box), "input")!.handlers["input"]!.invoke(EventInfo(type: "input", targetValue: "ca"))
+        await box.runSearch()
+        allWithClass(render(box), "sw-ac__option").first!.handlers["mousedown"]!.invoke(EventInfo(type: "mousedown"))
+        #expect(cell.v == "ca")
+        // closed; the current results no longer contain "ca", but the input shows the label
+        #expect(firstTag(render(box), "input")!.properties["value"] == .string("Canada"))
+    }
+
+    @Test("async: closing clears the panel (no stale results / stuck spinner on reopen)") func asyncCloseResets() async {
+        let box = makeAsyncBox(selection: Cell("").binding) { q in
+            q.lowercased().contains("ca") ? [SelectOption("ca", "Canada")] : []
+        }
+        firstTag(render(box), "input")!.handlers["input"]!.invoke(EventInfo(type: "input", targetValue: "ca"))
+        await box.runSearch()
+        #expect(allWithClass(render(box), "sw-ac__option").count == 1)   // results present before close
+        firstTag(render(box), "input")!.handlers["blur"]!.invoke(EventInfo(type: "blur"))
+        let root = render(box)
+        #expect(allWithClass(root, "sw-ac__option").isEmpty)   // results dropped on close
+        #expect(firstWithClass(root, "sw-spinner") == nil)      // not stuck on "Searching…"
+    }
+
     // MARK: stylesheet
 
     @Test("stylesheet: anchored popover listbox, token-driven, with entry animation") func stylesheet() {
@@ -292,5 +386,7 @@ struct AutocompleteTests {
         #expect(css.contains("anchor-size("))           // width tracks the input
         #expect(css.contains(".sw-ac__option"))
         #expect(css.contains("var(--sw-surface)"))
+        #expect(css.contains(".sw-ac__status"))   // async loading/hint row
+        #expect(css.contains(".sw-ac__error"))     // async error row
     }
 }

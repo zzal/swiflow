@@ -18,6 +18,17 @@ final class Demo {
     @State var fileName: String = "untitled"
     @State var toasts: [ToastItem] = []
     @State var element: String = ""
+    @State var asyncElement: String = ""
+
+    /// Shared by the sync Autocomplete (static options) and the async one (a loader that
+    /// filters the same list behind a simulated network delay).
+    static let periodicElements: [String] = [
+        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon", "Nitrogen", "Oxygen",
+        "Fluorine", "Neon", "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus", "Sulfur",
+        "Chlorine", "Argon", "Potassium", "Calcium", "Titanium", "Chromium", "Iron", "Cobalt",
+        "Nickel", "Copper", "Zinc", "Silver", "Tin", "Iodine", "Gold", "Mercury", "Lead",
+        "Radon", "Uranium", "Plutonium",
+    ]
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -99,14 +110,17 @@ final class Demo {
                 // anything it reads as a "Country" field (ignoring autocomplete="off"),
                 // and that overlay covers the custom listbox.
                 Autocomplete("Element", selection: $element,
-                             options: ["Hydrogen", "Helium", "Lithium", "Beryllium", "Boron",
-                                       "Carbon", "Nitrogen", "Oxygen", "Fluorine", "Neon",
-                                       "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus",
-                                       "Sulfur", "Chlorine", "Argon", "Potassium", "Calcium",
-                                       "Titanium", "Chromium", "Iron", "Cobalt", "Nickel",
-                                       "Copper", "Zinc", "Silver", "Tin", "Iodine",
-                                       "Gold", "Mercury", "Lead", "Radon", "Uranium", "Plutonium"],
+                             options: Demo.periodicElements.map { SelectOption($0) },
                              placeholder: "Type to search…")
+                // Async/remote variant: the loader filters behind a simulated 350ms delay,
+                // so you see the Searching… state, then results. Debounced (rapid typing
+                // fires one request) and cancellation-safe via .task(rerunOn:).
+                Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
+                    try await Task.sleep(nanoseconds: 350_000_000)
+                    return Demo.periodicElements
+                        .filter { $0.lowercased().contains(query.lowercased()) }
+                        .map { SelectOption($0) }
+                }, placeholder: "Search the periodic table…")
                 RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
                 Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
                 Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
