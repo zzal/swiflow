@@ -2994,6 +2994,7 @@ final class Demo {
     @State var showRename: Bool = false
     @State var fileName: String = "untitled"
     @State var toasts: [ToastItem] = []
+    @State var country: String = ""
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -3071,6 +3072,11 @@ final class Demo {
                 TextField("Name", text: $name, placeholder: "Ada Lovelace")
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
                 Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+                Autocomplete("Country", selection: $country,
+                             options: ["Argentina", "Australia", "Brazil", "Canada", "France",
+                                       "Germany", "India", "Japan", "Mexico", "Spain",
+                                       "United Kingdom", "United States"],
+                             placeholder: "Type to search…")
                 RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
                 Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
                 Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
