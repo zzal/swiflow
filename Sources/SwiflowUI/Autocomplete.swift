@@ -285,7 +285,7 @@ final class AutocompleteBox {
                 // Options MUST stay non-focusable (no tabindex): clicking one must NOT blur
                 // the input, or the blur-revert would beat this commit — that's what lets a
                 // strict combobox keep focus on the input (APG) yet commit on click.
-                var optAttrs: [Attribute] = [
+                let optAttrs: [Attribute] = [
                     .class(cls),
                     .attr("id", optionID(i)),
                     .attr("role", "option"),
