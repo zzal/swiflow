@@ -2994,7 +2994,7 @@ final class Demo {
     @State var showRename: Bool = false
     @State var fileName: String = "untitled"
     @State var toasts: [ToastItem] = []
-    @State var country: String = ""
+    @State var element: String = ""
 
     var body: VNode {
         let emailField = Field("email", $email, $ctrl, .required(), .email)
@@ -3072,10 +3072,17 @@ final class Demo {
                 TextField("Name", text: $name, placeholder: "Ada Lovelace")
                 TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
                 Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
-                Autocomplete("Country", selection: $country,
-                             options: ["Argentina", "Australia", "Brazil", "Canada", "France",
-                                       "Germany", "India", "Japan", "Mexico", "Spain",
-                                       "United Kingdom", "United States"],
+                // A non-address domain on purpose: Chrome forces address autofill onto
+                // anything it reads as a "Country" field (ignoring autocomplete="off"),
+                // and that overlay covers the custom listbox.
+                Autocomplete("Element", selection: $element,
+                             options: ["Hydrogen", "Helium", "Lithium", "Beryllium", "Boron",
+                                       "Carbon", "Nitrogen", "Oxygen", "Fluorine", "Neon",
+                                       "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus",
+                                       "Sulfur", "Chlorine", "Argon", "Potassium", "Calcium",
+                                       "Titanium", "Chromium", "Iron", "Cobalt", "Nickel",
+                                       "Copper", "Zinc", "Silver", "Tin", "Iodine",
+                                       "Gold", "Mercury", "Lead", "Radon", "Uranium", "Plutonium"],
                              placeholder: "Type to search…")
                 RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
                 Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting

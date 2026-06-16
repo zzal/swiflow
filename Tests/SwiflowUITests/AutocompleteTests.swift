@@ -179,17 +179,18 @@ struct AutocompleteTests {
 
     // MARK: mouse + strictness
 
-    @Test("clicking an option commits it and closes") func optionClickCommits() {
+    @Test("selecting an option commits it on mousedown (beats the blur) and closes") func optionClickCommits() {
         HandlerAmbient.current = HandlerRegistry(); defer { HandlerAmbient.current = nil }
         let cell = Cell("")
         let box = makeBox(selection: cell.binding)
         _ = box.body
-        // open, then click the 3rd option (Japan)
+        // open, then select Japan via mousedown (the real-pointer commit event)
         firstTag(el(box.body)!, "input")!.handlers["keydown"]!.invoke(EventInfo(type: "keydown", key: "ArrowDown"))
         let japan = allWithClass(el(box.body)!, "sw-ac__option").first {
             $0.children.contains { if case .text("Japan") = $0 { return true }; return false }
         }!
-        japan.handlers["click"]!.invoke(EventInfo(type: "click"))
+        #expect(japan.handlers["click"] == nil)   // NOT click — that loses the blur race in WebKit
+        japan.handlers["mousedown"]!.invoke(EventInfo(type: "mousedown"))
         #expect(cell.v == "Japan")
         #expect(firstTag(el(box.body)!, "input")!.attributes["aria-expanded"] == "false")
     }
