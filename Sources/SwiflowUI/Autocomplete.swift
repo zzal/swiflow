@@ -26,8 +26,8 @@ import JavaScriptKit
 /// > (benign on a single line). Anchor positioning is Chromium/Safari; Firefox falls back
 /// > to a non-anchored, min-width panel. `options` are captured when the combobox is first
 /// > mounted (the component is `embed`-reused) — fine for a static list; if your options
-/// > change while mounted, key the embed. Async/remote suggestions + loading/empty/error
-/// > states are a planned fast-follow.
+/// > change while mounted, key the embed. For **remote** suggestions, use the `loader:`
+/// > overload below — async, debounced, with Searching / error / empty panel states.
 @MainActor
 public func Autocomplete(
     _ label: String,
@@ -74,6 +74,71 @@ public func Autocomplete(
     }
 }
 
+/// **Async / remote** combobox. Instead of filtering a static list, it calls `loader`
+/// with the current query (debounced) and shows the returned `SelectOption`s — with
+/// Searching / error / "No results" panel states. Everything else (strict select-from-
+/// list, keyboard, clear ✕, a11y) matches the sync `Autocomplete`.
+///
+///     Autocomplete("City", selection: $cityID, loader: { q in try await api.cities(q) })
+///
+/// `loader` runs in a `.task(rerunOn: query)`: each keystroke cancels the prior run, so
+/// `debounce` (seconds) is honored and stale/out-of-order responses can't overwrite fresh
+/// state. A thrown error shows the error row. Below `minChars`, the panel shows a
+/// "Type to search" hint and no request fires.
+///
+/// > A pre-set `selection` with no prior in-component commit shows the raw value until the
+/// > user selects (there's no full list to look its label up in). For caching/retry, wrap
+/// > the loader with SwiflowQuery.
+@MainActor
+public func Autocomplete(
+    _ label: String,
+    selection: Binding<String>,
+    loader: @escaping (_ query: String) async throws -> [SelectOption],
+    placeholder: String = "",
+    error: String? = nil,
+    size: ControlSize = .md,
+    required: Bool = false,
+    disabled: Bool = false,
+    debounce: Double = 0.25,
+    minChars: Int = 1,
+    _ attributes: Attribute...,
+    onBlur: (@MainActor () -> Void)? = nil
+) -> VNode {
+    let caller = attributes
+    return embed {
+        AutocompleteBox(label: label, selection: selection, options: [],
+                        placeholder: placeholder, error: error, size: size,
+                        required: required, disabled: disabled, filter: nil,
+                        caller: caller, onBlur: onBlur,
+                        loader: loader, debounce: debounce, minChars: minChars)
+    }
+}
+
+/// `Field`-integrated async convenience (mirrors the sync `Autocomplete(field:)`): wires the
+/// bound value, error + `aria-invalid`, and blur→`markTouched`, with a remote `loader`.
+@MainActor
+public func Autocomplete(
+    _ label: String,
+    field: Field<String>,
+    loader: @escaping (_ query: String) async throws -> [SelectOption],
+    placeholder: String = "",
+    size: ControlSize = .md,
+    required: Bool = false,
+    disabled: Bool = false,
+    debounce: Double = 0.25,
+    minChars: Int = 1,
+    _ attributes: Attribute...
+) -> VNode {
+    let caller = attributes
+    return embed {
+        AutocompleteBox(label: label, selection: field.binding, options: [],
+                        placeholder: placeholder, error: field.error, size: size,
+                        required: required, disabled: disabled, filter: nil,
+                        caller: caller, onBlur: { field.markTouched() },
+                        loader: loader, debounce: debounce, minChars: minChars)
+    }
+}
+
 /// The stateful implementation behind `Autocomplete`. A `@Component` because it owns the
 /// transient combobox state (typed text, open/active) AND drives imperative DOM the
 /// declarative tree can't express: opening/closing the Popover (`showPopover()`/
@@ -93,6 +158,13 @@ final class AutocompleteBox {
     private let filter: ((String, SelectOption) -> Bool)?
     private let caller: [Attribute]
     private let onBlur: (@MainActor () -> Void)?
+    // Async mode: when `loader` is non-nil the panel is fed by remote results
+    // (debounced) instead of filtering the static `options`.
+    private let loader: ((String) async throws -> [SelectOption])?
+    private let debounce: Double
+    private let minChars: Int
+
+    private var isAsync: Bool { loader != nil }
 
     // Stable ids (init, not per-body) so ARIA wiring survives re-renders.
     private let controlID: String
@@ -103,6 +175,13 @@ final class AutocompleteBox {
     @State private var open: Bool = false
     @State private var activeIndex: Int = -1      // index into `visibleOptions`; -1 = none
     @State private var typed: Bool = false        // false = browsing full list, true = filtering by `query`
+    // Async state (unused in sync mode — both default falsey, so the panel logic skips them).
+    @State private var results: [SelectOption] = []   // latest loader results
+    @State private var loading: Bool = false
+    @State private var loadFailed: Bool = false
+    // Label of the option committed THROUGH this control — so the closed input shows the
+    // right label even in async mode, where the value is no longer in the current results.
+    @State private var selectedOption: SelectOption? = nil
 
     #if canImport(JavaScriptKit)
     private let inputRef = Ref<JSObject>()
@@ -112,7 +191,9 @@ final class AutocompleteBox {
     init(label: String, selection: Binding<String>, options: [SelectOption], placeholder: String,
          error: String?, size: ControlSize, required: Bool, disabled: Bool,
          filter: ((String, SelectOption) -> Bool)?, caller: [Attribute],
-         onBlur: (@MainActor () -> Void)?) {
+         onBlur: (@MainActor () -> Void)?,
+         loader: ((String) async throws -> [SelectOption])? = nil,
+         debounce: Double = 0.25, minChars: Int = 1) {
         self.label = label
         self.selection = selection
         self.options = options
@@ -124,6 +205,9 @@ final class AutocompleteBox {
         self.filter = filter
         self.caller = caller
         self.onBlur = onBlur
+        self.loader = loader
+        self.debounce = debounce
+        self.minChars = minChars
         let cid = nextSwID("sw-ac")
         self.controlID = cid
         self.listID = cid + "-list"
@@ -132,27 +216,31 @@ final class AutocompleteBox {
     private func optionID(_ i: Int) -> String { "\(controlID)-opt-\(i)" }
 
     private func displayLabel(forValue v: String) -> String {
-        // Fall back to the raw value (not blank) when it isn't in `options` — a committed,
-        // externally-set, or persisted value should still show, never render an empty field.
-        options.first(where: { $0.value == v })?.label ?? v
+        // Prefer the label of the option committed through this control (the only source
+        // that survives async result churn), then the static options, then the raw value
+        // (never blank — an externally-set/persisted value should still show).
+        if let s = selectedOption, s.value == v { return s.label }
+        return options.first(where: { $0.value == v })?.label ?? v
     }
 
     private func defaultMatches(_ q: String, _ opt: SelectOption) -> Bool {
         opt.label.lowercased().contains(q.lowercased())
     }
 
-    /// The options shown in the panel: the full list while browsing (just opened, or no
-    /// query), the filtered subset once the user has typed.
+    /// The options shown in the panel. Async: the latest loader results (the loader does
+    /// the filtering). Sync: the full list while browsing, the filtered subset once typed.
     private var visibleOptions: [SelectOption] {
+        if isAsync { return results }
         guard typed, !query.isEmpty else { return options }
         let match = filter ?? defaultMatches
         return options.filter { match(query, $0) }
     }
 
-    /// The text shown in the input: the live query while open, the committed option's
-    /// label while closed (so non-matching typed text is discarded on close — strict).
+    /// The text shown in the input: the live query once the user has typed, otherwise the
+    /// committed option's label (so non-matching typed text is discarded on close — strict,
+    /// and opening shows the current value rather than blanking).
     private var displayValue: String {
-        open ? query : displayLabel(forValue: selection.get())
+        (open && typed) ? query : displayLabel(forValue: selection.get())
     }
 
     // MARK: state transitions
@@ -160,19 +248,25 @@ final class AutocompleteBox {
     private func openList() {
         guard !disabled, !open else { return }
         open = true
-        query = displayLabel(forValue: selection.get())   // seed so the input doesn't blank on open
-        typed = false
-        activeIndex = options.firstIndex(where: { $0.value == selection.get() }) ?? -1
+        typed = false   // browsing; displayValue shows the committed label (no query seed needed)
+        // Sync: pre-activate the committed option. Async: nothing loaded yet.
+        activeIndex = isAsync ? -1 : (options.firstIndex(where: { $0.value == selection.get() }) ?? -1)
     }
 
     private func closeList() {
         open = false
         activeIndex = -1
         typed = false   // displayValue now reverts to the committed label
+        query = ""       // so a fresh open+type re-filters/re-searches from scratch
+        // Async: drop the transient search state — otherwise reopening flashes the previous
+        // query's results, a stale error row, or (if closed mid-search) a stuck spinner.
+        // `selectedOption` is KEPT — it's the committed-label memory and must survive close.
+        if isAsync { results = []; loading = false; loadFailed = false }
     }
 
     private func commit(_ opt: SelectOption) {
         selection.set(opt.value)
+        selectedOption = opt   // remember the label for the closed display (esp. async)
         closeList()
     }
 
@@ -181,7 +275,45 @@ final class AutocompleteBox {
         query = value
         typed = true
         open = true
+        // Active index is deliberately render-clamped (every consumer bounds-checks against
+        // visible.count), not eagerly reconciled: async results arrive later via the .task,
+        // which resets it; until then 0/-1 against the current visible set is safe.
         activeIndex = visibleOptions.isEmpty ? -1 : 0
+    }
+
+    /// Debounced remote search, driven by `.task(rerunOn: query)`. `rerunOn` cancels the
+    /// in-flight run whenever `query` changes, so the sleep below is the debounce AND
+    /// cancellation gives out-of-order protection: a superseded run bails before it can
+    /// overwrite fresher state. Internal (not private) so host tests can drive it directly
+    /// — the `.task` machinery only runs under a real mount.
+    func runSearch() async {
+        guard let loader else { return }
+        let q = query
+        guard q.count >= minChars else {
+            results = []; loading = false; loadFailed = false; activeIndex = -1
+            return
+        }
+        loading = true
+        loadFailed = false
+        do {
+            try await Task.sleep(nanoseconds: UInt64(max(0, debounce) * 1_000_000_000))
+        } catch {
+            return   // cancelled by a newer keystroke → bail; the new run owns the state
+        }
+        do {
+            let r = try await loader(q)
+            guard !Task.isCancelled else { return }
+            results = r
+            loading = false
+            activeIndex = r.isEmpty ? -1 : 0
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            loadFailed = true
+            loading = false
+            results = []
+        }
     }
 
     private func onKeyDown(_ e: EventInfo) {
@@ -210,10 +342,12 @@ final class AutocompleteBox {
     private func clear() {
         guard !disabled else { return }
         selection.set("")
+        selectedOption = nil
         query = ""
         typed = false
         activeIndex = -1
         open = false   // clearing closes the list (consistent with blur/Escape); input keeps focus
+        if isAsync { results = []; loading = false; loadFailed = false }
         #if canImport(JavaScriptKit)
         _ = inputRef.wrappedValue?.focus?()   // ✕ is non-focusable, so focus never left the input
         #endif
@@ -225,7 +359,7 @@ final class AutocompleteBox {
         installControlSheet(id: "sw-ac", autocompleteStyleSheet)
 
         let visible = visibleOptions
-        let committed = selection.get()
+        let committedValue = selection.get()
         let value = displayValue
 
         // --- combobox input ---
@@ -276,8 +410,17 @@ final class AutocompleteBox {
         ])
 
         // --- listbox popover ---
+        // Panel states, in priority order. The loading/error branches only fire in async
+        // mode (both flags stay false in sync mode), so the sync path is unchanged.
         var listChildren: [VNode] = []
-        if visible.isEmpty {
+        if isAsync, query.count < minChars {
+            listChildren.append(statusRow("Type to search", spinner: false))
+        } else if loading {
+            listChildren.append(statusRow("Searching…", spinner: true))
+        } else if loadFailed {
+            listChildren.append(element("div", attributes: [.class("sw-ac__error"), .attr("role", "alert")],
+                                        children: [text("Couldn't load results")]))
+        } else if visible.isEmpty {
             listChildren.append(element("div", attributes: [.class("sw-ac__empty")], children: [text("No results")]))
         } else {
             for (i, opt) in visible.enumerated() {
@@ -293,7 +436,7 @@ final class AutocompleteBox {
                     .class(cls),
                     .attr("id", optionID(i)),
                     .attr("role", "option"),
-                    .attr("aria-selected", opt.value == committed ? "true" : "false"),
+                    .attr("aria-selected", opt.value == committedValue ? "true" : "false"),
                     .on(.mousedown) { self.commit(opt) },
                 ]
                 listChildren.append(element("div", attributes: optAttrs, children: [text(opt.label)]))
@@ -324,8 +467,21 @@ final class AutocompleteBox {
         var rootChildren: [VNode] = [labelNode, fieldWrap]
         if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
         rootChildren.append(listbox)
-        return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass) sw-ac")],
-                       children: rootChildren)
+        let root = element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass) sw-ac")],
+                           children: rootChildren)
+        // Async: one stable `.task` whose `rerunOn: query` cancels+restarts the debounced
+        // search on every keystroke. Sync mode attaches nothing (stable .task count per
+        // instance — `isAsync` is fixed at init).
+        guard isAsync else { return root }
+        return root.task(rerunOn: query) { await self.runSearch() }
+    }
+
+    /// A non-option status row in the panel (loading / hint), optionally with a spinner.
+    private func statusRow(_ message: String, spinner: Bool) -> VNode {
+        var kids: [VNode] = []
+        if spinner { kids.append(Spinner(size: .sm)) }
+        kids.append(element("span", attributes: [], children: [text(message)]))
+        return element("div", attributes: [.class("sw-ac__status"), .attr("role", "status")], children: kids)
     }
 
     func onAppear() { syncDOM() }
@@ -434,6 +590,18 @@ let autocompleteStyleSheet: CSSSheet = css {
     .sw-ac__empty {
       padding: var(--sw-space-sm) var(--sw-space-md);
       color: var(--sw-text-muted);
+    }
+    /* async panel states: loading / "type to search" hint, and the error row */
+    .sw-ac__status {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-space-sm);
+      padding: var(--sw-space-sm) var(--sw-space-md);
+      color: var(--sw-text-muted);
+    }
+    .sw-ac__error {
+      padding: var(--sw-space-sm) var(--sw-space-md);
+      color: var(--sw-danger-strong);
     }
     """)
 }
