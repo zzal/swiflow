@@ -21,6 +21,14 @@ describe("service worker", () => {
     assert.equal(names.filter(n => n.startsWith("swiflow-runtime-v")).length, 1);
   });
 
+  test("install calls skipWaiting so a rebuilt worker activates on the next reload", async () => {
+    const { fire, self } = loadServiceWorker({ manifest: DEFAULT_MANIFEST });
+    let skipped = false;
+    self.skipWaiting = async () => { skipped = true; };
+    await fire("install", {});
+    assert.ok(skipped, "install must call self.skipWaiting() — else a rebuild waits for every old-worker tab to close");
+  });
+
   test("fetch returns cached response for a manifest-listed URL without re-hitting the network", async () => {
     const { fire, fetchLog } = loadServiceWorker({ manifest: DEFAULT_MANIFEST });
     await fire("install", {});

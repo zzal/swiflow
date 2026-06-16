@@ -123,8 +123,13 @@ self.addEventListener("install", (event) => {
     const manifest = await loadManifest();
     self.__swiflowManifest = manifest;
     await precache(manifest);
-    // Don't skipWaiting here — let the next page navigation take over
-    // naturally. Avoids ripping cache out from under the current page.
+    // Activate this build immediately instead of waiting for every tab on the
+    // old worker to close — so a rebuild wins on the next reload, not
+    // "eventually". Safe because caches are content-hash-keyed: this worker
+    // precached under new names, and activate's cleanupStale() only deletes
+    // caches NOT in the current set, so claiming live clients never rips out
+    // bytes a loaded page is still using.
+    await self.skipWaiting();
   })());
 });
 

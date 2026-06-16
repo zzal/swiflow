@@ -116,7 +116,7 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
     return ev;
   }
 
-  return { fire, caches, listeners, fetchLog };
+  return { fire, caches, listeners, fetchLog, self };
 }
 
 // Hashes match what the default fetch handler returns for each (absolutized)

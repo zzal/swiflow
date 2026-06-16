@@ -65,4 +65,23 @@ describe("service worker registration", () => {
     assert.equal(unregistered.length, 0, "non-swiflow SW must not be unregistered");
   });
 
+  test("dev deletes stale swiflow-* caches (so a prior `swiflow build` can't serve stale WASM)", async () => {
+    const { window } = setupDriver();
+    const deleted = [];
+    window.caches = {
+      keys: async () => ["swiflow-wasm-vabc12345", "swiflow-runtime-vdef67890", "some-other-cache"],
+      delete: async (n) => { deleted.push(n); return true; },
+    };
+    window.navigator.serviceWorker = {
+      register: () => Promise.resolve({}),
+      getRegistrations: async () => [],
+    };
+    await window.swiflow.__bootForTest({ swiflowDev: true });
+    assert.deepEqual(
+      deleted.sort(),
+      ["swiflow-runtime-vdef67890", "swiflow-wasm-vabc12345"],
+      "only swiflow-* caches should be deleted; unrelated caches left intact"
+    );
+  });
+
 });

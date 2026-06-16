@@ -652,6 +652,20 @@
         if (!url.endsWith("/swiflow-sw.js")) continue;
         try { await reg.unregister(); } catch (_) {}
       }
+      // Unregistering removes the worker but NOT its caches — a prior `swiflow
+      // build` leaves swiflow-* caches that even a lingering caches-first SW
+      // would keep serving (stale WASM) on this very load. Deleting them here,
+      // before the WASM import below (boot awaits __boot first), means the
+      // dynamic import misses the cache and fetches the freshly-built bytes —
+      // so dev wins on the FIRST load, not after a manual cache purge.
+      if (typeof caches !== "undefined") {
+        try {
+          const names = await caches.keys();
+          await Promise.all(
+            names.filter(n => n.startsWith("swiflow-")).map(n => caches.delete(n))
+          );
+        } catch (_) {}
+      }
       return;
     }
     try {

@@ -661,6 +661,20 @@ enum EmbeddedDriver {
         if (!url.endsWith("/swiflow-sw.js")) continue;
         try { await reg.unregister(); } catch (_) {}
       }
+      // Unregistering removes the worker but NOT its caches — a prior `swiflow
+      // build` leaves swiflow-* caches that even a lingering caches-first SW
+      // would keep serving (stale WASM) on this very load. Deleting them here,
+      // before the WASM import below (boot awaits __boot first), means the
+      // dynamic import misses the cache and fetches the freshly-built bytes —
+      // so dev wins on the FIRST load, not after a manual cache purge.
+      if (typeof caches !== "undefined") {
+        try {
+          const names = await caches.keys();
+          await Promise.all(
+            names.filter(n => n.startsWith("swiflow-")).map(n => caches.delete(n))
+          );
+        } catch (_) {}
+      }
       return;
     }
     try {
@@ -838,8 +852,13 @@ self.addEventListener("install", (event) => {
     const manifest = await loadManifest();
     self.__swiflowManifest = manifest;
     await precache(manifest);
-    // Don't skipWaiting here — let the next page navigation take over
-    // naturally. Avoids ripping cache out from under the current page.
+    // Activate this build immediately instead of waiting for every tab on the
+    // old worker to close — so a rebuild wins on the next reload, not
+    // "eventually". Safe because caches are content-hash-keyed: this worker
+    // precached under new names, and activate's cleanupStale() only deletes
+    // caches NOT in the current set, so claiming live clients never rips out
+    // bytes a loaded page is still using.
+    await self.skipWaiting();
   })());
 });
 
