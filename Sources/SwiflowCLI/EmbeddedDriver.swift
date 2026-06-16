@@ -74,11 +74,12 @@ enum EmbeddedDriver {
   /**
    * Serialize a DOM event into the shape Swift expects.
    * EventInfo carries: type, optional targetValue (for value-bearing
-   * inputs), optional targetChecked (for checkbox/radio inputs), and
+   * inputs), optional targetChecked (for checkbox/radio inputs),
    * isSelfTarget (target === currentTarget — true when the event fired on the
-   * bound element itself, not bubbled from a descendant). Called synchronously
-   * from the listener wrapper, so `currentTarget` is the element the listener
-   * is attached to.
+   * bound element itself, not bubbled from a descendant), key (event.key on
+   * keyboard events, else null), and the four modifier flags (present on
+   * keyboard and mouse events). Called synchronously from the listener wrapper,
+   * so `currentTarget` is the element the listener is attached to.
    */
   function serializeEvent(event) {
     const target = event.target;
@@ -86,11 +87,17 @@ enum EmbeddedDriver {
       target && "value" in target ? String(target.value) : null;
     const targetChecked =
       target && "checked" in target ? Boolean(target.checked) : null;
+    const key = typeof event.key === "string" ? event.key : null;
     return {
       type: event.type,
       targetValue: targetValue,
       targetChecked: targetChecked,
       isSelfTarget: target === event.currentTarget,
+      key: key,
+      shiftKey: Boolean(event.shiftKey),
+      ctrlKey: Boolean(event.ctrlKey),
+      altKey: Boolean(event.altKey),
+      metaKey: Boolean(event.metaKey),
     };
   }
 

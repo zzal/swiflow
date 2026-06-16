@@ -175,16 +175,40 @@ public struct EventInfo: Equatable, Sendable {
     /// the dialog; a click on its content targets a child).
     public let isSelfTarget: Bool
 
+    /// For keyboard events (`keydown`/`keyup`/`keypress`), `event.key` — the value of
+    /// the key pressed (e.g. `"ArrowDown"`, `"Enter"`, `"Escape"`, `"Tab"`, `"a"`); `nil`
+    /// for non-keyboard events. Enables keyboard navigation (combobox/menu roving,
+    /// shortcuts) without wiring a listener per key.
+    public let key: String?
+
+    /// Modifier-key state at the time of the event. Present on keyboard *and* mouse
+    /// events, so a `.click` handler can branch on `metaKey`/`shiftKey` too (Cmd+click,
+    /// Shift+select); `false` for events without modifier state.
+    public let shiftKey: Bool
+    public let ctrlKey: Bool
+    public let altKey: Bool
+    public let metaKey: Bool
+
     public init(
         type: String,
         targetValue: String? = nil,
         targetChecked: Bool? = nil,
-        isSelfTarget: Bool = false
+        isSelfTarget: Bool = false,
+        key: String? = nil,
+        shiftKey: Bool = false,
+        ctrlKey: Bool = false,
+        altKey: Bool = false,
+        metaKey: Bool = false
     ) {
         self.type = type
         self.targetValue = targetValue
         self.targetChecked = targetChecked
         self.isSelfTarget = isSelfTarget
+        self.key = key
+        self.shiftKey = shiftKey
+        self.ctrlKey = ctrlKey
+        self.altKey = altKey
+        self.metaKey = metaKey
     }
 
     /// `targetValue` parsed as an `Int`; `nil` if absent or unparseable.

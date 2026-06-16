@@ -61,4 +61,39 @@ struct EventInfoAccessorsTests {
     func selfTargetRoundtrip() {
         #expect(EventInfo(type: "click", isSelfTarget: true).isSelfTarget == true)
     }
+
+    @Test("key defaults to nil (non-keyboard events)")
+    func keyDefault() {
+        #expect(EventInfo(type: "click").key == nil)
+    }
+
+    @Test("key roundtrips when set")
+    func keyRoundtrip() {
+        #expect(EventInfo(type: "keydown", key: "ArrowDown").key == "ArrowDown")
+    }
+
+    @Test("modifier flags default to false")
+    func modifiersDefault() {
+        let e = EventInfo(type: "keydown", key: "Enter")
+        #expect(e.shiftKey == false)
+        #expect(e.ctrlKey == false)
+        #expect(e.altKey == false)
+        #expect(e.metaKey == false)
+    }
+
+    @Test("modifier flags roundtrip independently")
+    func modifiersRoundtrip() {
+        let e = EventInfo(type: "keydown", key: "Enter", shiftKey: true, metaKey: true)
+        #expect(e.shiftKey == true)
+        #expect(e.metaKey == true)
+        #expect(e.ctrlKey == false)   // unset stays false
+        #expect(e.altKey == false)
+    }
+
+    @Test("modifiers are carried on mouse events too (Cmd+click)")
+    func modifiersOnClick() {
+        let e = EventInfo(type: "click", metaKey: true)
+        #expect(e.metaKey == true)
+        #expect(e.key == nil)         // a click has no key
+    }
 }
