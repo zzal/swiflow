@@ -76,7 +76,11 @@ public enum SwiflowUI {
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 2px;
-          --sw-shadow: light-dark(0 24px 48px -32px rgb(0 0 0 / 0.25), 0 24px 48px -16px rgb(0 0 0 / 0.45));
+          /* light-dark() is COLOR-only, so it wraps just the shadow color (not the whole
+             value — lengths can't ride light-dark()). Keeping it in color position lets the
+             shadow flip with `color-scheme` like every other token; the dark arm leans on a
+             higher alpha to stay visible on dark surfaces. */
+          --sw-shadow: 0 24px 48px -32px light-dark(rgb(0 0 0 / 0.25), rgb(0 0 0 / 0.45));
 
           /* motion — components name their own properties:
              transition: <prop> var(--sw-duration) var(--sw-ease)
