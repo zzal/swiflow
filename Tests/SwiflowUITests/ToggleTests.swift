@@ -54,7 +54,7 @@ struct ToggleTests {
 
     @Test("renders a switch: role=switch checkbox + track/thumb, label beside") func rendersSwitch() {
         let node = building { Toggle("Dark mode", isOn: unused) }
-        #expect(el(node)!.attributes["class"] == "sw-switch")
+        #expect(el(node)!.attributes["class"] == "sw-switch sw-switch--md")
         #expect(rowOf(node)!.attributes["class"] == "sw-switch__row")
         let input = inputOf(node)!
         #expect(input.attributes["type"] == "checkbox")
@@ -134,7 +134,12 @@ struct ToggleTests {
         #expect(kids[i + 1].attributes["class"] == "sw-switch__track")   // `:checked + .track` depends on this
     }
 
-    @Test("switch stylesheet is token-driven: track + thumb, accent when on, visible focus") func stylesheet() {
+    @Test("size sets the switch modifier class") func sizeModifier() {
+        let node = building { Toggle("X", isOn: unused, size: .sm) }
+        #expect(el(node)!.attributes["class"] == "sw-switch sw-switch--sm")
+    }
+
+    @Test("switch stylesheet is token-driven: track + thumb, accent when on, visible focus, size scale") func stylesheet() {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-switch__track"))
         #expect(css.contains(".sw-switch__thumb"))
@@ -142,5 +147,6 @@ struct ToggleTests {
         #expect(css.contains("input:focus-visible + .sw-switch__track"))      // focus ring moved to the track
         #expect(css.contains("var(--sw-accent)"))
         #expect(css.contains("var(--sw-duration)"))                           // slide honors reduced-motion
+        #expect(css.contains(".sw-switch--sm"))                               // size scale shipped
     }
 }

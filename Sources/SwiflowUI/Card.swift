@@ -5,7 +5,7 @@ import Swiflow
 /// `.outlined` (a `--sw-border` outline). Maps to a `sw-card--<variant>` class.
 public enum CardVariant: Equatable {
     case elevated, outlined
-    public var modifierClass: String { self == .elevated ? "elevated" : "outlined" }
+    var modifierClass: String { self == .elevated ? "elevated" : "outlined" }
 }
 
 /// A surfaced container. Stateless free function: a `<div>` with `--sw-surface`

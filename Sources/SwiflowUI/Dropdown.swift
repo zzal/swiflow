@@ -49,6 +49,11 @@ enum DropdownAmbient {
 ///
 /// Caller `Attribute...`/`.class` land on the trigger button.
 ///
+/// > Note: `label`/`placement` and the `items` builder are captured when the dropdown is
+/// > first mounted (the component is `embed`-reused, to keep a stable popover id across
+/// > re-renders). For a dropdown whose label or items change while mounted, pass a `key:`
+/// > that changes with them so the menu is rebuilt with fresh props.
+///
 /// > Anchor positioning is Baseline-newer (Chromium/Safari; not yet Firefox). Where it's
 /// > unsupported the menu still opens (a centered popover), just not anchored to the trigger.
 @MainActor
@@ -56,9 +61,10 @@ public func Dropdown(
     _ label: String,
     placement: DropdownPlacement = .bottomStart,
     _ attributes: Attribute...,
+    key: String? = nil,
     @ChildrenBuilder items: @escaping () -> [VNode]
 ) -> VNode {
-    embed { DropdownMenu(label: label, placement: placement, triggerAttrs: attributes, items: items) }
+    embedKeyed(key) { DropdownMenu(label: label, placement: placement, triggerAttrs: attributes, items: items) }
 }
 
 /// The implementation behind `Dropdown`. A `@Component` purely so the popover id is

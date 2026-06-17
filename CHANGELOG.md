@@ -16,7 +16,43 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
-## [Unreleased]
+## [0.2.1] — 2026-06-17
+
+Developer-experience polish for SwiflowUI.
+
+### Added
+
+- **`size:` on `Toggle` and `Checkbox`.** Both now take
+  `size: ControlSize` (`.sm`/`.md`/`.lg`, default `.md`), matching the rest of
+  the form-control family. The box/track/thumb and label scale together via the
+  token-driven `.sw-check--*` / `.sw-switch--*` font-size.
+- **Opt-in `key:` on the overlay facades.** `Alert`, `Prompt`, `Autocomplete`,
+  and `Dropdown` reuse their backing component across renders, which freezes the
+  props captured at first mount. A new `key: String? = nil` parameter forces a
+  rebuild with fresh props whenever the key changes — the escape hatch the docs
+  described but never actually exposed. Default `nil` preserves the existing
+  reuse behavior.
+
+### Changed
+
+- **`import SwiflowUI` re-exports `Swiflow`.** Using SwiflowUI no longer needs a
+  separate `import Swiflow` for `VNode` / `@State` / `Binding` / `Attribute`
+  (you still `import SwiflowDOM` for the renderer entry point). Mirrors how
+  `SwiflowDOM` already re-exports the core.
+- **Form controls catch a smuggled value binding (debug builds).** Passing
+  `.value` / `.checked` / `.on(.input)` / `.on(.change)` through a control's
+  trailing attributes silently overwrote the control's own binding; it is now a
+  `swiflowDiagnostic` precondition in debug builds (compiled out of release), so
+  the mistake is loud instead of a dead control. Drive the value through the
+  `text:` / `isOn:` / `field:` parameter.
+- **`.modifierClass` is now internal.** The CSS-class helper on the control
+  variant/size enums (`ButtonVariant`, `BadgeVariant`, `ControlSize`, …) was
+  unintentionally `public`; it is an implementation detail of the `.sw-*`
+  stylesheet, not API.
+
+**Stability: stable for pre-1.0 usage.**
+
+## [0.2.0] — 2026-06-14
 
 ### Added
 

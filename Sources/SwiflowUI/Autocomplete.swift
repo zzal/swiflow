@@ -26,7 +26,7 @@ import JavaScriptKit
 /// > (benign on a single line). Anchor positioning is Chromium/Safari; Firefox falls back
 /// > to a non-anchored, min-width panel. `options` are captured when the combobox is first
 /// > mounted (the component is `embed`-reused) — fine for a static list; if your options
-/// > change while mounted, key the embed. For **remote** suggestions, use the `loader:`
+/// > change while mounted, pass a `key:` that changes with them. For **remote** suggestions, use the `loader:`
 /// > overload below — async, debounced, with Searching / error / empty panel states.
 @MainActor
 public func Autocomplete(
@@ -40,10 +40,11 @@ public func Autocomplete(
     disabled: Bool = false,
     filter: ((_ query: String, _ option: SelectOption) -> Bool)? = nil,
     _ attributes: Attribute...,
+    key: String? = nil,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     let caller = attributes
-    return embed {
+    return embedKeyed(key) {
         AutocompleteBox(label: label, selection: selection, options: options,
                         placeholder: placeholder, error: error, size: size,
                         required: required, disabled: disabled, filter: filter,
@@ -63,10 +64,11 @@ public func Autocomplete(
     required: Bool = false,
     disabled: Bool = false,
     filter: ((_ query: String, _ option: SelectOption) -> Bool)? = nil,
-    _ attributes: Attribute...
+    _ attributes: Attribute...,
+    key: String? = nil
 ) -> VNode {
     let caller = attributes
-    return embed {
+    return embedKeyed(key) {
         AutocompleteBox(label: label, selection: field.binding, options: options,
                         placeholder: placeholder, error: field.error, size: size,
                         required: required, disabled: disabled, filter: filter,
@@ -102,10 +104,11 @@ public func Autocomplete(
     debounce: Double = 0.25,
     minChars: Int = 1,
     _ attributes: Attribute...,
+    key: String? = nil,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     let caller = attributes
-    return embed {
+    return embedKeyed(key) {
         AutocompleteBox(label: label, selection: selection, options: [],
                         placeholder: placeholder, error: error, size: size,
                         required: required, disabled: disabled, filter: nil,
@@ -127,10 +130,11 @@ public func Autocomplete(
     disabled: Bool = false,
     debounce: Double = 0.25,
     minChars: Int = 1,
-    _ attributes: Attribute...
+    _ attributes: Attribute...,
+    key: String? = nil
 ) -> VNode {
     let caller = attributes
-    return embed {
+    return embedKeyed(key) {
         AutocompleteBox(label: label, selection: field.binding, options: [],
                         placeholder: placeholder, error: field.error, size: size,
                         required: required, disabled: disabled, filter: nil,

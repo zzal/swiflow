@@ -9,6 +9,33 @@
 // rather than abstracted speculatively on the first.
 import Swiflow
 
+#if DEBUG
+/// Enforces the FOOTGUN documented on `controlInputAttributes`/`fieldGroupAttributes`:
+/// a caller must not reach past the `text:`/`isOn:`/`field:` parameter and drive the
+/// control's value through the trailing attribute bag. `.value`/`.checked` desugar to a
+/// `value`/`checked` *property* write and `.on(.input)`/`.on(.change)` to an `input`/
+/// `change` *handler* — both land in the same last-write-wins bag as the binding the
+/// control installs, so a duplicate silently clobbers the binding's write-back. Fires a
+/// `swiflowDiagnostic` (a DEBUG `preconditionFailure`, no-op in release) so the mistake is
+/// loud in development instead of a silently dead control. Recurses into `.compound` so a
+/// reserved effect nested in a composite modifier is caught too.
+@MainActor
+func assertNoReservedBindingAttributes(_ attributes: [Attribute]) {
+    for attribute in attributes {
+        switch attribute {
+        case let .property(name, _) where name == "value" || name == "checked":
+            swiflowDiagnostic("SwiflowUI form control: a `\(name)` binding (`.value`/`.checked`) was passed through the trailing attributes. The control owns its value — drive it through the `text:`/`isOn:`/`field:` parameter; a duplicate silently overwrites the binding's write-back.")
+        case let .handler(event, _) where event == "input" || event == "change":
+            swiflowDiagnostic("SwiflowUI form control: an `\(event)` handler (`.on(.\(event))`) was passed through the trailing attributes. The control's value binding already handles `\(event)` and is last-write-wins, so a duplicate silently overwrites its write-back. Drive the value through the `text:`/`isOn:`/`field:` parameter (use `onBlur:` for side effects).")
+        case let .compound(inner):
+            assertNoReservedBindingAttributes(inner)
+        default:
+            break
+        }
+    }
+}
+#endif
+
 /// Assembles a form-control element's attributes: the control-specific `base`
 /// (`type` + `value`/`checked`), then `aria-invalid`, optional `aria-required`,
 /// `disabled`, the optional blur handler, and the merged caller attributes
@@ -19,7 +46,8 @@ import Swiflow
 /// `.on(.input)` for text inputs, `.checked` / `.on(.change)` for Toggle/Select.
 /// `callerRest` applies last and handlers are last-write-wins per event key, so a
 /// duplicate would silently overwrite the binding's write-back. Drive the value
-/// through the control's `text:`/`isOn:`/`field:` parameter instead.
+/// through the control's `text:`/`isOn:`/`field:` parameter instead. DEBUG builds
+/// enforce this — see `assertNoReservedBindingAttributes`.
 @MainActor
 func controlInputAttributes(
     _ base: [Attribute],
@@ -29,6 +57,9 @@ func controlInputAttributes(
     onBlur: (@MainActor () -> Void)?,
     caller: [Attribute]
 ) -> [Attribute] {
+    #if DEBUG
+    assertNoReservedBindingAttributes(caller)
+    #endif
     let (callerClasses, callerRest) = splitClasses(caller)
     var attrs = base
     attrs.append(.attr("aria-invalid", error != nil ? "true" : "false"))
@@ -63,6 +94,9 @@ func fieldGroupAttributes(
     disabled: Bool,
     caller: [Attribute]
 ) -> [Attribute] {
+    #if DEBUG
+    assertNoReservedBindingAttributes(caller)
+    #endif
     let (callerClasses, callerRest) = splitClasses(caller)
     var attrs: [Attribute] = [.class((baseClasses + callerClasses).joined(separator: " "))]
     attrs.append(.attr("aria-invalid", error != nil ? "true" : "false"))
@@ -238,6 +272,10 @@ let formControlsSheet: CSSSheet = css {
       opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }
+    /* Size scale: the box (1.1em) and label scale with the root font-size. */
+    .sw-check--sm { font-size: 0.875rem; }
+    .sw-check--md { font-size: 1rem; }
+    .sw-check--lg { font-size: 1.125rem; }
 
     /* --- Toggle: a switch (immediate on/off setting) — track + sliding thumb --- */
     .sw-switch { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
@@ -295,6 +333,10 @@ let formControlsSheet: CSSSheet = css {
     }
     /* Dim the whole row when disabled (matches .sw-check), not just the track. */
     .sw-switch__row--disabled { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
+    /* Size scale: the track (2.25em), thumb, and label scale with the root font-size. */
+    .sw-switch--sm { font-size: 0.875rem; }
+    .sw-switch--md { font-size: 1rem; }
+    .sw-switch--lg { font-size: 1.125rem; }
 
     /* --- RadioGroup: <fieldset>/<legend> + native radios (shared name = roving focus) --- */
     .sw-radio {
