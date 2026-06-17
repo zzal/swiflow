@@ -38,6 +38,13 @@ let cardStyleSheet: CSSSheet = css {
       color: var(--sw-text);
       border-radius: var(--sw-radius);
       padding: var(--sw-space-lg);
+      /* Own the internal rhythm via gap rather than children's UA margins:
+         the base reset zeroes heading/paragraph block margins, so a plain
+         block card would collapse its title onto its body. Matches the
+         flex-column-gap pattern used by Field/Toast/Prompt. */
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-space-md);
     }
     /* hairline edge + the big soft drop (matches the HelloWorld card lift) */
     .sw-card--elevated { box-shadow: 0 1px 0 var(--sw-border), var(--sw-shadow); }

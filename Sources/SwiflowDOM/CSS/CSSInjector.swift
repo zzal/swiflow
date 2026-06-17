@@ -12,12 +12,17 @@ import Swiflow
 
 @MainActor
 enum CSSInjector {
-    /// Wires the registry's emit sink to a real `<head>` `<style>` append, then
-    /// installs the component-mount hook that injects each type's scoped sheet.
+    /// Wires the registry's emit sink to a real `<head>` `<style>` append,
+    /// injects the framework CSS reset, then installs the component-mount hook
+    /// that injects each type's scoped sheet.
     static func setup() {
         StyleInjectionRegistry.emit = { id, css in
             appendStyle(id: id, css: css)
         }
+        // Framework CSS reset: injected here, before the first render and before
+        // any component scoped sheet, so it's the earliest <style> in <head>.
+        // It's wrapped in `@layer reset`, so later unlayered styles still win.
+        installResetStyles()
         onComponentTypeMount = { componentType in
             CSSInjector.inject(for: componentType)
         }
