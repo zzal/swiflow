@@ -81,6 +81,7 @@ instead of a published release.
 - **Forms** — `FormController` / `Field` with blur-triggered validation.
 - **UI kit** — `SwiflowUI`: accessible, token-driven components that adapt to dark mode / contrast / reduced motion with no component code.
 - **Testing** — `SwiflowTesting` headless harness (`render` / `click` / `input`); deterministic async via `AsyncTestHarness`.
+- **DevTools** — a read-only browser **DevTools panel** (Chrome side panel + Safari Web Inspector) that x-rays the live component tree and `@State`; sideload it from [`devtools/`](devtools/).
 - **Safe by default** — `URLSanitizer` scrubs `javascript:` / `data:` / `blob:` URLs at the DSL fold; `rawHTML(_:)` is the loud escape hatch.
 
 ## The ecosystem
@@ -120,8 +121,10 @@ Guides live in [`docs/guides/`](docs/guides/): [SwiflowUI](docs/guides/swiflowui
 [styling](docs/guides/styling.md) · [environment](docs/guides/environment.md) ·
 [DevTools](docs/guides/devtools.md) · [debugging WASM](docs/guides/debugging.md).
 
-A read-only **Chrome DevTools panel** (live component tree + `@State`) is at
-[`devtools/`](devtools/) — sideload it via `chrome://extensions` → *Load unpacked*.
+A read-only **DevTools panel** (live component tree + `@State`) lives in
+[`devtools/`](devtools/) — a Chrome side panel (sideload via
+`chrome://extensions` → *Load unpacked*) and a Safari Web Inspector build
+([`devtools/safari/`](devtools/safari/) needs an Xcode conversion).
 
 ## Performance & costs
 
