@@ -58,8 +58,9 @@ jobs:
     # e2e — and the new Playwright e2e on PRs).
     #
     # The dynamic matrix below is kept (rather than removing the
-    # strategy block entirely) so re-enabling macOS later is a
-    # one-line revert.
+    # strategy block entirely) so re-enabling macOS is a small change:
+    # add it back to the matrix and restore the macOS Swift-setup step
+    # (removed here as dead code — recover it from git history).
     strategy:
       fail-fast: false
       matrix:
@@ -84,39 +85,6 @@ jobs:
         uses: vapor/swiftly-action@bedb227456c5f495afbef80baebee17a8a02cef4 # v0.2.1
         with:
           toolchain: "6.3.2"
-
-      - name: Set up Swift 6.3.2 (macOS)
-        # vapor/swiftly-action's deps-install step exits 1 on macOS
-        # ("Couldn't figure out how to run the system package manager.").
-        # Install swiftly via Homebrew (preinstalled on every GHA
-        # macOS runner) — well-known PATH (/opt/homebrew/bin or
-        # /usr/local/bin), no path-detection guesswork.
-        #
-        # 6.3.2 pin: same reason as Linux. ABI strictness vs. WASM SDK.
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euxo pipefail
-          brew install --quiet swiftly
-          swiftly init --quiet-shell-followup --assume-yes --skip-install --no-modify-profile
-          swiftly install --use 6.3.2 --post-install-file=/dev/null
-          # swiftly's macOS install layout has changed across versions
-          # (~/.swiftly/toolchains vs ~/Library/Developer/Toolchains vs
-          # neither), so don't hunt for the swift binary with `find` —
-          # ask swiftly itself where its active toolchain's swift lives,
-          # then prepend that directory to the GHA PATH.
-          #
-          # A shim like `exec swiftly run swift "$@"` won't work here:
-          # swift-driver computes its resource directory from argv[0]
-          # (../lib/swift/), so a shim at ~/.local/bin/swift sends the
-          # driver looking in the wrong place and macros fail to link
-          # with "library 'swift_errno' not found".
-          swiftly run swift --version  # sanity check
-          SWIFT_BIN="$(swiftly run bash -c 'command -v swift')"
-          TOOLCHAIN_BIN_DIR="$(dirname "$SWIFT_BIN")"
-          echo "Resolved Swift toolchain bin dir: $TOOLCHAIN_BIN_DIR"
-          [ -x "$TOOLCHAIN_BIN_DIR/swift" ] || { echo "swiftly returned a non-executable swift path: $SWIFT_BIN"; exit 1; }
-          echo "$TOOLCHAIN_BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Verify Swift version
         run: swift --version
