@@ -1,293 +1,148 @@
 # Swiflow
 
-Frontend ecosystem for Swift on the web: components, virtual DOM, hot-reloading
-dev server, WASM output.
+[![CI](https://github.com/zzal/swiflow/actions/workflows/ci.yml/badge.svg)](https://github.com/zzal/swiflow/actions/workflows/ci.yml)
+![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)
+![Platform: WebAssembly](https://img.shields.io/badge/platform-WebAssembly-lightgrey.svg)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-Swiflow batches all DOM mutations from a Swift-WASM render cycle into a single
-patch list and ships them across the JS bridge in one leap — making
-Swift-on-the-web fast and frictionless.
+> Build reactive web frontends in **pure Swift**, compiled to WebAssembly.
 
-## Current State
+The tried-and-trusted frontend mental model — components, `@State`, two-way bindings, a router,
+data-fetching, and a UI kit — in the language you already know. Every render
+batches all DOM mutations into a single JS-bridge crossing, so Swift-on-the-web
+stays fast.
 
-Swiflow is **pre-1.0**. The DX uplift plan
-([master plan](docs/superpowers/plans/2026-05-20-swiflow-dx-uplift-master-plan.md))
-drives the roadmap to 1.0 across phases 6 through 13.
+Swiflow is an independent project, built and maintained by one person as a
+hands-on exploration of Swift on the web. It's **pre-1.0 and experimental** —
+see the [changelog](CHANGELOG.md) for where things stand.
 
-**Status:** Phase 20 (Async task effects) — `.task { }` and
-`.task(rerunOn:)` postfix `VNode` modifiers declare lifecycle-bound async
-effects with correct-by-default cancellation. Stale writes from
-superseded or dead tasks are dropped by the runtime before they reach
-`@State` storage, so call sites need only their domain `do/catch`.
-`JavaScriptEventLoop.installGlobalExecutor()` is now wired into
-`Swiflow.render(into:)` automatically. `AsyncTestHarness.settle()` and
-`flush()` in `SwiflowTesting` make async component tests deterministic.
-See [`docs/guides/async-tasks.md`](docs/guides/async-tasks.md) and
-`examples/AsyncFetch/` for the full picture.
-Phase 19b (Live DevTools) — the Chrome DevTools panel
-introduced in Phase 19 now auto-updates within ~250 ms of every
-render (no manual ↻ Refresh after each `@State` mutation), with a
-footer dot showing polling status (green = live, grey = paused,
-red = failed). Zero Swift-side changes — the panel polls the
-existing `__swiflow.perf()` counter via `chrome.devtools.inspectedWindow`.
-Phase 19 shipped the read-only panel itself (tree + per-node
-`@State`) as a sideloadable MV3 extension at `devtools/chrome/`.
-Phase 18 closed the remaining lifecycle gaps: `onChange` now
-fires on **every** component per re-render (was root-only, same
-bug shape as Phase 17's `onAppear`), and `onAppear` now fires on
-components mounted **mid-render** (revealed branches, list
-grows). Phase 17's bundle / runtime / router headlines all hold;
-Phase 15's **1.81 MB gzipped** WASM bundle (−90% vs pre-15) is
-still the baseline.
+**[Why Swiflow? →](WHY.md)**
 
-**What works today (Phase 19b):**
-- **HMR** — `swiflow dev` does a state-preserving WASM hot swap on
-  every save. `@State` survives, the page doesn't reload, and
-  the JS driver logs `[swiflow] hmr-swap took Xms` per swap. The
-  centerpiece of Phase 8.
-- Reactive Components with `@State` and the typed `Event` DSL —
-  `.on(.click) { self.count += 1 }`.
-- Two-way bindings — `.value($text)` (String/Int/Double), `.checked($flag)`,
-  `.selection($choice)` — on input, textarea, and select.
-- `Ref<Element>` for first-party DOM access (focus, scroll, etc.).
-- `URLSanitizer`-protected DSL fold (XSS-safe by default).
-- `swiflow init` scaffold + `swiflow build` (WASM SDK auto-probe) +
-  `swiflow dev` (file-watch + state-preserving HMR).
-- **CSS-in-Swift** — `css { }` builder, `rule()`, `keyframes()`, `from {}`,
-  `to {}`, `at(_ percent:) {}`, ~50 CSS property functions.
-- **Scoped styles** — `static var scopedStyles: CSSSheet?` on any `Component`;
-  injected as a `<style>` tag and class-scoped at mount.
-- **Exit animations** — `static var exitAnimation: String?` + `exitDuration`;
-  the driver plays the animation before DOM removal.
-- **`@Component` macro** — components declared with `@MainActor @Component final class Foo { ... }` automatically conform to `Component`. The macro removes the `: Component` boilerplate; the `@MainActor` is still required (Swift 6 doesn't propagate actor isolation retroactively through a macro-emitted conformance extension, so the class body needs its own isolation). `@ChildrenBuilder` emits actionable diagnostics guiding scalar types to the `text(…)` free function.
-- **`@Environment` / context DI** — typed `EnvironmentKey` protocol, `EnvironmentValues`, `Environment` property wrapper, plus both the `withEnvironment(\.key, value) { ... }` DSL and the postfix `.environment(\.key, value)` VNode modifier. `EnvironmentValues: Equatable` so the VNode diff detects environment changes.
-- **`SwiflowRouter`** — hash- and history-mode routing. `RouterRoot { Route("/") { Home() }; Route("/users/:id") { ctx in User(id: ctx.params["id"]) } }`. `@Environment(\.router)` exposes `path`, `navigate`, `replace`, `back`. Verified end-to-end by Playwright (`router.spec.ts`, 3/3 passing); `Link`'s click handler attaches reliably now that nested components actually receive `onAppear`.
-- **Lifecycle hooks across the whole tree** — `onAppear`, `onChange`, `onDisappear` fire on every component in the mount tree, not just the root. Children-first ordering on mount (matches React's `componentDidMount` and SwiftUI's `.onAppear`) so a parent's hook sees its subtree fully mounted; parent-first on unmount so a parent can still read child state during teardown. As of Phase 18, `onChange` fires per re-render on every reused component (React `componentDidUpdate` semantics) and `onAppear` fires on components mounted mid-render (revealed by `if`/`else` flips or list growth), not just at first mount.
-- **Form validation** — `FormController`, `Field`, `Form` coordinator with blur-triggered errors, `touchAll()`, `reset()`, `isValid`.
-- **Async task effects** — `.task { }` / `.task(rerunOn: someEquatable) { }` postfix `VNode` modifiers start lifecycle-bound async effects on mount, restart on dependency change (`!=`), and cancel on unmount. Correct-by-default cancellation: writes from superseded or dead tasks are dropped by the runtime before they reach `@State`, so call sites need only their domain `do/catch` — no `Task.isCancelled` or `CancellationError` handling. See [async-tasks guide](docs/guides/async-tasks.md).
-- **`SwiflowQuery`** — TanStack-Query / SWR-style data layer. A `Query` is a value that fetches itself (`fetch()`) and is identified by a typed hierarchical `queryKey` (`["users", .int(id)]`); `query(_:)` in `body` returns a `QueryState` (`data` / `error` / `isLoading` / `isFetching`) backed by a per-root `QueryClient` cache with request dedup, stale-while-revalidate (`staleTime` default `.zero`), and key-prefix + tag invalidation. Deterministic to test via `AsyncTestHarness` + `ManualClock`. See [query guide](docs/guides/query.md).
-- **`SwiflowTesting`** — headless test harness: `render()`, `find()`, `findAll()`, `click()`, `input()`, `blur()`. `AsyncTestHarness` + `settle()` / `flush()` for deterministic async task tests. See [testing guide](docs/guides/testing.md).
-- **Multi-root mount** — `Swiflow.render(into: selector) { ... }` works for multiple selectors; `Swiflow.unmount(into: selector)` for clean teardown.
-- 571 Swift tests across 117 suites + 32 JS driver tests (`node --test` against jsdom, covering driver + service worker) + Playwright e2e (Counter, MiniRouter, progress overlay, SW cache, DevTools API contract). Guides: [SwiflowUI](docs/guides/swiflowui.md), [SwiflowUI theming](docs/guides/swiflowui-theming.md), [DWARF debugging](docs/guides/debugging.md), [forms](docs/guides/forms.md), [router](docs/guides/router.md), [testing](docs/guides/testing.md).
+## A component
 
-### Chrome DevTools panel
+```swift
+import Swiflow
+import SwiflowDOM
 
-A read-only Chrome DevTools extension at [`devtools/`](devtools/) shows
-the live component tree and `@State` of any Swiflow app running in dev
-mode. As of Phase 19b the panel auto-updates within ~250 ms of every
-render (no manual refresh needed); a footer indicator dot reports
-polling status (green = live, grey = paused, red = poll failed).
-Sideload via `chrome://extensions` → **Load unpacked** → select
-`devtools/chrome/`. See [`devtools/chrome/README.md`](devtools/chrome/README.md)
-for the full smoke checklist.
+@MainActor @Component
+final class Counter {
+    @State var count = 0
 
-**What's not in the box yet:**
-- **Lazy components, advanced macro features** — Phase 13+ (partial; `@Component` and `@ChildrenBuilder` diagnostics shipped in 13d).
-- **Homebrew distribution** — not packaged yet. The CLI is installable today by cloning + `swift build -c release --product swiflow`; a Homebrew formula is a pre-1.0 polish item. Versioned GitHub releases (tags + release notes) ship with the framework as of 0.1.3.
+    var body: VNode {
+        div {
+            p("Count: \(count)")
+            button("Increment").on(.click) { self.count += 1 }
+        }
+    }
+}
 
-**Costs you should know:**
-- **WASM bundle (HelloWorld example, release):** ~5 MB raw / **~1.8 MB
-  gzipped** on the wire on the first visit (Phase 15 redesign shrank
-  it 10× from the Phase 14b baseline). First-visit users see a
-  `[data-swiflow-progress]` percent during the download (Phase 14b
-  Track 3). Order-of-magnitude smaller than the previous Swift-on-WASM
-  baseline; comparable to a modest React app. Exact numbers in
-  [`docs/perf/bundle-baseline.json`](docs/perf/bundle-baseline.json); every
-  PR runs `scripts/measure-bundle.sh` in CI and comments the diff. A >5%
-  growth fails the build unless the PR carries the `bundle-size-skip` label.
-- **Repeat visits:** ~0 bytes. The service worker shipped in Phase 14b
-  caches the WASM and JS runtime by content hash, so visit #2 onward
-  serves from local cache until you rebuild. Auto-registers on release
-  builds; `swiflow dev` skips it so HMR isn't fighting a stale cache.
-- **Cold build:** ~80s (`swift package clean` then
-  `swift package --swift-sdk <wasm-sdk> js -c release` from the
-  example project).
-- **Hot rebuild (single source touched):** ~8s WASM rebuild → HMR swap
-  (state preserved). Pre-Phase-8 this was a ~8s rebuild → full page
-  reload, with `@State` lost. The 8s rebuild is the same; what changed
-  is what happens *after* the rebuild lands. Specific HMR swap times
-  recorded in `docs/perf/2026-05-20-hmr-baseline.md`.
+@main
+struct App {
+    @MainActor static func main() {
+        Swiflow.render(into: "#app") { Counter() }
+    }
+}
+```
 
-Measurements taken on macOS 26.5 / Apple M1 Max with Swift 6.3 / WASM SDK 6.3.
-Run the same commands locally to calibrate for your hardware.
-
-**Status:** Phase 19b (Render-Version Push Tick) complete — the
-DevTools panel now auto-updates within ~250 ms of every Swiflow
-render with zero Swift code changes. The panel polls
-`window.__swiflow.perf()` via `chrome.devtools.inspectedWindow.eval`
-every 250 ms while visible, compares per-selector `renders` counts to
-the last snapshot, and triggers its existing refresh path on any
-increase. Polling pauses on `panel.onHidden` and resumes on
-`panel.onShown`. A footer dot reports state (green = polling live;
-grey = paused; red = poll failed — e.g. inspected tab navigated to a
-non-Swiflow page) and the manual ↻ Refresh button remains the
-always-works fallback that still surfaces errors. The mechanism reuses
-`Renderer.renderCount` (already exposed since Phase 9) — no driver,
-patch protocol, or runtime changes. Phase 19 (Component DevTools MVP)
-shipped just before: a Chrome MV3 extension at `devtools/chrome/` adds a
-"Swiflow" tab in DevTools showing the live component tree and per-node
-`@State`. Read-only; DOM overlay, `@State` editing, and perf graphs
-are explicitly deferred (19c/d/e). Two contract tests pin the surfaces
-the panel parses: a Swift unit test for `DevAPIFormatter.treeString`
-output format, and a Playwright `devtools-api.spec.ts` for the
-`window.__swiflow.tree() / state() / perf() / handlers()` shape.
-Phase 18 (`onChange` for Nested Components) complete — `Component.onChange()`
-now fires on every reused component after each re-render (React
-`componentDidUpdate` semantics), not just the root; the same shape of
-bug Phase 17 fixed for `onAppear`. The sibling gap also closed:
-`onAppear()` now fires on components mounted mid-render (revealed by
-`if`/`else` branch flips, or appended to a list during a re-render),
-where previously only first-mount components saw it. Both come from a
-single new primitive: per-render the diff partitions component IDs
-into reused (→ `onChange`) vs freshly mounted (→ `onAppear`) via
-`collectComponentIDs(_:)` + `firePostRenderLifecycle(_:preExistingIDs:)`
-in `Sources/Swiflow/Diff/Diff.swift`. No public API changes, no JS
-driver changes, no patch protocol changes. Coverage closed with
-3-deep nesting, first-mount invariant, list-growth, and 1000-item
-stress tests. Phase 17 (Lifecycle + DOM Sync Fixes) complete — two
-latent bugs the Playwright router suite finally exposed. First,
-`onAppear` fired only on the root component since the hook was
-introduced (`2601ad9`, well before the router demo's e2e was added).
-The mount-time walker now mirrors the existing destroy walker, firing
-`onAppear` children-first on every component anchor. Second, the
-diff's component-reuse and env-override update arms left the DOM out
-of sync on type swaps: destroy emitted `destroyNode` (handle-map
-cleanup only) without `removeChild`, and mount created the new
-subtree without a parent-level `appendChild`. Both arms now splice
-`removeChild` / `appendChild` patches around the recursive update
-using a new `domAncestorHandle(_:)` walker; when the swap is at the
-root (anchors all the way up), the Renderer instead emits a new
-`replaceMount(selector, newHandle)` patch — the JS driver tracks
-roots per-selector by Node reference (not handle) so the swap
-survives the preceding `destroyNode`. All 3 `router.spec.ts` e2e
-tests pass.
-Phase 16 (Foundation-Free Runtime) complete — `Sources/SwiflowRouter/Core/RouteMatching.swift`
-dropped `import Foundation` (queries are decoded by a stdlib
-`Unicode.UTF8.ForwardParser`-backed `percentDecode`),
-`Sources/SwiflowDOM/HMR/HMRBridge.swift` dropped its vestigial Foundation
-import, and a `Verify Foundation-free runtime` step in `.github/workflows/ci.yml`
-greps for `^import Foundation$` in the three runtime modules and fails
-fast on any hit (runs before the cache restore). Bundle delta was within
-noise (Phase 15 already drained Foundation's transitive cost); the win is
-architecture hygiene — `grep -rn '^import Foundation' Sources/Swiflow*`
-now returns zero, and the 1.0 story is structurally true rather than
-aspirational.
-Phase 15 (Pre-1.0 Dependency Diet) complete — @State is now a Swift
-attached macro; the framework iterates macro-emitted
-`_ComponentRuntime.stateCells` instead of walking `Mirror.children`;
-release builds compile with `-Xswiftc -disable-reflection-metadata`.
-Bundle gzipped 18.17 MB → 1.81 MB. Full audit in
-`docs/perf/2026-05-26-wasm-bundle-audit.md`. Phase 14b Track 3
-(Progress UI) complete — driver pre-fetches App.wasm via fetchWithProgress and writes the percent to documentElement.dataset.swiflowProgress; new scaffolds ship a default 'Loading N%' overlay users can restyle or delete. Phase 14b Track 2 (WASM Trim — measurement) complete — release builds now use `-Osize -gnone` (0.21% gzipped savings); `wasm-opt -Oz` post-processing and `wasm-strip` name-section removal were investigated but found already-applied by PackageToJS, so neither was added as a required step. The audit doc (`docs/perf/2026-05-26-wasm-bundle-audit.md`) records the baseline, top-30 function attribution, and the conclusion that the dominant cost is the Apple-pre-compiled stdlib + Foundation. Phase 14b Track 1 (Service Worker Cache) complete — first visit at ~18 MB gzipped; repeat visits hit local cache. `swiflow build` now emits `swiflow-manifest.json` at the project root with SHA256s of each artifact; the SW splits cache namespaces between WASM and JS runtime so a Swift-source edit doesn't invalidate the JS runtime cache and vice versa. Phase 14a (Bundle Size CI) — `scripts/measure-bundle.sh` + `bundle-size` CI job now enforce a 5%-growth budget on every PR. Phase 13e (Confidence Fixes) complete — 11 audit gaps closed across public API hygiene (`Patch`/`PatchPayload`/`PatchSerializer`/`HandleAllocator`/`MountNode` demoted to `package`; `TestNode.properties` no longer leaks `PropertyValue`), `@Environment` correctness (`EnvironmentValues: Equatable`; postfix `.environment()` modifier; VNode diff now detects env changes), CLI distribution readiness (`--swiflow-version` flag + `SwiflowDep` enum), and Router test coverage (`@Environment(\.router)` propagation across `embed {}` verified; Playwright URL/history test added). Also fixed a Phase 13d WASM cross-compile regression — `@Component` classes now require an explicit `@MainActor` because Swift 6 won't propagate isolation through a macro-emitted extension.
-Phase 13d (Macro Diagnostics & @Component) introduced the macro and `@ChildrenBuilder` builder-block diagnostics guiding scalar types to `text(…)`. Phase 13c (Multi-Root & Unmount) added multiple independent component trees at different DOM selectors with clean resource release via `Swiflow.unmount(into: selector)`. Phase 13b (Browser Debugging) shipped DWARF symbols, full-viewport error overlays, and Chrome DevTools debugging guide. Phase 13a (SwiflowTesting) added the headless test harness (`render()`, `click()`, `input()`, `findAll()`). Earlier: Phase 12b (Form Validation),
-Phase 11 (Router), Phase 8 (HMR — state-preserving WASM hot swap), Phase 7
-(Bindings, Refs & Form Foundations).
+A `@State` mutation schedules a re-render; the diff turns the new tree into one
+batched patch list and ships it across the bridge in a single crossing.
 
 ## Quick start
 
+You need **Swift 6.3** and the **WebAssembly Swift SDK 6.3.2** (the SDK's stdlib
+must match the host compiler exactly). macOS 14+ for the dev server; Linux works too.
+
 ```bash
-# 1. Build the CLI.
+# 1. Install the WASM SDK (once)
+swift sdk install \
+  https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
+  --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
+
+# 2. Build the CLI (from source — no Homebrew yet)
 swift build -c release --product swiflow
 
-# 2. Scaffold a project. The generated Package.swift pins to the matching
-#    Swiflow release (same version as this CLI binary) — no extra flags
-#    needed once 0.1.3+ is published.
+# 3. Scaffold and run, with state-preserving hot reload on every save
 ./.build/release/swiflow init my-app
-cd my-app
-
-# 3. Run the dev server — builds the WASM, serves on :3000, full-reload on save.
-../.build/release/swiflow dev
-# Open http://localhost:3000
+cd my-app && ../.build/release/swiflow dev      # → http://localhost:3000
 ```
 
-**Hacking on Swiflow itself?** Pass `--swiflow-source $(pwd)` to `init`
-so the generated project depends on your local clone instead of the
-published release:
+Run `swiflow doctor` to verify your toolchain. Hacking on Swiflow itself? Add
+`--swiflow-source $(pwd)` to `init` so the new project depends on your local clone
+instead of a published release.
 
-```bash
-./.build/release/swiflow init my-app --swiflow-source $(pwd)
-```
+## Highlights
 
-See [docs/guides/debugging.md](docs/guides/debugging.md) for Chrome DevTools setup and Swift source breakpoints.
+- **State-preserving HMR** — `swiflow dev` hot-swaps the running WASM on every save; `@State` survives, the page never reloads.
+- **Reactive components** — `@Component` + `@State`, with `onAppear` / `onChange` / `onDisappear` lifecycle hooks firing across the whole tree.
+- **Typed event DSL & bindings** — `.on(.click) { … }`; two-way `.value($text)`, `.checked($flag)`, `.selection($choice)`.
+- **CSS-in-Swift** — a `css { }` builder, scoped `<style>` per component, and exit animations.
+- **Routing** — `SwiflowRouter`: hash + history mode, `RouterRoot` / `Route` / `Link`, `@Environment(\.router)`.
+- **Data layer** — `SwiflowQuery`: declarative data fetching with caching, request dedup, and stale-while-revalidate.
+- **Forms** — `FormController` / `Field` with blur-triggered validation.
+- **UI kit** — `SwiflowUI`: accessible, token-driven components that adapt to dark mode / contrast / reduced motion with no component code.
+- **Testing** — `SwiflowTesting` headless harness (`render` / `click` / `input`); deterministic async via `AsyncTestHarness`.
+- **Safe by default** — `URLSanitizer` scrubs `javascript:` / `data:` / `blob:` URLs at the DSL fold; `rawHTML(_:)` is the loud escape hatch.
 
-For one-shot production builds, `swiflow build` wraps `swift package js` with
-the right WASM SDK and toolchain auto-detection.
+## The ecosystem
 
-## Prerequisites
+| Module | What it is |
+| --- | --- |
+| `Swiflow` | Pure-Swift VDOM core: `VNode`, the patch diff, `@State` / `@Component`, and the `@resultBuilder` DSL. |
+| `SwiflowDOM` | WASM-only renderer + JavaScriptKit bridge. |
+| `SwiflowRouter` | Hash- and history-mode routing. |
+| `SwiflowQuery` | Async data layer — caching, dedup, stale-while-revalidate. |
+| `SwiflowFetcher` | Thin `fetch` wrapper for requests from Swift. |
+| `SwiflowStore` | Persisted app state (IndexedDB). |
+| `SwiflowUI` | Token-driven, accessible component library. |
+| `SwiflowTesting` | Headless test harness. |
+| `swiflow` (CLI) | `init` scaffolds · `build` wraps `swift package js` · `dev` runs the HMR server. |
 
-- **Swift 6.3** — `swift --version` should report 6.3.x. CI pins 6.3.2 because
-  the WASM SDK's stdlib must match the host compiler exactly.
-- **macOS 14+** (host requirement for the dev server, which uses Hummingbird 2.x).
-  Linux works without a version pin.
-- **WebAssembly Swift SDK 6.3.2** — install once via:
-  ```bash
-  swift sdk install \
-    https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
-    --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
-  ```
+## Examples
 
-Run `swiflow doctor` after building the CLI to verify your toolchain is complete:
-```bash
-./.build/release/swiflow doctor
-```
+Browse [`examples/`](examples/):
 
-## What's in the box
+- **HelloWorld** — the starter: a counter, SwiflowUI controls, a native `<dialog>`, a popover, and toasts.
+- **SwiflowUIDemo** — a gallery of the SwiflowUI components and theming.
+- **TodoCRUD** — list CRUD with bindings and forms.
+- **QueryDemo** — `SwiflowQuery` fetching and caching.
+- **MiniRouter** — `SwiflowRouter` routes and links.
+- **MissionControl** — a larger app: geolocated data with `SwiflowStore` persistence.
+- **AsyncFetch** — `.task` async effects.
 
-- **`Swiflow`** — pure-Swift VDOM core: tagged-enum `VNode`, 19-opcode `Patch`,
-  hybrid keyed (LIS-based) + indexed children diff, `@resultBuilder` DSL.
-- **`Component` + `@State`** — reactive class-bound components. `@State` is an
-  attached Swift macro that emits an accessor `didSet` calling into the
-  per-frame `RAFScheduler` on mutation, plus a `$`-prefixed `Binding<T>`
-  projection. Lifecycle hooks (`onAppear`, `onChange`, `onDisappear`) fire on
-  every component in the mount tree — children-first on mount, parent-first
-  on unmount.
-- **Security** — `URLSanitizer` scrubs `javascript:` / `vbscript:` / `data:` /
-  `blob:` from `href`, `src`, `action`, `formaction` at the DSL fold step.
-  `VNode.rawHTML(_:)` is the named-loud escape hatch.
-- **Debug diagnostics** — `swiflowDiagnostic` (`#if DEBUG`, compiled to nothing in
-  release) catches three programmer-error footguns: duplicate keys among
-  siblings, mixed keyed/unkeyed siblings, component-body anchor cycles
-  (depth ≥ 32).
-- **`SwiflowDOM`** — WASM-only renderer + JavaScriptKit bridge.
-- **`SwiflowUI`** — accessible, token-driven component library: layout (`VStack`/`HStack`/`Grid`), controls (`Button`, `TextField`, `Toggle`, `Checkbox`, `Select`, `RadioGroup`), feedback (`Spinner`, `ProgressView`, `Card`, `Badge`), and native overlays (`Alert`, `Prompt`, `Toast`). Every value reads a `--sw-*` token, so apps re-skin via tokens and adapt to dark mode / contrast / reduced motion with no component code. See the [SwiflowUI guide](docs/guides/swiflowui.md) and [theming guide](docs/guides/swiflowui-theming.md).
-- **`swiflow` CLI** — `init` scaffolds, `build` wraps `swift package js`, `dev`
-  starts a Hummingbird HTTP + WebSocket server with file-watch full-reload.
-- **JS driver** — vanilla JS, ~200 lines, embedded into the CLI binary as
-  generated Swift code (single source of truth: `js-driver/swiflow-driver.js`).
+(Plus **EdgeCases**, a runtime/diff stress harness.) Serve one with `swiflow dev` from its directory.
 
-## Architecture
+## Docs
 
-See [docs/superpowers/specs/](docs/superpowers/specs/) for per-phase design
-specs and [docs/superpowers/plans/](docs/superpowers/plans/) for the executable
-implementation plans. [docs/brainstorm/](docs/brainstorm/) holds the original
-design exploration.
+Guides live in [`docs/guides/`](docs/guides/): [SwiflowUI](docs/guides/swiflowui.md) ·
+[theming](docs/guides/swiflowui-theming.md) · [router](docs/guides/router.md) ·
+[query](docs/guides/query.md) · [forms](docs/guides/forms.md) ·
+[async tasks](docs/guides/async-tasks.md) · [testing](docs/guides/testing.md) ·
+[styling](docs/guides/styling.md) · [environment](docs/guides/environment.md) ·
+[DevTools](docs/guides/devtools.md) · [debugging WASM](docs/guides/debugging.md).
+
+A read-only **Chrome DevTools panel** (live component tree + `@State`) is at
+[`devtools/`](devtools/) — sideload it via `chrome://extensions` → *Load unpacked*.
+
+## Performance & costs
+
+- **First visit:** ~1.8 MB gzipped WASM on the wire (a loading-percent overlay shows during the download) — comparable to a modest single-page app. Every PR enforces a bundle-size budget in CI.
+- **Repeat visits:** ~0 bytes — a service worker caches the WASM + JS runtime by content hash until you rebuild.
+- **Hot rebuild:** ~8 s WASM rebuild → HMR swap, with `@State` preserved.
+
+Measured on an Apple M1 Max with Swift 6.3 / WASM SDK 6.3.2 — run the commands
+locally to calibrate for your hardware.
 
 ## Testing
 
 ```bash
-# Swift core: 548 tests across 108 suites.
-# WASM-SDK-gated E2E tests skip cleanly when no SDK is installed.
-swift test
-
-# JS driver: 32 jsdom-based unit tests covering driver opcodes, dev reload, and service worker.
-(cd js-driver && npm test)
+swift test                   # ~1,000 Swift tests, 200+ suites (e2e auto-skips without the WASM SDK)
+(cd js-driver && npm test)   # 42 jsdom tests: driver, dev reload, service worker
 ```
 
-Playwright e2e (Counter, Router, Progress, SW-cache) lives in
-`Tests/playwright/` and is opt-in. Four per-suite npm scripts target
-just one server each for fast local iteration:
+Playwright e2e (counter, router, progress overlay, SW cache) lives in
+[`Tests/playwright/`](Tests/playwright/) and is opt-in.
 
-```bash
-cd Tests/playwright
-npm run test:counter   # @State + Counter, dev server on :3000   (~1 min)
-npm run test:router    # SwiflowRouter + Link + Back, on :3001   (~1 min)
-npm run test:sw        # service-worker cache + progress UI      (~5 min, release build)
-npm test               # all of the above + cross-server scenarios (~20 min)
-```
+## Contributing & license
 
-See [`Tests/playwright/README.md`](Tests/playwright/README.md) for the
-full breakdown of what each spec covers and the rationale for the
-per-suite splits.
-
-## License
-
-Apache 2.0. See [LICENSE](LICENSE).
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under
+**Apache 2.0** ([LICENSE](LICENSE)).
