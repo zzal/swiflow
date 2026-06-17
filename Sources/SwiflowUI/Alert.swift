@@ -26,8 +26,8 @@ import JavaScriptKit
 /// > presented** (the underlying component is `embed`-reused across renders, so its
 /// > stored props don't update live; the `isPresented` binding *does* stay live).
 /// > That's the right model for an alert — its text is fixed per logical alert. If
-/// > you genuinely need the content to change while mounted, key the embed yourself:
-/// > `embed("\(title)") { … }`.
+/// > you genuinely need the content to change while mounted, pass a `key:` that
+/// > changes with the content (e.g. `key: title`).
 ///
 /// Set `dismissOnBackdrop: true` to also close when the user clicks the backdrop
 /// (outside the card). Off by default — an alert asks for a deliberate response, so
@@ -38,9 +38,10 @@ public func Alert(
     isPresented: Binding<Bool>,
     message: String? = nil,
     dismissOnBackdrop: Bool = false,
+    key: String? = nil,
     @ChildrenBuilder actions: @escaping () -> [VNode]
 ) -> VNode {
-    embed {
+    embedKeyed(key) {
         AlertDialog(title: title, isPresented: isPresented, message: message,
                     dismissOnBackdrop: dismissOnBackdrop, actions: actions)
     }

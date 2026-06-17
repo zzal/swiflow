@@ -44,7 +44,7 @@ struct CheckboxTests {
 
     @Test("renders a native checkbox with the label beside it (no switch role)") func rendersCheckbox() {
         let node = building { Checkbox("Select all", isOn: unused) }
-        #expect(el(node)!.attributes["class"] == "sw-check")
+        #expect(el(node)!.attributes["class"] == "sw-check sw-check--md")
         #expect(rowOf(node)!.attributes["class"] == "sw-check__row")
         let box = boxOf(node)!
         #expect(box.attributes["type"] == "checkbox")
@@ -112,10 +112,16 @@ struct CheckboxTests {
         #expect(ctrl.touched.contains("terms"))
     }
 
-    @Test("checkbox stylesheet uses accent-color and the error outline") func stylesheet() {
+    @Test("size sets the check modifier class") func sizeModifier() {
+        let node = building { Checkbox("X", isOn: unused, size: .lg) }
+        #expect(el(node)!.attributes["class"] == "sw-check sw-check--lg")
+    }
+
+    @Test("checkbox stylesheet uses accent-color, the error outline, and the size scale") func stylesheet() {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-check"))
         #expect(css.contains("accent-color: var(--sw-accent)"))
         #expect(css.contains(".sw-check input[aria-invalid=\"true\"]"))
+        #expect(css.contains(".sw-check--lg"))
     }
 }

@@ -41,7 +41,8 @@ public enum CrossAlign: Equatable {
 public enum ControlSize: Equatable {
     case sm, md, lg
     /// The `--<control>--<size>` modifier-class token (e.g. `sw-btn--sm`).
-    public var modifierClass: String {
+    /// Internal: an implementation detail of the `.sw-*` stylesheet, not API.
+    var modifierClass: String {
         switch self {
         case .sm: return "sm"
         case .md: return "md"

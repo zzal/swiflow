@@ -5,7 +5,7 @@ import Swiflow
 /// are soft tints of the matching token. Maps to a `sw-badge--<variant>` class.
 public enum BadgeVariant: Equatable {
     case neutral, accent, danger, success
-    public var modifierClass: String {
+    var modifierClass: String {
         switch self {
         case .neutral: return "neutral"
         case .accent:  return "accent"

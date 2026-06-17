@@ -22,12 +22,13 @@ public func Checkbox(
     _ label: String,
     isOn: Binding<Bool>,
     error: String? = nil,
+    size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
-    checkboxControl(label: label, binding: isOn, error: error, required: required,
+    checkboxControl(label: label, binding: isOn, error: error, size: size, required: required,
                     disabled: disabled, attributes: attributes, onBlur: onBlur)
 }
 
@@ -37,11 +38,12 @@ public func Checkbox(
 public func Checkbox(
     _ label: String,
     field: Field<Bool>,
+    size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...
 ) -> VNode {
-    checkboxControl(label: label, binding: field.binding, error: field.error, required: required,
+    checkboxControl(label: label, binding: field.binding, error: field.error, size: size, required: required,
                     disabled: disabled, attributes: attributes, onBlur: { field.markTouched() })
 }
 
@@ -50,6 +52,7 @@ private func checkboxControl(
     label labelText: String,
     binding: Binding<Bool>,
     error: String?,
+    size: ControlSize,
     required: Bool,
     disabled: Bool,
     attributes: [Attribute],
@@ -71,5 +74,5 @@ private func checkboxControl(
         ]),
     ]
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-check")], children: rootChildren)
+    return element("div", attributes: [.class("sw-check sw-check--\(size.modifierClass)")], children: rootChildren)
 }

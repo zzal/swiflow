@@ -9,7 +9,7 @@ import Swiflow
 public enum ButtonVariant: Equatable {
     case primary, secondary, ghost
     /// The `sw-btn--<variant>` modifier-class token.
-    public var modifierClass: String {
+    var modifierClass: String {
         switch self {
         case .primary:   return "primary"
         case .secondary: return "secondary"

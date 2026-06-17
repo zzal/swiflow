@@ -7,7 +7,7 @@ import SwiflowDOM   // after() / TimerHandle for auto-dismiss (WASM-runtime; see
 /// token; see Theme.swift / Badge). `.danger` is announced assertively.
 public enum ToastVariant: Equatable {
     case info, success, danger
-    public var modifierClass: String {
+    var modifierClass: String {
         switch self {
         case .info:    return "info"
         case .success: return "success"
@@ -21,7 +21,7 @@ public enum ToastVariant: Equatable {
 /// Where the `ToastStack` anchors. Default `.bottomTrailing` (bottom-right).
 public enum ToastPlacement: Equatable {
     case topLeading, topTrailing, topCenter, bottomLeading, bottomTrailing, bottomCenter
-    public var modifierClass: String {
+    var modifierClass: String {
         switch self {
         case .topLeading:     return "top-leading"
         case .topTrailing:    return "top-trailing"

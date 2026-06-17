@@ -35,6 +35,18 @@ func splitClasses(_ attributes: [Attribute]) -> (classes: [String], rest: [Attri
     return (classes, rest)
 }
 
+/// `embed` with an optional caller-supplied key. With a `key`, the component is
+/// re-created with fresh init props whenever the key *changes* — the escape hatch the
+/// overlay facades expose as `key:` for content that must update while the overlay is
+/// mounted. Without one (the default), the instance is reused and its init props are
+/// frozen at first mount (see each overlay's doc note). Keeps the `key != nil` branch in
+/// one place so every facade behaves identically.
+@MainActor
+func embedKeyed<C: Component>(_ key: String?, _ factory: @escaping () -> C) -> VNode {
+    if let key { return embed(key, factory) }
+    return embed(factory)
+}
+
 /// Injects a stateless control's global utility-class sheet into `<head>` exactly
 /// once (per the `StyleInjectionRegistry` once-guard). `scopeClass: ""` because
 /// these `.sw-*` classes are deliberately unscoped — SwiflowUI reserves the
