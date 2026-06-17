@@ -909,7 +909,7 @@ final class AboutPopover {
             p("Swift, compiled to WASM, with a reactive component model.",
               .class("body"))
             link("View on GitHub",
-                 .attr("href", "https://github.com/aduchesneau/swiflow"),
+                 .attr("href", "https://github.com/zzal/swiflow"),
                  .attr("target", "_blank"),
                  .attr("rel", "noopener"))
         }
