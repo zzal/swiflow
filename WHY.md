@@ -87,24 +87,31 @@ locks the priorities, in order:
 4. **Usability** — `swiflow init demo && swiflow dev` and you see Hello World in 60 seconds
 
 Every architectural decision has been filtered through those four pillars in
-that order. That's why we shipped a CLI before reactivity, and DWARF
-debugging before fancier diffing.
+that order. That's why we shipped a CLI before reactivity, DWARF debugging
+before fancier diffing, and a browser **DevTools panel** that x-rays the live
+component tree and `@State` — Observability means seeing inside a running WASM
+app, not guessing.
 
 ## Where we are right now
 
-From [README.md](README.md):
-
-> **Status:** Phase 4 (Hardening) complete. The framework is feature-complete
-> through Phase 3 (Component + `@State` reactivity + RAFScheduler) and
-> hardened in Phase 4 with the URL sanitizer, debug-only diagnostics, DWARF
-> debugging guide, JS-driver unit tests, and a Playwright happy-path e2e.
+Swiflow has grown well past the counter demo. The core (VDOM + batched patches
++ `@State` reactivity) is now wrapped in a small ecosystem of libraries — routing
+(`SwiflowRouter`), data fetching with caching (`SwiflowQuery`), persisted state
+(`SwiflowStore`), a token-driven accessible UI kit (`SwiflowUI`), and a headless
+test harness (`SwiflowTesting`). It's still **pre-1.0 and experimental** — one
+person's hands-on exploration of Swift on the web — but it's real software with
+~1,000 tests behind it. The [README](README.md) and [CHANGELOG](CHANGELOG.md)
+track exactly where things stand.
 
 So today you can:
 
-- `swiflow init my-app` → real scaffolded project
-- `swiflow dev` → builds your Swift to WASM, serves on `:3000`, full-reloads on save
-- Write a `Counter: Component` with `@State var count = 0` and a click handler — it just works
-- Click around in a real browser, watch the counter increment, with Swift DWARF symbols so traps point to your `.swift` files in DevTools
+- `swiflow init my-app` → a real scaffolded project
+- `swiflow dev` → compiles your Swift to WASM, serves on `:3000`, and **hot-swaps
+  the running app on every save with `@State` preserved** — no full page reload
+- Write a `Counter` `@Component` with `@State var count = 0` and a click handler — it just works
+- Inspect the live component tree and `@State` in a real **DevTools panel** — a
+  sideloaded Chrome/Safari browser extension under [`devtools/`](devtools/) — and
+  get Swift DWARF symbols so traps point back to your own `.swift` files
 
 **TL;DR:** Carton compiles. Tokamak draws UIs. Swiflow does both *and* solves
 the bridge tax that makes the others feel slow — wrapped in a one-command dev
