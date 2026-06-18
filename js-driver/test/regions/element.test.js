@@ -77,6 +77,28 @@ describe("SfRegion element", () => {
     assert.deepEqual(err, { code: "init-failed", message: "boom" });
   });
 
+  test("visibility observer drives pause/resume posts", () => {
+    let visCb = null;
+    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`);
+    const { window } = dom;
+    const workers = [];
+    SfRegion.install(window, {
+      makeWorker: () => { const w = new FakeWorker(); workers.push(w); return w; },
+      makeCanvas: () => ({ transferControlToOffscreen: () => ({}) }),
+      schedule: (cb) => cb(),
+      observeSize: () => ({ disconnect() {} }),
+      observeVisible: (_el, cb) => { visCb = cb; return { disconnect() {} }; },
+    });
+    const el = window.document.createElement("sf-region");
+    el.setAttribute("data-source", "g.js");
+    window.document.getElementById("app").appendChild(el);
+    workers[0].posted.length = 0;
+    visCb(false);
+    visCb(true);
+    const kinds = workers[0].posted.map((m) => m.kind);
+    assert.deepEqual(kinds, ["pause", "resume"]);
+  });
+
   test("a size-observer callback posts a resize with device pixels", () => {
     let sizeCb = null;
     const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`);
