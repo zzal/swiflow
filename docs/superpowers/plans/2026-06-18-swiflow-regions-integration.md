@@ -351,7 +351,13 @@ git commit -m "feat(regions): RegionDemo example hosting the Game-of-Life guest"
 
 ---
 
-## Task A4: The Playwright e2e (gated on A2)
+## Task A4: ✅ DONE — Playwright e2e (commits `26a36c2` fix + `6385b6b` test)
+
+**Shipped:** `Tests/playwright/playwright.regions.config.ts` (dedicated in-place config on `:3004`, mirroring EdgeCases — the plan's "edit `playwright.config.ts`" was stale; the harness uses one config per example) + `region.spec.ts` + a `test:regions` npm script. The suite passes locally (guest boots, `sf-region canvas` mounts, generation climbs ≥64, no console errors).
+
+**Bug it caught:** the worker is a `blob:` module, so the host's raw relative `data-source` failed `import()` ("Failed to resolve module specifier"). Fixed in `26a36c2` by absolutizing the source against `ownerDocument.baseURI` before posting init (Plan 2's mocked `importGuest` unit tests couldn't surface it). The original (stale) plan steps follow as history.
+
+
 
 **Files:**
 - Modify: `Tests/playwright/playwright.config.ts` (add the `:3004` in-place server)
@@ -495,7 +501,7 @@ git commit -m "feat(cli): scaffolded apps load the regions runtime"
 
 ## Exit criteria
 
-- `examples/RegionDemo` builds (`swiflow build --path examples/RegionDemo`) and, served by `swiflow dev`, renders a Game-of-Life canvas whose **generation counter climbs** (guest-emitted `sf:event` → `@State`), with the canvas inside `<sf-region>` and zero console errors — verified by `region.spec.ts` (gated on the A2 artifact).
+- ✅ `examples/RegionDemo` builds (`swiflow build --path examples/RegionDemo`) and, served by `swiflow dev`, renders a Game-of-Life canvas whose **generation counter climbs** (guest-emitted `sf:event` → `@State`), with the canvas inside `<sf-region>` and zero console errors — verified by `region.spec.ts` (passes locally; the guest is the AssemblyScript `universe.wasm`).
 - The adapter's draw/tick/emit core is unit-tested in `node:test` (no real wasm needed).
 - A bad `data-source` dispatches `sf:error` → the sibling fallback renders (can be added as a second spec case).
 - `swiflow init <name>` produces a project containing `swiflow-regions.js` and an index.html that loads it (Phase B); `DriverEmbedder` freshness + template byte-equality gates pass.
