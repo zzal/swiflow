@@ -144,3 +144,57 @@ export class SfRegion {
     win.customElements.define("sf-region", SfRegion.elementClass(win, seams));
   }
 }
+
+// Real browser seams. The worker re-imports THIS module and calls runWorker().
+function defaultSeams(win) {
+  return {
+    makeWorker: () => {
+      const src = `import { runWorker } from ${JSON.stringify(import.meta.url)}; runWorker();`;
+      const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+      return new win.Worker(url, { type: "module" });
+    },
+    makeCanvas: () => win.document.createElement("canvas"),
+    schedule: (cb) => win.requestAnimationFrame(cb),
+    devicePixelRatio: undefined, // read live in _measure
+    observeSize: (el, cb) => {
+      const ro = new win.ResizeObserver((entries) => {
+        const e = entries[0];
+        const box = e.devicePixelContentBoxSize?.[0];
+        if (box) { cb(box.inlineSize, box.blockSize, win.devicePixelRatio || 1); return; }
+        const c = e.contentBoxSize?.[0] ?? { inlineSize: el.clientWidth, blockSize: el.clientHeight };
+        const dpr = win.devicePixelRatio || 1;
+        cb(Math.max(1, Math.round(c.inlineSize * dpr)), Math.max(1, Math.round(c.blockSize * dpr)), dpr);
+      });
+      try { ro.observe(el, { box: "device-pixel-content-box" }); } catch { ro.observe(el); }
+      return ro;
+    },
+    observeVisible: (el, cb) => {
+      const io = new win.IntersectionObserver((es) => cb(es[0].isIntersecting && !win.document.hidden));
+      io.observe(el);
+      const onVis = () => cb(!win.document.hidden);
+      win.document.addEventListener("visibilitychange", onVis);
+      return { disconnect() { io.disconnect(); win.document.removeEventListener("visibilitychange", onVis); } };
+    },
+  };
+}
+
+// Worker entry: re-imported in the worker via the blob above. Wires the message
+// loop to a createGuestHost; the init message carries the transferred
+// OffscreenCanvas as `msg.canvas`.
+export function runWorker() {
+  let canvas = null;
+  const host = createGuestHost({
+    post: (m) => self.postMessage(m),
+    importGuest: (source) => import(source).then((m) => m.default),
+  });
+  self.onmessage = (e) => {
+    const msg = e.data;
+    if (msg.kind === "init" && msg.canvas) canvas = msg.canvas;
+    host.handle(msg, canvas);
+  };
+}
+
+// Auto-register in a window context (no-op in the worker / in node).
+if (typeof window !== "undefined" && window.customElements) {
+  SfRegion.install(window, defaultSeams(window));
+}
