@@ -1054,6 +1054,16 @@ export class SfRegion {
 
   static install(win, seams) {
     if (win.customElements.get("sf-region")) return;
+    // Custom elements default to display:inline, which ignores width/height — so a
+    // `.frame(width:height:)` (set as inline px styles) wouldn't size the region and
+    // it would stretch to the container's full width. Make it a block by default.
+    const doc = win.document;
+    if (doc && !doc.getElementById("sf-region-style")) {
+      const style = doc.createElement("style");
+      style.id = "sf-region-style";
+      style.textContent = "sf-region{display:block}";
+      (doc.head || doc.documentElement).appendChild(style);
+    }
     win.customElements.define("sf-region", SfRegion.elementClass(win, seams));
   }
 }
