@@ -48,11 +48,11 @@ export function cells(): usize { return cur; }
 // scatters the live cells (a linear `i % k` seed aligns to columns and either
 // freezes into stripes or dies out on odd widths); a soup this dense on a torus
 // settles into a lively, self-sustaining equilibrium instead of going extinct.
-export function init(w: i32, h: i32): void {
+export function init(w: i32, h: i32, seed: u32): void {
   alloc(w, h);
   let n = w * h;
   for (let i = 0; i < n; i++) {
-    let x = <u32>i * HASH_A;
+    let x = <u32>i * HASH_A + seed * HASH_B; // `seed` varies the board (reset/reseed)
     x ^= x >> 15;
     x *= HASH_B;
     x ^= x >> 13;

@@ -1,8 +1,8 @@
 // Hosts our AssemblyScript Game-of-Life guest (./universe.ts -> ./universe.wasm):
 // a DOM-free wasm module that computes the board in linear memory, so it runs
 // inside the region's Web Worker. This adapter instantiates it, ticks it, blits
-// the bit-packed cells onto the OffscreenCanvas, and REFLOWS the board (re-seeds
-// at a new cell grid) whenever the region resizes — cells stay a constant size.
+// the bit-packed cells onto the OffscreenCanvas, and re-seeds the board (a fresh
+// generation 0) when the region resizes or a reset signal arrives via props.
 
 // Pure, injected core — unit-tested against a fake `ex` (no real wasm).
 export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
@@ -11,20 +11,7 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
   let W = 0; // board cols
   let H = 0; // board rows
   let px = cell; // device px per cell (cell * dpr)
-
-  // Reflow to fill a device-pixel region: keep cells ~`cell` CSS px, so the grid
-  // re-tessellates (more/fewer cells) on resize instead of scaling. Re-seeds.
-  function resize(devW, devH, dpr) {
-    const cols = Math.max(8, Math.floor(devW / dpr / cell));
-    const rows = Math.max(8, Math.floor(devH / dpr / cell));
-    if (cols === W && rows === H) return;
-    W = cols;
-    H = rows;
-    px = Math.max(1, Math.round(cell * dpr));
-    ex.init(W, H);
-    canvas.width = W * px;
-    canvas.height = H * px;
-  }
+  let seed = 0; // reset token doubles as the board seed (each reset -> new board)
 
   function draw() {
     const cells = new Uint8Array(ex.memory.buffer, ex.cells() >>> 0, Math.ceil((W * H) / 8));
@@ -40,8 +27,41 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
     ctx2d.strokeRect(1, 1, W * px - 2, H * px - 2);
   }
 
+  // Fresh board on the current grid + a fresh generation count (emit 0 so the
+  // host's counter resets too).
+  function reseed() {
+    ex.init(W, H, seed);
+    gen = 0;
+    emit({ kind: "generation", value: 0 });
+    draw();
+  }
+
+  // Reflow to fill a device-pixel region: keep cells ~`cell` CSS px so the grid
+  // re-tessellates (more/fewer cells) instead of scaling, then re-seed.
+  function resize(devW, devH, dpr) {
+    const cols = Math.max(8, Math.floor(devW / dpr / cell));
+    const rows = Math.max(8, Math.floor(devH / dpr / cell));
+    const ppx = Math.max(1, Math.round(cell * dpr));
+    if (cols === W && rows === H && ppx === px) return;
+    const gridChanged = cols !== W || rows !== H;
+    W = cols;
+    H = rows;
+    px = ppx;
+    canvas.width = W * px;
+    canvas.height = H * px;
+    // New grid -> fresh board (+ reset count). Same grid at a new device
+    // resolution (dpr change) -> keep the board, just redraw at the new size.
+    if (gridChanged) reseed();
+    else draw();
+  }
+
   return {
-    onProps(p) { if (p && p.speed != null) rate = p.speed; },
+    onProps(p) {
+      if (!p) return;
+      if (p.speed != null) rate = p.speed;
+      // A changed reset token re-seeds with a fresh board (and resets the count).
+      if (p.reset != null && p.reset !== seed && W) { seed = p.reset; reseed(); }
+    },
     onResize(devW, devH, dpr) { resize(devW, devH, dpr); },
     frame() {
       if (!W) return; // not sized yet
@@ -67,6 +87,6 @@ export default async function gameOfLife(canvas, props, ctx) {
     cell, speed: (props && props.speed) || 1, emit: ctx.emit,
   });
   const size = (ctx && ctx.size) || { w: 360, h: 360, dpr: 1 };
-  guest.onResize(size.w, size.h, size.dpr); // initial sizing
+  guest.onResize(size.w, size.h, size.dpr); // initial sizing + seed
   return guest;
 }
