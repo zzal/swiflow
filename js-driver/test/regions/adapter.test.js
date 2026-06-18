@@ -18,7 +18,13 @@ function fakeUniverse(w, h, aliveIndices) {
 
 function fakeCtx() {
   const rects = [];
-  return { fillStyle: "", fillRect: (x, y, w, h) => rects.push([x, y, w, h]), _rects: rects };
+  const strokes = [];
+  return {
+    fillStyle: "", strokeStyle: "", lineWidth: 0,
+    fillRect: (x, y, w, h) => rects.push([x, y, w, h]),
+    strokeRect: (x, y, w, h) => strokes.push([x, y, w, h]),
+    _rects: rects, _strokes: strokes,
+  };
 }
 
 describe("game-of-life adapter core", () => {
