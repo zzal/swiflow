@@ -526,7 +526,9 @@ question: **core `Swiflow` (DSL), not a JSKit-bound module.**
 
 ### Deferred (designed-compatible, not built)
 
-- Data channel / `MessagePort` high-rate streaming.
+- Data channel / `MessagePort` high-rate streaming — motivating use case:
+  audio-reactive guests (FFT/waveform frames captured host-side on the main
+  thread, streamed into the worker for the guest to draw).
 - **`AsyncStream` events-out** (`for await e in region.events`) as a v1.1
   adapter over the closure `.onEvent` — delightful for stream-shaped guests, but
   needs careful lifecycle/cancellation tie-in (reuse phase20's superseded-write
@@ -534,7 +536,21 @@ question: **core `Swiflow` (DSL), not a JSKit-bound module.**
 - Raw "mount a wasm-bindgen module as-is" escape hatch (option B) — cheap
   follow-on (`refBindings` already exist); **v1.1**.
 - Binary envelope framing + a `@RegionProps` codec macro (post-profiling).
-- Main-thread mode · threaded guests (SAB + COOP/COEP) · DOM-subtree guests.
+- Main-thread mode · threaded guests (SAB + COOP/COEP) · DOM-subtree guests. The
+  litmus test for main-thread mode is *app-shaped* guests that own the page —
+  e.g. [`waltonseymour/visualizer`](https://github.com/waltonseymour/visualizer),
+  whose Rust `run()` grabs the DOM canvas by id, owns the `AudioContext` + rAF
+  loop, and reads `window.*` controls — which the worker model can't host
+  without a fork.
+- **Real-world external-guest validation + adapter recipe.** Prove the polyglot
+  promise by hosting an off-the-shelf compiled wasm we didn't write, via a thin
+  guest adapter. First target: [`rustwasm/wasm_game_of_life`](https://github.com/rustwasm/wasm_game_of_life)
+  — its DOM-free `Universe` compute is reused unmodified; a ~30-line adapter
+  ticks it and draws the cell bitmap to the OffscreenCanvas. Generalize into a
+  documented "wrap an external wasm module" recipe in the guest SDK.
+  **Guest-shape doctrine:** Regions host *component-shaped* guests (accept a
+  canvas; no global `document`/`window`/audio; controls via props), not
+  *app-shaped* monoliths that own the page.
 - Untrusted-plugin capability system.
 - WIT transcription + jco / native Component-Model path.
 - Non-Rust guest SDKs (AssemblyScript/C/Zig).
