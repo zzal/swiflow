@@ -15,6 +15,11 @@ export function makeGuest({ wasmMemory, universe, ctx2d, width, height, cell, sp
     for (let i = 0; i < width * height; i++) {
       if ((cells[i >> 3] >> (i & 7)) & 1) ctx2d.fillRect((i % width) * cell, ((i / width) | 0) * cell, cell, cell);
     }
+    // Debug: gray border marking the guest's actual canvas bounds (1px inset so
+    // the whole stroke stays inside the region). Makes region sizing visible.
+    ctx2d.strokeStyle = "#888";
+    ctx2d.lineWidth = 2;
+    ctx2d.strokeRect(1, 1, width * cell - 2, height * cell - 2);
   }
   return {
     onProps(p) { if (p && p.speed != null) rate = p.speed; },
