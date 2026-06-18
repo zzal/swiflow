@@ -76,10 +76,23 @@ export function createGuestHost({ post, importGuest, raf }) {
 export class SfRegion {
   static elementClass(win, seams) {
     return class SfRegionElement extends win.HTMLElement {
+      get sfProps() { return this._propsValue ?? null; }
+      set sfProps(v) {
+        this._propsValue = v;
+        if (!this._worker) return; // pre-connect: connectedCallback reads _propsValue
+        this._propsLatest = v;
+        if (this._propsDirty) return;
+        this._propsDirty = true;
+        this._seams.schedule(() => {
+          this._propsDirty = false;
+          if (this._worker) this._post({ v: 1, kind: "props", payload: this._propsLatest });
+        });
+      }
+
       connectedCallback() {
         if (this._worker) return; // idempotent / reconnection no-op
         this._seams = seams;
-        this._propsLatest = this.sfProps ?? null;
+        this._propsLatest = this._propsValue ?? null;
         this._propsDirty = false;
 
         const canvas = seams.makeCanvas(this);
