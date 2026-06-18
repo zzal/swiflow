@@ -18,7 +18,7 @@ function mountRegion() {
   SfRegion.install(window, {
     makeWorker: () => { const w = new FakeWorker(); workers.push(w); return w; },
     makeCanvas: () => ({ transferControlToOffscreen: () => ({ _offscreen: true }) }),
-    schedule: (cb) => cb(),
+    schedule: (cb) => queueMicrotask(cb),
     observeSize: () => ({ disconnect() {} }),
     observeVisible: () => ({ disconnect() {} }),
   });
@@ -45,5 +45,16 @@ describe("SfRegion element", () => {
     el.remove();
     assert.ok(workers[0].posted.some((m) => m.kind === "destroy"));
     assert.equal(workers[0].terminated, true);
+  });
+
+  test("setting sfProps after connect posts a single coalesced props message", async () => {
+    const { el, workers } = mountRegion(); // schedule(cb) runs synchronously in the fixture
+    workers[0].posted.length = 0;          // ignore the init burst
+    el.sfProps = JSON.stringify({ count: 2 });
+    el.sfProps = JSON.stringify({ count: 3 });
+    await new Promise((r) => setTimeout(r, 0)); // flush microtask queue
+    const props = workers[0].posted.filter((m) => m.kind === "props");
+    assert.equal(props.length, 1, "two synchronous sets coalesce to one post");
+    assert.equal(props[0].payload, JSON.stringify({ count: 3 }));
   });
 });
