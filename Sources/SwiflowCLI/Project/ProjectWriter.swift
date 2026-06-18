@@ -29,8 +29,9 @@ enum ProjectWriter {
     ///   - template: the embedded template selected via `--template`.
     ///   - parent: parent directory in which the new project will be created.
     ///   - swiflowDep: how the generated `Package.swift` depends on Swiflow.
-    ///   - jsDriverSource / jsServiceWorkerSource: pass `EmbeddedDriver.javascriptSource`
-    ///     / `EmbeddedDriver.serviceWorkerSource` in production; tests pass stub strings.
+    ///   - jsDriverSource / jsServiceWorkerSource / jsRegionsSource: pass
+    ///     `EmbeddedDriver.javascriptSource` / `EmbeddedDriver.serviceWorkerSource`
+    ///     / `EmbeddedDriver.regionsSource` in production; tests pass stub strings.
     ///   - _testFailDuringWrites: test-only hook that throws after the target
     ///     directory has been created, so the cleanup path is exercised
     ///     deterministically. Production callers omit it.
@@ -41,6 +42,7 @@ enum ProjectWriter {
         swiflowDep: SwiflowDep,
         jsDriverSource: String,
         jsServiceWorkerSource: String,
+        jsRegionsSource: String,
         _testFailDuringWrites: Bool = false
     ) throws {
         let fm = FileManager.default
@@ -74,8 +76,9 @@ enum ProjectWriter {
                 try rendered.write(to: dest, atomically: true, encoding: .utf8)
             }
 
-            // JS driver + service worker come from EmbeddedDriver, not the
-            // template. Keeps canonical js-driver/ bytes in one place.
+            // JS driver, service worker, and regions runtime come from
+            // EmbeddedDriver, not the template. Keeps canonical js-driver/
+            // bytes in one place.
             try jsDriverSource.write(
                 to: project.appendingPathComponent("swiflow-driver.js"),
                 atomically: true,
@@ -83,6 +86,11 @@ enum ProjectWriter {
             )
             try jsServiceWorkerSource.write(
                 to: project.appendingPathComponent("swiflow-sw.js"),
+                atomically: true,
+                encoding: .utf8
+            )
+            try jsRegionsSource.write(
+                to: project.appendingPathComponent("swiflow-regions.js"),
                 atomically: true,
                 encoding: .utf8
             )
