@@ -34,6 +34,24 @@ public struct RegionView<G: RegionGuest>: RegionModifiable {
     public init(data: ElementData) { self.data = data }
 }
 
+public extension RegionView {
+    /// Handle a guest event. The closure parameter type is inferred as
+    /// `G.Event` — no annotation. The raw `sf:event` JSON payload is decoded
+    /// through the installed `RegionDecoder`; if none is installed or decoding
+    /// fails, the event is dropped.
+    @MainActor
+    func onEvent(_ action: @escaping @MainActor (G.Event) -> Void) -> RegionView<G> {
+        var d = data
+        let handler = _registerAmbientHandler { info in
+            guard let detail = info.detail, let decoder = RegionDecoder.current else { return }
+            guard let decoded = try? decoder.decode(G.Event.self, from: detail) else { return }
+            action(decoded)
+        }
+        d.handlers["sf:event"] = handler
+        return RegionView<G>(data: d)
+    }
+}
+
 /// Build a region for guest `G`. Props are encoded to a JSON string at build
 /// time (so the diff compares them as one opaque value) and carried as the
 /// `sfProps` property; the guest source rides as the `data-source` attribute.
