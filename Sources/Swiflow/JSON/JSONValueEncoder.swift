@@ -1,4 +1,4 @@
-// Sources/SwiflowStore/JSONValueEncoder.swift
+// Sources/Swiflow/JSON/JSONValueEncoder.swift
 //
 // Encodes any `Encodable` into a `JSONValue` tree — the encode counterpart to
 // JavaScriptKit's `JSValueDecoder`. JavaScriptKit ships no `JSValueEncoder`, and
@@ -15,8 +15,6 @@
 // reference cells: a parent links a child node into its slot immediately, the
 // child encoder mutates that same node in place, and the whole tree is frozen
 // into an immutable `JSONValue` once at the end.
-
-import SwiflowFetcher
 
 public struct JSONValueEncoder {
     public init() {}

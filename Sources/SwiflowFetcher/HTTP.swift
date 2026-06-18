@@ -5,6 +5,7 @@
 // headers), construct an `HTTPClient` directly. WASM-only, like `HTTPClient`.
 
 #if canImport(JavaScriptKit)
+import Swiflow
 
 /// One-off JSON requests against absolute URLs.
 ///

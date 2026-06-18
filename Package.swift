@@ -102,11 +102,14 @@ let package = Package(
         ),
         // Standalone JSON-over-`fetch` client (graduated from the TodoCRUD
         // example's Net.swift). WASM-only at runtime — the `HTTP` client is
-        // behind `#if canImport(JavaScriptKit)`; `JSONValue`/`HTTPError`
-        // compile everywhere (and are host-tested).
+        // behind `#if canImport(JavaScriptKit)`; `HTTPError` compiles
+        // everywhere (and is host-tested). `JSONValue`/`JSONValueEncoder` live
+        // in `Swiflow` core (Foundation-free, cross-platform) and are
+        // re-exported transitively through the `Swiflow` dependency.
         .target(
             name: "SwiflowFetcher",
             dependencies: [
+                "Swiflow",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
@@ -115,13 +118,13 @@ let package = Package(
         ),
         // Browser-persistence primitive: an async key/value store over
         // IndexedDB. The `PersistentStore` is WASM-only (behind
-        // `#if canImport(JavaScriptKit)`); the `JSONValueEncoder` — the encode
-        // counterpart to JavaScriptKit's `JSValueDecoder`, which JavaScriptKit
-        // doesn't ship — is pure Swift and host-tested. Reuses SwiflowFetcher's
-        // `JSONValue`/`.jsonString` for the wire format.
+        // `#if canImport(JavaScriptKit)`); `JSONValueEncoder` now lives in
+        // `Swiflow` core (pure Swift, host-tested). `JSONValue`/`.jsonString`
+        // from core serve as the wire format.
         .target(
             name: "SwiflowStore",
             dependencies: [
+                "Swiflow",
                 "SwiflowFetcher",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
@@ -183,7 +186,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowFetcherTests",
-            dependencies: ["SwiflowFetcher"],
+            dependencies: ["Swiflow", "SwiflowFetcher"],
             path: "Tests/SwiflowFetcherTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

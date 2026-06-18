@@ -1,12 +1,11 @@
-// Tests/SwiflowStoreTests/JSONValueEncoderTests.swift
+// Tests/SwiflowTests/JSON/JSONValueEncoderTests.swift
 //
 // Host-side tests for the Encodable → JSONValue encoder. JavaScriptKit ships a
 // `JSValueDecoder` but no encoder, and Foundation's `JSONEncoder` isn't
 // available under WASM — `JSONValueEncoder` fills that gap in pure Swift, so it
 // is fully testable off-WASM the same way `JSONValue.jsonString` is.
 import Testing
-import SwiflowFetcher          // JSONValue
-@testable import SwiflowStore
+@testable import Swiflow
 
 @Suite("JSONValueEncoder")
 struct JSONValueEncoderTests {
