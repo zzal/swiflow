@@ -103,8 +103,14 @@ export class SfRegion {
         const size = this._measure();
         this._worker = seams.makeWorker(this);
         this._worker.onmessage = (e) => this._onWorkerMessage(e.data);
+        // Absolutize the guest source against the page: the worker is a blob:
+        // module, so it resolves import() specifiers against its own blob: base —
+        // a relative/bare `data-source` would throw "Failed to resolve module
+        // specifier". An absolute URL imports correctly (and `import.meta.url`
+        // inside the guest then resolves its own assets, e.g. ./universe.wasm).
+        const source = new URL(this.getAttribute("data-source"), this.ownerDocument.baseURI).href;
         this._post(
-          { v: 1, kind: "init", canvas: offscreen, payload: { protocol: 1, source: this.getAttribute("data-source"), props: this._propsLatest, size } },
+          { v: 1, kind: "init", canvas: offscreen, payload: { protocol: 1, source, props: this._propsLatest, size } },
           [offscreen]
         );
 
