@@ -12,6 +12,10 @@ let nbytes: i32 = 0;
 let cur: usize = 0; // front buffer: bit-packed current generation
 let nxt: usize = 0; // back buffer: scratch the next generation is written into
 
+// Integer-hash constants for the deterministic soup seed (see init()).
+const HASH_A: u32 = 2654435761;
+const HASH_B: u32 = 2246822519;
+
 // @inline keeps the hot neighbour scan call-free. Bit math stays in the i32
 // domain (AS truncates u8 shift-amounts otherwise); only the store narrows to u8.
 @inline function bget(p: usize, i: i32): i32 {
@@ -40,12 +44,19 @@ export function width(): i32 { return W; }
 export function height(): i32 { return H; }
 export function cells(): usize { return cur; }
 
-// Seed a lively, fully deterministic board (the classic rustwasm seed pattern).
+// Seed a deterministic pseudo-random soup (~37% alive). A per-cell integer hash
+// scatters the live cells (a linear `i % k` seed aligns to columns and either
+// freezes into stripes or dies out on odd widths); a soup this dense on a torus
+// settles into a lively, self-sustaining equilibrium instead of going extinct.
 export function init(w: i32, h: i32): void {
   alloc(w, h);
   let n = w * h;
   for (let i = 0; i < n; i++) {
-    if (i % 2 == 0 || i % 7 == 0) bset(cur, i, true);
+    let x = <u32>i * HASH_A;
+    x ^= x >> 15;
+    x *= HASH_B;
+    x ^= x >> 13;
+    if ((x & 0xff) < 95) bset(cur, i, true); // 95/256 ≈ 37%
   }
 }
 
