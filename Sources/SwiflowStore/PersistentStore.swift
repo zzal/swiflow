@@ -14,6 +14,7 @@
 // API present so app targets still typecheck off-WASM (where they never run).
 
 #if canImport(JavaScriptKit)
+import Swiflow
 import JavaScriptKit
 import SwiflowFetcher
 

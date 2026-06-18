@@ -1,9 +1,9 @@
-// Sources/SwiflowFetcher/JSONValue.swift
+// Sources/Swiflow/JSON/JSONValue.swift
 //
-// A small, Sendable JSON value used for request bodies. Literal-expressible so
-// bodies read naturally inline — `["title": .string(name), "done": false]` —
-// and it serializes to a compact JSON string in pure Swift (no Foundation, no
-// JSValueEncoder), which is both WASM-safe and unit-testable off-WASM.
+// A small, Sendable JSON value. Literal-expressible so bodies read naturally
+// inline — `["title": .string(name), "done": false]` — and it serializes to a
+// compact JSON string in pure Swift (no Foundation, no JSValueEncoder), which is
+// both WASM-safe and unit-testable off-WASM.
 
 /// A JSON value for `HTTP` request bodies.
 ///

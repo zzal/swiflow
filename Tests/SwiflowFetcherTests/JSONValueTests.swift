@@ -1,5 +1,6 @@
 // Tests/SwiflowFetcherTests/JSONValueTests.swift
 import Testing
+import Swiflow
 @testable import SwiflowFetcher
 
 @Suite("JSONValue")

@@ -5,6 +5,7 @@
 // the rest of Swiflow's JS code.
 
 #if canImport(JavaScriptKit)
+import Swiflow
 import JavaScriptKit
 import JavaScriptEventLoop
 
