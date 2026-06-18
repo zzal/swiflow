@@ -191,12 +191,6 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
-            name: "SwiflowStoreTests",
-            dependencies: ["SwiflowStore"],
-            path: "Tests/SwiflowStoreTests",
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-        .testTarget(
             name: "SwiflowUITests",
             dependencies: ["SwiflowUI", "Swiflow"],
             path: "Tests/SwiflowUITests",
