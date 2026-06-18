@@ -418,7 +418,8 @@ struct BypassRebuilderIntegrationTests {
             into: tmp,
             swiflowDep: .path(Self.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource,
-            jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource
+            jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource,
+            jsRegionsSource: EmbeddedDriver.regionsSource
         )
         let projectPath = tmp.appendingPathComponent("Demo")
         let appSwift = projectPath.appendingPathComponent("Sources/App/App.swift")
