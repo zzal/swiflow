@@ -12,7 +12,7 @@ class FakeWorker {
 }
 
 function mountRegion() {
-  const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`, { runScripts: "outside-only" });
+  const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`, { runScripts: "outside-only", url: "https://example.test/" });
   const { window } = dom;
   const workers = [];
   SfRegion.install(window, {
@@ -35,7 +35,8 @@ describe("SfRegion element", () => {
     assert.equal(workers.length, 1);
     const init = workers[0].posted.find((m) => m.kind === "init");
     assert.ok(init, "expected an init message");
-    assert.equal(init.payload.source, "regions/scene.js");
+    // source is absolutized against the page so the blob: worker can import() it
+    assert.equal(init.payload.source, "https://example.test/regions/scene.js");
     assert.equal(init.payload.props, JSON.stringify({ count: 1 }));
     assert.ok(init.payload.size && typeof init.payload.size.w === "number");
   });
@@ -79,7 +80,7 @@ describe("SfRegion element", () => {
 
   test("visibility observer drives pause/resume posts", () => {
     let visCb = null;
-    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`);
+    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`, { url: "https://example.test/" });
     const { window } = dom;
     const workers = [];
     SfRegion.install(window, {
@@ -101,7 +102,7 @@ describe("SfRegion element", () => {
 
   test("a size-observer callback posts a resize with device pixels", () => {
     let sizeCb = null;
-    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`);
+    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`, { url: "https://example.test/" });
     const { window } = dom;
     const workers = [];
     SfRegion.install(window, {
