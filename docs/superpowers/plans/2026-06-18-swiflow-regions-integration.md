@@ -10,17 +10,18 @@
 
 **Depends on:** Plan 1 (core, on `main`) + Plan 2 (the runtime, PR #41). Execute on a branch off `feat/swiflow-regions-runtime` (or off `main` after #41 merges).
 
-## ⚠️ External prerequisite (no Rust toolchain in this environment)
+## ✅ A2 resolved — AssemblyScript guest (no Rust toolchain needed)
 
-**Task A2 (vendor the Game-of-Life artifact) requires `wasm-pack`/`cargo`, which are not installed here.** A human or a Rust-capable CI job must produce the artifact once and commit it; until then, the **browser e2e (Task A4) is gated** and will be skipped/red. Everything else (the adapter + its unit test, the RegionDemo Swift app, the CLI embed/scaffold) is executable now. If producing the artifact proves impractical, the documented fallback is an **AssemblyScript guest** (npm `asc`, no Rust) — swap it in for A2 and point the adapter/spec at it; the rest of the plan is unchanged.
+**`wasm-pack`/`cargo` aren't installed here, so A2 took the documented fallback: an AssemblyScript guest** (`regions/game-of-life/universe.ts` → a 962-byte `universe.wasm` via npm `asc`), committed in `d61065d`. It's still a real external wasm guest in a non-Swift language crossing the Regions boundary — it proves polyglot hosting; it just isn't third-party provenance. The host contract is unchanged (`cells()` → pointer to bit-packed cells + `tick/width/height`), so `makeGuest` and its unit test are untouched. **A4 (the browser e2e) is no longer gated** — the guest artifact exists. A2's original wasm-pack steps below are kept as **SUPERSEDED** history.
 
 ---
 
 ## File Structure
 
 **Created:**
-- `examples/RegionDemo/` — `Package.swift`, `Sources/App/App.swift`, `index.html`, committed `swiflow-driver.js`/`swiflow-sw.js`/`swiflow-regions.js`, and `regions/game-of-life/{adapter.js, wasm_game_of_life.js, wasm_game_of_life_bg.wasm}`.
+- `examples/RegionDemo/` — `Package.swift`, `Sources/App/App.swift`, `index.html`, committed `swiflow-driver.js`/`swiflow-sw.js`/`swiflow-regions.js`, and `regions/game-of-life/{adapter.js, universe.ts, universe.wasm}` (AssemblyScript guest; see A2).
 - `js-driver/test/regions/adapter.test.js` — unit test for the adapter's pure logic (no real wasm).
+- `js-driver/test/regions/universe-wasm.test.js` — behaviour test against the COMPILED `universe.wasm` (blinker + memory layout + seed).
 - `Tests/playwright/region.spec.ts` — the browser e2e.
 
 **Modified (Phase A):**
@@ -174,9 +175,17 @@ git commit -m "feat(regions): Game-of-Life guest adapter (testable draw/tick cor
 
 ---
 
-## Task A2: ⚠️ Vendor the Game-of-Life wasm artifact (REQUIRES wasm-pack — external step)
+## Task A2: ✅ DONE via AssemblyScript (commit `d61065d`) — wasm-pack steps below SUPERSEDED
 
-**Files:**
+**What shipped instead of the vendored Rust artifact:**
+- `regions/game-of-life/universe.ts` — Conway's Game of Life in AssemblyScript, compiled to a 962-byte freestanding `universe.wasm` (`asc --runtime stub --optimize`). Bit-packed cells in linear memory; exports `cells()` (pointer) + `tick/width/height` + test seams (`init/initEmpty/set/get`).
+- `adapter.js` factory rewired to `WebAssembly.instantiate(universe.wasm)`, board sized from `ctx.size` to fill the frame. `makeGuest` + `adapter.test.js` untouched (the contract matched).
+- `js-driver`: `assemblyscript` devDep + `npm run build:gol`; `universe-wasm.test.js` asserts real semantics against the compiled wasm.
+- The "exclude the binary from `embed-templates`" prerequisite (old Step 0) was handled by blacklisting the whole `RegionDemo` dir in both `scripts/embed-templates.swift` and `Sources/SwiflowCLI/TemplateEmbedder.swift` (it's a repo demo, not a `swiflow init` starter); `EmbeddedTemplates.swift` regenerated; `swift test --filter Template` green (19/19).
+
+> The original wasm-pack instructions are retained below as historical context only — do not execute them.
+
+**Files (SUPERSEDED):**
 - Create: `examples/RegionDemo/regions/game-of-life/wasm_game_of_life.js` + `wasm_game_of_life_bg.wasm` (built artifacts, checked in)
 - Create: `examples/RegionDemo/regions/game-of-life/PROVENANCE.md`
 
