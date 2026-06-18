@@ -63,3 +63,71 @@ export function createGuestHost({ post, importGuest, raf }) {
 
   return { handle, emit };
 }
+
+// --- Main-thread: the <sf-region> custom element ---
+//
+// Seams (defaulted to real browser APIs by a later task, overridden in tests):
+//   makeWorker()           -> a Worker-like { postMessage, terminate, onmessage }
+//   makeCanvas()           -> a <canvas> (or fake) exposing transferControlToOffscreen()
+//   schedule(cb)           -> coalesce work to a frame
+//   observeSize(el, cb)    -> { disconnect() }; calls cb(w, h, dpr) on resize
+//   observeVisible(el, cb) -> { disconnect() }; calls cb(isVisible)
+
+export class SfRegion {
+  static elementClass(win, seams) {
+    return class SfRegionElement extends win.HTMLElement {
+      connectedCallback() {
+        if (this._worker) return; // idempotent / reconnection no-op
+        this._seams = seams;
+        this._propsLatest = this.sfProps ?? null;
+        this._propsDirty = false;
+
+        const canvas = seams.makeCanvas(this);
+        if (canvas.style) { canvas.style.width = "100%"; canvas.style.height = "100%"; }
+        if (canvas.nodeType) this.appendChild(canvas);
+        const offscreen = canvas.transferControlToOffscreen();
+
+        const size = this._measure();
+        this._worker = seams.makeWorker(this);
+        this._worker.onmessage = (e) => this._onWorkerMessage(e.data);
+        this._post(
+          { v: 1, kind: "init", canvas: offscreen, payload: { protocol: 1, source: this.getAttribute("data-source"), props: this._propsLatest, size } },
+          [offscreen]
+        );
+
+        this._sizeObs = seams.observeSize(this, (w, h, dpr) => this._post({ v: 1, kind: "resize", payload: { w, h, dpr } }));
+        this._visObs = seams.observeVisible(this, (visible) => this._post({ v: 1, kind: visible ? "resume" : "pause", payload: null }));
+      }
+
+      disconnectedCallback() {
+        if (!this._worker) return;
+        this._post({ v: 1, kind: "destroy", payload: null });
+        this._sizeObs?.disconnect();
+        this._visObs?.disconnect();
+        this._worker.terminate();
+        this._worker = null;
+      }
+
+      _measure() {
+        const dpr = this._seams.devicePixelRatio ?? (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
+        const r = this.getBoundingClientRect ? this.getBoundingClientRect() : { width: 0, height: 0 };
+        return { w: Math.max(1, Math.round(r.width * dpr)), h: Math.max(1, Math.round(r.height * dpr)), dpr };
+      }
+
+      _post(msg, transfer) { this._worker?.postMessage(msg, transfer || []); }
+
+      _onWorkerMessage(msg) {
+        switch (msg.kind) {
+          case "ready": this.dispatchEvent(new win.CustomEvent("sf:ready")); return;
+          case "event": this.dispatchEvent(new win.CustomEvent("sf:event", { detail: JSON.parse(msg.payload) })); return;
+          case "error": this.dispatchEvent(new win.CustomEvent("sf:error", { detail: msg.payload })); return;
+        }
+      }
+    };
+  }
+
+  static install(win, seams) {
+    if (win.customElements.get("sf-region")) return;
+    win.customElements.define("sf-region", SfRegion.elementClass(win, seams));
+  }
+}
