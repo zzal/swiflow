@@ -76,4 +76,25 @@ describe("SfRegion element", () => {
     assert.equal(ready, true);
     assert.deepEqual(err, { code: "init-failed", message: "boom" });
   });
+
+  test("a size-observer callback posts a resize with device pixels", () => {
+    let sizeCb = null;
+    const dom = new JSDOM(`<!DOCTYPE html><div id="app"></div>`);
+    const { window } = dom;
+    const workers = [];
+    SfRegion.install(window, {
+      makeWorker: () => { const w = new FakeWorker(); workers.push(w); return w; },
+      makeCanvas: () => ({ transferControlToOffscreen: () => ({}) }),
+      schedule: (cb) => cb(),
+      observeSize: (_el, cb) => { sizeCb = cb; return { disconnect() {} }; },
+      observeVisible: () => ({ disconnect() {} }),
+    });
+    const el = window.document.createElement("sf-region");
+    el.setAttribute("data-source", "g.js");
+    window.document.getElementById("app").appendChild(el);
+    workers[0].posted.length = 0;
+    sizeCb(640, 480, 2); // device-pixel-content-box already × dpr
+    const resize = workers[0].posted.find((m) => m.kind === "resize");
+    assert.deepEqual(resize.payload, { w: 640, h: 480, dpr: 2 });
+  });
 });
