@@ -50,6 +50,20 @@ public extension RegionView {
         d.handlers["sf:event"] = handler
         return RegionView<G>(data: d)
     }
+
+    /// Handle a region failure (load/instantiate/trap/protocol-mismatch). The
+    /// app typically flips state here to render a sibling fallback.
+    @MainActor
+    func onError(_ action: @escaping @MainActor (RegionError) -> Void) -> RegionView<G> {
+        var d = data
+        let handler = _registerAmbientHandler { info in
+            guard let detail = info.detail, let decoder = RegionDecoder.current else { return }
+            guard let decoded = try? decoder.decode(RegionError.self, from: detail) else { return }
+            action(decoded)
+        }
+        d.handlers["sf:error"] = handler
+        return RegionView<G>(data: d)
+    }
 }
 
 /// Build a region for guest `G`. Props are encoded to a JSON string at build
