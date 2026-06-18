@@ -61,7 +61,7 @@ export function createGuestHost({ post, importGuest, raf }) {
     }
   }
 
-  return { handle, emit };
+  return { handle };
 }
 
 // --- Main-thread: the <sf-region> custom element ---
@@ -118,6 +118,7 @@ export class SfRegion {
         this._sizeObs?.disconnect();
         this._visObs?.disconnect();
         this._worker.terminate();
+        if (this._worker._sfBlobUrl) URL.revokeObjectURL(this._worker._sfBlobUrl);
         this._worker = null;
       }
 
@@ -133,6 +134,8 @@ export class SfRegion {
         switch (msg.kind) {
           case "ready": this.dispatchEvent(new win.CustomEvent("sf:ready")); return;
           case "event": this.dispatchEvent(new win.CustomEvent("sf:event", { detail: JSON.parse(msg.payload) })); return;
+          // msg.payload is the {code,message} object; serializeEvent JSON-stringifies it,
+          // DispatcherBridge reads it as a String, and SwiflowRegionDecoder JSON.parses + decodes RegionError.
           case "error": this.dispatchEvent(new win.CustomEvent("sf:error", { detail: msg.payload })); return;
         }
       }
@@ -151,7 +154,9 @@ function defaultSeams(win) {
     makeWorker: () => {
       const src = `import { runWorker } from ${JSON.stringify(import.meta.url)}; runWorker();`;
       const url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
-      return new win.Worker(url, { type: "module" });
+      const w = new win.Worker(url, { type: "module" });
+      w._sfBlobUrl = url; // revoked in disconnectedCallback (see SfRegion) — avoids a per-mount leak
+      return w;
     },
     makeCanvas: () => win.document.createElement("canvas"),
     schedule: (cb) => win.requestAnimationFrame(cb),
@@ -163,6 +168,9 @@ function defaultSeams(win) {
         if (box) { cb(box.inlineSize, box.blockSize, win.devicePixelRatio || 1); return; }
         const c = e.contentBoxSize?.[0] ?? { inlineSize: el.clientWidth, blockSize: el.clientHeight };
         const dpr = win.devicePixelRatio || 1;
+        // NOTE (deferred to Phase C / older-Safari only): on this fallback path a DPR-only
+        // change (zoom / monitor move) won't fire the ResizeObserver; a matchMedia('(resolution: …dppx)')
+        // listener is needed to re-broadcast. Tracked in the design spec's deferred scope.
         cb(Math.max(1, Math.round(c.inlineSize * dpr)), Math.max(1, Math.round(c.blockSize * dpr)), dpr);
       });
       try { ro.observe(el, { box: "device-pixel-content-box" }); } catch { ro.observe(el); }
@@ -189,7 +197,13 @@ export function runWorker() {
   });
   self.onmessage = (e) => {
     const msg = e.data;
-    if (msg.kind === "init" && msg.canvas) canvas = msg.canvas;
+    if (msg.kind === "init") {
+      if (!msg.canvas) {
+        self.postMessage({ v: 1, kind: "error", payload: { code: "no-canvas", message: "init missing OffscreenCanvas" } });
+        return;
+      }
+      canvas = msg.canvas;
+    }
     host.handle(msg, canvas);
   };
 }
