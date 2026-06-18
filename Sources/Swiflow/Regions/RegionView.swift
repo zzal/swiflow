@@ -47,7 +47,7 @@ public extension RegionView {
             guard let decoded = try? decoder.decode(G.Event.self, from: detail) else { return }
             action(decoded)
         }
-        d.handlers["sf:event"] = handler
+        d.handlers[RegionWire.eventName] = handler
         return RegionView<G>(data: d)
     }
 
@@ -61,7 +61,7 @@ public extension RegionView {
             guard let decoded = try? decoder.decode(RegionError.self, from: detail) else { return }
             action(decoded)
         }
-        d.handlers["sf:error"] = handler
+        d.handlers[RegionWire.errorName] = handler
         return RegionView<G>(data: d)
     }
 }
@@ -75,12 +75,18 @@ public func region<G: RegionGuest>(
     key: String,
     props: G.Props
 ) -> RegionView<G> {
-    let json = (try? JSONValueEncoder().encode(props).jsonString) ?? "null"
+    let json: String
+    do {
+        json = try JSONValueEncoder().encode(props).jsonString
+    } catch {
+        swiflowDiagnostic("region props encoding failed for \(type(of: props)) (source: \(G.source)): \(error). Sending \"null\".")
+        json = "null"
+    }
     let data = ElementData(
-        tag: "sf-region",
+        tag: RegionWire.tag,
         key: key,
-        attributes: ["data-source": G.source],
-        properties: ["sfProps": .string(json)]
+        attributes: [RegionWire.sourceAttr: G.source],
+        properties: [RegionWire.propsKey: .string(json)]
     )
     return RegionView<G>(data: data)
 }

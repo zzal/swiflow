@@ -40,4 +40,38 @@ struct RegionOnEventTests {
         registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: #"{"kind":"select","id":9}"#))
         #expect(received == SceneEvent(kind: "select", id: 9))
     }
+
+    @Test("event is dropped when detail is nil")
+    func dropsWhenDetailNil() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        RegionDecoder.current = RecordingDecoder(SceneEvent(kind: "select", id: 9))
+        defer { HandlerAmbient.current = nil; RegionDecoder.current = nil }
+
+        var fired = false
+        let view = region(Scene.self, key: "hero", props: SceneProps(count: 1))
+            .onEvent { _ in fired = true }
+        guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:event"] else {
+            Issue.record("expected an sf:event handler"); return
+        }
+        registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: nil))
+        #expect(fired == false)
+    }
+
+    @Test("event is dropped when no decoder is installed")
+    func dropsWhenNoDecoder() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        RegionDecoder.current = nil
+        defer { HandlerAmbient.current = nil }
+
+        var fired = false
+        let view = region(Scene.self, key: "hero", props: SceneProps(count: 1))
+            .onEvent { _ in fired = true }
+        guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:event"] else {
+            Issue.record("expected an sf:event handler"); return
+        }
+        registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: #"{"kind":"select","id":9}"#))
+        #expect(fired == false)
+    }
 }

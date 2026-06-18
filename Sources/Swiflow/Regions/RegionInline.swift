@@ -16,12 +16,18 @@ public func region(
     key: String,
     props: some Encodable
 ) -> AnyRegionView {
-    let json = (try? JSONValueEncoder().encode(props).jsonString) ?? "null"
+    let json: String
+    do {
+        json = try JSONValueEncoder().encode(props).jsonString
+    } catch {
+        swiflowDiagnostic("region props encoding failed for \(type(of: props)): \(error). Sending \"null\".")
+        json = "null"
+    }
     let data = ElementData(
-        tag: "sf-region",
+        tag: RegionWire.tag,
         key: key,
-        attributes: ["data-source": source],
-        properties: ["sfProps": .string(json)]
+        attributes: [RegionWire.sourceAttr: source],
+        properties: [RegionWire.propsKey: .string(json)]
     )
     return AnyRegionView(data: data)
 }
@@ -35,7 +41,7 @@ public extension AnyRegionView {
             guard let decoded = try? decoder.decode(E.self, from: detail) else { return }
             action(decoded)
         }
-        d.handlers["sf:event"] = handler
+        d.handlers[RegionWire.eventName] = handler
         return AnyRegionView(data: d)
     }
 
@@ -47,7 +53,7 @@ public extension AnyRegionView {
             guard let decoded = try? decoder.decode(RegionError.self, from: detail) else { return }
             action(decoded)
         }
-        d.handlers["sf:error"] = handler
+        d.handlers[RegionWire.errorName] = handler
         return AnyRegionView(data: d)
     }
 }
