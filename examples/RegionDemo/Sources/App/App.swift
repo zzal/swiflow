@@ -26,7 +26,7 @@ final class Demo {
                 region(GameOfLife.self, key: "gol", props: GoLProps(speed: 1, cellSize: 6))
                     .onEvent { e in self.generation = e.value }
                     .onError { _ in self.failed = true }
-                    .frame(width: 360, height: 360)
+                    .aspectRatio(1, 1) // responsive: fills available width, stays square
             }
         }
     }
