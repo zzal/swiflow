@@ -40,6 +40,7 @@ enum DispatcherBridge {
             let ctrlKey = payload.ctrlKey.boolean ?? false
             let altKey = payload.altKey.boolean ?? false
             let metaKey = payload.metaKey.boolean ?? false
+            let detail = payload.detail.string
 
             MainActor.assumeIsolated {
                 HandlerRegistry.dispatchGlobal(
@@ -53,7 +54,8 @@ enum DispatcherBridge {
                         shiftKey: shiftKey,
                         ctrlKey: ctrlKey,
                         altKey: altKey,
-                        metaKey: metaKey
+                        metaKey: metaKey,
+                        detail: detail
                     )
                 )
             }
