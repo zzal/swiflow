@@ -180,6 +180,8 @@ git commit -m "feat(regions): Game-of-Life guest adapter (testable draw/tick cor
 - Create: `examples/RegionDemo/regions/game-of-life/wasm_game_of_life.js` + `wasm_game_of_life_bg.wasm` (built artifacts, checked in)
 - Create: `examples/RegionDemo/regions/game-of-life/PROVENANCE.md`
 
+- [ ] **Step 0 (REQUIRED FIRST — else `swiflow build`/codegen breaks): exclude the binary from `embed-templates`.** Plan 3 execution made `examples/RegionDemo` an embedded template, and `scripts/embed-templates.swift` reads every file under `examples/*/` as **UTF-8 with a required trailing newline** (`:57` blacklist check, `:63-69`). A binary `.wasm` makes `swift scripts/embed-templates.swift` fail. Add `wasm_game_of_life_bg.wasm` (and ideally the whole `game-of-life` dir) to that script's `blacklist`, regenerate, and confirm `swift test --filter 'SwiflowCLITests.TemplatesTests'` passes.
+
 - [ ] **Step 1: Produce the artifact (on a Rust-capable machine)**
 
 ```bash
