@@ -18,12 +18,15 @@ final class Demo {
     @State var resetToken: Int = 0
 
     var body: VNode {
-        div {
+        Card {
             h1("Swiflow Regions — Game of Life")
-            p("Generation: \(generation)")
-            Button("Reset") { self.resetToken += 1 }
+            HStack(align: .center) {
+                Badge("Generation: \(generation)", variant: .accent)
+                Spacer()
+                Button("Reset") { self.resetToken += 1 }
+            }
             if failed {
-                p("guest failed to load")
+                Badge("The guest failed to load", variant: .danger)
             } else {
                 // `resetToken` rides in the props; bumping it signals the guest
                 // (the wasm) to re-seed a fresh board. See adapter.js onProps.

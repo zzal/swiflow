@@ -21,10 +21,6 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
     for (let i = 0; i < W * H; i++) {
       if ((cells[i >> 3] >> (i & 7)) & 1) ctx2d.fillRect((i % W) * px, ((i / W) | 0) * px, px, px);
     }
-    // Debug: gray border marking the guest's actual canvas bounds.
-    ctx2d.strokeStyle = "#888";
-    ctx2d.lineWidth = 2;
-    ctx2d.strokeRect(1, 1, W * px - 2, H * px - 2);
   }
 
   // Fresh board on the current grid + a fresh generation count (emit 0 so the
