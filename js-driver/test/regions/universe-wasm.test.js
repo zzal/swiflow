@@ -47,11 +47,24 @@ test("cells() exposes bit-packed state at a readable memory pointer", () => {
 });
 
 test("init seeds a lively but non-saturated board", () => {
-  ex.init(32, 32);
+  ex.init(32, 32, 0);
   const view = new Uint8Array(ex.memory.buffer, ex.cells() >>> 0, (32 * 32) / 8);
   let live = 0;
   for (let i = 0; i < 32 * 32; i++) if ((view[i >> 3] >> (i & 7)) & 1) live++;
   assert.ok(live > 0 && live < 32 * 32, `seeded ${live} live cells`);
+});
+
+function snapshot(w, h) {
+  const view = new Uint8Array(ex.memory.buffer, ex.cells() >>> 0, Math.ceil((w * h) / 8));
+  return Array.from(view).join(",");
+}
+
+test("the seed varies the board (different seeds differ; same seed reproduces)", () => {
+  ex.init(40, 40, 1); const a = snapshot(40, 40);
+  ex.init(40, 40, 2); const b = snapshot(40, 40);
+  ex.init(40, 40, 1); const a2 = snapshot(40, 40);
+  assert.notEqual(a, b, "seed 1 and seed 2 should differ");
+  assert.equal(a, a2, "seed 1 should be reproducible");
 });
 
 // Regression: the old `i % 2` seed went extinct on odd-width boards (a board
@@ -59,7 +72,7 @@ test("init seeds a lively but non-saturated board", () => {
 // survive at any width parity.
 test("the soup never goes extinct, regardless of board-width parity", () => {
   for (const [w, h] of [[59, 59], [60, 60], [61, 61], [233, 116]]) {
-    ex.init(w, h);
+    ex.init(w, h, 0);
     for (let g = 0; g < 128; g++) ex.tick();
     const view = new Uint8Array(ex.memory.buffer, ex.cells() >>> 0, Math.ceil((w * h) / 8));
     let live = 0;
