@@ -189,6 +189,12 @@ public struct EventInfo: Equatable, Sendable {
     public let altKey: Bool
     public let metaKey: Bool
 
+    /// Raw JSON payload for custom events (e.g. a region's `sf:event`/`sf:error`).
+    /// `nil` for ordinary DOM events. Carried as a `String` (not a `JSObject`) so
+    /// `EventInfo` stays `Sendable` and core `Swiflow` stays free of JavaScriptKit;
+    /// typed decoding happens in the Region DSL via `RegionEventDecoding`.
+    public let detail: String?
+
     public init(
         type: String,
         targetValue: String? = nil,
@@ -198,7 +204,8 @@ public struct EventInfo: Equatable, Sendable {
         shiftKey: Bool = false,
         ctrlKey: Bool = false,
         altKey: Bool = false,
-        metaKey: Bool = false
+        metaKey: Bool = false,
+        detail: String? = nil
     ) {
         self.type = type
         self.targetValue = targetValue
@@ -209,6 +216,7 @@ public struct EventInfo: Equatable, Sendable {
         self.ctrlKey = ctrlKey
         self.altKey = altKey
         self.metaKey = metaKey
+        self.detail = detail
     }
 
     /// `targetValue` parsed as an `Int`; `nil` if absent or unparseable.
