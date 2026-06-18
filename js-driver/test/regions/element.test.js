@@ -57,4 +57,23 @@ describe("SfRegion element", () => {
     assert.equal(props.length, 1, "two synchronous sets coalesce to one post");
     assert.equal(props[0].payload, JSON.stringify({ count: 3 }));
   });
+
+  test("worker 'event' becomes a sf:event CustomEvent with parsed detail", () => {
+    const { el, workers } = mountRegion();
+    let got = null;
+    el.addEventListener("sf:event", (e) => { got = e.detail; });
+    workers[0]._send({ v: 1, kind: "event", payload: JSON.stringify({ kind: "select", id: 9 }) });
+    assert.deepEqual(got, { kind: "select", id: 9 });
+  });
+
+  test("worker 'ready' and 'error' map to sf:ready / sf:error", () => {
+    const { el, workers } = mountRegion();
+    let ready = false, err = null;
+    el.addEventListener("sf:ready", () => { ready = true; });
+    el.addEventListener("sf:error", (e) => { err = e.detail; });
+    workers[0]._send({ v: 1, kind: "ready", payload: { protocol: 1 } });
+    workers[0]._send({ v: 1, kind: "error", payload: { code: "init-failed", message: "boom" } });
+    assert.equal(ready, true);
+    assert.deepEqual(err, { code: "init-failed", message: "boom" });
+  });
 });
