@@ -89,6 +89,14 @@
       ctrlKey: Boolean(event.ctrlKey),
       altKey: Boolean(event.altKey),
       metaKey: Boolean(event.metaKey),
+      // Custom events (e.g. a region's `sf:event`/`sf:error`) carry an object
+      // `detail`; forward it as a JSON string so it can reach Swift through the
+      // existing dispatch path. Ordinary DOM events whose `detail` is a number
+      // (e.g. click count) are intentionally excluded.
+      detail:
+        event.detail !== null && typeof event.detail === "object"
+          ? JSON.stringify(event.detail)
+          : null,
     };
   }
 
