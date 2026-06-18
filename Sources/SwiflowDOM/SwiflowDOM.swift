@@ -59,6 +59,7 @@ public extension Swiflow {
         CSSInjector.setup()
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         DispatcherBridge.install()
+        RegionDecoder.current = SwiflowRegionDecoder()
         RefResolverInstall.resolver = { handle in
             guard let swiflowGlobal = JSObject.global.swiflow.object else { return nil }
             let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
