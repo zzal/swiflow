@@ -25,9 +25,13 @@ guard fm.fileExists(atPath: examplesRoot.path) else {
     exit(1)
 }
 
+// `RegionDemo` is a repo feature-demo (its wasm guest builds from source via
+// js-driver's asc), not a `swiflow init` starter — and it carries a binary
+// `universe.wasm` that can't round-trip this UTF-8 codegen. Excluded whole.
 let blacklist: Set<String> = [
     ".build", ".swiftpm", ".DS_Store", "Package.resolved",
     "swiflow-driver.js", "swiflow-sw.js", "swiflow-manifest.json",
+    "RegionDemo",
 ]
 
 func normalize(_ raw: String, exampleName: String, relativePath: String) -> String {

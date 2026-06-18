@@ -31,6 +31,9 @@ enum TemplateEmbedder {
     ///   the JS driver + service worker come from EmbeddedDriver (which is
     ///   itself codegen'd from js-driver/). Keeping them out of the template
     ///   avoids two paths for the same canonical bytes.
+    /// - `RegionDemo`: a repo feature-demo (its wasm guest builds from source
+    ///   via js-driver's asc), not a `swiflow init` starter — and it carries a
+    ///   binary `universe.wasm` that can't round-trip this UTF-8 templating.
     static let blacklist: Set<String> = [
         ".build",
         ".swiftpm",
@@ -39,6 +42,7 @@ enum TemplateEmbedder {
         "swiflow-driver.js",
         "swiflow-sw.js",
         "swiflow-manifest.json",
+        "RegionDemo",
     ]
 
     struct TemplateData {
