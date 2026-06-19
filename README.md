@@ -5,18 +5,35 @@
 ![Platform: WebAssembly](https://img.shields.io/badge/platform-WebAssembly-lightgrey.svg)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-> Build reactive web frontends in **pure Swift**, compiled to WebAssembly.
+## Why Swiflow?
 
-The tried-and-trusted frontend mental model — components, `@State`, two-way bindings, a router,
-data-fetching, and a UI kit — in the language you already know. Every render
-batches all DOM mutations into a single JS-bridge crossing, so Swift-on-the-web
-stays fast.
+React was the right answer to a constraint that no longer holds.
+WebAssembly lets the work move from runtime to compile time, and Swiflow is a bet
+on what that makes possible — reactivity with no ceremony, a typed UI with no
+template language, hot reload that keeps your state, and a batched bridge that
+keeps it fast, with ergonomics bought from compile-time power that's structurally
+hard to copy. 2026 is a fair time to ask whether the old defaults are still the
+best we can do. Swiflow is one answer worth a look.
 
-Swiflow is an independent project, built and maintained by one person as a
+**[Why Swiflow exists — a case for re-questioning the defaults →](WHY.md)**
+
+> Swiflow is an independent project, built and maintained by one person as a
 hands-on exploration of Swift on the web. It's **pre-1.0 and experimental** —
 see the [changelog](CHANGELOG.md) for where things stand.
 
-**[Why Swiflow? →](WHY.md)**
+## Highlights
+
+- **State-preserving HMR** — `swiflow dev` hot-swaps the running WASM on every save; `@State` survives, the page never reloads.
+- **Reactive components** — `@Component` + `@State`, with `onAppear` / `onChange` / `onDisappear` lifecycle hooks firing across the whole tree.
+- **Typed event DSL & bindings** — `.on(.click) { … }`; two-way `.value($text)`, `.checked($flag)`, `.selection($choice)`.
+- **CSS-in-Swift** — a `css { }` builder, scoped `<style>` per component, and exit animations.
+- **Routing** — `SwiflowRouter`: hash + history mode, `RouterRoot` / `Route` / `Link`, `@Environment(\.router)`.
+- **Data layer** — `SwiflowQuery`: declarative data fetching with caching, request dedup, and stale-while-revalidate.
+- **Forms** — `FormController` / `Field` with blur-triggered validation.
+- **UI kit** — `SwiflowUI`: accessible, token-driven components that adapt to dark mode / contrast / reduced motion with no component code.
+- **Testing** — `SwiflowTesting` headless harness (`render` / `click` / `input`); deterministic async via `AsyncTestHarness`.
+- **DevTools** — a read-only browser **DevTools panel** (Chrome side panel + Safari Web Inspector) that x-rays the live component tree and `@State`; sideload it from [`devtools/`](devtools/).
+- **Safe by default** — `URLSanitizer` scrubs `javascript:` / `data:` / `blob:` URLs at the DSL fold; `rawHTML(_:)` is the loud escape hatch.
 
 ## A component
 
@@ -69,20 +86,6 @@ cd my-app && ../.build/release/swiflow dev      # → http://localhost:3000
 Run `swiflow doctor` to verify your toolchain. Hacking on Swiflow itself? Add
 `--swiflow-source $(pwd)` to `init` so the new project depends on your local clone
 instead of a published release.
-
-## Highlights
-
-- **State-preserving HMR** — `swiflow dev` hot-swaps the running WASM on every save; `@State` survives, the page never reloads.
-- **Reactive components** — `@Component` + `@State`, with `onAppear` / `onChange` / `onDisappear` lifecycle hooks firing across the whole tree.
-- **Typed event DSL & bindings** — `.on(.click) { … }`; two-way `.value($text)`, `.checked($flag)`, `.selection($choice)`.
-- **CSS-in-Swift** — a `css { }` builder, scoped `<style>` per component, and exit animations.
-- **Routing** — `SwiflowRouter`: hash + history mode, `RouterRoot` / `Route` / `Link`, `@Environment(\.router)`.
-- **Data layer** — `SwiflowQuery`: declarative data fetching with caching, request dedup, and stale-while-revalidate.
-- **Forms** — `FormController` / `Field` with blur-triggered validation.
-- **UI kit** — `SwiflowUI`: accessible, token-driven components that adapt to dark mode / contrast / reduced motion with no component code.
-- **Testing** — `SwiflowTesting` headless harness (`render` / `click` / `input`); deterministic async via `AsyncTestHarness`.
-- **DevTools** — a read-only browser **DevTools panel** (Chrome side panel + Safari Web Inspector) that x-rays the live component tree and `@State`; sideload it from [`devtools/`](devtools/).
-- **Safe by default** — `URLSanitizer` scrubs `javascript:` / `data:` / `blob:` URLs at the DSL fold; `rawHTML(_:)` is the loud escape hatch.
 
 ## The ecosystem
 
