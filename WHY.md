@@ -1,118 +1,157 @@
-# Why Swiflow exists — explained for a junior frontend dev
+# Why Swiflow exists — a case for re-questioning the defaults
 
-## The big picture
+## A fair question to ask in 2026
 
-Imagine you love React, but you don't want to write JavaScript or TypeScript.
-You want to write **Swift** — the same language Apple uses for iPhone apps.
-Why? Maybe because Swift has a stronger type system, fast performance, and you
-already know it from iOS work.
+For a decade, building for the web was a settled matter. A JavaScript library —
+React, then its many descendants — gave you a component model, declarative UI,
+and a virtual DOM that turned your intentions into efficient updates. It was the
+right answer. Not a fashion, not a mistake: given the constraints of its moment,
+it was close to the best design anyone could have drawn.
 
-To run Swift in a browser, there's a trick called **WebAssembly (WASM)** —
-basically, the browser can run compiled code that isn't JavaScript. So you
-compile your Swift app to a `.wasm` file, the browser loads it, and now Swift
-code runs in the page.
+But every great tool is shaped by a constraint, and this one's was fundamental:
+**JavaScript was the only language the browser could run.** So all the cleverness
+had to happen at *runtime* — state tracked by hooks as the app runs, your UI
+written in a dialect the engine re-interprets every render, type safety (when you
+reached for it) erased before a single line executes. Nobody *chose* that
+ceremony. The constraint did.
 
-But there's a catch. The browser's DOM (the live HTML — buttons, divs, all
-of it) lives in JavaScript-land. Swift-WASM lives in WASM-land. **Every time
-your Swift code wants to change a button's text, it has to "talk" across a
-bridge to JavaScript.** Every crossing of that bridge has overhead. If your
-app makes 1000 little DOM changes per frame, you pay that overhead 1000 times
-— and your app feels slow.
+That constraint is lifting. WebAssembly lets the browser run real compiled code,
+which means the work no longer has to wait for runtime — it can move to *compile
+time*, where a strong language and its compiler do it for you, once, and
+correctly. The momentum of 2026 seems to be shifting toward tools that try to
+turn that new freedom into better, faster results. Swiflow is one such bet — a
+small one — on what you might build when the old constraint is gone.
 
-That's the problem Swiflow is built to fix.
+## What the old default quietly asks you to accept
 
-## The two specific gaps Swiflow attacks
+The JavaScript-library model is so familiar it reads as the nature of the web
+rather than a set of choices made under pressure. Step back and the costs are
+visible:
 
-From [docs/brainstorm/swift-flow-prd.md](docs/brainstorm/swift-flow-prd.md):
+- **Ceremony around state** — setters, reducers, dependency arrays — so a
+  runtime can track what changed on your behalf.
+- **A UI described through indirection** — JSX or templates, `className` strings,
+  DOM attributes that nothing fully checks — re-interpreted on every render.
+- **Type safety that stops at the runtime's edge.** Even with TypeScript, the
+  types erase before the browser runs; the seam where your UI meets the DOM
+  stays dynamic, and that's where the Tuesday-afternoon bug lives.
+- **State you lose on save**, because hot reload can't always hold onto it.
+- **Accessibility and theming as per-component busywork** — dark mode, focus
+  rings, contrast, re-implemented file after file.
 
-| The Problem | What you hit today | What Swiflow does |
-|---|---|---|
-| **The "Bridge Tax"** | Frequent, small JS calls (slow) | Batches *all* DOM mutations from one render into a single list, sends it across the bridge in ONE leap |
-| **Toolchain Friction** | Manual `Package.swift`, JS glue, WASM SDK install, dev server config… | One CLI binary (`swiflow`) that scaffolds, builds, and serves |
+None of this is anyone's fault. It was *optimal under the constraint*. The honest
+question for 2026 is simply whether the constraint still holds — and it doesn't.
 
-The pitch in one sentence: **Swiflow is "Vite for Swift on the web."** Vite
-gave JS devs a one-command dev loop with instant feedback. Swift-on-the-web
-didn't have that. Swiflow does.
+## What becomes possible when the work moves to compile time
 
-## How is this different from Carton (and friends)?
+Swiflow builds reactive frontends in **Swift**, compiled to **WebAssembly**. The
+language choice isn't tribal; it's instrumental — Swift's compiler does three
+things a browser runtime can't:
 
-This is the part that confuses people. They sound similar. They are not.
+- **Macros** rewrite your code as it compiles, so `count += 1` *is* the state
+  update. No setter, no reducer, no dependency array.
+- **Result builders** make `div { … }` real, type-checked code — not a template,
+  not JSX, not a string the engine re-parses.
+- **A real type system** with no `any` to leak. If it compiles, the shapes line
+  up — and you find that out at your desk, not from a user.
 
-**Carton** (and its modern replacement, `swift package js` / PackageToJS) is
-a **build tool**. It knows how to compile Swift to WASM, install the right
-toolchain, and serve the output on `localhost`. That's it. It doesn't care
-*what* you're building — a game, a UI app, a number cruncher. It just
-compiles.
+```swift
+@MainActor @Component
+final class Counter {
+    @State var count = 0
 
-**Tokamak / ElementaryUI** are **UI libraries**. They give you SwiftUI-style
-components that render to HTML. But they don't ship a dev server or a CLI.
-You still wire up Carton (or whatever) yourself. And — critically — they
-don't solve the bridge tax: each component change is its own little JS call.
-
-**Swiflow** is both **a UI library AND the orchestrator around it**, designed
-together as one product:
-
+    var body: VNode {
+        div {
+            p("Count: \(count)")
+            button("Increment").on(.click) { self.count += 1 }
+        }
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          What you get                            │
-├──────────────────┬──────────────────┬───────────────────────────┤
-│   Carton         │  Tokamak / Elem  │      Swiflow              │
-├──────────────────┼──────────────────┼───────────────────────────┤
-│ Build + serve    │ UI components    │ Build + serve             │
-│ (no UI lib)      │ (no dev tools)   │   + UI components         │
-│                  │                  │   + batched bridge        │
-│                  │                  │   + @State reactivity     │
-│                  │                  │   + diagnostics + security│
-└──────────────────┴──────────────────┴───────────────────────────┘
-```
 
-**The killer feature that nobody else has: batched patches.** When state
-changes in Swiflow, the framework figures out *every* DOM mutation that needs
-to happen (add this node, change that text, remove that handler) into a list
-called `Patch`. Then it ships that entire list across the bridge once per
-frame. The JS driver replays the list in a tight loop. One bridge crossing
-per frame, no matter how many things changed.
+The whole counter. `count += 1` schedules the re-render; `div { }` is checked by
+the compiler; there is no second file and no template language. The everyday wins
+fall out of the same root:
 
-That's the React-style trick (React calls it "reconciliation"), but adapted
-specifically to be cheap across the WASM↔JS boundary.
+- **Two-way binding without a change handler** — `input().value($text)`.
+- **Hot reload that keeps your place** — `swiflow dev` hot-swaps the running app
+  on every save with `@State` preserved; the page never reloads.
+- **Accessible and adaptive for free** — the `SwiflowUI` kit is token-driven, so
+  dark mode, contrast, reduced motion, and reduced transparency are handled by
+  design tokens, not by branches you repeat in every component.
+- **Safe by default** — `javascript:` / `data:` / `blob:` URLs are scrubbed where
+  you build the node; `rawHTML(_:)` is the loud, opt-in exception.
 
-## The four priorities (the manifesto)
+## Fast by architecture, not by accident
 
-[docs/brainstorm/swift-flow-Developer-Manifesto.md](docs/brainstorm/swift-flow-Developer-Manifesto.md)
-locks the priorities, in order:
+There's a real reason "language X in the browser" usually disappoints: the DOM
+lives in JavaScript-land, your compiled code lives in WASM-land, and **every DOM
+change crosses a bridge** that costs something. Naively, a render touching a
+thousand nodes pays that toll a thousand times.
 
-1. **Growth** — make it easy for strangers to contribute
-2. **Performance** — actually win on speed vs. Tokamak
-3. **Observability** — when something breaks, the dev knows *why* immediately
-4. **Usability** — `swiflow init demo && swiflow dev` and you see Hello World in 60 seconds
+Swiflow takes React's best idea — reconciliation — and re-engineers it for the
+new substrate. On a state change it diffs the tree, collects *every* DOM mutation
+into a single list, ships it across the bridge **once per render**, and a tight
+JS loop replays it. One crossing, however much changed.
 
-Every architectural decision has been filtered through those four pillars in
-that order. That's why we shipped a CLI before reactivity, DWARF debugging
-before fancier diffing, and a browser **DevTools panel** that x-rays the live
-component tree and `@State` — Observability means seeing inside a running WASM
-app, not guessing.
+To be honest about where the speed is and isn't: for painting the DOM, the DOM is
+the bottleneck — Swiflow won't out-render a well-tuned JS app there. The speed it
+genuinely buys lives elsewhere — application *logic* runs as compiled WASM, the
+compiler deletes whole classes of bug before they ship, and a compile-checked,
+state-preserving dev loop is simply faster to iterate in. Better results, and
+faster ones, just not from the place the marketing usually points.
 
-## Where we are right now
+## Why this one is hard to copy
 
-Swiflow has grown well past the counter demo. The core (VDOM + batched patches
-+ `@State` reactivity) is now wrapped in a small ecosystem of libraries — routing
-(`SwiflowRouter`), data fetching with caching (`SwiflowQuery`), persisted state
+In a field that churns through a framework a season, the fair worry is that this
+is merely the next one. So it's worth knowing what sits underneath.
+
+We costed out rebuilding Swiflow's ergonomics in a friendlier, TypeScript-shaped
+language that also targets WASM (AssemblyScript). The finding *is* the point: the
+two features that make Swiflow feel light to use — macro-driven `@State` and the
+`div { }` builder — depend on compile-time macros and result builders, which
+those languages don't have. Rebuild it there and you fall back to `count.value =
+x` ceremony and `h("div", …)` hyperscript, or you sign up to maintain a fragile
+whole-program compiler plugin to fake the feel. The state-preserving hot reload,
+nearly free here, has to be reinvented by hand anywhere else.
+
+So the niceness isn't a coat of paint a faster clone scrapes off next quarter.
+It's **load-bearing** — bought with compile-time language power, and not cheap to
+reproduce. That's not a boast about Swiflow so much as an observation about where
+the ergonomics come from: the reason it's pleasant to use is the same reason it
+would be a chore to clone.
+
+## And no, it isn't Tokamak or Carton
+
+Inside the Swift world the neighbors are easy to confuse. **Carton** /
+`swift package js` is a build tool — compile and serve, nothing about the bridge.
+**Tokamak / Elementary** are UI libraries — components, but you bring your own
+dev loop, and each change tends to be its own bridge call. Swiflow is the
+renderer *and* the tooling, designed together around the batched bridge:
+**"Vite for Swift on the web,"** with the one trick neither neighbor has — a
+single crossing per render.
+
+## Where we honestly are
+
+Swiflow is well past the counter demo: a VDOM core with batched patches and
+`@State` reactivity, wrapped in routing (`SwiflowRouter`), data fetching with
+caching and stale-while-revalidate (`SwiflowQuery`), persisted state
 (`SwiflowStore`), a token-driven accessible UI kit (`SwiflowUI`), and a headless
-test harness (`SwiflowTesting`). It's still **pre-1.0 and experimental** — one
-person's hands-on exploration of Swift on the web — but it's real software with
-~1,000 tests behind it. The [README](README.md) and [CHANGELOG](CHANGELOG.md)
-track exactly where things stand.
+test harness (`SwiflowTesting`) — real software with roughly a thousand tests
+behind it.
 
-So today you can:
+It is also **pre-1.0 and experimental** — one person's hands-on exploration of
+Swift on the web. The [README](README.md) and [CHANGELOG](CHANGELOG.md) track
+where things actually stand, warts included. Today you can `swiflow init` a real
+project, `swiflow dev` to compile-serve-hot-reload with `@State` preserved, write
+a `@Component` that just works, and x-ray the live component tree from a
+[DevTools panel](devtools/) with Swift DWARF symbols that point a trap back to
+your own `.swift` line.
 
-- `swiflow init my-app` → a real scaffolded project
-- `swiflow dev` → compiles your Swift to WASM, serves on `:3000`, and **hot-swaps
-  the running app on every save with `@State` preserved** — no full page reload
-- Write a `Counter` `@Component` with `@State var count = 0` and a click handler — it just works
-- Inspect the live component tree and `@State` in a real **DevTools panel** — a
-  sideloaded Chrome/Safari browser extension under [`devtools/`](devtools/) — and
-  get Swift DWARF symbols so traps point back to your own `.swift` files
-
-**TL;DR:** Carton compiles. Tokamak draws UIs. Swiflow does both *and* solves
-the bridge tax that makes the others feel slow — wrapped in a one-command dev
-loop so a junior dev can ship Hello World in under a minute.
+**TL;DR:** React was the right answer to a constraint that no longer holds.
+WebAssembly lets the work move from runtime to compile time, and Swiflow is a bet
+on what that makes possible — reactivity with no ceremony, a typed UI with no
+template language, hot reload that keeps your state, and a batched bridge that
+keeps it fast, with ergonomics bought from compile-time power that's structurally
+hard to copy. 2026 is a fair time to ask whether the old defaults are still the
+best we can do. Swiflow is one answer worth a look.
