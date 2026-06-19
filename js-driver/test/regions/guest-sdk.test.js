@@ -52,9 +52,9 @@ describe("canvasGuest — raster mode", () => {
     assert.equal(Math.round(lastFps), 50);
   });
 
-  test("onProps and destroy reach the hooks", async () => {
+  test("props and destroy reach the hooks", async () => {
     const seen = { props: null, destroyed: false };
-    const factory = canvasGuest({ async setup() { return {}; }, frame() {}, onProps(s, p) { seen.props = p; }, destroy() { seen.destroyed = true; } });
+    const factory = canvasGuest({ async setup() { return {}; }, frame() {}, props(s, p) { seen.props = p; }, destroy() { seen.destroyed = true; } });
     const guest = await factory(fakeCanvas(), null, fakeHost({ w: 10, h: 10, dpr: 1 }));
     guest.onProps({ x: 9 });
     guest.destroy();
@@ -66,12 +66,26 @@ describe("canvasGuest — raster mode", () => {
     const warns = [];
     const orig = console.warn; console.warn = (...a) => warns.push(a);
     try {
-      const factory = canvasGuest({ async setup() { return {}; }, frame() {}, onProps() { throw new Error("boom"); } });
+      const factory = canvasGuest({ async setup() { return {}; }, frame() {}, props() { throw new Error("boom"); } });
       const guest = await factory(fakeCanvas(), null, fakeHost({ w: 10, h: 10, dpr: 1 }));
       guest.onProps({}); // must NOT throw
       assert.equal(warns.length, 1);
-      assert.match(String(warns[0][0]), /onProps threw/);
+      assert.match(String(warns[0][0]), /props threw/);
     } finally { console.warn = orig; }
+  });
+
+  test("emit is delivered on the frame context only — not setup or resize", async () => {
+    let setupArg = null, resizeCtx = null, frameCtx = null;
+    const factory = canvasGuest({
+      async setup(arg) { setupArg = arg; return {}; },
+      resize(s, c) { resizeCtx = c; },
+      frame(s, c) { frameCtx = c; },
+    });
+    const guest = await factory(fakeCanvas(), { a: 1 }, fakeHost({ w: 100, h: 80, dpr: 1 }));
+    guest.frame(16);
+    assert.equal(setupArg.emit, undefined);          // setup gets { props } only
+    assert.equal(resizeCtx.emit, undefined);         // the layout context carries no emit
+    assert.equal(typeof frameCtx.emit, "function");  // frame is emit's single home
   });
 });
 
