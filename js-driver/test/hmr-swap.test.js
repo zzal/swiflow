@@ -50,7 +50,14 @@ describe("dev-mode HMR swap", () => {
     dom.window.SWIFLOW_DEV = true;
     dom.window.WebSocket = FakeWS;
     dom.window.__SWIFLOW_SKIP_BOOT = true;
-    dom.window.performance = { now: () => 0 };
+    // `window.performance` is a getter-only accessor on current jsdom/Node, so
+    // a plain assignment throws ("Cannot set property … which has only a
+    // getter"). Define an own data property to override it deterministically.
+    Object.defineProperty(dom.window, "performance", {
+      value: { now: () => 0 },
+      configurable: true,
+      writable: true,
+    });
     dom.window.fetch = async (u) => ({
       ok: true,
       headers: { get: () => null },
