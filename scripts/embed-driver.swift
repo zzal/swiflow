@@ -20,10 +20,11 @@ let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
 
 let jsPath      = cwd.appendingPathComponent("js-driver/swiflow-driver.js")
 let swPath      = cwd.appendingPathComponent("js-driver/swiflow-sw.js")
-let regionsPath = cwd.appendingPathComponent("js-driver/swiflow-regions.js")
-let outPath     = cwd.appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
+let regionsPath  = cwd.appendingPathComponent("js-driver/swiflow-regions.js")
+let guestSdkPath = cwd.appendingPathComponent("js-driver/swiflow-region-guest.js")
+let outPath      = cwd.appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
 
-for path in [jsPath, swPath, regionsPath] {
+for path in [jsPath, swPath, regionsPath, guestSdkPath] {
     guard fm.fileExists(atPath: path.path) else {
         FileHandle.standardError.write(Data("error: \(path.path) not found. Run from repo root.\n".utf8))
         exit(1)
@@ -33,10 +34,12 @@ for path in [jsPath, swPath, regionsPath] {
 let js: String
 let sw: String
 let regions: String
+let guestSdk: String
 do {
-    js      = try String(contentsOf: jsPath, encoding: .utf8)
-    sw      = try String(contentsOf: swPath, encoding: .utf8)
-    regions = try String(contentsOf: regionsPath, encoding: .utf8)
+    js       = try String(contentsOf: jsPath, encoding: .utf8)
+    sw       = try String(contentsOf: swPath, encoding: .utf8)
+    regions  = try String(contentsOf: regionsPath, encoding: .utf8)
+    guestSdk = try String(contentsOf: guestSdkPath, encoding: .utf8)
 } catch {
     FileHandle.standardError.write(Data("error: failed to read source files: \(error)\n".utf8))
     exit(1)
@@ -59,7 +62,7 @@ let output = """
 // Regenerate by running, from the repo root:
 //     swift scripts/embed-driver.swift
 //
-// Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js
+// Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
 
 enum EmbeddedDriver {
     static let javascriptSource: String = #\"\"\"
@@ -72,6 +75,10 @@ enum EmbeddedDriver {
 
     static let regionsSource: String = #\"\"\"
 \(regions)
+\"\"\"#
+
+    static let guestSdkSource: String = #\"\"\"
+\(guestSdk)
 \"\"\"#
 }
 """ + "\n"

@@ -106,7 +106,8 @@ struct DevCommandIntegrationTests {
             swiflowDep: .path(BuildCommandIntegrationTests.swiflowRepoRoot.path),
             jsDriverSource: EmbeddedDriver.javascriptSource,
             jsServiceWorkerSource: EmbeddedDriver.serviceWorkerSource,
-            jsRegionsSource: EmbeddedDriver.regionsSource
+            jsRegionsSource: EmbeddedDriver.regionsSource,
+            jsGuestSdkSource: EmbeddedDriver.guestSdkSource
         )
         let projectRoot = tmp.appendingPathComponent("Demo")
 

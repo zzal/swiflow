@@ -29,9 +29,9 @@ enum ProjectWriter {
     ///   - template: the embedded template selected via `--template`.
     ///   - parent: parent directory in which the new project will be created.
     ///   - swiflowDep: how the generated `Package.swift` depends on Swiflow.
-    ///   - jsDriverSource / jsServiceWorkerSource / jsRegionsSource: pass
-    ///     `EmbeddedDriver.javascriptSource` / `EmbeddedDriver.serviceWorkerSource`
-    ///     / `EmbeddedDriver.regionsSource` in production; tests pass stub strings.
+    ///   - jsDriverSource / jsServiceWorkerSource / jsRegionsSource / jsGuestSdkSource:
+    ///     pass `EmbeddedDriver.javascriptSource` / `.serviceWorkerSource` /
+    ///     `.regionsSource` / `.guestSdkSource` in production; tests pass stub strings.
     ///   - _testFailDuringWrites: test-only hook that throws after the target
     ///     directory has been created, so the cleanup path is exercised
     ///     deterministically. Production callers omit it.
@@ -43,6 +43,7 @@ enum ProjectWriter {
         jsDriverSource: String,
         jsServiceWorkerSource: String,
         jsRegionsSource: String,
+        jsGuestSdkSource: String,
         _testFailDuringWrites: Bool = false
     ) throws {
         let fm = FileManager.default
@@ -91,6 +92,11 @@ enum ProjectWriter {
             )
             try jsRegionsSource.write(
                 to: project.appendingPathComponent("swiflow-regions.js"),
+                atomically: true,
+                encoding: .utf8
+            )
+            try jsGuestSdkSource.write(
+                to: project.appendingPathComponent("swiflow-region-guest.js"),
                 atomically: true,
                 encoding: .utf8
             )

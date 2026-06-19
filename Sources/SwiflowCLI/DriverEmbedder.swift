@@ -16,7 +16,7 @@ enum DriverEmbedder {
     /// source pass through untouched. The JS driver currently contains
     /// neither `"""#` nor `#"""`, but defensively bumping to `##"""..."""##`
     /// would be wise if a future JS edit ever introduced one.
-    static func swiftSource(driverJS: String, swJS: String, regionsJS: String) -> String {
+    static func swiftSource(driverJS: String, swJS: String, regionsJS: String, guestSdkJS: String) -> String {
         // Swift multi-line strings strip ONE newline immediately after the
         // opening delimiter and ONE immediately before the closing delimiter.
         // So to round-trip a JS source `V` (which itself ends in `\n`)
@@ -31,7 +31,7 @@ enum DriverEmbedder {
         // Regenerate by running, from the repo root:
         //     swift scripts/embed-driver.swift
         //
-        // Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js
+        // Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
 
         enum EmbeddedDriver {
             static let javascriptSource: String = #\"\"\"
@@ -44,6 +44,10 @@ enum DriverEmbedder {
 
             static let regionsSource: String = #\"\"\"
         \(regionsJS)
+        \"\"\"#
+
+            static let guestSdkSource: String = #\"\"\"
+        \(guestSdkJS)
         \"\"\"#
         }
         """ + "\n"

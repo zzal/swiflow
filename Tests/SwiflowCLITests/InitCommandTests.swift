@@ -18,7 +18,7 @@ struct InitCommandTests {
             swiflowDep: .path("../.."),
             jsDriverSource: "// fake driver\n",
             jsServiceWorkerSource: "// fake sw\n",
-            jsRegionsSource: "// fake regions\n"
+            jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
         let project = tmp.appendingPathComponent("Demo")
@@ -47,7 +47,7 @@ struct InitCommandTests {
             swiflowDep: .path("../.."),
             jsDriverSource: driver,
             jsServiceWorkerSource: "// fake sw\n",
-            jsRegionsSource: "// fake regions\n"
+            jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
         let url = tmp.appendingPathComponent("Demo/swiflow-driver.js")
@@ -68,7 +68,7 @@ struct InitCommandTests {
             swiflowDep: .path("../.."),
             jsDriverSource: "// fake driver\n",
             jsServiceWorkerSource: sw,
-            jsRegionsSource: "// fake regions\n"
+            jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
         let url = tmp.appendingPathComponent("Demo/swiflow-sw.js")
@@ -93,7 +93,7 @@ struct InitCommandTests {
                 swiflowDep: .path("../.."),
                 jsDriverSource: "// driver\n",
                 jsServiceWorkerSource: "// fake sw\n",
-                jsRegionsSource: "// fake regions\n"
+                jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
             )
         }
     }
@@ -116,7 +116,7 @@ struct InitCommandTests {
                 swiflowDep: .path("/abs/path/to/swiflow"),
                 jsDriverSource: "// driver\n",
                 jsServiceWorkerSource: "// fake sw\n",
-                jsRegionsSource: "// fake regions\n",
+                jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n",
                 _testFailDuringWrites: true
             )
             Issue.record("expected writeProject to throw when _testFailDuringWrites is true")
@@ -143,7 +143,7 @@ struct InitCommandTests {
             swiflowDep: .path("/abs/path/to/swiflow"),
             jsDriverSource: "// driver\n",
             jsServiceWorkerSource: "// fake sw\n",
-            jsRegionsSource: "// fake regions\n"
+            jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
         let pkg = try String(
@@ -165,7 +165,7 @@ struct InitCommandTests {
             swiflowDep: .path("../.."),
             jsDriverSource: "// driver\n",
             jsServiceWorkerSource: "// fake sw\n",
-            jsRegionsSource: "// fake regions\n"
+            jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
         let app = try String(
