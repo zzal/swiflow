@@ -913,9 +913,18 @@ const PROTOCOL = 1;
 
 // Worker-side: translate the protocol to/from a guest ES module instance.
 // `deps.post(msg)` sends an envelope; `deps.importGuest(source)` resolves the
-// guest factory (real impl uses dynamic import()); `deps.raf` schedules a frame.
-export function createGuestHost({ post, importGuest, raf }) {
-  const requestFrame = raf || ((cb) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(cb) : null));
+// guest factory (real impl uses dynamic import()); `deps.raf`/`deps.caf`
+// schedule/cancel a frame (defaulted below).
+export function createGuestHost({ post, importGuest, raf, caf }) {
+  // Drive frames with requestAnimationFrame when available, else fall back to a
+  // ~60fps setTimeout: dedicated workers don't expose rAF in Safari/Firefox
+  // (Chromium does), so without the fallback the guest renders once and never
+  // ticks. A matching cancel is required — an uncancelled setTimeout loop would
+  // double-fire across a pause/resume.
+  const hasRAF = typeof requestAnimationFrame === "function";
+  const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const requestFrame = raf || (hasRAF ? (cb) => requestAnimationFrame(cb) : (cb) => setTimeout(() => cb(now()), 16));
+  const cancelFrame = caf || (hasRAF ? (id) => cancelAnimationFrame(id) : (id) => clearTimeout(id));
   let guest = null;
   let loopId = null;
   let lastTs = 0;
@@ -936,7 +945,7 @@ export function createGuestHost({ post, importGuest, raf }) {
     };
     loopId = requestFrame(tick);
   }
-  function stopLoop() { loopId = null; lastTs = 0; }
+  function stopLoop() { if (loopId !== null) cancelFrame(loopId); loopId = null; lastTs = 0; }
 
   async function handle(msg, canvas) {
     const { kind, payload } = msg;
