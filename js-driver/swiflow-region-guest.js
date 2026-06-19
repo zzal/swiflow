@@ -5,12 +5,16 @@
 // dpr-crisp sizing, resize→grid reflow detection, the fps EMA, and lifecycle, so
 // the author writes only setup() + a per-frame draw. The raw
 // (canvas, props, ctx) => guest contract stays available for advanced guests.
+//
+// `cellSize` present → grid mode: the shim derives cols/rows from the measured
+// size, snaps the canvas to whole cells, and fires `resize` only when the cell
+// count changes. Absent → raster mode: the canvas is the measured device size and
+// `resize` fires on any device-dim change.
 
 export function canvasGuest(config) {
-  const { setup, resize, frame, onProps, destroy } = config;
+  const { cellSize, setup, resize, frame, onProps, destroy } = config;
+  const grid = cellSize != null;
 
-  // Catch a throw in a post-setup hook so a guest bug doesn't escape uncaught into
-  // the worker message handler. setup/frame keep the host's init/frame envelopes.
   function guard(label, fn) {
     try { return fn(); } catch (e) { console.warn(`[region-guest] ${label} threw:`, e); }
   }
@@ -20,19 +24,31 @@ export function canvasGuest(config) {
     const emit = host.emit;
     const state = await setup({ props, emit });
 
+    let cols = 0, rows = 0, cell = grid ? cellSize : 0;
     let width = 0, height = 0, dpr = 1, fps = 0;
 
     // Size the canvas buffer to a measured device size. Returns whether the
-    // raster device dims changed (so resize fires only on a real change).
+    // logical layout changed (grid cols/rows, or raster device dims).
     function applySize(devW, devH, devDpr) {
       dpr = devDpr || 1;
-      const changed = devW !== width || devH !== height;
-      width = devW; height = devH;
-      if (canvas.width !== devW) canvas.width = devW;
-      if (canvas.height !== devH) canvas.height = devH;
+      let bw, bh, changed;
+      if (grid) {
+        const c = Math.max(8, Math.floor(devW / dpr / cellSize));
+        const r = Math.max(8, Math.floor(devH / dpr / cellSize));
+        cell = Math.max(1, Math.round(cellSize * dpr));
+        changed = c !== cols || r !== rows;
+        cols = c; rows = r; bw = c * cell; bh = r * cell;
+      } else {
+        changed = devW !== width || devH !== height;
+        width = devW; height = devH; bw = devW; bh = devH;
+      }
+      if (canvas.width !== bw) canvas.width = bw;
+      if (canvas.height !== bh) canvas.height = bh;
       return changed;
     }
-    function dims() { return { width, height, dpr, emit }; }
+    function dims() {
+      return grid ? { cols, rows, cell, dpr, emit } : { width, height, dpr, emit };
+    }
 
     // Initial sizing runs inside the factory, so a throw here → host init-failed.
     const s0 = host.size || { w: 360, h: 360, dpr: 1 };
@@ -46,7 +62,8 @@ export function canvasGuest(config) {
       onProps(p) { if (onProps) guard("onProps", () => onProps(state, p)); },
       frame(dt) {
         if (dt > 0) fps = fps ? fps * 0.9 + (1000 / dt) * 0.1 : 1000 / dt;
-        frame(state, { ctx2d, width, height, dpr, dt, fps, emit });
+        const base = { ctx2d, dt, fps, dpr, emit };
+        frame(state, grid ? { ...base, cols, rows, cell } : { ...base, width, height });
       },
       destroy() { if (destroy) guard("destroy", () => destroy(state)); },
     };

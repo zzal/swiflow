@@ -74,3 +74,47 @@ describe("canvasGuest — raster mode", () => {
     } finally { console.warn = orig; }
   });
 });
+
+describe("canvasGuest — grid mode", () => {
+  function fakeCanvas() { const ctx2d = { _is: "ctx2d" }; return { width: 0, height: 0, getContext: () => ctx2d, _ctx: ctx2d }; }
+  function fakeHost(size) { return { emit: () => {}, size }; }
+
+  test("derives cols/rows/cell from cellSize, sizes the buffer, clamps to 8", async () => {
+    const got = [];
+    const factory = canvasGuest({ cellSize: 10, async setup() { return {}; }, resize(s, c) { got.push([c.cols, c.rows, c.cell]); }, frame() {} });
+    const canvas = fakeCanvas();
+    await factory(canvas, null, fakeHost({ w: 200, h: 50, dpr: 1 })); // cols=20, rows=max(8,5)=8
+    assert.deepEqual(got, [[20, 8, 10]]);
+    assert.equal(canvas.width, 200);  // 20 * 10
+    assert.equal(canvas.height, 80);  // 8 * 10
+  });
+
+  test("a pure-dpr change keeps the grid: resize skipped, buffer still re-sized", async () => {
+    const grids = [];
+    const factory = canvasGuest({ cellSize: 10, async setup() { return {}; }, resize(s, c) { grids.push([c.cols, c.rows, c.cell]); }, frame() {} });
+    const canvas = fakeCanvas();
+    const guest = await factory(canvas, null, fakeHost({ w: 200, h: 100, dpr: 1 })); // 20x10, cell 10, buffer 200x100
+    guest.onResize(400, 200, 2); // same CSS size at dpr 2 → cols 20, rows 10 (unchanged), cell 20
+    assert.deepEqual(grids, [[20, 10, 10]]); // only the initial resize
+    assert.equal(canvas.width, 400);   // buffer re-sized: 20 * 20
+    assert.equal(canvas.height, 200);  // 10 * 20
+  });
+
+  test("resize fires when the grid count changes", async () => {
+    const grids = [];
+    const factory = canvasGuest({ cellSize: 10, async setup() { return {}; }, resize(s, c) { grids.push([c.cols, c.rows]); }, frame() {} });
+    const guest = await factory(fakeCanvas(), null, fakeHost({ w: 200, h: 100, dpr: 1 })); // 20x10
+    guest.onResize(300, 100, 1); // 30x10 → change
+    assert.deepEqual(grids, [[20, 10], [30, 10]]);
+  });
+
+  test("frame forwards cols/rows/cell/dpr", async () => {
+    let f = null;
+    const factory = canvasGuest({ cellSize: 6, async setup() { return {}; }, frame(s, c) { f = c; } });
+    const guest = await factory(fakeCanvas(), null, fakeHost({ w: 120, h: 60, dpr: 1 })); // 20x10, cell 6
+    guest.frame(16);
+    assert.equal(f.cols, 20); assert.equal(f.rows, 10); assert.equal(f.cell, 6); assert.equal(f.dpr, 1);
+    assert.ok(f.ctx2d && f.dt === 16);
+  });
+});
+
