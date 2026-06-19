@@ -39,7 +39,7 @@ export const hooks = {
   cellSize: 6,
   async setup() { return { ex: await loadUniverse(), seed: 0, gen: 0, reseed: false }; },
   resize(s, { cols, rows }) { s.ex.init(cols, rows, s.seed); s.gen = 0; },
-  onProps(s, p) { if (p && p.reset !== s.seed) { s.seed = p.reset; s.reseed = true; } },
+  props(s, p) { if (p && p.reset !== s.seed) { s.seed = p.reset; s.reseed = true; } },
   frame(s, { ctx2d, cols, rows, cell, dpr, fps, emit }) {
     if (s.reseed) { s.ex.init(cols, rows, s.seed); s.gen = 0; s.reseed = false; }
     s.ex.tick(); s.gen++;

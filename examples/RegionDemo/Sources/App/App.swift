@@ -29,7 +29,7 @@ final class Demo {
                 Badge("The guest failed to load", variant: .danger)
             } else {
                 // `resetToken` rides in the props; bumping it signals the guest
-                // (the wasm) to re-seed a fresh board. See adapter.js onProps.
+                // (the wasm) to re-seed a fresh board. See adapter.js props.
                 region(GameOfLife.self, key: "gol", props: GoLProps(speed: 1, cellSize: 6, reset: resetToken))
                     .onEvent { e in self.generation = e.value }
                     .onError { _ in self.failed = true }

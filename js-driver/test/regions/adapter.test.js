@@ -40,10 +40,10 @@ describe("game-of-life hooks", () => {
     assert.equal(s.gen, 0);
   });
 
-  test("onProps flags a reseed only on a reset-token change", () => {
+  test("props flags a reseed only on a reset-token change", () => {
     const s = { seed: 0, reseed: false };
-    hooks.onProps(s, { reset: 0 }); assert.equal(s.reseed, false);
-    hooks.onProps(s, { reset: 1 }); assert.equal(s.reseed, true); assert.equal(s.seed, 1);
+    hooks.props(s, { reset: 0 }); assert.equal(s.reseed, false);
+    hooks.props(s, { reset: 1 }); assert.equal(s.reseed, true); assert.equal(s.seed, 1);
   });
 
   test("frame ticks, applies a pending reseed once, emits generation every 64", () => {
