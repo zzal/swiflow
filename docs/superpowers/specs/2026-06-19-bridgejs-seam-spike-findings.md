@@ -9,9 +9,9 @@ BridgeJS works through Swiflow's *real* pipeline today: the plugin ships in the
 pinned **JSKit 0.53.0**, codegen runs under `swift package js`, the export
 round-trip (JS→wasm→JS, struct fields intact) was **browser-verified**, and it
 compiles under **strict-concurrency v6** alongside the `@Component` macro. Two real
-gaps to close in the migration: (1) the **dev/HMR path leaves the JS glue stale**
-on `@JS` changes, and (2) the **import direction needs the `typescript` npm
-package**. Neither is a blocker.
+gaps to close in the migration: (1) the **dev/HMR fast path breaks on `@JS`-surface
+edits** (stale generated glue → a failed rebuild, not just stale output), and (2)
+the **import direction needs the `typescript` npm package**. Neither is a blocker.
 
 ## Verdicts
 
@@ -27,18 +27,30 @@ PackageToJS emitted the JS glue (`bridge-js.js` + `bridge-js.d.ts`) alongside
 `bridge-js.js` and auto-wires the `bjs` imports + typed exports — **no manual
 `link` step**.
 
-**Q2-dev — `CompilerBypass` runs codegen on HMR? → PARTIALLY (the main gap).**
-Added a `@JS public func spikePing()` live and saved. The bypass re-ran the
-build-tool plugin (regenerated `BridgeJS.swift` *with* `spikePing`, mtime 16:50:14)
-and relinked a fresh `App.wasm` (16:50:16) — but **did NOT re-run PackageToJS
-packaging**, so the served `bridge-js.js` stayed stale (16:49:19, no `spikePing`).
-- **Consequence:** changing the `@JS` surface in dev yields a **wasm/JS-glue
-  mismatch** — new exports aren't callable, and a changed `bjs` import surface
-  could fail instantiation. Same shape as the historical reactor-flag bypass gap
-  (`Sources/SwiflowCLI/DevServer/CompilerBypass.swift:258`).
-- **Fix:** on a `@JS`-surface change, re-run the BridgeJS link / PackageToJS
-  packaging for `bridge-js.js`, or detect such changes and fall back to a full
-  rebuild. Body-only edits (not touching the `@JS` signature) are unaffected.
+**Q2-dev — `CompilerBypass` runs codegen on HMR? → NO after the first rebuild (the main gap — worse than first measured).**
+`swiflow dev` does a full initial build (codegen runs). The *first* edit triggers
+`capturing compile commands (one-time)` and succeeds: adding `@JS public func
+spikePing()` regenerated `BridgeJS.swift` (mtime 16:50:14) + relinked `App.wasm`
+(16:50:16) — but already left the served `bridge-js.js` stale (16:49:19).
+**Subsequent** fast rebuilds replay those cached commands, which **do NOT re-run
+BridgeJS generate** — so the generated `BridgeJS.swift` *also* goes stale. The next
+`@JS`-surface edit (reverting `spikePing`) **failed the rebuild outright**:
+
+```
+BridgeJS.swift:89:15: error: cannot find 'spikePing' in scope
+    let ret = spikePing()
+swiflow: rebuild failed — swift build failed with exit code 1.
+```
+
+The stale generated wrapper `_bjs_spikePing()` still called the function the edit removed.
+- **Consequence:** body-only edits hot-reload fine, but **any `@JS`-surface change
+  needs a full rebuild** — the bypass serves stale *generated* glue (`BridgeJS.swift`
+  *and* `bridge-js.js`), and a removal/rename breaks compilation. Same family as the
+  reactor-flag bypass gap (`Sources/SwiflowCLI/DevServer/CompilerBypass.swift:258`),
+  but now hitting generated sources, not just linker flags.
+- **Fix:** detect `@JS`-surface changes (or just the presence of `@JS` / `bridge-js.*`)
+  and fall back to a full `swift package js` rebuild (re-run BridgeJS generate +
+  link); only body-only edits take the fast path.
 
 **Q3 — `@JS` + `Extern` compile under v6 + the `@Component` macro? → YES.**
 The probe target carries `.swiftLanguageMode(.v6)`,
@@ -101,8 +113,9 @@ Swift called back to JS. Full JS→wasm→JS round-trip, alongside a live Swiflo
 1. **Seam B (outbound `mount`) + Seam A (inbound dispatch export)** — both proven
    here. Wire the driver to capture `result.exports` and call the exported dispatch.
    Add the package-root `tsconfig.json` and the `public init` pattern.
-2. **Close the dev gap** (regenerate `bridge-js.js` on `@JS` changes, or full-rebuild
-   fallback) before relying on BridgeJS under `swiflow dev`.
+2. **Close the dev gap** — `@JS`-surface edits must trigger a full rebuild (the
+   bypass leaves *both* `BridgeJS.swift` and `bridge-js.js` stale and can fail the
+   rebuild) — before relying on BridgeJS under `swiflow dev`.
 3. **Vendor `typescript`** (or document `npm install`) before using typed imports
    (`bridge-js.d.ts`) — or keep using classic JSKit dynamic calls for the JS→Swift
    sink, as this probe did.
