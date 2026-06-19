@@ -1,105 +1,59 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { makeGuest } from "../../../examples/RegionDemo/regions/game-of-life/adapter.js";
+import { hooks, drawCells } from "../../../examples/RegionDemo/regions/game-of-life/adapter.js";
 
-// A fake wasm `ex`: bit-packed cells in a generous buffer + init/cells/tick/memory.
-// init() is a no-op so the preset live cells survive (the test controls them);
-// the real wasm re-seeds on init — that's covered by universe-wasm.test.js. The
-// buffer is oversized so reseed's draw never reads out of bounds at any grid.
+// Oversized buffer so drawCells never reads out of bounds at any grid.
 function fakeEx(aliveIndices) {
   const bytes = new Uint8Array(8192);
   for (const i of aliveIndices) bytes[i >> 3] |= (1 << (i & 7));
-  let gen = 0;
+  let gen = 0; const inits = [];
   return {
     memory: { buffer: bytes.buffer },
-    init: () => {},
-    cells: () => 0,
-    tick: () => { gen++; },
-    _gen: () => gen,
+    init: (w, h, seed) => inits.push([w, h, seed]),
+    cells: () => 0, tick: () => { gen++; }, _gen: () => gen, _inits: inits,
   };
 }
-
 function fakeCtx() {
   const rects = [];
-  const texts = [];
   return {
-    fillStyle: "", strokeStyle: "", lineWidth: 0, font: "", textBaseline: "",
+    fillStyle: "", font: "", textBaseline: "",
     fillRect: (x, y, w, h) => rects.push([x, y, w, h]),
-    measureText: (s) => ({ width: s.length * 6 }),
-    fillText: (s, x, y) => texts.push([s, x, y]),
-    _rects: rects, _texts: texts,
+    measureText: (s) => ({ width: s.length * 6 }), fillText() {},
+    _rects: rects,
   };
 }
 
-describe("game-of-life adapter core", () => {
-  test("draws a fillRect per live cell at the right grid coords", () => {
-    // 10x8 grid; live cells at index 0 -> (0,0) and index 23 -> (3,2).
-    const ex = fakeEx([0, 23]);
+describe("game-of-life hooks", () => {
+  test("drawCells draws a fillRect per live cell at grid coords", () => {
+    const ex = fakeEx([0, 23]); // 10x8 grid: 0 -> (0,0), 23 -> (3,2)
     const ctx2d = fakeCtx();
-    const guest = makeGuest({ ex, canvas: {}, ctx2d, cell: 10, emit: () => {} });
-    guest.onResize(100, 80, 1); // -> 10x8 grid, 10px cells (also draws once)
-    ctx2d._rects.length = 0; // ignore the initial reseed draw
-    guest.frame();
+    drawCells(ctx2d, ex, 10, 8, 10);
     assert.deepEqual(ctx2d._rects.filter((r) => r[2] === 10 && r[3] === 10),
       [[0, 0, 10, 10], [30, 20, 10, 10]]);
   });
 
-  test("ticks `speed` times per frame and emits a generation event periodically", () => {
+  test("resize re-seeds with the current seed and resets the count", () => {
     const ex = fakeEx([]);
-    let emitted = null;
-    const guest = makeGuest({ ex, canvas: {}, ctx2d: fakeCtx(), cell: 4, speed: 64, emit: (e) => { emitted = e; } });
-    guest.onResize(32, 32, 1); // -> 8x8 grid
-    guest.frame();
-    assert.equal(ex._gen(), 64);
-    assert.deepEqual(emitted, { kind: "generation", value: 64 });
+    const s = { ex, seed: 7, gen: 99, reseed: false };
+    hooks.resize(s, { cols: 12, rows: 9 });
+    assert.deepEqual(ex._inits, [[12, 9, 7]]);
+    assert.equal(s.gen, 0);
   });
 
-  test("onResize reflows: re-inits to the new cell grid, skipping no-op resizes", () => {
-    const initCalls = [];
-    const ex = fakeEx([]);
-    ex.init = (w, h) => initCalls.push([w, h]);
-    const canvas = {};
-    const guest = makeGuest({ ex, canvas, ctx2d: fakeCtx(), cell: 10, emit: () => {} });
-    guest.onResize(150, 100, 1);  // 15x10
-    guest.onResize(300, 200, 2);  // dpr 2 -> 15x10 again, no re-init
-    guest.onResize(250, 150, 1);  // 25x15 -> re-init
-    assert.deepEqual(initCalls, [[15, 10], [25, 15]]);
-    assert.equal(canvas.width, 25 * 10); // device-px buffer for the last grid
+  test("onProps flags a reseed only on a reset-token change", () => {
+    const s = { seed: 0, reseed: false };
+    hooks.onProps(s, { reset: 0 }); assert.equal(s.reseed, false);
+    hooks.onProps(s, { reset: 1 }); assert.equal(s.reseed, true); assert.equal(s.seed, 1);
   });
 
-  test("a reflow resets the generation count (emits 0)", () => {
+  test("frame ticks, applies a pending reseed once, emits generation every 64", () => {
     const ex = fakeEx([]);
     const emits = [];
-    const guest = makeGuest({ ex, canvas: {}, ctx2d: fakeCtx(), cell: 10, speed: 64, emit: (e) => emits.push(e.value) });
-    guest.onResize(100, 80, 1); // seed -> emit 0
-    guest.frame();              // gen 64
-    guest.frame();              // gen 128
-    guest.onResize(200, 160, 1); // reflow -> emit 0 again (count reset)
-    assert.deepEqual(emits, [0, 64, 128, 0]);
-  });
-
-  test("a changed reset token re-seeds with a new board and resets the count", () => {
-    const seeds = [];
-    const ex = fakeEx([]);
-    ex.init = (w, h, seed) => seeds.push(seed);
-    const emits = [];
-    const guest = makeGuest({ ex, canvas: {}, ctx2d: fakeCtx(), cell: 10, speed: 64, emit: (e) => emits.push(e.value) });
-    guest.onResize(100, 80, 1);  // initial seed 0
-    guest.frame();               // gen 64
-    guest.onProps({ reset: 3 }); // reset -> seed 3, count 0
-    guest.onProps({ reset: 3 }); // same token -> no-op
-    assert.deepEqual(seeds, [0, 3]);
-    assert.deepEqual(emits, [0, 64, 0]);
-  });
-
-  test("frame(dt) tracks and overlays a smoothed frame rate", () => {
-    const ex = fakeEx([]);
-    const ctx2d = fakeCtx();
-    const guest = makeGuest({ ex, canvas: {}, ctx2d, cell: 10, emit: () => {} });
-    guest.onResize(100, 80, 1);
-    for (let i = 0; i < 10; i++) guest.frame(20); // 20ms/frame -> 50 fps
-    const label = ctx2d._texts.at(-1)[0];
-    assert.match(label, /^\d+ fps$/);
-    assert.equal(label, "50 fps");
+    const s = { ex, seed: 2, gen: 0, reseed: true };
+    const ctx = { ctx2d: fakeCtx(), cols: 8, rows: 8, cell: 6, dpr: 1, fps: 60, emit: (e) => emits.push(e) };
+    for (let i = 0; i < 64; i++) hooks.frame(s, ctx);
+    assert.deepEqual(ex._inits, [[8, 8, 2]]); // reseed applied once, on the first frame
+    assert.equal(s.gen, 64);
+    assert.deepEqual(emits.at(-1), { kind: "generation", value: 64 });
   });
 });
