@@ -9,7 +9,7 @@
     "build:gol": "asc ../examples/RegionDemo/regions/game-of-life/universe.ts --outFile ../examples/RegionDemo/regions/game-of-life/universe.wasm --runtime stub --optimize"
   },
   "devDependencies": {
-    "assemblyscript": "^0.27.37",
-    "jsdom": "^25.0.0"
+    "assemblyscript": "0.28.19",
+    "jsdom": "29.1.1"
   }
 }
