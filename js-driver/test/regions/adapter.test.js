@@ -21,12 +21,13 @@ function fakeEx(aliveIndices) {
 
 function fakeCtx() {
   const rects = [];
-  const strokes = [];
+  const texts = [];
   return {
-    fillStyle: "", strokeStyle: "", lineWidth: 0,
+    fillStyle: "", strokeStyle: "", lineWidth: 0, font: "", textBaseline: "",
     fillRect: (x, y, w, h) => rects.push([x, y, w, h]),
-    strokeRect: (x, y, w, h) => strokes.push([x, y, w, h]),
-    _rects: rects, _strokes: strokes,
+    measureText: (s) => ({ width: s.length * 6 }),
+    fillText: (s, x, y) => texts.push([s, x, y]),
+    _rects: rects, _texts: texts,
   };
 }
 
@@ -89,5 +90,16 @@ describe("game-of-life adapter core", () => {
     guest.onProps({ reset: 3 }); // same token -> no-op
     assert.deepEqual(seeds, [0, 3]);
     assert.deepEqual(emits, [0, 64, 0]);
+  });
+
+  test("frame(dt) tracks and overlays a smoothed frame rate", () => {
+    const ex = fakeEx([]);
+    const ctx2d = fakeCtx();
+    const guest = makeGuest({ ex, canvas: {}, ctx2d, cell: 10, emit: () => {} });
+    guest.onResize(100, 80, 1);
+    for (let i = 0; i < 10; i++) guest.frame(20); // 20ms/frame -> 50 fps
+    const label = ctx2d._texts.at(-1)[0];
+    assert.match(label, /^\d+ fps$/);
+    assert.equal(label, "50 fps");
   });
 });

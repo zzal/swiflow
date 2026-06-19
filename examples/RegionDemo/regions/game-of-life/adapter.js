@@ -12,6 +12,7 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
   let H = 0; // board rows
   let px = cell; // device px per cell (cell * dpr)
   let seed = 0; // reset token doubles as the board seed (each reset -> new board)
+  let fps = 0; // smoothed frames/second, overlaid on the canvas
 
   function draw() {
     const cells = new Uint8Array(ex.memory.buffer, ex.cells() >>> 0, Math.ceil((W * H) / 8));
@@ -21,6 +22,18 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
     for (let i = 0; i < W * H; i++) {
       if ((cells[i >> 3] >> (i & 7)) & 1) ctx2d.fillRect((i % W) * px, ((i / W) | 0) * px, px, px);
     }
+    // FPS overlay, top-left: dark pill + white text (~13 CSS px, dpr-scaled).
+    const label = `${Math.round(fps)} fps`;
+    const fontPx = Math.round(13 * (px / cell));
+    ctx2d.font = `${fontPx}px system-ui, sans-serif`;
+    ctx2d.textBaseline = "top";
+    const padX = Math.round(fontPx * 0.5);
+    const padY = Math.round(fontPx * 0.35);
+    const tw = ctx2d.measureText(label).width;
+    ctx2d.fillStyle = "rgba(17,17,17,0.7)";
+    ctx2d.fillRect(0, 0, tw + padX * 2, fontPx + padY * 2);
+    ctx2d.fillStyle = "#fff";
+    ctx2d.fillText(label, padX, padY);
   }
 
   // Fresh board on the current grid + a fresh generation count (emit 0 so the
@@ -59,9 +72,11 @@ export function makeGuest({ ex, canvas, ctx2d, cell, speed = 1, emit }) {
       if (p.reset != null && p.reset !== seed && W) { seed = p.reset; reseed(); }
     },
     onResize(devW, devH, dpr) { resize(devW, devH, dpr); },
-    frame() {
+    frame(dt) {
       if (!W) return; // not sized yet
       for (let i = 0; i < rate; i++) { ex.tick(); gen++; }
+      // Exponential moving average of the per-frame rate (dt is ms since last frame).
+      if (dt > 0) fps = fps ? fps * 0.9 + (1000 / dt) * 0.1 : 1000 / dt;
       draw();
       if (gen % 64 === 0) emit({ kind: "generation", value: gen });
     },
