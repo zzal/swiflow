@@ -3,7 +3,18 @@
 **Status:** Complete (spike run 2026-06-19). Throwaway branch `spike/bridgejs-seam`,
 probe at `spike/bridgejs-probe/`. Design: `2026-06-19-bridgejs-seam-spike-design.md`.
 
-## TL;DR — GO (with two tractable gaps)
+## TL;DR — feasible, but deferred (not now)
+
+**Decision (2026-06-19): defer — do not migrate yet.** BridgeJS is officially
+experimental ("API may change frequently — use at your own risk") and the current
+hand-rolled `JSObject`/`JSClosure` seam works, so there is no forcing function — the
+working incumbent wins. Adopting wouldn't be reckless (small, contained seam; JSKit
+pinned `upToNextMinor`), just unjustified for a non-urgent improvement. **Revisit
+when** BridgeJS drops "experimental" (or lands in a stable JSKit line), a real seam
+pain appears (patch-stream perf wall, a marshalling bug, an untyped-boundary break),
+or something needs the typed boundary (e.g. a third party calling into the wasm).
+The "GO" findings below are the *feasibility* verdict — what the spike proved — not
+a recommendation to adopt now.
 
 BridgeJS works through Swiflow's *real* pipeline today: the plugin ships in the
 pinned **JSKit 0.53.0**, codegen runs under `swift package js`, the export
