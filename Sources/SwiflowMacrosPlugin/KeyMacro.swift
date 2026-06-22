@@ -3,9 +3,9 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Marker peer macro for `@Key var id: Int` inside a `@QueryType`. It emits **no**
+/// Marker peer macro for `@Key var id: Int` inside a `@Query`. It emits **no**
 /// peers — its sole job is to survive as a syntactic annotation that the enclosing
-/// `@QueryType` member macro reads (in source order) to derive `queryKey`. The only
+/// `@Query` member macro reads (in source order) to derive `queryKey`. The only
 /// thing it validates is placement: `@Key` must sit on a stored property, since a
 /// computed property has no identity to contribute to a cache key.
 public struct KeyMacro: PeerMacro {

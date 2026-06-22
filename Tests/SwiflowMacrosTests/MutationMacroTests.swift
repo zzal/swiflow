@@ -4,7 +4,7 @@ import XCTest
 @testable import SwiflowMacrosPlugin
 
 private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
-    "MutationType": MutationTypeMacro.self,
+    "Mutation": MutationMacro.self,
 ]
 
 // These tests assert the MEMBER expansion (the memberwise init only). The
@@ -12,16 +12,16 @@ private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
 // can't see the declaration's `conformances: Mutation`, so it passes
 // `conformingTo: []` and the (production-correct) `!protocols.isEmpty` guard
 // returns nothing. The extension emission + conformance + migration guard are
-// covered end-to-end in `Tests/SwiflowQueryTests/MutationTypeIntegrationTests`.
-// `@MutationType` is the thin sibling of `@QueryType`: conformance + memberwise
+// covered end-to-end in `Tests/SwiflowQueryTests/MutationMacroIntegrationTests`.
+// `@Mutation` is the thin sibling of `@Query`: conformance + memberwise
 // init, no `queryKey`/`@Key`/`prefix` (a mutation has no cache identity).
-final class MutationTypeMacroTests: XCTestCase {
+final class MutationMacroTests: XCTestCase {
 
     // Canonical: captured dependencies become the memberwise init's parameters.
     func testCanonical() {
         assertMacroExpansion(
             """
-            @MutationType struct RenameUser {
+            @Mutation struct RenameUser {
                 let id: Int
                 let api: FakeAPI
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -48,7 +48,7 @@ final class MutationTypeMacroTests: XCTestCase {
     func testNoStoredDependencies() {
         assertMacroExpansion(
             """
-            @MutationType struct AddTodo {
+            @Mutation struct AddTodo {
                 static var tempSeq = -1
                 func perform(_ title: String) async throws -> Todo { try await api.post(title) }
             }
@@ -72,7 +72,7 @@ final class MutationTypeMacroTests: XCTestCase {
     func testHandWrittenInitSuppressed() {
         assertMacroExpansion(
             """
-            @MutationType struct RenameUser {
+            @Mutation struct RenameUser {
                 let id: Int
                 init(id: Int) { self.id = id }
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -95,7 +95,7 @@ final class MutationTypeMacroTests: XCTestCase {
     func testPublicStructGetsPublicInit() {
         assertMacroExpansion(
             """
-            @MutationType public struct RenameUser {
+            @Mutation public struct RenameUser {
                 let id: Int
                 let api: FakeAPI
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -123,7 +123,7 @@ final class MutationTypeMacroTests: XCTestCase {
     func testPackageStructGetsPackageInit() {
         assertMacroExpansion(
             """
-            @MutationType package struct RenameUser {
+            @Mutation package struct RenameUser {
                 let id: Int
                 let api: FakeAPI
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -146,11 +146,11 @@ final class MutationTypeMacroTests: XCTestCase {
         )
     }
 
-    // @MutationType on a non-struct → diagnostic on the type keyword; nothing emitted.
+    // @Mutation on a non-struct → diagnostic on the type keyword; nothing emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(
             """
-            @MutationType final class Bad {
+            @Mutation final class Bad {
                 func perform(_ x: Int) async throws -> Int { x }
             }
             """,
@@ -161,9 +161,9 @@ final class MutationTypeMacroTests: XCTestCase {
             """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@MutationType requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer.",
+                    message: "@Mutation requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer.",
                     line: 1,
-                    column: 21
+                    column: 17
                 )
             ],
             macros: testMacros

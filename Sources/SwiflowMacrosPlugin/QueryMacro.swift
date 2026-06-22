@@ -1,14 +1,14 @@
-// Sources/SwiflowMacrosPlugin/QueryTypeMacro.swift
+// Sources/SwiflowMacrosPlugin/QueryMacro.swift
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@QueryType` synthesizes `Query` conformance for a struct: it derives
+/// `@Query` synthesizes `Query` conformance for a struct: it derives
 /// `queryKey` from the `@Key` stored properties (in source order, prefixed by the
 /// type name or a custom `prefix:`) and reuses `InitSynthesis` for the memberwise
 /// initializer (the test seam). `fetch()` is always hand-written. A hand-written
 /// `queryKey` or `init` is never fought.
-public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
+public struct QueryMacro: ExtensionMacro, MemberMacro {
 
     // MARK: ExtensionMacro
 
@@ -22,11 +22,11 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
         guard declaration.is(StructDeclSyntax.self) else {
             context.diagnose(Diagnostic(
                 node: nonStructKeyword(declaration),
-                message: QueryTypeDiagnostic.requiresStruct))
+                message: QueryDiagnostic.requiresStruct))
             return []
         }
         // Respect `conformingTo`: emit only the conformances still missing, so a
-        // migration `@QueryType struct Foo: Query` doesn't double-conform. (Unlike
+        // migration `@Query struct Foo: Query` doesn't double-conform. (Unlike
         // @Component — whose conformances are private runtime contracts — `Query`
         // is a public protocol a user may already have declared by hand.)
         guard !protocols.isEmpty else { return [] }
@@ -89,7 +89,7 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
             guard varDecl.bindings.count == 1 else {
                 context.diagnose(Diagnostic(
                     node: Syntax(varDecl),
-                    message: QueryTypeDiagnostic.keyRequiresSingleBinding))
+                    message: QueryDiagnostic.keyRequiresSingleBinding))
                 continue
             }
             for binding in varDecl.bindings {
@@ -97,7 +97,7 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
                 guard binding.typeAnnotation != nil else {
                     context.diagnose(Diagnostic(
                         node: Syntax(varDecl),
-                        message: QueryTypeDiagnostic.keyNeedsType))
+                        message: QueryDiagnostic.keyNeedsType))
                     continue
                 }
                 exprs.append("_qkc(\(name))")
@@ -121,7 +121,7 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
               let seg = str.segments.first?.as(StringSegmentSyntax.self) else {
             context.diagnose(Diagnostic(
                 node: Syntax(prefixArg.expression),
-                message: QueryTypeDiagnostic.prefixMustBeLiteral))
+                message: QueryDiagnostic.prefixMustBeLiteral))
             return nil
         }
         return seg.content.text
@@ -136,7 +136,7 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
 }
 
 extension StructDeclSyntax {
-    /// True if the struct already declares a `queryKey` property, so `@QueryType`
+    /// True if the struct already declares a `queryKey` property, so `@Query`
     /// leaves it alone.
     var declaresQueryKey: Bool {
         memberBlock.members.contains { member in
@@ -148,7 +148,7 @@ extension StructDeclSyntax {
     }
 }
 
-enum QueryTypeDiagnostic: DiagnosticMessage {
+enum QueryDiagnostic: DiagnosticMessage {
     case requiresStruct
     case prefixMustBeLiteral
     case keyNeedsType
@@ -157,9 +157,9 @@ enum QueryTypeDiagnostic: DiagnosticMessage {
     var message: String {
         switch self {
         case .requiresStruct:
-            return "@QueryType requires a struct — queries are value types constructed every render."
+            return "@Query requires a struct — queries are value types constructed every render."
         case .prefixMustBeLiteral:
-            return "@QueryType(prefix:) requires a string literal — the key prefix must be statically known for the cache."
+            return "@Query(prefix:) requires a string literal — the key prefix must be statically known for the cache."
         case .keyNeedsType:
             return "@Key needs an explicit type — the synthesized initializer takes one parameter per key, and a parameter can't be declared without a type (e.g. @Key let id: Int)."
         case .keyRequiresSingleBinding:
@@ -170,7 +170,7 @@ enum QueryTypeDiagnostic: DiagnosticMessage {
     var severity: DiagnosticSeverity { .error }
 }
 
-extension QueryTypeMacro: MemberAttributeMacro {
+extension QueryMacro: MemberAttributeMacro {
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,

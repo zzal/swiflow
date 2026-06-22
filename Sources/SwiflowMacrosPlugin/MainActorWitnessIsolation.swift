@@ -2,7 +2,7 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Shared `@attached(memberAttribute)` logic for `@QueryType` / `@MutationType`.
+/// Shared `@attached(memberAttribute)` logic for `@Query` / `@Mutation`.
 ///
 /// `Query` and `Mutation` are `@MainActor` protocols. When the macro synthesizes
 /// conformance via a generated `extension X: Query {}`, Swift does NOT infer the
@@ -18,7 +18,7 @@ import SwiftSyntaxMacros
 /// stays plain: constructed off the main actor, passed by value into
 /// `query`/`mutation`), the author's own non-witness helper methods, and
 /// immutable `static let` constants (already Sendable-safe). This keeps bare
-/// `@QueryType struct Foo { ... }` isolation-safe with no `: Query` and no
+/// `@Query struct Foo { ... }` isolation-safe with no `: Query` and no
 /// hand-written `@MainActor`, without over-isolating helpers or constants.
 enum MainActorWitnessIsolation {
     /// The Query (`fetch`) and Mutation (`perform` / `optimistic` /

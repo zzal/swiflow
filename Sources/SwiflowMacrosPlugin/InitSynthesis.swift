@@ -1,7 +1,7 @@
 // Sources/SwiflowMacrosPlugin/InitSynthesis.swift
 import SwiftSyntax
 
-/// Shared memberwise-initializer synthesis for `@QueryType` / `@MutationType`.
+/// Shared memberwise-initializer synthesis for `@Query` / `@Mutation`.
 /// A pure syntax → syntax transform: no diagnostics, no expansion context.
 ///
 /// Rules (spike §3.2):
@@ -11,7 +11,7 @@ import SwiftSyntax
 ///   `api: FakeAPI = FakeAPI()`.
 /// - A stored property with **no** type annotation can't be named as a parameter,
 ///   so it is initialized from its own inline default and omitted (not
-///   injectable). `@QueryType` separately requires `@Key`s to be annotated.
+///   injectable). `@Query` separately requires `@Key`s to be annotated.
 /// - `static`/`class` and computed/observed members are skipped — only instance
 ///   storage is initialized.
 /// - The init's access level matches the host: the caller passes the host's

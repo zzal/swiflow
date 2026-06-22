@@ -31,7 +31,7 @@ struct QueryKeyConvertibleTests {
         #expect(Priority.high.keyComponents == [.int(2)])
     }
 
-    @Test("_qkc dispatches to keyComponents (the helper @QueryType's expansion emits)")
+    @Test("_qkc dispatches to keyComponents (the helper @Query's expansion emits)")
     func qkcHelper() {
         #expect(_qkc(5) == [.int(5)])
         #expect(_qkc("users") == [.string("users")])
