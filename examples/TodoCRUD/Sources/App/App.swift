@@ -70,15 +70,11 @@ struct Todo: Decodable, Equatable, Sendable {
 @MainActor @Component
 final class TodoApp {
     @State var draft: String = ""
+    // @MutationState mutations carry no captured dependencies, so @Component
+    // synthesizes the `init()` that default-constructs them — no boilerplate.
     @MutationState var add: AddTodo
     @MutationState var toggle: ToggleTodo
     @MutationState var remove: DeleteTodo
-
-    init() {
-        self.add = AddTodo()
-        self.toggle = ToggleTodo()
-        self.remove = DeleteTodo()
-    }
 
     var body: VNode {
         let list = query(TodoList())
