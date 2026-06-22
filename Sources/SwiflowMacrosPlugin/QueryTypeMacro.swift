@@ -161,7 +161,7 @@ enum QueryTypeDiagnostic: DiagnosticMessage {
         case .prefixMustBeLiteral:
             return "@QueryType(prefix:) requires a string literal — the key prefix must be statically known for the cache."
         case .keyNeedsType:
-            return "@Key requires an explicit type annotation so the key can be injected in tests (e.g. @Key var id: Int)."
+            return "@Key needs an explicit type — the synthesized initializer takes one parameter per key, and a parameter can't be declared without a type (e.g. @Key let id: Int)."
         case .keyRequiresSingleBinding:
             return "@Key must mark a single property — give each its own @Key var so the query key's source-order components (a cache-identity contract) stay unambiguous."
         }

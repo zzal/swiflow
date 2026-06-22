@@ -70,7 +70,7 @@ enum MutationTypeDiagnostic: DiagnosticMessage {
     var message: String {
         switch self {
         case .requiresStruct:
-            return "@MutationType requires a struct — mutations are value types that carry their captured dependencies."
+            return "@MutationType requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer."
         }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
