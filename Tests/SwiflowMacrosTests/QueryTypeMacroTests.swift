@@ -113,6 +113,41 @@ final class QueryTypeMacroTests: XCTestCase {
         )
     }
 
+    // @Key SOURCE ORDER is the query key's component order — and thus the cache
+    // slot. Same struct as `testMultipleKeys` with the two @Key declarations
+    // SWAPPED; the key components swap to match (window before magnitude). Pins
+    // the contract: reordering @Key properties is a breaking cache-identity
+    // change, not a no-op refactor.
+    func testKeyOrderIsCacheContract() {
+        assertMacroExpansion(
+            """
+            @QueryType(prefix: "quakes") struct QuakeFeed {
+                @Key var window: String
+                @Key var magnitude: String
+                func fetch() async throws -> [Quake] { [] }
+            }
+            """,
+            expandedSource: """
+            struct QuakeFeed {
+                var window: String
+                var magnitude: String
+                @MainActor
+                func fetch() async throws -> [Quake] { [] }
+
+                var queryKey: QueryKey {
+                    ["quakes"] + _qkc(window) + _qkc(magnitude)
+                }
+
+                init(window: String, magnitude: String) {
+                    self.window = window
+                    self.magnitude = magnitude
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
     // A hand-written queryKey is not fought; the init is still synthesized.
     func testHandWrittenQueryKeySuppressed() {
         assertMacroExpansion(
