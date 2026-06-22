@@ -30,9 +30,14 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 /// - Zero `@Key` properties yields a static key: just the prefix component.
 /// - `@Key` properties' types must conform to `QueryKeyConvertible` (`Int`,
 ///   `String`, `Bool`, and `RawRepresentable` enums conform out of the box).
+/// - `Query` is `@MainActor`. If `fetch`/`optimistic` touch `@MainActor` state,
+///   keep the conformance explicit (`@QueryType struct Foo: Query`): primary-
+///   declaration conformance infers `@MainActor`, the macro-synthesized extension
+///   does not. The macro then still emits `queryKey` + `init` and skips the
+///   redundant extension.
 ///
 /// ```swift
-/// @QueryType struct UserByID {
+/// @QueryType struct UserByID: Query {
 ///     @Key var id: Int
 ///     var api: FakeAPI = FakeAPI()
 ///     func fetch() async throws -> User { await api.user(id) }
@@ -51,6 +56,11 @@ public macro QueryType(prefix: String? = nil) =
 /// The thin sibling of `@QueryType`: a mutation has no cache identity, so there is
 /// no `queryKey` / `@Key` / `prefix`. A hand-written `init` suppresses synthesis,
 /// and an explicit `: Mutation` conformance is never double-declared.
+///
+/// `Mutation` is `@MainActor`, and `optimistic`/`perform` typically touch
+/// `@MainActor` state (e.g. `OptimisticEdit.update`). Keep the conformance
+/// explicit (`@MutationType struct Foo: Mutation`): primary-declaration
+/// conformance infers `@MainActor`; the macro-synthesized extension does not.
 ///
 /// ```swift
 /// @MutationType struct RenameUser {

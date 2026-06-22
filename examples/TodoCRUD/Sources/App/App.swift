@@ -17,8 +17,7 @@ struct Todo: Decodable, Equatable, Sendable {
 
 // MARK: - Query
 
-struct TodoList: Query {
-    var queryKey: QueryKey { ["todos"] }
+@QueryType(prefix: "todos") struct TodoList: Query {
     var tags: Set<QueryTag> { ["todos"] }
     var refetchInterval: Duration? { .seconds(5) }   // live polling against the real API
     func fetch() async throws -> [Todo] {
@@ -28,7 +27,7 @@ struct TodoList: Query {
 
 // MARK: - Mutations
 
-struct AddTodo: Mutation {
+@MutationType struct AddTodo: Mutation {
     /// Monotonic temp-id source for optimistic rows (negative so it never
     /// collides with a real server id). The `["todos"]` refetch replaces it.
     static var tempSeq = -1
@@ -43,7 +42,7 @@ struct AddTodo: Mutation {
     func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
 }
 
-struct ToggleTodo: Mutation {
+@MutationType struct ToggleTodo: Mutation {
     struct Input: Sendable { let id: Int; let done: Bool }
     func perform(_ i: Input) async throws -> Todo {
         try await api.put("/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
@@ -56,7 +55,7 @@ struct ToggleTodo: Mutation {
     func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
 }
 
-struct DeleteTodo: Mutation {
+@MutationType struct DeleteTodo: Mutation {
     func perform(_ id: Int) async throws {
         try await api.delete("/todos/\(id)")
     }
