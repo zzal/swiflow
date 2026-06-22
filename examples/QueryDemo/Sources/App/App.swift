@@ -18,14 +18,14 @@ struct FakeAPI: Sendable {
     }
 }
 
-@QueryType(prefix: "users") struct UserByID: Query {
+@QueryType(prefix: "users") struct UserByID {
     @Key let id: Int
     var api: FakeAPI = FakeAPI()        // captured dependency; defaulted = test seam
     var tags: Set<QueryTag> { ["users"] }
     func fetch() async throws -> User { await api.user(id) }
 }
 
-@MutationType struct RenameUser: Mutation {
+@MutationType struct RenameUser {
     let id: Int
     let api: FakeAPI
 
