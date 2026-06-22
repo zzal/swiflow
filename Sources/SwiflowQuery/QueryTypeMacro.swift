@@ -18,3 +18,27 @@
 /// declare their peer role.
 @attached(peer, names: arbitrary)
 public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMacro")
+
+/// Synthesizes `Query` conformance for a `struct`: derives `queryKey` from the
+/// `@Key`-marked stored properties (in source order, prefixed by the type name,
+/// or by a custom `prefix:`) and emits a memberwise initializer that preserves
+/// each property's default value (the test seam) at the struct's access level.
+/// `fetch()` stays hand-written.
+///
+/// - A hand-written `queryKey` or `init` suppresses synthesis of that member —
+///   the macro never fights an explicit declaration.
+/// - Zero `@Key` properties yields a static key: just the prefix component.
+/// - `@Key` properties' types must conform to `QueryKeyConvertible` (`Int`,
+///   `String`, `Bool`, and `RawRepresentable` enums conform out of the box).
+///
+/// ```swift
+/// @QueryType struct UserByID {
+///     @Key var id: Int
+///     var api: FakeAPI = FakeAPI()
+///     func fetch() async throws -> User { await api.user(id) }
+/// }
+/// ```
+@attached(extension, conformances: Query)
+@attached(member, names: named(queryKey), arbitrary)
+public macro QueryType(prefix: String? = nil) =
+    #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryTypeMacro")
