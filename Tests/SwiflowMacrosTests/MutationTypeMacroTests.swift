@@ -90,6 +90,62 @@ final class MutationTypeMacroTests: XCTestCase {
         )
     }
 
+    // A `public` struct gets a public init so the mutation is constructible
+    // cross-module (the free memberwise init would only be internal).
+    func testPublicStructGetsPublicInit() {
+        assertMacroExpansion(
+            """
+            @MutationType public struct RenameUser {
+                let id: Int
+                let api: FakeAPI
+                func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
+            }
+            """,
+            expandedSource: """
+            public struct RenameUser {
+                let id: Int
+                let api: FakeAPI
+                @MainActor
+                func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
+
+                public init(id: Int, api: FakeAPI) {
+                    self.id = id
+                    self.api = api
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    // A `package` struct gets a package init — reachable across the package's
+    // modules where the type is, not silently internal.
+    func testPackageStructGetsPackageInit() {
+        assertMacroExpansion(
+            """
+            @MutationType package struct RenameUser {
+                let id: Int
+                let api: FakeAPI
+                func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
+            }
+            """,
+            expandedSource: """
+            package struct RenameUser {
+                let id: Int
+                let api: FakeAPI
+                @MainActor
+                func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
+
+                package init(id: Int, api: FakeAPI) {
+                    self.id = id
+                    self.api = api
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
     // @MutationType on a non-struct → diagnostic on the type keyword; nothing emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(

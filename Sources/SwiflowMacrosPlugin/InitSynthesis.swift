@@ -14,13 +14,14 @@ import SwiftSyntax
 ///   injectable). `@QueryType` separately requires `@Key`s to be annotated.
 /// - `static`/`class` and computed/observed members are skipped — only instance
 ///   storage is initialized.
-/// - The init's access level matches the host (`isPublic` → `public init`), so a
-///   `public` query/mutation gets a `public` initializer (Swift's free memberwise
-///   init is only `internal`).
+/// - The init's access level matches the host: the caller passes the host's
+///   access keyword (`"public "` / `"package "` / `""` — see `SynthesizedAccess`)
+///   so a `public`/`package` query/mutation gets a reachable initializer (Swift's
+///   free memberwise init is only `internal`).
 /// - Returns `nil` when the struct already declares any initializer — the user
 ///   owns construction, mirroring Swift's own memberwise-init suppression.
 enum InitSynthesis {
-    static func memberwiseInit(for structDecl: StructDeclSyntax, isPublic: Bool) -> DeclSyntax? {
+    static func memberwiseInit(for structDecl: StructDeclSyntax, access: String) -> DeclSyntax? {
         // Any user-written init suppresses synthesis entirely.
         let hasUserInit = structDecl.memberBlock.members.contains { $0.decl.is(InitializerDeclSyntax.self) }
         if hasUserInit { return nil }
@@ -56,7 +57,6 @@ enum InitSynthesis {
             }
         }
 
-        let access = isPublic ? "public " : ""
         let paramList = params.joined(separator: ", ")
         let body = assignments.isEmpty ? "" : "\n" + assignments.joined(separator: "\n") + "\n"
         return DeclSyntax(stringLiteral: "\(access)init(\(paramList)) {\(body)}")
