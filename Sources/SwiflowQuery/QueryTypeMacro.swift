@@ -37,7 +37,7 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 ///
 /// ```swift
 /// @QueryType struct UserByID {
-///     @Key var id: Int
+///     @Key let id: Int
 ///     var api: FakeAPI = FakeAPI()
 ///     func fetch() async throws -> User { await api.user(id) }
 /// }

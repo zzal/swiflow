@@ -161,7 +161,7 @@ final class MutationTypeMacroTests: XCTestCase {
             """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@MutationType requires a struct — mutations are value types that carry their captured dependencies.",
+                    message: "@MutationType requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer.",
                     line: 1,
                     column: 21
                 )

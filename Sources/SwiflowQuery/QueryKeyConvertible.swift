@@ -40,7 +40,7 @@ extension Bool: QueryKeyConvertible {
 /// key by that raw value, opt-in:
 ///
 ///     enum Window: String, QueryKeyConvertible { case hour, day, week }
-///     @Key var window: Window     // → .string("day")
+///     @Key let window: Window     // → .string("day")
 ///
 /// The conformance is opt-in — the type declares `: QueryKeyConvertible` — so it
 /// never silently swallows a `RawRepresentable` the author didn't intend as a key.

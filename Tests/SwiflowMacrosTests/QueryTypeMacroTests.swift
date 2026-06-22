@@ -329,7 +329,7 @@ final class QueryTypeMacroTests: XCTestCase {
             """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@Key requires an explicit type annotation so the key can be injected in tests (e.g. @Key var id: Int).",
+                    message: "@Key needs an explicit type — the synthesized initializer takes one parameter per key, and a parameter can't be declared without a type (e.g. @Key let id: Int).",
                     line: 2,
                     column: 5
                 )
