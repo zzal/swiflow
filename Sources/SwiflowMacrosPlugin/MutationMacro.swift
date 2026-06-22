@@ -1,15 +1,15 @@
-// Sources/SwiflowMacrosPlugin/MutationTypeMacro.swift
+// Sources/SwiflowMacrosPlugin/MutationMacro.swift
 import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@MutationType` synthesizes `Mutation` conformance for a struct and reuses
+/// `@Mutation` synthesizes `Mutation` conformance for a struct and reuses
 /// `InitSynthesis` for the memberwise initializer (the test seam). It is the thin
-/// sibling of `@QueryType`: a mutation has no cache identity, so there is no
+/// sibling of `@Query`: a mutation has no cache identity, so there is no
 /// `queryKey` / `@Key` / `prefix` — only the conformance plus the init. `perform`
 /// (and the optional `optimistic` / `invalidations`) stay hand-written. A
 /// hand-written init is never fought.
-public struct MutationTypeMacro: ExtensionMacro, MemberMacro {
+public struct MutationMacro: ExtensionMacro, MemberMacro {
 
     // MARK: ExtensionMacro
 
@@ -23,11 +23,11 @@ public struct MutationTypeMacro: ExtensionMacro, MemberMacro {
         guard declaration.is(StructDeclSyntax.self) else {
             context.diagnose(Diagnostic(
                 node: nonStructKeyword(declaration),
-                message: MutationTypeDiagnostic.requiresStruct))
+                message: MutationDiagnostic.requiresStruct))
             return []
         }
         // Respect `conformingTo`: emit only the conformances still missing, so a
-        // migration `@MutationType struct Foo: Mutation` doesn't double-conform.
+        // migration `@Mutation struct Foo: Mutation` doesn't double-conform.
         // (`Mutation`, like `Query`, is a public protocol a user may already have
         // declared by hand — unlike @Component's private runtime contracts, which
         // is why @Component can emit its extension unconditionally and this can't.)
@@ -64,20 +64,20 @@ public struct MutationTypeMacro: ExtensionMacro, MemberMacro {
     }
 }
 
-enum MutationTypeDiagnostic: DiagnosticMessage {
+enum MutationDiagnostic: DiagnosticMessage {
     case requiresStruct
 
     var message: String {
         switch self {
         case .requiresStruct:
-            return "@MutationType requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer."
+            return "@Mutation requires a struct — a mutation is a value you reconstruct with fresh captured dependencies; the macro synthesizes its memberwise initializer."
         }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
     var severity: DiagnosticSeverity { .error }
 }
 
-extension MutationTypeMacro: MemberAttributeMacro {
+extension MutationMacro: MemberAttributeMacro {
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,

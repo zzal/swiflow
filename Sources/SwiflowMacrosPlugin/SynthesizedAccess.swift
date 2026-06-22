@@ -9,7 +9,7 @@ import SwiftSyntax
 /// that silently narrows the synthesized member below the type — a cross-module
 /// break surfacing as a misleading "inaccessible due to '…' protection level"
 /// error at the *call* site. So every macro that emits members
-/// (`@Component` / `@QueryType` / `@MutationType`) copies the host type's access
+/// (`@Component` / `@Query` / `@Mutation`) copies the host type's access
 /// onto what it emits, through this one helper.
 ///
 /// The result is a trailing-space-terminated keyword for direct interpolation

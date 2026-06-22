@@ -4,10 +4,10 @@
 ///
 /// `QueryKeyComponent` is deliberately a closed 2-case enum (`.string` / `.int`)
 /// — the type-safe alternative to `AnyHashable` (no Int/Int64/String confusion,
-/// debuggable, prefix-cascadable). Any type used as a `@Key` in a `@QueryType`
+/// debuggable, prefix-cascadable). Any type used as a `@Key` in a `@Query`
 /// must therefore project its identity into those two cases.
 ///
-/// `@QueryType` emits a uniform `_qkc(_:)` dispatch over every `@Key` property in
+/// `@Query` emits a uniform `_qkc(_:)` dispatch over every `@Key` property in
 /// source order, so the macro never needs to know a property's concrete type —
 /// the conformance carries that knowledge. Most keys are a single component; the
 /// array return supports composite identities (e.g. a `Coordinate` keying as
@@ -49,7 +49,7 @@ extension RawRepresentable where RawValue: QueryKeyConvertible {
     public var keyComponents: [QueryKeyComponent] { rawValue.keyComponents }
 }
 
-/// Underscored: an implementation detail of `@QueryType`'s expansion, not public
+/// Underscored: an implementation detail of `@Query`'s expansion, not public
 /// API to call directly. Its generic constraint turns a missing conformance into
 /// the canonical "requires that 'Foo' conform to 'QueryKeyConvertible'"
 /// diagnostic — anchored to the user's `@Key var foo: Foo` — instead of a cryptic

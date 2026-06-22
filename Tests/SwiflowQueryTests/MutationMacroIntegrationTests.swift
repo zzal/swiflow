@@ -1,34 +1,34 @@
 import Testing
 import SwiflowQuery
 
-// End-to-end exercise of the real `@MutationType` macro (declaration + plugin +
+// End-to-end exercise of the real `@Mutation` macro (declaration + plugin +
 // `Mutation` conformance + `InitSynthesis`), complementing the expansion-level
-// golden tests in `Tests/SwiflowMacrosTests/MutationTypeMacroTests`. That this
+// golden tests in `Tests/SwiflowMacrosTests/MutationMacroTests`. That this
 // file *compiles* is itself a test: a wrong conformance or duplicated init would
 // fail to build.
 
-@MutationType struct ITMRename {
+@Mutation struct ITMRename {
     let id: Int                                    // captured dependency
     func perform(_ newName: String) async throws -> String { "\(id):\(newName)" }
 }
 
-@MutationType struct ITMNoDeps {
+@Mutation struct ITMNoDeps {
     func perform(_ x: Int) async throws -> Int { x * 2 }
 }
 
 // Migration shape: declares `: Mutation` AND a hand-written `init`. If
-// `@MutationType` double-conformed or duplicated the init, this would NOT compile
+// `@Mutation` double-conformed or duplicated the init, this would NOT compile
 // — so building this struct verifies the conditional-conformance + suppression
 // guards.
-@MutationType struct ITMExplicit: Mutation {
+@Mutation struct ITMExplicit: Mutation {
     let id: Int
     init(id: Int) { self.id = id }
     func perform(_ x: Int) async throws -> Int { id + x }
 }
 
-@Suite("MutationType integration")
+@Suite("Mutation integration")
 @MainActor
-struct MutationTypeIntegrationTests {
+struct MutationMacroIntegrationTests {
     @Test("captured dependency becomes a memberwise-init parameter; type conforms to Mutation")
     func capturedDependency() async throws {
         #expect(try await ITMRename(id: 5).perform("bob") == "5:bob")

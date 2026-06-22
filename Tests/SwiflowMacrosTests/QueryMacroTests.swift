@@ -4,17 +4,17 @@ import XCTest
 @testable import SwiflowMacrosPlugin
 
 private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
-    "QueryType": QueryTypeMacro.self,
+    "Query": QueryMacro.self,
     "Key": KeyMacro.self,
 ]
 
 // @Key intentionally absent. On a multi-binding var, SwiftSyntaxMacrosTestSupport
 // adds its own "peer macro can only be applied to a single variable" diagnostic
 // that the *real* compiler never emits (verified by host build — it silently
-// accepts it). Omitting @Key here isolates @QueryType's own multi-binding guard;
+// accepts it). Omitting @Key here isolates @Query's own multi-binding guard;
 // @Key then passes through verbatim in the expansion.
 private nonisolated(unsafe) let queryOnlyMacros: [String: Macro.Type] = [
-    "QueryType": QueryTypeMacro.self,
+    "Query": QueryMacro.self,
 ]
 
 // These tests assert the MEMBER expansion (queryKey + init). The `extension … :
@@ -22,15 +22,15 @@ private nonisolated(unsafe) let queryOnlyMacros: [String: Macro.Type] = [
 // declaration's `conformances: Query`, so it passes `conformingTo: []` and the
 // (production-correct) `!protocols.isEmpty` guard returns nothing. The extension
 // emission + conformance + migration guard are covered end-to-end in
-// `Tests/SwiflowQueryTests/QueryTypeIntegrationTests.swift`. `@Key` is stripped
+// `Tests/SwiflowQueryTests/QueryMacroIntegrationTests.swift`. `@Key` is stripped
 // because it is in the macro dictionary and expands as a no-op marker.
-final class QueryTypeMacroTests: XCTestCase {
+final class QueryMacroTests: XCTestCase {
 
     // Canonical: one @Key + a defaulted dependency.
     func testCanonical() {
         assertMacroExpansion(
             """
-            @QueryType struct UserByID {
+            @Query struct UserByID {
                 @Key var id: Int
                 var api: FakeAPI = FakeAPI()
                 func fetch() async throws -> User { await api.user(id) }
@@ -61,7 +61,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testPrefixAndStaticKey() {
         assertMacroExpansion(
             """
-            @QueryType(prefix: "todos") struct TodoList {
+            @Query(prefix: "todos") struct TodoList {
                 func fetch() async throws -> [Todo] { [] }
             }
             """,
@@ -86,7 +86,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testMultipleKeys() {
         assertMacroExpansion(
             """
-            @QueryType(prefix: "quakes") struct QuakeFeed {
+            @Query(prefix: "quakes") struct QuakeFeed {
                 @Key var magnitude: String
                 @Key var window: String
                 func fetch() async throws -> [Quake] { [] }
@@ -121,7 +121,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testKeyOrderIsCacheContract() {
         assertMacroExpansion(
             """
-            @QueryType(prefix: "quakes") struct QuakeFeed {
+            @Query(prefix: "quakes") struct QuakeFeed {
                 @Key var window: String
                 @Key var magnitude: String
                 func fetch() async throws -> [Quake] { [] }
@@ -152,7 +152,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testHandWrittenQueryKeySuppressed() {
         assertMacroExpansion(
             """
-            @QueryType struct UserByID {
+            @Query struct UserByID {
                 @Key var id: Int
                 var api: FakeAPI = FakeAPI()
                 var queryKey: QueryKey { ["users", .int(id)] }
@@ -182,7 +182,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testPublicStructGetsPublicMembers() {
         assertMacroExpansion(
             """
-            @QueryType public struct UserByID {
+            @Query public struct UserByID {
                 @Key var id: Int
                 var api: FakeAPI = FakeAPI()
                 func fetch() async throws -> User { await api.user(id) }
@@ -214,7 +214,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testPackageStructGetsPackageMembers() {
         assertMacroExpansion(
             """
-            @QueryType package struct UserByID {
+            @Query package struct UserByID {
                 @Key var id: Int
                 var api: FakeAPI = FakeAPI()
                 func fetch() async throws -> User { await api.user(id) }
@@ -249,7 +249,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testIsolatesOnlyWitnessesAndMutableStatics() {
         assertMacroExpansion(
             """
-            @QueryType struct Q {
+            @Query struct Q {
                 @Key var id: Int
                 static let base = "/api"
                 static var hits = 0
@@ -280,11 +280,11 @@ final class QueryTypeMacroTests: XCTestCase {
         )
     }
 
-    // @QueryType on a non-struct → diagnostic on the type keyword; nothing emitted.
+    // @Query on a non-struct → diagnostic on the type keyword; nothing emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(
             """
-            @QueryType final class Bad {
+            @Query final class Bad {
                 func fetch() async throws -> Int { 0 }
             }
             """,
@@ -295,9 +295,9 @@ final class QueryTypeMacroTests: XCTestCase {
             """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@QueryType requires a struct — queries are value types constructed every render.",
+                    message: "@Query requires a struct — queries are value types constructed every render.",
                     line: 1,
-                    column: 18
+                    column: 14
                 )
             ],
             macros: testMacros
@@ -308,7 +308,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testKeyNeedsTypeDiagnostic() {
         assertMacroExpansion(
             """
-            @QueryType struct Q {
+            @Query struct Q {
                 @Key var id = 5
                 func fetch() async throws -> Int { 0 }
             }
@@ -340,13 +340,13 @@ final class QueryTypeMacroTests: XCTestCase {
 
     // @Key on a multi-binding var (`@Key var a: Int, b: Int`) silently turns EACH
     // binding into a key component in a real build (verified: it compiles with no
-    // error) — and @Key order is a cache-identity contract — so @QueryType
+    // error) — and @Key order is a cache-identity contract — so @Query
     // diagnoses it and drops the malformed key. (@Key stays verbatim here because
     // it is not registered — see `queryOnlyMacros`.)
     func testKeyMultiBindingDiagnostic() {
         assertMacroExpansion(
             """
-            @QueryType struct Q {
+            @Query struct Q {
                 @Key var a: Int, b: Int
                 func fetch() async throws -> Int { 0 }
             }
