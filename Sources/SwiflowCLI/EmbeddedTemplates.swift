@@ -1938,11 +1938,10 @@ import SwiflowQuery
 /// USGS publishes one feed per (magnitude floor × time window) pair, so the
 /// two filter selects map 1:1 onto feed URLs — and each combination is
 /// naturally its own cache entry.
-struct QuakeFeedQuery: Query {
-    let magnitude: String   // "all" | "1.0" | "2.5" | "4.5" | "significant"
-    let window: String      // "hour" | "day" | "week"
+@QueryType(prefix: "quakes") struct QuakeFeedQuery: Query {
+    @Key let magnitude: String   // "all" | "1.0" | "2.5" | "4.5" | "significant"
+    @Key let window: String      // "hour" | "day" | "week"
 
-    var queryKey: QueryKey { ["quakes", .string(magnitude), .string(window)] }
     var tags: Set<QueryTag> { ["quakes"] }
 
     /// Poll every 30 s — earthquakes don't wait for a refresh button.
@@ -2547,9 +2546,12 @@ func urlEncoded(_ s: String) -> String {
 /// Geocode a (debounced) city-name fragment. The caller gates on
 /// `name.count >= 2`; `query()` is render-scoped, so a query simply not
 /// observed this render drops its subscription — conditional calls are fine.
-struct CitySearchQuery: Query {
+@QueryType struct CitySearchQuery: Query {
     let name: String
 
+    // Transformed cache key (case-insensitive) — kept by hand; @Key derives keys
+    // mechanically, so a `.lowercased()` key opts out of @Key marking. @QueryType
+    // still synthesizes the `Query` conformance + `init(name:)`.
     var queryKey: QueryKey { ["geocode", .string(name.lowercased())] }
     /// Place names don't move; retyping the same prefix within the hour is a
     /// pure cache hit.
@@ -2563,11 +2565,10 @@ struct CitySearchQuery: Query {
 /// Current conditions + today's range for one pinned city. Keyed on
 /// (city id, unit) — `latitude`/`longitude` ride along as captured
 /// dependencies, excluded from the key per the `Query` contract.
-struct CurrentWeatherQuery: Query {
-    let city: City
-    let unit: String   // "celsius" | "fahrenheit"
+@QueryType(prefix: "weather") struct CurrentWeatherQuery: Query {
+    @Key let city: City   // contributes .int(city.id) via City: QueryKeyConvertible
+    @Key let unit: String   // "celsius" | "fahrenheit"
 
-    var queryKey: QueryKey { ["weather", .int(city.id), .string(unit)] }
     var tags: Set<QueryTag> { ["weather"] }
 
     /// Fresh for a minute: re-renders, re-pins, and tab switches inside that
@@ -2584,6 +2585,12 @@ struct CurrentWeatherQuery: Query {
             + "&timezone=auto&temperature_unit=\(unit)"
         )
     }
+}
+
+/// `City` contributes its stable `id` to a query key, so `@Key let city: City`
+/// keys a weather query on the city without dragging lat/long into the cache slot.
+extension City: QueryKeyConvertible {
+    var keyComponents: [QueryKeyComponent] { [.int(id)] }
 }
 
 extension City {
@@ -2779,17 +2786,14 @@ struct FakeAPI: Sendable {
     }
 }
 
-struct UserByID: Query {
-    let id: Int
-    let api: FakeAPI
-    var queryKey: QueryKey { ["users", .int(id)] }
+@QueryType(prefix: "users") struct UserByID: Query {
+    @Key let id: Int
+    var api: FakeAPI = FakeAPI()        // captured dependency; defaulted = test seam
     var tags: Set<QueryTag> { ["users"] }
     func fetch() async throws -> User { await api.user(id) }
-
-    init(id: Int, api: FakeAPI = FakeAPI()) { self.id = id; self.api = api }
 }
 
-struct RenameUser: Mutation {
+@MutationType struct RenameUser: Mutation {
     let id: Int
     let api: FakeAPI
 
@@ -3406,8 +3410,7 @@ struct Todo: Decodable, Equatable, Sendable {
 
 // MARK: - Query
 
-struct TodoList: Query {
-    var queryKey: QueryKey { ["todos"] }
+@QueryType(prefix: "todos") struct TodoList: Query {
     var tags: Set<QueryTag> { ["todos"] }
     var refetchInterval: Duration? { .seconds(5) }   // live polling against the real API
     func fetch() async throws -> [Todo] {
@@ -3417,7 +3420,7 @@ struct TodoList: Query {
 
 // MARK: - Mutations
 
-struct AddTodo: Mutation {
+@MutationType struct AddTodo: Mutation {
     /// Monotonic temp-id source for optimistic rows (negative so it never
     /// collides with a real server id). The `["todos"]` refetch replaces it.
     static var tempSeq = -1
@@ -3432,7 +3435,7 @@ struct AddTodo: Mutation {
     func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
 }
 
-struct ToggleTodo: Mutation {
+@MutationType struct ToggleTodo: Mutation {
     struct Input: Sendable { let id: Int; let done: Bool }
     func perform(_ i: Input) async throws -> Todo {
         try await api.put("/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
@@ -3445,7 +3448,7 @@ struct ToggleTodo: Mutation {
     func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
 }
 
-struct DeleteTodo: Mutation {
+@MutationType struct DeleteTodo: Mutation {
     func perform(_ id: Int) async throws {
         try await api.delete("/todos/\(id)")
     }

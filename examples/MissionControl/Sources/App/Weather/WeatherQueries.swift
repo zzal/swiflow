@@ -20,9 +20,12 @@ func urlEncoded(_ s: String) -> String {
 /// Geocode a (debounced) city-name fragment. The caller gates on
 /// `name.count >= 2`; `query()` is render-scoped, so a query simply not
 /// observed this render drops its subscription — conditional calls are fine.
-struct CitySearchQuery: Query {
+@QueryType struct CitySearchQuery: Query {
     let name: String
 
+    // Transformed cache key (case-insensitive) — kept by hand; @Key derives keys
+    // mechanically, so a `.lowercased()` key opts out of @Key marking. @QueryType
+    // still synthesizes the `Query` conformance + `init(name:)`.
     var queryKey: QueryKey { ["geocode", .string(name.lowercased())] }
     /// Place names don't move; retyping the same prefix within the hour is a
     /// pure cache hit.
@@ -36,11 +39,10 @@ struct CitySearchQuery: Query {
 /// Current conditions + today's range for one pinned city. Keyed on
 /// (city id, unit) — `latitude`/`longitude` ride along as captured
 /// dependencies, excluded from the key per the `Query` contract.
-struct CurrentWeatherQuery: Query {
-    let city: City
-    let unit: String   // "celsius" | "fahrenheit"
+@QueryType(prefix: "weather") struct CurrentWeatherQuery: Query {
+    @Key let city: City   // contributes .int(city.id) via City: QueryKeyConvertible
+    @Key let unit: String   // "celsius" | "fahrenheit"
 
-    var queryKey: QueryKey { ["weather", .int(city.id), .string(unit)] }
     var tags: Set<QueryTag> { ["weather"] }
 
     /// Fresh for a minute: re-renders, re-pins, and tab switches inside that
@@ -57,6 +59,12 @@ struct CurrentWeatherQuery: Query {
             + "&timezone=auto&temperature_unit=\(unit)"
         )
     }
+}
+
+/// `City` contributes its stable `id` to a query key, so `@Key let city: City`
+/// keys a weather query on the city without dragging lat/long into the cache slot.
+extension City: QueryKeyConvertible {
+    var keyComponents: [QueryKeyComponent] { [.int(id)] }
 }
 
 extension City {
