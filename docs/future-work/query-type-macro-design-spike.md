@@ -410,7 +410,7 @@ For a genuinely multi-component static key like `["users", "active"]`, v1 has th
 /// Read by `@QueryType` from the syntax tree; expands to nothing on its own.
 /// Applies to `let` or `var`. The property's type must conform to
 /// `QueryKeyConvertible`.
-@attached(peer, names: [])
+@attached(peer, names: arbitrary)
 public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMacro")
 ```
 
@@ -444,7 +444,7 @@ public struct KeyMacro: PeerMacro {
 - **vs. a macro argument listing key names** (`@QueryType(keys: ["id"])`). Stringly-typed, decoupled from the declaration, no autocomplete, easy to typo. Rejected. The annotation lives *on* the property — discoverable, refactor-safe.
 - **The chosen design mirrors SwiftData `@Attribute`/`@Relationship`**: marker macros on stored properties, read by the type-level `@Model` macro. Familiar to the audience.
 
-`@attached(peer, names: [])` declares it adds *no* peer names — the honest declaration of a no-op marker. (Contrast `@State`/`@MutationState` which use `names: arbitrary` because they *do* emit `$name`.)
+`@Key` is declared `@attached(peer, names: arbitrary)` and emits **no** peers. (An empty `names: []` would express the no-op intent better, but it is *not* valid Swift — *"introduced name argument should be a name"* — so the marker reuses the same `arbitrary` form `@State`/`@MutationState` use for their real `$name` peers. Discovered during Phase 1 implementation.)
 
 ### `let` vs `var`
 
@@ -556,7 +556,7 @@ This split — *the macro diagnoses what it can see in syntax (shape, placement,
 - **Exact attached-macro roles** (the deliverable's checklist):
   - `@QueryType`: `@attached(extension, conformances: Query)` + `@attached(member, names: named(queryKey), arbitrary)`. Two roles.
   - `@MutationType`: `@attached(extension, conformances: Mutation)` + `@attached(member, names: arbitrary)`. Two roles.
-  - `@Key`: `@attached(peer, names: [])`. One role, no-op.
+  - `@Key`: `@attached(peer, names: arbitrary)`. One role, no-op.
   - `names:` list rationale: `named(queryKey)` is the one fixed member; `arbitrary` covers the init whose parameter labels are data-dependent (precedent: `@State`/`@MutationState` both use `arbitrary` for their peer role).
 - **Plugin registration** (`SwiflowMacrosPlugin.swift`): add `QueryTypeMacro.self`, `MutationTypeMacro.self`, `KeyMacro.self` to `providingMacros`.
 
@@ -832,7 +832,7 @@ Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and 
 
 **Phase 0 — `QueryKeyConvertible` (no macros).** Land `Sources/SwiflowQuery/QueryKeyConvertible.swift`: the protocol, the four conformances (`Int`/`String`/`Bool`/`RawRepresentable`), and `_qkc`. Pure library, fully unit-testable without any macro. *Verify:* unit tests asserting `5.keyComponents == [.int(5)]`, `"x".keyComponents == [.string("x")]`, `true.keyComponents == [.string("true")]`, and an enum `Window.day.keyComponents == [.string("day")]`. This de-risks the whole design (subtlety #1/#2) before touching swift-syntax.
 
-**Phase 1 — `@Key` no-op marker.** `KeyMacro` + its `@attached(peer, names: [])` decl + plugin registration. *Verify:* a golden test asserting `@Key var id: Int` expands to itself (no peers) and the placement diagnostic (#2) fires on a computed property.
+**Phase 1 — `@Key` no-op marker.** `KeyMacro` + its `@attached(peer, names: arbitrary)` decl + plugin registration. *Verify:* a golden test asserting `@Key var id: Int` expands to itself (no peers) and the placement diagnostic (#2) fires on a computed property.
 
 **Phase 2 — shared `InitSynthesis` helper.** A plugin-internal free function: `(StructDeclSyntax, isPublic: Bool) -> DeclSyntax?` returning the memberwise init (or `nil` if a user init exists). This is the riskiest syntax logic (default-expr copying, access level, annotation rules from §3.2), so build and test it in isolation first via the `@QueryType` golden tests' init lines. *Verify:* the canonical-query test (§8 Test 1) and the suppression test (Test 4).
 
