@@ -169,8 +169,10 @@ This fits Swiflow specifically because it:
 
 ## Next step
 
-A short design spike on the flagship — **`@QueryType` + `QueryKeyConvertible` (Shape A)** — producing the
-macro signature, the diagnostic set, and golden `assertMacroExpansion` tests. When implementation
+**→ This spike now exists:** [`query-type-macro-design-spike.md`](query-type-macro-design-spike.md) — the
+full design for the flagship **`@QueryType` + `QueryKeyConvertible` (Shape A)**: macro signatures, the
+`QueryKeyConvertible` uniform-dispatch + `_qkc` error helper, the init/access-control rule, the diagnostic
+set, golden `assertMacroExpansion` tests, example migrations, and a phased implementation outline. When implementation
 proceeds, verify with: golden expansion tests in `Tests/SwiflowMacrosTests/` (mirror
 `ComponentMacroTests.swift`); local example builds via `swiflow build --path examples/<name>` (**CI skips
 example builds**); the `SwiflowQuery` suite (`swift test`); and a check that generated `stateCells`
