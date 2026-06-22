@@ -197,6 +197,45 @@ final class QueryTypeMacroTests: XCTestCase {
         )
     }
 
+    // Isolation is scoped to what needs it: the protocol-witness methods
+    // (here `fetch`) and *mutable* static storage (`static var`, global shared
+    // state under strict concurrency). A non-witness helper and an immutable
+    // `static let` constant are left nonisolated — over-isolating them would
+    // make a plain helper or constant unreachable from nonisolated contexts.
+    func testIsolatesOnlyWitnessesAndMutableStatics() {
+        assertMacroExpansion(
+            """
+            @QueryType struct Q {
+                @Key var id: Int
+                static let base = "/api"
+                static var hits = 0
+                func fetch() async throws -> Int { Self.hits }
+                private func helper() -> Int { 0 }
+            }
+            """,
+            expandedSource: """
+            struct Q {
+                var id: Int
+                static let base = "/api"
+                @MainActor
+                static var hits = 0
+                @MainActor
+                func fetch() async throws -> Int { Self.hits }
+                private func helper() -> Int { 0 }
+
+                var queryKey: QueryKey {
+                    ["Q"] + _qkc(id)
+                }
+
+                init(id: Int) {
+                    self.id = id
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
     // @QueryType on a non-struct → diagnostic on the type keyword; nothing emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(
