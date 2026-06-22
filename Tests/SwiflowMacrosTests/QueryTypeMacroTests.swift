@@ -8,6 +8,15 @@ private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
     "Key": KeyMacro.self,
 ]
 
+// @Key intentionally absent. On a multi-binding var, SwiftSyntaxMacrosTestSupport
+// adds its own "peer macro can only be applied to a single variable" diagnostic
+// that the *real* compiler never emits (verified by host build — it silently
+// accepts it). Omitting @Key here isolates @QueryType's own multi-binding guard;
+// @Key then passes through verbatim in the expansion.
+private nonisolated(unsafe) let queryOnlyMacros: [String: Macro.Type] = [
+    "QueryType": QueryTypeMacro.self,
+]
+
 // These tests assert the MEMBER expansion (queryKey + init). The `extension … :
 // Query {}` is intentionally absent: `assertMacroExpansion` can't see the
 // declaration's `conformances: Query`, so it passes `conformingTo: []` and the
@@ -291,6 +300,46 @@ final class QueryTypeMacroTests: XCTestCase {
                 )
             ],
             macros: testMacros
+        )
+    }
+
+    // @Key on a multi-binding var (`@Key var a: Int, b: Int`) silently turns EACH
+    // binding into a key component in a real build (verified: it compiles with no
+    // error) — and @Key order is a cache-identity contract — so @QueryType
+    // diagnoses it and drops the malformed key. (@Key stays verbatim here because
+    // it is not registered — see `queryOnlyMacros`.)
+    func testKeyMultiBindingDiagnostic() {
+        assertMacroExpansion(
+            """
+            @QueryType struct Q {
+                @Key var a: Int, b: Int
+                func fetch() async throws -> Int { 0 }
+            }
+            """,
+            expandedSource: """
+            struct Q {
+                @Key var a: Int, b: Int
+                @MainActor
+                func fetch() async throws -> Int { 0 }
+
+                var queryKey: QueryKey {
+                    ["Q"]
+                }
+
+                init(a: Int, b: Int) {
+                    self.a = a
+                    self.b = b
+                }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Key must mark a single property — give each its own @Key var so the query key's source-order components (a cache-identity contract) stay unambiguous.",
+                    line: 2,
+                    column: 5
+                )
+            ],
+            macros: queryOnlyMacros
         )
     }
 }
