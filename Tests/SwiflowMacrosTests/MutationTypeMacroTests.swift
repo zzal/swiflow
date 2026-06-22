@@ -31,6 +31,7 @@ final class MutationTypeMacroTests: XCTestCase {
             struct RenameUser {
                 let id: Int
                 let api: FakeAPI
+                @MainActor
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
 
                 init(id: Int, api: FakeAPI) {
@@ -54,7 +55,9 @@ final class MutationTypeMacroTests: XCTestCase {
             """,
             expandedSource: """
             struct AddTodo {
+                @MainActor
                 static var tempSeq = -1
+                @MainActor
                 func perform(_ title: String) async throws -> Todo { try await api.post(title) }
 
                 init() {
@@ -79,6 +82,7 @@ final class MutationTypeMacroTests: XCTestCase {
             struct RenameUser {
                 let id: Int
                 init(id: Int) { self.id = id }
+                @MainActor
                 func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
             }
             """,

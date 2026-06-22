@@ -78,3 +78,15 @@ enum MutationTypeDiagnostic: DiagnosticMessage {
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
     var severity: DiagnosticSeverity { .error }
 }
+
+extension MutationTypeMacro: MemberAttributeMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        guard declaration.is(StructDeclSyntax.self) else { return [] }
+        return MainActorWitnessIsolation.attributes(for: member)
+    }
+}

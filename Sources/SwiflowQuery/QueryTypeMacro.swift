@@ -30,14 +30,13 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 /// - Zero `@Key` properties yields a static key: just the prefix component.
 /// - `@Key` properties' types must conform to `QueryKeyConvertible` (`Int`,
 ///   `String`, `Bool`, and `RawRepresentable` enums conform out of the box).
-/// - `Query` is `@MainActor`. If `fetch`/`optimistic` touch `@MainActor` state,
-///   keep the conformance explicit (`@QueryType struct Foo: Query`): primary-
-///   declaration conformance infers `@MainActor`, the macro-synthesized extension
-///   does not. The macro then still emits `queryKey` + `init` and skips the
-///   redundant extension.
+/// - `Query` is `@MainActor`. The macro isolates the witnesses (`fetch`, plus any
+///   `static` state) to `@MainActor` for you, so a bare `@QueryType struct Foo`
+///   conforms safely with no `: Query` and no hand-written `@MainActor` — even
+///   when `fetch` touches `@MainActor` state. An explicit `: Query` still works.
 ///
 /// ```swift
-/// @QueryType struct UserByID: Query {
+/// @QueryType struct UserByID {
 ///     @Key var id: Int
 ///     var api: FakeAPI = FakeAPI()
 ///     func fetch() async throws -> User { await api.user(id) }
@@ -45,6 +44,7 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 /// ```
 @attached(extension, conformances: Query)
 @attached(member, names: named(queryKey), arbitrary)
+@attached(memberAttribute)
 public macro QueryType(prefix: String? = nil) =
     #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryTypeMacro")
 
@@ -57,10 +57,11 @@ public macro QueryType(prefix: String? = nil) =
 /// no `queryKey` / `@Key` / `prefix`. A hand-written `init` suppresses synthesis,
 /// and an explicit `: Mutation` conformance is never double-declared.
 ///
-/// `Mutation` is `@MainActor`, and `optimistic`/`perform` typically touch
-/// `@MainActor` state (e.g. `OptimisticEdit.update`). Keep the conformance
-/// explicit (`@MutationType struct Foo: Mutation`): primary-declaration
-/// conformance infers `@MainActor`; the macro-synthesized extension does not.
+/// `Mutation` is `@MainActor`. The macro isolates the witnesses (`perform` /
+/// `optimistic` / `invalidations`, plus any `static` state) to `@MainActor` for
+/// you, so a bare `@MutationType struct Foo` conforms safely with no `: Mutation`
+/// and no hand-written `@MainActor` — even though `optimistic` calls the
+/// `@MainActor` `OptimisticEdit.update`. An explicit `: Mutation` still works.
 ///
 /// ```swift
 /// @MutationType struct RenameUser {
@@ -73,5 +74,6 @@ public macro QueryType(prefix: String? = nil) =
 /// ```
 @attached(extension, conformances: Mutation)
 @attached(member, names: named(init))
+@attached(memberAttribute)
 public macro MutationType() =
     #externalMacro(module: "SwiflowMacrosPlugin", type: "MutationTypeMacro")

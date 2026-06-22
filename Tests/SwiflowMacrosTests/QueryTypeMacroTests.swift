@@ -31,6 +31,7 @@ final class QueryTypeMacroTests: XCTestCase {
             struct UserByID {
                 var id: Int
                 var api: FakeAPI = FakeAPI()
+                @MainActor
                 func fetch() async throws -> User { await api.user(id) }
 
                 var queryKey: QueryKey {
@@ -57,6 +58,7 @@ final class QueryTypeMacroTests: XCTestCase {
             """,
             expandedSource: """
             struct TodoList {
+                @MainActor
                 func fetch() async throws -> [Todo] { [] }
 
                 var queryKey: QueryKey {
@@ -85,6 +87,7 @@ final class QueryTypeMacroTests: XCTestCase {
             struct QuakeFeed {
                 var magnitude: String
                 var window: String
+                @MainActor
                 func fetch() async throws -> [Quake] { [] }
 
                 var queryKey: QueryKey {
@@ -117,6 +120,7 @@ final class QueryTypeMacroTests: XCTestCase {
                 var id: Int
                 var api: FakeAPI = FakeAPI()
                 var queryKey: QueryKey { ["users", .int(id)] }
+                @MainActor
                 func fetch() async throws -> User { await api.user(id) }
 
                 init(id: Int, api: FakeAPI = FakeAPI()) {
@@ -165,6 +169,7 @@ final class QueryTypeMacroTests: XCTestCase {
             expandedSource: """
             struct Q {
                 var id = 5
+                @MainActor
                 func fetch() async throws -> Int { 0 }
 
                 var queryKey: QueryKey {

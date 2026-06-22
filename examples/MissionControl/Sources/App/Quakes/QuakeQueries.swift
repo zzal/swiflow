@@ -4,7 +4,7 @@ import SwiflowQuery
 /// USGS publishes one feed per (magnitude floor × time window) pair, so the
 /// two filter selects map 1:1 onto feed URLs — and each combination is
 /// naturally its own cache entry.
-@QueryType(prefix: "quakes") struct QuakeFeedQuery: Query {
+@QueryType(prefix: "quakes") struct QuakeFeedQuery {
     @Key let magnitude: String   // "all" | "1.0" | "2.5" | "4.5" | "significant"
     @Key let window: String      // "hour" | "day" | "week"
 

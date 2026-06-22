@@ -357,7 +357,7 @@ The macro cannot write `init(id: <?>, api: <?>)` because it doesn't know the inf
 
 Before emitting `queryKey`, scan members for a `queryKey` declaration (a `VariableDeclSyntax` whose binding pattern identifier is `queryKey`). If present, **skip emitting `queryKey`** — the user's explicit one wins, and the macro only contributes the `Query` conformance + (maybe) the init. Same principle as the init suppression. `tags` is never synthesized, so there's nothing to skip there.
 
-This makes the macro *purely additive on top of a partially-hand-written query*, which is the property that makes §8's migration non-breaking: a fully hand-written `Query` that adds `@QueryType` gets only the (suppressed-because-already-present) members skipped and a redundant-but-harmless `extension … : Query {}`. (We special-case: if the type already conforms via its own `: Query`, the `@attached(extension, conformances:)` role is a no-op the compiler dedups — same as re-stating a conformance.)
+This makes the macro *purely additive on top of a partially-hand-written query*, which is the property that makes §8's migration non-breaking: a fully hand-written `Query` that adds `@QueryType` gets the (suppressed-because-already-present) members skipped and **no** `extension … : Query {}` emitted. The `@attached(extension, conformances:)` role guards on the compiler-provided `conformingTo` set: when the type already conforms via its own `: Query`, that set is empty and the role emits nothing. (Correction to an earlier draft: a duplicate `extension … : Query {}` is a hard *redundant-conformance* error — NOT "a no-op the compiler dedups." The `guard !protocols.isEmpty` is load-bearing. See the `extension-macro-conditional-conformance` memory.)
 
 ### 3.4 Prefix / opt-out (subtlety #5)
 
@@ -812,7 +812,7 @@ A good multi-`@Key` showcase (two string keys):
 
 ### Non-breaking guarantee
 
-Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and (b) re-stating a `Query`/`Mutation` conformance in an extension is idempotent, a fully hand-written conformance that *adds* `@QueryType` compiles unchanged. So migration can proceed incrementally, and a half-migrated file (some queries macro'd, some not) is fine. CI builds the library targets; per the `ci-skips-example-builds` memory, the **example apps are not built in CI**, so each migrated example must be built locally (`swiflow build --path examples/QueryDemo`, `examples/TodoCRUD`, `examples/MissionControl`) before merge to catch key-prefix regressions the type system can't.
+Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and (b) the `@attached(extension, conformances:)` role emits the conformance only when it's still missing — it guards on the compiler-provided `conformingTo` set, since a duplicate `extension … : Query {}` is a hard error, not idempotent — a fully hand-written conformance that *adds* `@QueryType` compiles unchanged. So migration can proceed incrementally, and a half-migrated file (some queries macro'd, some not) is fine. CI builds the library targets; per the `ci-skips-example-builds` memory, the **example apps are not built in CI**, so each migrated example must be built locally (`swiflow build --path examples/QueryDemo`, `examples/TodoCRUD`, `examples/MissionControl`) before merge to catch key-prefix regressions the type system can't.
 
 ---
 
