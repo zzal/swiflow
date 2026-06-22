@@ -17,7 +17,7 @@ struct InitSynthesisTests {
             var api: FakeAPI = FakeAPI()
         }
         """)
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: false)?.trimmedDescription == """
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "")?.trimmedDescription == """
         init(id: Int, api: FakeAPI = FakeAPI()) {
             self.id = id
             self.api = api
@@ -33,18 +33,28 @@ struct InitSynthesisTests {
             var api = FakeAPI()
         }
         """)
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: false)?.trimmedDescription == """
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "")?.trimmedDescription == """
         init(id: Int) {
             self.id = id
         }
         """)
     }
 
-    @Test("isPublic emits a public init (for public query/mutation types)")
+    @Test("A public access keyword emits a public init (for public query/mutation types)")
     func publicInit() {
         let s = parseStruct("struct Q { let id: Int }")
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: true)?.trimmedDescription == """
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "public ")?.trimmedDescription == """
         public init(id: Int) {
+            self.id = id
+        }
+        """)
+    }
+
+    @Test("A package access keyword emits a package init (reachable across the package's modules)")
+    func packageInit() {
+        let s = parseStruct("struct Q { let id: Int }")
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "package ")?.trimmedDescription == """
+        package init(id: Int) {
             self.id = id
         }
         """)
@@ -58,13 +68,13 @@ struct InitSynthesisTests {
             init(id: Int) { self.id = id }
         }
         """)
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: false) == nil)
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "") == nil)
     }
 
     @Test("No stored properties → an empty init")
     func emptyInit() {
         let s = parseStruct("struct Q { var tags: Set<String> { [] } }")
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: false)?.trimmedDescription == "init() {}")
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "")?.trimmedDescription == "init() {}")
     }
 
     @Test("static/computed members are skipped — only instance storage is initialized")
@@ -76,7 +86,7 @@ struct InitSynthesisTests {
             var derived: Int { id * 2 }
         }
         """)
-        #expect(InitSynthesis.memberwiseInit(for: s, isPublic: false)?.trimmedDescription == """
+        #expect(InitSynthesis.memberwiseInit(for: s, access: "")?.trimmedDescription == """
         init(id: Int) {
             self.id = id
         }

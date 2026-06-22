@@ -166,6 +166,45 @@ final class ComponentAutoInitTests: XCTestCase {
         )
     }
 
+    // A package class gets a `package init()` + package witnesses so it can be
+    // constructed across the package's modules — the gap a `public`-only access
+    // check left (a package class silently got an internal init).
+    func testPackageClassGetsPackageInit() {
+        assertMacroExpansion(
+            """
+            @Component
+            package final class C {
+                @MutationState var create: CreateTodo
+            }
+            """,
+            expandedSource: """
+            package final class C {
+                @MutationState var create: CreateTodo
+
+                package init() {
+                    self.create = CreateTodo()
+                }
+
+                private weak var runtimeOwner: AnyComponent?
+
+                private var runtimeScheduler: Scheduler?
+
+                @MainActor package static let stateCells: [any AnyStateCell] = []
+
+                package func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self.runtimeOwner = owner
+                    self.runtimeScheduler = scheduler
+                    _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
+                }
+            }
+
+            extension C: Component, _ComponentRuntime {
+            }
+            """,
+            macros: autoInitTestMacros
+        )
+    }
+
     // A @State property carries its own default, so the synthesized init
     // assigns only the mutation — never the state cell.
     func testStateWithDefaultNotAssignedInInit() {

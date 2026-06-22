@@ -61,17 +61,14 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         }
         let className = classDecl.name.text
 
-        // Detect class access level so the emitted protocol witnesses match
-        // the host class's visibility. A public class adopting the public
-        // `_ComponentRuntime` protocol must declare its witnesses public.
-        // Internal/private/fileprivate classes don't get a leading keyword
-        // (the default access already covers internal). The `runtimeOwner`
-        // and `runtimeScheduler` stored properties stay private regardless
-        // — they're implementation detail, not part of the protocol.
-        let isPublic = classDecl.modifiers.contains { mod in
-            mod.name.tokenKind == .keyword(.public) ||
-            mod.name.tokenKind == .keyword(.open)
-        }
+        // Emitted protocol witnesses must match the host class's visibility: a
+        // public/package class adopting `_ComponentRuntime` must declare its
+        // witnesses at the same access, or they silently narrow to internal and
+        // break cross-module construction. `SynthesizedAccess` returns the
+        // keyword to copy onto them ("public " / "package " / ""). The
+        // `runtimeOwner` and `runtimeScheduler` stored properties stay private
+        // regardless — they're implementation detail, not part of the protocol.
+        let access = SynthesizedAccess.keyword(for: classDecl.modifiers)
 
         // Scan members for @MacroState or @State. The scanner accepts
         // both during the Phase 15 migration window (Task 4 introduced
@@ -149,19 +146,11 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
 
         let stateCellsDecl: DeclSyntax
         if cellEntries.isEmpty {
-            if isPublic {
-                stateCellsDecl = "@MainActor public static let stateCells: [any AnyStateCell] = []"
-            } else {
-                stateCellsDecl = "@MainActor static let stateCells: [any AnyStateCell] = []"
-            }
+            stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor \(access)static let stateCells: [any AnyStateCell] = []")
         } else {
             let joined = cellEntries.joined(separator: ",\n    ")
             let body = "[\n    \(joined),\n]"
-            if isPublic {
-                stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor public static let stateCells: [any AnyStateCell] = \(body)")
-            } else {
-                stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor static let stateCells: [any AnyStateCell] = \(body)")
-            }
+            stateCellsDecl = DeclSyntax(stringLiteral: "@MainActor \(access)static let stateCells: [any AnyStateCell] = \(body)")
         }
 
         // Collect @MutationState property names so `bind` can wire each
@@ -197,9 +186,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             "_\(name)_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())"
         }
         let bindBody = bindStmts.joined(separator: "\n    ")
-        let bindDecl: DeclSyntax = isPublic
-            ? DeclSyntax(stringLiteral: "public func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
-            : DeclSyntax(stringLiteral: "func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
+        let bindDecl = DeclSyntax(stringLiteral: "\(access)func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
 
         // Synthesize a zero-arg `init()` for default-constructible mutations
         // when the class declares none — mirroring Swift's own memberwise-init
@@ -215,8 +202,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             let assignments = mutationInits
                 .map { "    self.\($0.name) = \($0.type)()" }
                 .joined(separator: "\n")
-            let initKeyword = isPublic ? "public init" : "init"
-            synthesizedInit = DeclSyntax(stringLiteral: "\(initKeyword)() {\n\(assignments)\n}")
+            synthesizedInit = DeclSyntax(stringLiteral: "\(access)init() {\n\(assignments)\n}")
         }
 
         // The init leads the emitted members (constructor first), followed by

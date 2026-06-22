@@ -133,6 +133,70 @@ final class QueryTypeMacroTests: XCTestCase {
         )
     }
 
+    // A `public` struct gets public witnesses + a public init, so the query is
+    // usable cross-module (the free memberwise init would only be internal).
+    func testPublicStructGetsPublicMembers() {
+        assertMacroExpansion(
+            """
+            @QueryType public struct UserByID {
+                @Key var id: Int
+                var api: FakeAPI = FakeAPI()
+                func fetch() async throws -> User { await api.user(id) }
+            }
+            """,
+            expandedSource: """
+            public struct UserByID {
+                var id: Int
+                var api: FakeAPI = FakeAPI()
+                @MainActor
+                func fetch() async throws -> User { await api.user(id) }
+
+                public var queryKey: QueryKey {
+                    ["UserByID"] + _qkc(id)
+                }
+
+                public init(id: Int, api: FakeAPI = FakeAPI()) {
+                    self.id = id
+                    self.api = api
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
+    // A `package` struct gets package witnesses + a package init — reachable
+    // across the package's modules where the type is, not silently internal.
+    func testPackageStructGetsPackageMembers() {
+        assertMacroExpansion(
+            """
+            @QueryType package struct UserByID {
+                @Key var id: Int
+                var api: FakeAPI = FakeAPI()
+                func fetch() async throws -> User { await api.user(id) }
+            }
+            """,
+            expandedSource: """
+            package struct UserByID {
+                var id: Int
+                var api: FakeAPI = FakeAPI()
+                @MainActor
+                func fetch() async throws -> User { await api.user(id) }
+
+                package var queryKey: QueryKey {
+                    ["UserByID"] + _qkc(id)
+                }
+
+                package init(id: Int, api: FakeAPI = FakeAPI()) {
+                    self.id = id
+                    self.api = api
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
+
     // @QueryType on a non-struct → diagnostic on the type keyword; nothing emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(

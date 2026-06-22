@@ -44,9 +44,7 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
         guard let structDecl = declaration.as(StructDeclSyntax.self) else {
             return []   // non-struct already diagnosed in the extension path
         }
-        let isPublic = structDecl.modifiers.contains {
-            $0.name.tokenKind == .keyword(.public) || $0.name.tokenKind == .keyword(.open)
-        }
+        let access = SynthesizedAccess.keyword(for: structDecl.modifiers)
 
         var members: [DeclSyntax] = []
 
@@ -55,12 +53,11 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
             let prefix = prefixArgument(from: node, in: context) ?? structDecl.name.text
             let keyExprs = keyExpressions(in: structDecl, context: context)
             let rhs = (["[\"\(prefix)\"]"] + keyExprs).joined(separator: " + ")
-            let access = isPublic ? "public " : ""
             members.append("\(raw: access)var queryKey: QueryKey {\n    \(raw: rhs)\n}")
         }
 
         // Memberwise init — unless the user wrote their own (InitSynthesis returns nil).
-        if let initDecl = InitSynthesis.memberwiseInit(for: structDecl, isPublic: isPublic) {
+        if let initDecl = InitSynthesis.memberwiseInit(for: structDecl, access: access) {
             members.append(initDecl)
         }
 

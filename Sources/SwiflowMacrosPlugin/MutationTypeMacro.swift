@@ -46,11 +46,9 @@ public struct MutationTypeMacro: ExtensionMacro, MemberMacro {
         guard let structDecl = declaration.as(StructDeclSyntax.self) else {
             return []   // non-struct already diagnosed in the extension path
         }
-        let isPublic = structDecl.modifiers.contains {
-            $0.name.tokenKind == .keyword(.public) || $0.name.tokenKind == .keyword(.open)
-        }
+        let access = SynthesizedAccess.keyword(for: structDecl.modifiers)
         // Memberwise init — unless the user wrote their own (InitSynthesis returns nil).
-        guard let initDecl = InitSynthesis.memberwiseInit(for: structDecl, isPublic: isPublic) else {
+        guard let initDecl = InitSynthesis.memberwiseInit(for: structDecl, access: access) else {
             return []
         }
         return [initDecl]
