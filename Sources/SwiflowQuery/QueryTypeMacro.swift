@@ -1,8 +1,8 @@
 // Sources/SwiflowQuery/QueryTypeMacro.swift
 //
-// Public macro declarations for the @QueryType family. The implementations live
-// in SwiflowMacrosPlugin; this file is the user-facing surface in SwiflowQuery.
-// (Phase 1 ships only @Key; @QueryType / @MutationType land in later phases.)
+// Public macro declarations for the @QueryType type-reducer family (@Key,
+// @QueryType, @MutationType). The implementations live in SwiflowMacrosPlugin;
+// this file is the user-facing surface in SwiflowQuery.
 
 /// Marks a stored property as part of a `@QueryType`'s identity (`queryKey`).
 ///
@@ -42,3 +42,26 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 @attached(member, names: named(queryKey), arbitrary)
 public macro QueryType(prefix: String? = nil) =
     #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryTypeMacro")
+
+/// Synthesizes `Mutation` conformance for a `struct` plus a memberwise
+/// initializer that preserves each captured dependency's default value (the test
+/// seam) at the struct's access level. `perform` — and the optional `optimistic` /
+/// `invalidations` — stay hand-written.
+///
+/// The thin sibling of `@QueryType`: a mutation has no cache identity, so there is
+/// no `queryKey` / `@Key` / `prefix`. A hand-written `init` suppresses synthesis,
+/// and an explicit `: Mutation` conformance is never double-declared.
+///
+/// ```swift
+/// @MutationType struct RenameUser {
+///     let id: Int
+///     let api: FakeAPI
+///     func perform(_ newName: String) async throws -> User {
+///         try await api.renameUser(id, name: newName)
+///     }
+/// }
+/// ```
+@attached(extension, conformances: Mutation)
+@attached(member, names: named(init))
+public macro MutationType() =
+    #externalMacro(module: "SwiflowMacrosPlugin", type: "MutationTypeMacro")

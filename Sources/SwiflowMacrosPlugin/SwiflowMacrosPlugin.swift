@@ -11,5 +11,6 @@ struct SwiflowMacrosPlugin: CompilerPlugin {
         CSSMacro.self,
         KeyMacro.self,
         QueryTypeMacro.self,
+        MutationTypeMacro.self,
     ]
 }
