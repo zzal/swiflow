@@ -81,6 +81,17 @@ public struct QueryTypeMacro: ExtensionMacro, MemberMacro {
                     .attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Key"
             }
             guard isKey else { continue }
+            // @Key must mark exactly one property: the key is built from @Key
+            // components in source order (a cache-identity contract), so a
+            // multi-binding `@Key var a, b` is ambiguous. The real compiler
+            // accepts a peer macro on a multi-binding var silently, so this
+            // guard — not the macro system — is the safety net; diagnose and skip.
+            guard varDecl.bindings.count == 1 else {
+                context.diagnose(Diagnostic(
+                    node: Syntax(varDecl),
+                    message: QueryTypeDiagnostic.keyRequiresSingleBinding))
+                continue
+            }
             for binding in varDecl.bindings {
                 guard let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text else { continue }
                 guard binding.typeAnnotation != nil else {
@@ -141,6 +152,7 @@ enum QueryTypeDiagnostic: DiagnosticMessage {
     case requiresStruct
     case prefixMustBeLiteral
     case keyNeedsType
+    case keyRequiresSingleBinding
 
     var message: String {
         switch self {
@@ -150,6 +162,8 @@ enum QueryTypeDiagnostic: DiagnosticMessage {
             return "@QueryType(prefix:) requires a string literal — the key prefix must be statically known for the cache."
         case .keyNeedsType:
             return "@Key requires an explicit type annotation so the key can be injected in tests (e.g. @Key var id: Int)."
+        case .keyRequiresSingleBinding:
+            return "@Key must mark a single property — give each its own @Key var so the query key's source-order components (a cache-identity contract) stay unambiguous."
         }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
