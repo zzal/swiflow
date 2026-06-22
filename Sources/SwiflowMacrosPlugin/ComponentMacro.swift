@@ -165,8 +165,12 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         }
 
         // Collect @MutationState property names so `bind` can wire each
-        // runtime's QueryClient at mount (spec §8, B1).
+        // runtime's QueryClient at mount (spec §8, B1). Alongside, record each
+        // mutation's type for the synthesized memberwise init (catalogue #1):
+        // a component whose mutations are all default-constructible no longer
+        // hand-writes `init() { self.add = AddTodo() }`.
         var mutationNames: [String] = []
+        var mutationInits: [(name: String, type: String)] = []
         for member in classDecl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             let isMutation = varDecl.attributes.contains { attr in
@@ -178,6 +182,11 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                   let b = varDecl.bindings.first,
                   let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier else { continue }
             mutationNames.append(id.text)
+            // A mutation with an inline default initializes itself; one without
+            // (the common case) needs assignment in the synthesized init.
+            if b.initializer == nil, let type = b.typeAnnotation?.type.trimmedDescription {
+                mutationInits.append((id.text, type))
+            }
         }
 
         // Build the `bind` body: always the two owner/scheduler assignments,
@@ -192,12 +201,35 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             ? DeclSyntax(stringLiteral: "public func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
             : DeclSyntax(stringLiteral: "func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
 
-        return [
+        // Synthesize a zero-arg `init()` for default-constructible mutations
+        // when the class declares none — mirroring Swift's own memberwise-init
+        // suppression (a user-written init opts out entirely). A *capturing*
+        // mutation (one whose init needs args, e.g. `RenameUser(id:api:)`) is
+        // not default-constructible, so the emitted `Type()` won't compile —
+        // pointing the author at the hand-written init that owns that capture.
+        let hasUserInit = classDecl.memberBlock.members.contains {
+            $0.decl.is(InitializerDeclSyntax.self)
+        }
+        var synthesizedInit: DeclSyntax? = nil
+        if !hasUserInit, !mutationInits.isEmpty {
+            let assignments = mutationInits
+                .map { "    self.\($0.name) = \($0.type)()" }
+                .joined(separator: "\n")
+            let initKeyword = isPublic ? "public init" : "init"
+            synthesizedInit = DeclSyntax(stringLiteral: "\(initKeyword)() {\n\(assignments)\n}")
+        }
+
+        // The init leads the emitted members (constructor first), followed by
+        // the runtime plumbing.
+        var emitted: [DeclSyntax] = []
+        if let synthesizedInit { emitted.append(synthesizedInit) }
+        emitted.append(contentsOf: [
             "private weak var runtimeOwner: AnyComponent?",
             "private var runtimeScheduler: Scheduler?",
             stateCellsDecl,
             bindDecl,
-        ]
+        ])
+        return emitted
     }
 
     // MARK: - Helpers

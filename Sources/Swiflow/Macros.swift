@@ -2,8 +2,14 @@
 /// `_ComponentRuntime` runtime infrastructure: stored properties for
 /// owner/scheduler refs, the `bind(owner:scheduler:)` hook, and a
 /// `stateCells` array describing each `@State`-decorated member.
+///
+/// When the class has `@MutationState` properties but declares no initializer,
+/// it also synthesizes a zero-arg `init()` that default-constructs each
+/// mutation — so a component whose mutations need no captured dependencies
+/// drops its boilerplate `init() { self.add = AddTodo() }`.
 @attached(extension, conformances: Component, _ComponentRuntime)
 @attached(member, names:
+    named(init),
     named(runtimeOwner),
     named(runtimeScheduler),
     named(stateCells),

@@ -1,8 +1,10 @@
 # Macro opportunities — catalogue & recommendation
 
-> **Status:** exploration / catalogue (2026-06-22). No implementation yet — this is a ranked survey of
-> where Swiflow could use Swift macros more, with a recommended next step. The lead case is the
-> Query/Mutation data layer (SwiftData's `@Query`/`@Model` ergonomics as the north star).
+> **Status:** catalogue + progress (2026-06-22). A ranked survey of where Swiflow could use Swift macros
+> more. The lead case is the Query/Mutation data layer (SwiftData's `@Query`/`@Model` ergonomics as the
+> north star). **Both PURSUE items are now shipped:** #2 `@QueryType`/`@MutationType`/`@Key` (see
+> `query-type-macro-design-spike.md`) and #1 `@MutationState` auto-init. The remaining rows stay as a
+> forward-looking survey.
 
 ## Why this is on-strategy
 
@@ -20,9 +22,9 @@ The boilerplate is real, not hypothetical:
   `init() { self.rename = RenameUser(id: 1, …) }` **plus** a per-render
   `self.rename = RenameUser(id: userID, …)` carrying the comment *"Keep rename mutation in sync with the
   current userID."* Forget that line and the mutation silently targets the wrong user.
-- **Pure-ceremony init** — `examples/TodoCRUD/Sources/App/App.swift:74-82`:
+- **Pure-ceremony init** — `examples/TodoCRUD` *previously* hand-wrote
   `init() { self.add = AddTodo(); self.toggle = ToggleTodo(); self.remove = DeleteTodo() }` — every word
-  re-states a name already declared above.
+  re-stated a name already declared above. **Removed by #1**: `@Component` now synthesizes it.
 - **Key encoding by hand** — `QueryKeyComponent` (`Sources/SwiflowQuery/Keys.swift`) is a closed 2-case
   enum (`.string`/`.int`); its own doc says non-Int/String types must "encode their identity into a
   `.string` or `.int` component." Today that encoding, and the whole `queryKey` accessor, is written out
@@ -46,8 +48,8 @@ Ranked by (DX win × likelihood of success) ÷ (risk to ethos).
 
 | # | Opportunity | Verdict | One-line rationale |
 |---|-------------|---------|--------------------|
-| 1 | `@MutationState` **auto-init** | **PURSUE** (quick win) | Removes the mandatory `init()` that only re-states names; extends the existing `@Component` scan; zero HMR/test impact |
-| 2 | `@QueryType` + `@Key` (and `@MutationType`) **type-reducer** | **PURSUE** (flagship) | Synthesizes `queryKey` + memberwise `init` from the *already-proven* hand-written struct; call site & changing-key model untouched; test seam becomes **more** legible |
+| 1 | `@MutationState` **auto-init** | ✅ **SHIPPED** | Removes the mandatory `init()` that only re-states names; extends the existing `@Component` scan; zero HMR/test impact |
+| 2 | `@QueryType` + `@Key` (and `@MutationType`) **type-reducer** | ✅ **SHIPPED** | Synthesizes `queryKey` + memberwise `init` from the *already-proven* hand-written struct; call site & changing-key model untouched; test seam becomes **more** legible |
 | 7 | `@Computed` / `@Memo` derived state | MAYBE-PURSUE | Real DX win, small surface — but **explicit-deps only** and **MUST be excluded from `stateCells`** (else HMR resurrects stale derived data) |
 | 4 | Type-safe routes (`@Route` / typed params) | MAYBE (defer) | Nice (param typo → compile error) but params are all `String`; forces `RouterContext` churn; revisit after the data-layer macros |
 | 5 | `@Form` / `@Field` struct-derived forms | MAYBE | Only genuine win is declarative validation; attribute-encoded rules are less debuggable than closures; spike only on measured pain |
@@ -81,6 +83,13 @@ init() { self.add = AddTodo(); self.toggle = ToggleTodo(); self.remove = DeleteT
 Mutations aren't snapshotted, so there is **no HMR impact**; the test seam is untouched. Lowest cost,
 daily-visible. *Capturing* mutations (`RenameUser(id:api:)`) keep a manual init — auto-inferring
 `RenameUser(id: userID)` at init time would be wrong (the id changes); see Footguns.
+
+> **Shipped.** `@Component` (`ComponentMacro`) gained a `memberAttribute`-free member: when a class has
+> ≥1 `@MutationState` with no inline default **and** declares no `init`, it emits a zero-arg `init()` that
+> default-constructs each (`self.add = AddTodo()`). A user-written init suppresses it entirely; `named(init)`
+> was added to the `@Component` declaration so the synthesized member is accepted. `TodoCRUD` dropped its
+> hand-written init; `QueryDemo` keeps one (its `RenameUser` captures `id`/`api`, so `RenameUser()` can't
+> compile — the correct boundary). Covered by `ComponentAutoInitTests` (golden) + both example host-builds.
 
 ### #2 — `@QueryType` + `@Key` (flagship)
 
@@ -134,11 +143,11 @@ The fixed constraint: a query is parameterized by `@State` that **changes betwee
 
 ## Recommendation
 
-**Ship #1 (`@MutationState` auto-init) first** as a low-risk, daily-visible win, **then the `@QueryType` /
-`@MutationType` type-reducers (#2 / Shapes A + A′)** as the flagship — gated on the `QueryKeyConvertible`
-prerequisite and the three guardrails above.
+**Both shipped** in the recommended order: #1 (`@MutationState` auto-init) first as a low-risk,
+daily-visible win, then the `@QueryType` / `@MutationType` type-reducers (#2 / Shapes A + A′) as the
+flagship — built on the `QueryKeyConvertible` prerequisite and the three guardrails above.
 
-This fits Swiflow specifically because it:
+The sequence fit Swiflow specifically because it:
 
 1. **Removes typing without removing transparency** — every deleted line is mechanical (re-stating names,
    hand-writing `.int(id)`, the memberwise init); the meaningful code (`fetch`, `perform`, the identity
