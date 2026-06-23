@@ -12,5 +12,5 @@
 enum SwiflowVersion {
     /// Current CLI semantic version. Matches the tag of the most recent
     /// GitHub release (or the upcoming one being prepared).
-    static let current = "0.3.1"
+    static let current = "0.3.2"
 }
