@@ -66,7 +66,7 @@ jobs:
       matrix:
         os: ["ubuntu-22.04"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Swift 6.3.2 (Linux)
         # vapor/swiftly-action delegates to the official `swiftly`
@@ -137,7 +137,7 @@ jobs:
         # NOTE: actions/cache only WRITES on a key miss, and only if the
         # job reaches its post-step — a failed job skips the save. So the
         # cache stays empty until a run goes green; that's expected.
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .build
@@ -193,10 +193,10 @@ jobs:
     name: JS Driver Tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
@@ -218,7 +218,7 @@ jobs:
     # label to trigger it (the `labeled` trigger above re-runs the workflow).
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Swift 6.3.2
         uses: vapor/swiftly-action@bedb227456c5f495afbef80baebee17a8a02cef4 # v0.2.1
@@ -226,7 +226,7 @@ jobs:
           toolchain: "6.3.2"
 
       - name: Cache SwiftPM build + WASM SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .build
@@ -250,14 +250,14 @@ jobs:
         run: swift build -c release --product swiflow
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: Tests/playwright/package-lock.json
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('Tests/playwright/package-lock.json') }}
@@ -284,7 +284,7 @@ jobs:
 
       - name: Upload Playwright trace on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-trace
           path: Tests/playwright/test-results/
@@ -303,7 +303,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Swift 6.3.2
         uses: vapor/swiftly-action@bedb227456c5f495afbef80baebee17a8a02cef4 # v0.2.1
@@ -311,7 +311,7 @@ jobs:
           toolchain: "6.3.2"
 
       - name: Cache SwiftPM build + WASM SDK
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .build
