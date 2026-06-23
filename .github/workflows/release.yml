@@ -26,10 +26,121 @@ permissions:
   contents: write
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Build the `swiflow` CLI as a downloadable binary for each supported host.
+  #
+  # Only the CLI is a binary worth shipping; the eight library products are
+  # consumed as source via SwiftPM. The CLI is a *host* tool (it shells out to
+  # the user's Swift toolchain + WASM SDK to build apps), so it needs NEITHER
+  # the WASM SDK nor an exact 6.3.2 match to compile — any recent host Swift
+  # produces a working binary. That's why this matrix is simpler than ci.yml.
+  #
+  # Per-platform toolchain choice matters, though:
+  #   - Linux: swiftly 6.3.2, same as CI.
+  #   - macOS: Xcode's bundled Swift, NOT swiftly. Apple's downloadable 6.3
+  #     macOS toolchain ships only the dynamic stdlib (no lib/swift_static),
+  #     so linking the eagerly-built CompilerPlugin host tool fails with
+  #     "library 'swift_errno' not found" — the exact reason ci.yml disables
+  #     its macOS matrix entry. Xcode bundles the full static stdlib, so
+  #     building against it sidesteps the bug.
+  build:
+    name: Build CLI (${{ matrix.asset }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset: macos-arm64
+            runner: macos-14
+          - asset: linux-x86_64
+            runner: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode toolchain (macOS)
+        if: runner.os == 'macOS'
+        # Pick the newest installed Xcode (Swift 6.3+ on current images) and
+        # make it the active toolchain. We deliberately do NOT use swiftly here
+        # — see the job comment for the static-stdlib link failure it causes.
+        run: |
+          set -euo pipefail
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$newest" ]; then
+            echo "Selecting $newest"
+            sudo xcode-select -s "$newest"
+          else
+            echo "No versioned Xcode found; using the default toolchain."
+          fi
+
+      - name: Set up Swift 6.3.2 (Linux)
+        if: runner.os == 'Linux'
+        uses: vapor/swiftly-action@bedb227456c5f495afbef80baebee17a8a02cef4 # v0.2.1
+        with:
+          toolchain: "6.3.2"
+
+      - name: Verify Swift version (>= 6.3)
+        # Fail loudly if a runner image regresses to an older default Swift,
+        # rather than silently shipping a binary built by an unexpected
+        # compiler. The host CLI doesn't need the 6.3.2 *patch* to match, but
+        # 6.3 is the project's language floor in practice.
+        run: |
+          set -euo pipefail
+          swift --version
+          v="$(swift -version 2>&1 | grep -oE 'Swift version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+          major="${v%%.*}"; minor="${v##*.}"
+          if [ "$major" -lt 6 ] || { [ "$major" -eq 6 ] && [ "$minor" -lt 3 ]; }; then
+            echo "::error::Swift $v is too old; need >= 6.3 to build swiflow."
+            exit 1
+          fi
+
+      - name: Build release CLI
+        run: swift build -c release --product swiflow
+
+      - name: Package binary + checksum
+        env:
+          # Tag reaches the script only via the environment (never spliced into
+          # the run-block body) — same injection hygiene as the publish job.
+          TAG: ${{ github.ref_name }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"                 # strip leading 'v' → "0.3.0"
+          bindir="$(swift build -c release --product swiflow --show-bin-path)"
+          stage="swiflow-${version}-${ASSET}"
+
+          mkdir -p "dist/${stage}"
+          cp "${bindir}/swiflow" "dist/${stage}/swiflow"
+          cp LICENSE README.md "dist/${stage}/"
+
+          tar -C dist -czf "dist/${stage}.tar.gz" "${stage}"
+          ( cd dist && shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256" )
+          ls -l dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.asset }}
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
   release:
+    # Gate the published Release on green binary builds: a `vX.Y.Z` tag now
+    # ships notes *and* binaries together, so a broken build blocks the release
+    # rather than publishing a notes-only Release with nothing to download.
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: cli-*
+          merge-multiple: true   # flatten every matrix artifact into dist/
 
       - name: Publish release from the CHANGELOG section
         env:
@@ -68,3 +179,23 @@ jobs:
             echo "::warning::No CHANGELOG section for [$version]; creating with auto-generated notes."
             gh release create "$TAG" --title "Swiflow $version" --generate-notes
           fi
+
+      - name: Attach binaries to the release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # The publish step above guarantees the Release exists by now, so a
+          # plain upload (idempotent via --clobber) attaches the tarballs and
+          # their .sha256 sidecars without re-deciding create-vs-edit.
+          assets=(dist/*.tar.gz dist/*.tar.gz.sha256)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::No binary assets found in dist/ — did the build job upload them?"
+            exit 1
+          fi
+
+          echo "Uploading: ${assets[*]}"
+          gh release upload "$TAG" "${assets[@]}" --clobber
