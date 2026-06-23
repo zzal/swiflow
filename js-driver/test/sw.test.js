@@ -156,7 +156,7 @@ describe("service worker", () => {
   });
 
   test("sw source carries the build-tag placeholder for CLI stamping", () => {
-    const src = fs.readFileSync(new URL("../swiflow-sw.js", import.meta.url), "utf8");
+    const src = fs.readFileSync(new URL("../swiflow-service-worker.js", import.meta.url), "utf8");
     assert.ok(src.includes('const BUILD_TAG = "__SWIFLOW_BUILD_TAG__";'));
   });
 });

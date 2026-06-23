@@ -1,4 +1,4 @@
-// js-driver/swiflow-sw.js
+// js-driver/swiflow-service-worker.js
 //
 // Swiflow service worker. Pre-caches the WASM + JS runtime keyed by
 // content hash so repeat visits transfer ~0 bytes. Two caches:

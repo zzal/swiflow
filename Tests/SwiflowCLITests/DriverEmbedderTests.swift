@@ -72,14 +72,14 @@ struct DriverEmbedderTests {
                 "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
     }
 
-    @Test("EmbeddedDriver.serviceWorkerSource matches js-driver/swiflow-sw.js verbatim")
+    @Test("EmbeddedDriver.serviceWorkerSource matches js-driver/swiflow-service-worker.js verbatim")
     func swSourceIsFresh() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let repoRoot = testFile
             .deletingLastPathComponent()  // SwiflowCLITests
             .deletingLastPathComponent()  // Tests
             .deletingLastPathComponent()  // repo root
-        let path = repoRoot.appendingPathComponent("js-driver/swiflow-sw.js")
+        let path = repoRoot.appendingPathComponent("js-driver/swiflow-service-worker.js")
         let onDisk = try String(contentsOf: path, encoding: .utf8)
         #expect(EmbeddedDriver.serviceWorkerSource == onDisk,
                 "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
@@ -99,7 +99,7 @@ struct DriverEmbedderTests {
         let jsURL = repoRoot
             .appendingPathComponent("js-driver/swiflow-driver.js")
         let swURL = repoRoot
-            .appendingPathComponent("js-driver/swiflow-sw.js")
+            .appendingPathComponent("js-driver/swiflow-service-worker.js")
         let regionsURL = repoRoot
             .appendingPathComponent("js-driver/swiflow-regions.js")
         let guestSdkURL = repoRoot

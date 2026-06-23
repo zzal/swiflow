@@ -641,23 +641,23 @@
   //
   // swiflowDev: boolean — pass true in dev builds (same flag as SWIFLOW_DEV).
   //
-  //   false → register swiflow-sw.js (production / release builds).
+  //   false → register swiflow-service-worker.js (production / release builds).
   //   true  → unregister all SWs scoped to this page (aggressive but correct
   //            in dev — HMR must not fight a stale cache from a prior release
   //            build). Does NOT register a new SW.
   window.swiflow.__boot = async function __boot({ swiflowDev }) {
     if (!("serviceWorker" in navigator)) return;
     if (swiflowDev) {
-      // Unregister any stale swiflow-sw.js SW so HMR isn't fighting a cache.
-      // Only SWs whose scriptURL ends with "swiflow-sw.js" are touched;
+      // Unregister any stale swiflow-service-worker.js SW so HMR isn't fighting a cache.
+      // Only SWs whose scriptURL ends with "swiflow-service-worker.js" are touched;
       // any other SWs on the same origin (e.g. a PWA) are left intact.
       const regs = await navigator.serviceWorker.getRegistrations();
       for (const reg of regs) {
         const url = (reg.active || reg.installing || reg.waiting)?.scriptURL ?? "";
-        // scriptURL is always absolute per spec, so "/swiflow-sw.js" alone
+        // scriptURL is always absolute per spec, so "/swiflow-service-worker.js" alone
         // is correct. Don't fall back to the bare-suffix form: it would
-        // false-positive on a third-party SW named e.g. "my-swiflow-sw.js".
-        if (!url.endsWith("/swiflow-sw.js")) continue;
+        // false-positive on a third-party SW named e.g. "my-swiflow-service-worker.js".
+        if (!url.endsWith("/swiflow-service-worker.js")) continue;
         try { await reg.unregister(); } catch (_) {}
       }
       // Unregistering removes the worker but NOT its caches — a prior `swiflow
@@ -677,7 +677,7 @@
       return;
     }
     try {
-      await navigator.serviceWorker.register("swiflow-sw.js");
+      await navigator.serviceWorker.register("swiflow-service-worker.js");
     } catch (e) {
       console.warn("swiflow: service worker registration failed", e);
     }

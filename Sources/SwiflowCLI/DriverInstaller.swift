@@ -2,7 +2,7 @@
 //
 // Writes the embedded JS driver + service worker into a project directory.
 //
-// `swiflow init` scaffolds `swiflow-driver.js` / `swiflow-sw.js` once (via
+// `swiflow init` scaffolds `swiflow-driver.js` / `swiflow-service-worker.js` once (via
 // ProjectWriter), but a project that wasn't `init`-ed — e.g. an example
 // scaffolded by copying another, or a checkout whose gitignored driver never
 // got committed — would have no driver for `index.html` to load, so the page
@@ -18,7 +18,7 @@
 import Foundation
 
 enum DriverInstaller {
-    /// Writes `swiflow-driver.js` and `swiflow-sw.js` from `EmbeddedDriver`
+    /// Writes `swiflow-driver.js` and `swiflow-service-worker.js` from `EmbeddedDriver`
     /// into `projectDir`, overwriting any existing copies.
     static func install(into projectDir: URL) throws {
         try EmbeddedDriver.javascriptSource.write(
@@ -27,13 +27,13 @@ enum DriverInstaller {
             encoding: .utf8
         )
         try EmbeddedDriver.serviceWorkerSource.write(
-            to: projectDir.appendingPathComponent("swiflow-sw.js"),
+            to: projectDir.appendingPathComponent("swiflow-service-worker.js"),
             atomically: true,
             encoding: .utf8
         )
     }
 
-    /// Re-emits `swiflow-sw.js` with the build tag stamped in. Called by
+    /// Re-emits `swiflow-service-worker.js` with the build tag stamped in. Called by
     /// `swiflow build` AFTER the manifest is written, so the tag reflects the
     /// artifacts actually being served. A changed tag changes the SW file's
     /// bytes, which is what makes the browser's update check re-fire
@@ -45,7 +45,7 @@ enum DriverInstaller {
             with: buildTag
         )
         try stamped.write(
-            to: projectDir.appendingPathComponent("swiflow-sw.js"),
+            to: projectDir.appendingPathComponent("swiflow-service-worker.js"),
             atomically: true,
             encoding: .utf8
         )

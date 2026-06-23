@@ -117,7 +117,7 @@ extension TemplateEmbedderTests {
         #expect(t.files["README.md"] != nil)
         // Driver / SW must NOT be in the template — they come from EmbeddedDriver.
         #expect(t.files["swiflow-driver.js"] == nil)
-        #expect(t.files["swiflow-sw.js"] == nil)
+        #expect(t.files["swiflow-service-worker.js"] == nil)
     }
 
     @Test("Package.swift template uses {{NAME}} and {{SWIFLOW_DEP}} placeholders")

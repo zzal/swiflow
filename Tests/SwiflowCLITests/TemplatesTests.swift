@@ -38,15 +38,15 @@ struct TemplatesTests {
                 "examples/HelloWorld/swiflow-driver.js drifted from js-driver/swiflow-driver.js — `cp` the canonical file over the example")
     }
 
-    @Test("examples/HelloWorld/swiflow-sw.js byte-equals js-driver/swiflow-sw.js")
+    @Test("examples/HelloWorld/swiflow-service-worker.js byte-equals js-driver/swiflow-service-worker.js")
     func exampleServiceWorkerMatchesCanonical() throws {
         let canonical = try String(
-            contentsOf: Self.repoRoot.appendingPathComponent("js-driver/swiflow-sw.js"),
+            contentsOf: Self.repoRoot.appendingPathComponent("js-driver/swiflow-service-worker.js"),
             encoding: .utf8
         )
-        let example = try Self.exampleFile("swiflow-sw.js")
+        let example = try Self.exampleFile("swiflow-service-worker.js")
         #expect(canonical == example,
-                "examples/HelloWorld/swiflow-sw.js drifted from js-driver/swiflow-sw.js — `cp` the canonical file over the example")
+                "examples/HelloWorld/swiflow-service-worker.js drifted from js-driver/swiflow-service-worker.js — `cp` the canonical file over the example")
     }
 
     @Test("Every template renders byte-identical to its examples/<name>/ tree",

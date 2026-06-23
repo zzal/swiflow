@@ -31,7 +31,7 @@ enum DriverEmbedder {
         // Regenerate by running, from the repo root:
         //     swift scripts/embed-driver.swift
         //
-        // Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
+        // Source: js-driver/swiflow-driver.js + js-driver/swiflow-service-worker.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
 
         enum EmbeddedDriver {
             static let javascriptSource: String = #\"\"\"
