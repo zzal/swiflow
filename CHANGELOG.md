@@ -16,6 +16,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.3.1] — 2026-06-23
+
+Distribution: prebuilt CLI binaries. No library or API changes.
+
+### Added
+
+- **Prebuilt `swiflow` binaries.** Tagged releases now attach a ready-to-run
+  CLI for **macOS arm64** and **Linux x86_64** (each a `.tar.gz` with a
+  `.sha256` checksum), so installing no longer requires compiling from source.
+- **`install.sh`.** A `curl … | sh` installer that detects your platform,
+  verifies the checksum, and installs to `/usr/local/bin` (override with
+  `SWIFLOW_INSTALL_DIR`; pin a version with `SWIFLOW_VERSION`).
+
+### Notes
+
+- The binary still shells out to your Swift 6.3 toolchain and the WebAssembly
+  SDK to build apps — the one-time `swift sdk install` step is unchanged.
+- Building from source (`swift build -c release --product swiflow`) remains
+  supported, and is the path for hosts without a prebuilt binary (Intel Mac,
+  Linux arm64).
+
+---
+
 ## [0.3.0] — 2026-06-22
 
 Type-reducer macros for the Query/Mutation data layer: declare a query or
