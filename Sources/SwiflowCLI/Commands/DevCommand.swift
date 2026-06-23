@@ -60,7 +60,7 @@ struct DevCommand: AsyncParsableCommand {
         //     once here, before the FileWatcher is created, so it doesn't trip
         //     the rebuild loop.
         do {
-            try DriverInstaller.install(into: projectURL)
+            try DriverInstaller.install(into: projectURL, minified: false)
         } catch {
             throw ValidationError("swiflow: failed to write the JS driver into \(projectURL.path): \(error)")
         }

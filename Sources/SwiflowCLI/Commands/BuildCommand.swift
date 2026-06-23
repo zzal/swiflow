@@ -322,7 +322,7 @@ struct BuildCommand: AsyncParsableCommand {
         //    root for static hosting. `swiflow init` scaffolds them, but a
         //    project that wasn't init-ed would otherwise have no driver to load
         //    App.wasm. Re-emitting keeps them in lockstep with this CLI version.
-        try DriverInstaller.install(into: projectURL)
+        try DriverInstaller.install(into: projectURL, minified: true)
 
         // 6. Write swiflow-manifest.json at the project root, where swiflow-service-worker.js
         //    expects to find it (new URL("swiflow-manifest.json", self.location.href)
@@ -335,7 +335,7 @@ struct BuildCommand: AsyncParsableCommand {
         let tag = manifest.wasm.sha256.prefix(12)
             + "-"
             + manifest.runtime.map { String($0.sha256.prefix(4)) }.joined()
-        try DriverInstaller.stampServiceWorker(into: projectURL, buildTag: String(tag))
+        try DriverInstaller.stampServiceWorker(into: projectURL, buildTag: String(tag), minified: true)
 
         print("""
             swiflow: build complete.
