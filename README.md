@@ -66,8 +66,16 @@ batched patch list and ships it across the bridge in a single crossing.
 
 ## Quick start
 
-You need **Swift 6.3** and the **WebAssembly Swift SDK 6.3.2** (the SDK's stdlib
-must match the host compiler exactly). macOS 14+ for the dev server; Linux works too.
+You need **Swift 6.3.2** and the **WebAssembly Swift SDK 6.3.2** — the SDK's
+stdlib must match the host compiler exactly. Get the host toolchain first:
+
+- **macOS (15.6+):** install **Xcode 26.2 or newer**, which bundles Swift 6.3.2.
+  Don't reach for swiftly or a standalone swift.org toolchain here — their macOS
+  builds omit the static stdlib, so compiling an app's macros fails to link.
+- **Linux:** use [swiftly](https://www.swift.org/install/): `swiftly install 6.3.2`.
+
+Note that swiftly installs the *toolchain*; the WebAssembly SDK is a separate
+cross-compilation target, added with `swift sdk install` (step 1) on either OS.
 
 ```bash
 # 1. Install the WASM SDK (once) — needed at build time, binary or source
@@ -88,7 +96,7 @@ the binary in `/usr/local/bin` (override with `SWIFLOW_INSTALL_DIR`, or pin a
 version with `SWIFLOW_VERSION`). Prefer to build from source — or on an unlisted
 host like an Intel Mac? Skip step 2 and run `swift build -c release --product
 swiflow`, then invoke the CLI from `./.build/release/swiflow`. Either way the
-binary isn't fully standalone: it shells out to your Swift 6.3 toolchain and the
+binary isn't fully standalone: it shells out to your Swift 6.3.2 toolchain and the
 WASM SDK from step 1 to build your app.
 
 Run `swiflow doctor` to verify your toolchain. Hacking on Swiflow itself? Add
