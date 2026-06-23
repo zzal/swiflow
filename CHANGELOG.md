@@ -16,6 +16,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.0] — 2026-06-23
+
+### Changed
+
+- **Production builds now ship minified runtime JS.** `swiflow build` emits
+  esbuild-minified `swiflow-driver.js` / `swiflow-service-worker.js` (and the
+  region runtime when used); `swiflow dev` keeps the readable variant for
+  debugging. The CLI binary stays Node-free — minification runs at build time
+  via the embed codegen.
+- **Region JS is scaffolded only when used.** Plain projects (including the
+  HelloWorld starter) no longer carry `swiflow-regions.js` /
+  `swiflow-region-guest.js` (~15KB of previously-dead files). `swiflow init`,
+  `dev`, and `build` emit the region pair only when `index.html` references it.
+- **Renamed `swiflow-sw.js` → `swiflow-service-worker.js`** for clarity.
+
+### Migration
+
+- An already-deployed `swiflow-sw.js` service worker is not auto-unregistered
+  by the renamed worker. Re-deploy and hard-reload; or unregister the old SW
+  manually in DevTools → Application → Service Workers.
+
+---
+
 ## [0.3.2] — 2026-06-23
 
 ### Fixed
