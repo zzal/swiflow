@@ -13,7 +13,7 @@ import { setupDriver } from "./helpers.js";
 
 describe("service worker registration", () => {
 
-  test("driver registers swiflow-sw.js when SWIFLOW_DEV is unset", async () => {
+  test("driver registers swiflow-service-worker.js when SWIFLOW_DEV is unset", async () => {
     const { window } = setupDriver();
     const registered = [];
     window.navigator.serviceWorker = {
@@ -21,7 +21,7 @@ describe("service worker registration", () => {
       getRegistrations: async () => [],
     };
     await window.swiflow.__bootForTest({ swiflowDev: false });
-    assert.deepEqual(registered, ["swiflow-sw.js"]);
+    assert.deepEqual(registered, ["swiflow-service-worker.js"]);
   });
 
   test("driver skips registration when SWIFLOW_DEV is true", async () => {
@@ -39,7 +39,7 @@ describe("service worker registration", () => {
     const { window } = setupDriver();
     const unregistered = [];
     const fakeReg = {
-      active: { scriptURL: "https://x.test/swiflow-sw.js" },
+      active: { scriptURL: "https://x.test/swiflow-service-worker.js" },
       unregister: () => { unregistered.push("yes"); return Promise.resolve(true); },
     };
     window.navigator.serviceWorker = {

@@ -27,7 +27,7 @@ enum TemplateEmbedder {
     /// File / directory names excluded from every template.
     /// - `.build`, `.swiftpm`, `Package.resolved`, `.DS_Store`: build artifacts,
     ///   SwiftPM/Xcode user-state directories, and OS files.
-    /// - `swiflow-driver.js`, `swiflow-sw.js`, `swiflow-manifest.json`:
+    /// - `swiflow-driver.js`, `swiflow-service-worker.js`, `swiflow-manifest.json`:
     ///   the JS driver + service worker come from EmbeddedDriver (which is
     ///   itself codegen'd from js-driver/). Keeping them out of the template
     ///   avoids two paths for the same canonical bytes.
@@ -40,7 +40,7 @@ enum TemplateEmbedder {
         ".DS_Store",
         "Package.resolved",
         "swiflow-driver.js",
-        "swiflow-sw.js",
+        "swiflow-service-worker.js",
         "swiflow-manifest.json",
         "RegionDemo",
     ]

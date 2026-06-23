@@ -30,7 +30,7 @@ guard fm.fileExists(atPath: examplesRoot.path) else {
 // `universe.wasm` that can't round-trip this UTF-8 codegen. Excluded whole.
 let blacklist: Set<String> = [
     ".build", ".swiftpm", ".DS_Store", "Package.resolved",
-    "swiflow-driver.js", "swiflow-sw.js", "swiflow-manifest.json",
+    "swiflow-driver.js", "swiflow-service-worker.js", "swiflow-manifest.json",
     "RegionDemo",
 ]
 

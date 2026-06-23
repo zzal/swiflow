@@ -29,7 +29,7 @@ struct InitCommandTests {
         #expect(fm.fileExists(atPath: project.appendingPathComponent("Sources/App/App.swift").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("index.html").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-driver.js").path))
-        #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-sw.js").path))
+        #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-service-worker.js").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent(".gitignore").path))
         #expect(fm.fileExists(atPath: project.appendingPathComponent("README.md").path))
     }
@@ -55,7 +55,7 @@ struct InitCommandTests {
         #expect(onDisk == driver)
     }
 
-    @Test("Init writes the embedded service worker verbatim to swiflow-sw.js")
+    @Test("Init writes the embedded service worker verbatim to swiflow-service-worker.js")
     func writesServiceWorkerVerbatim() throws {
         let tmp = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -71,7 +71,7 @@ struct InitCommandTests {
             jsRegionsSource: "// fake regions\n", jsGuestSdkSource: "// fake guest sdk\n"
         )
 
-        let url = tmp.appendingPathComponent("Demo/swiflow-sw.js")
+        let url = tmp.appendingPathComponent("Demo/swiflow-service-worker.js")
         let onDisk = try String(contentsOf: url, encoding: .utf8)
         #expect(onDisk == sw)
     }

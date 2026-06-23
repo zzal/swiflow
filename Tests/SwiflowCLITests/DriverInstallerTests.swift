@@ -12,7 +12,7 @@ struct DriverInstallerTests {
         return dir
     }
 
-    @Test("writes swiflow-driver.js and swiflow-sw.js verbatim from EmbeddedDriver")
+    @Test("writes swiflow-driver.js and swiflow-service-worker.js verbatim from EmbeddedDriver")
     func writesBothFiles() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -20,7 +20,7 @@ struct DriverInstallerTests {
         try DriverInstaller.install(into: dir)
 
         let driver = try String(contentsOf: dir.appendingPathComponent("swiflow-driver.js"), encoding: .utf8)
-        let sw = try String(contentsOf: dir.appendingPathComponent("swiflow-sw.js"), encoding: .utf8)
+        let sw = try String(contentsOf: dir.appendingPathComponent("swiflow-service-worker.js"), encoding: .utf8)
         #expect(driver == EmbeddedDriver.javascriptSource)
         #expect(sw == EmbeddedDriver.serviceWorkerSource)
     }
@@ -47,7 +47,7 @@ struct DriverInstallerTests {
         try DriverInstaller.install(into: dir)
         try DriverInstaller.stampServiceWorker(into: dir, buildTag: "deadbeefcafe")
 
-        let sw = try String(contentsOf: dir.appendingPathComponent("swiflow-sw.js"), encoding: .utf8)
+        let sw = try String(contentsOf: dir.appendingPathComponent("swiflow-service-worker.js"), encoding: .utf8)
         #expect(sw.contains("deadbeefcafe"))
         #expect(!sw.contains("__SWIFLOW_BUILD_TAG__"),
                 "the placeholder must be fully replaced in the emitted file")

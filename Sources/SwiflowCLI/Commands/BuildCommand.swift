@@ -324,7 +324,7 @@ struct BuildCommand: AsyncParsableCommand {
         //    App.wasm. Re-emitting keeps them in lockstep with this CLI version.
         try DriverInstaller.install(into: projectURL)
 
-        // 6. Write swiflow-manifest.json at the project root, where swiflow-sw.js
+        // 6. Write swiflow-manifest.json at the project root, where swiflow-service-worker.js
         //    expects to find it (new URL("swiflow-manifest.json", self.location.href)
         //    resolves to the SW's own scope, which is the project root).
         let manifest = try BuildCommand.writeManifest(projectDir: projectURL)
@@ -345,7 +345,7 @@ struct BuildCommand: AsyncParsableCommand {
     }
 
     /// Builds `swiflow-manifest.json` from the PackageToJS output artifacts and
-    /// writes it at `projectDir/swiflow-manifest.json` — alongside `swiflow-sw.js`,
+    /// writes it at `projectDir/swiflow-manifest.json` — alongside `swiflow-service-worker.js`,
     /// where the service worker resolves it (the SW does
     /// `new URL("swiflow-manifest.json", self.location.href)`, which resolves
     /// against its own scope = the project root).

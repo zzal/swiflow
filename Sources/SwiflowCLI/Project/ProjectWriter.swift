@@ -86,7 +86,7 @@ enum ProjectWriter {
                 encoding: .utf8
             )
             try jsServiceWorkerSource.write(
-                to: project.appendingPathComponent("swiflow-sw.js"),
+                to: project.appendingPathComponent("swiflow-service-worker.js"),
                 atomically: true,
                 encoding: .utf8
             )

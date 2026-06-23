@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import vm from "node:vm";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const swPath = join(here, "..", "swiflow-sw.js");
+const swPath = join(here, "..", "swiflow-service-worker.js");
 
 class MockCache {
   constructor() { this.store = new Map(); }
@@ -89,7 +89,7 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
     },
     skipWaiting: async () => {},
     clients: { claim: async () => {}, matchAll: async () => [] },
-    location: { href: `${SW_ORIGIN}/swiflow-sw.js` },
+    location: { href: `${SW_ORIGIN}/swiflow-service-worker.js` },
   };
 
   const ctx = vm.createContext({
@@ -105,7 +105,7 @@ export function loadServiceWorker({ manifest, fetchHandler } = {}) {
   });
 
   const src = readFileSync(swPath, "utf8");
-  vm.runInContext(src, ctx, { filename: "swiflow-sw.js" });
+  vm.runInContext(src, ctx, { filename: "swiflow-service-worker.js" });
 
   async function fire(name, ev) {
     const fns = listeners.get(name) ?? [];

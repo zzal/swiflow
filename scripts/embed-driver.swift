@@ -19,7 +19,7 @@ let fm = FileManager.default
 let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
 
 let jsPath      = cwd.appendingPathComponent("js-driver/swiflow-driver.js")
-let swPath      = cwd.appendingPathComponent("js-driver/swiflow-sw.js")
+let swPath      = cwd.appendingPathComponent("js-driver/swiflow-service-worker.js")
 let regionsPath  = cwd.appendingPathComponent("js-driver/swiflow-regions.js")
 let guestSdkPath = cwd.appendingPathComponent("js-driver/swiflow-region-guest.js")
 let outPath      = cwd.appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
@@ -62,7 +62,7 @@ let output = """
 // Regenerate by running, from the repo root:
 //     swift scripts/embed-driver.swift
 //
-// Source: js-driver/swiflow-driver.js + js-driver/swiflow-sw.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
+// Source: js-driver/swiflow-driver.js + js-driver/swiflow-service-worker.js + js-driver/swiflow-regions.js + js-driver/swiflow-region-guest.js
 
 enum EmbeddedDriver {
     static let javascriptSource: String = #\"\"\"
