@@ -70,18 +70,27 @@ You need **Swift 6.3** and the **WebAssembly Swift SDK 6.3.2** (the SDK's stdlib
 must match the host compiler exactly). macOS 14+ for the dev server; Linux works too.
 
 ```bash
-# 1. Install the WASM SDK (once)
+# 1. Install the WASM SDK (once) — needed at build time, binary or source
 swift sdk install \
   https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
   --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
 
-# 2. Build the CLI (from source — no Homebrew yet)
-swift build -c release --product swiflow
+# 2. Install the swiflow CLI — prebuilt binary for your platform.
+#    Find the current version at https://github.com/zzal/swiflow/releases/latest
+VERSION=X.Y.Z
+ASSET=swiflow-$VERSION-macos-arm64                 # or: swiflow-$VERSION-linux-x86_64
+curl -fsSL "https://github.com/zzal/swiflow/releases/download/v$VERSION/$ASSET.tar.gz" | tar xz
+sudo mv "$ASSET/swiflow" /usr/local/bin/swiflow
 
 # 3. Scaffold and run, with state-preserving hot reload on every save
-./.build/release/swiflow init my-app
-cd my-app && ../.build/release/swiflow dev      # → http://localhost:3000
+swiflow init my-app
+cd my-app && swiflow dev      # → http://localhost:3000
 ```
+
+Prefer to build from source? Skip step 2 and run `swift build -c release --product
+swiflow`, then invoke the CLI from `./.build/release/swiflow`. The prebuilt binary
+isn't fully standalone either way — it shells out to your Swift 6.3 toolchain and
+the WASM SDK from step 1 to build your app.
 
 Run `swiflow doctor` to verify your toolchain. Hacking on Swiflow itself? Add
 `--swiflow-source $(pwd)` to `init` so the new project depends on your local clone
