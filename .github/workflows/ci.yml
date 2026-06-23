@@ -210,6 +210,34 @@ jobs:
         working-directory: js-driver
         run: npm test
 
+  embed-freshness:
+    name: Embedded driver is fresh (incl. minified)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Swift 6.3.2 (Linux)
+        uses: vapor/swiftly-action@bedb227456c5f495afbef80baebee17a8a02cef4 # v0.2.1
+        with:
+          toolchain: "6.3.2"
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: js-driver/package-lock.json
+
+      - name: Install JS deps (brings in pinned esbuild)
+        working-directory: js-driver
+        run: npm ci --no-audit --no-fund
+
+      - name: Regenerate EmbeddedDriver.swift
+        run: swift scripts/embed-driver.swift
+
+      - name: Fail if EmbeddedDriver.swift is stale
+        run: git diff --exit-code Sources/SwiflowCLI/EmbeddedDriver.swift
+
   playwright-e2e:
     name: Playwright E2E
     runs-on: ubuntu-22.04
