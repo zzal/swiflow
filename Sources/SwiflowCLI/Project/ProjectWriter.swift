@@ -23,6 +23,10 @@ enum ProjectWriter {
     /// Creates `<into>/<name>/` and writes the chosen template's file tree
     /// into it, plus the JS driver + service worker (which come from
     /// EmbeddedDriver, not the template — see EmbeddedTemplates blacklist).
+    /// The region pair (`swiflow-regions.js` + `swiflow-region-guest.js`) is
+    /// written ONLY when the template's rendered `index.html` references the
+    /// regions script (detected via `RuntimeFiles.usesRegions`). Plain
+    /// templates do not carry the ~15 KB of unused region JS.
     ///
     /// - Parameters:
     ///   - name: project name; used as the directory name and `{{NAME}}` substitution value.
@@ -77,9 +81,8 @@ enum ProjectWriter {
                 try rendered.write(to: dest, atomically: true, encoding: .utf8)
             }
 
-            // JS driver, service worker, and regions runtime come from
-            // EmbeddedDriver, not the template. Keeps canonical js-driver/
-            // bytes in one place.
+            // JS driver and service worker come from EmbeddedDriver, not the
+            // template. Keeps canonical js-driver/ bytes in one place.
             try jsDriverSource.write(
                 to: project.appendingPathComponent("swiflow-driver.js"),
                 atomically: true,
@@ -90,16 +93,24 @@ enum ProjectWriter {
                 atomically: true,
                 encoding: .utf8
             )
-            try jsRegionsSource.write(
-                to: project.appendingPathComponent("swiflow-regions.js"),
-                atomically: true,
-                encoding: .utf8
-            )
-            try jsGuestSdkSource.write(
-                to: project.appendingPathComponent("swiflow-region-guest.js"),
-                atomically: true,
-                encoding: .utf8
-            )
+
+            // Region runtime is written only when the template's index.html
+            // uses it, so plain projects don't carry ~15KB of unused region
+            // JS. dev/build re-emit on the same rule (see DriverInstaller).
+            let indexHTML = template.files["index.html"]
+                .map { Templates.render($0, name: name, swiflowDep: swiflowDep) } ?? ""
+            if RuntimeFiles.usesRegions(indexHTML: indexHTML) {
+                try jsRegionsSource.write(
+                    to: project.appendingPathComponent("swiflow-regions.js"),
+                    atomically: true,
+                    encoding: .utf8
+                )
+                try jsGuestSdkSource.write(
+                    to: project.appendingPathComponent("swiflow-region-guest.js"),
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
         } catch {
             try? fm.removeItem(at: project)
             throw error
