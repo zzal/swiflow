@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "assemblyscript": "0.28.19",
+    "esbuild": "0.25.5",
     "jsdom": "29.1.1"
   }
 }
