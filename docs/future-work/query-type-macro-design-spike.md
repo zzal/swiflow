@@ -1,4 +1,4 @@
-# Design Spike: `@QueryType` / `@MutationType` macros + `QueryKeyConvertible`
+# Design Spike: `@Query` / `@Mutation` macros + `QueryKeyConvertible`
 
 Status: design spike (implementation-ready design, not finished code)
 Audience: senior Swift / Swiflow maintainers
@@ -33,7 +33,7 @@ Three things here are pure ceremony, mechanically derivable from the type's shap
 The target API makes the identity/dependency split *declarative* and derives the rest:
 
 ```swift
-@QueryType struct UserByID {
+@Query struct UserByID {
     @Key var id: Int            // identity → queryKey component
     var api = FakeAPI()         // non-@Key → captured dep + defaulted test seam
     func fetch() async throws -> User { await api.user(id) }
@@ -49,16 +49,16 @@ let u = query(UserByID(id: userID))
 ### In scope
 
 - `QueryKeyConvertible` protocol + library conformances (`Int`, `String`, `Bool`, `RawRepresentable where RawValue: QueryKeyConvertible`).
-- `@QueryType` attached macro: synthesizes `Query` conformance, `queryKey`, and (conditionally) the memberwise init.
-- `@Key` marker macro: read by `@QueryType` from the syntax tree.
-- `@MutationType` attached macro (sibling): synthesizes `Mutation` conformance + memberwise init. **Recommendation inside: ship it, but it is thin.**
+- `@Query` attached macro: synthesizes `Query` conformance, `queryKey`, and (conditionally) the memberwise init.
+- `@Key` marker macro: read by `@Query` from the syntax tree.
+- `@Mutation` attached macro (sibling): synthesizes `Mutation` conformance + memberwise init. **Recommendation inside: ship it, but it is thin.**
 - A compile-time diagnostic set with exact message text.
 - Golden `assertMacroExpansion` tests mirroring `Tests/SwiflowMacrosTests`.
 
 ### Explicit non-goals
 
 - **No consumption-side macro.** `query(_:)` / `@MutationState` stay exactly as they are. The macro never touches the call site, and never moves a query into a stored property (it *must not* — the query is parameterized by changing `@State`; see `examples/QueryDemo` line 60).
-- **No auto-resync.** `@QueryType` does not generate the `self.rename = RenameUser(id: userID, …)` resync line in `body`. That's render-time application logic, out of scope.
+- **No auto-resync.** `@Query` does not generate the `self.rename = RenameUser(id: userID, …)` resync line in `body`. That's render-time application logic, out of scope.
 - **No business-logic synthesis.** `fetch()` (queries) and `perform`/`optimistic`/`invalidations` (mutations) are always hand-written. The macro only synthesizes *identity and construction* plumbing.
 - **No new runtime behavior.** Generated `queryKey` produces a `QueryKey` byte-for-byte equivalent to a hand-written one; the cache, prefix-cascade, and GC are untouched.
 - **No `@Component`/`stateCells` interaction.** Queries and mutations are value types observed through `query(_:)`; they are not state cells. See §7.
@@ -89,9 +89,9 @@ The escape hatch is a protocol the *type system* dispatches, not the macro:
 /// `QueryKeyComponent` is deliberately a closed 2-case enum (`.string` /
 /// `.int`) — the type-safe alternative to `AnyHashable` (no Int/Int64/String
 /// confusion, debuggable, prefix-cascadable). Any type used as a `@Key` in a
-/// `@QueryType` must therefore *project its identity* into those two cases.
+/// `@Query` must therefore *project its identity* into those two cases.
 ///
-/// `@QueryType` emits a uniform `.keyComponents` dispatch over every `@Key`
+/// `@Query` emits a uniform `.keyComponents` dispatch over every `@Key`
 /// property in source order, so the macro never needs to know a property's
 /// concrete type — the conformance carries that knowledge. Most keys are a
 /// single component; the array return supports composite identities
@@ -183,7 +183,7 @@ Instead, emit calls to a generic free function whose constraint *is* the diagnos
 ```swift
 // Sources/SwiflowQuery/QueryKeyConvertible.swift  (continued)
 
-/// Underscored: an implementation detail of `@QueryType`'s expansion, not API.
+/// Underscored: an implementation detail of `@Query`'s expansion, not API.
 /// Its generic constraint converts a missing conformance into the canonical
 /// "requires that 'Foo' conform to 'QueryKeyConvertible'" diagnostic, anchored
 /// to the user's `@Key var foo: Foo` rather than to invisible generated code.
@@ -198,13 +198,13 @@ A non-conforming `@Key var bad: Foo` now produces:
 
 > `global function '_qkc' requires that 'Foo' conform to 'QueryKeyConvertible'`
 
-which is *actionable*: it names the offending type and the protocol to adopt. We sharpen this further with a `@QueryType`-side pre-check (§6, `requiresConvertibleKey`) that we *cannot* fully enforce (the macro doesn't know the type) but *can* hint when the spelling is recognizably non-conforming — but `_qkc` is the type-system backstop that always fires correctly.
+which is *actionable*: it names the offending type and the protocol to adopt. We sharpen this further with a `@Query`-side pre-check (§6, `requiresConvertibleKey`) that we *cannot* fully enforce (the macro doesn't know the type) but *can* hint when the spelling is recognizably non-conforming — but `_qkc` is the type-system backstop that always fires correctly.
 
 Decision: **`_qkc` it is.** `@inlinable` so the indirection is free in `-O` (queries are constructed every render); `@MainActor` to match the protocol and `Query`'s isolation; underscore-prefixed and SPI-flavored so it doesn't pollute autocomplete. It lives in `SwiflowQuery` (public) so macro-emitted code in *user* modules can reach it — exactly as `ComponentMacro` relies on `_hmrCoerce` / `HMRNilSentinel` being public in the runtime module.
 
 ---
 
-## 3. `@QueryType`
+## 3. `@Query`
 
 ### What it reads from syntax
 
@@ -219,7 +219,7 @@ It does **not** read or care about: `fetch()`, `Value`, computed properties, met
 ### Macro declaration
 
 ```swift
-// Sources/SwiflowQuery/QueryTypeMacro.swift   (public decls live in SwiflowQuery)
+// Sources/SwiflowQuery/QueryMacro.swift   (public decls live in SwiflowQuery)
 
 /// Synthesizes `Query` conformance for a `struct`: derives `queryKey` from the
 /// `@Key`-marked stored properties (in source order, prefixed by the type name
@@ -237,8 +237,8 @@ It does **not** read or care about: `fetch()`, `Value`, computed properties, met
 /// enums conform out of the box).
 @attached(extension, conformances: Query)
 @attached(member, names: named(queryKey), named(init(_:)))
-public macro QueryType(prefix: String? = nil) =
-    #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryTypeMacro")
+public macro Query(prefix: String? = nil) =
+    #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryMacro")
 ```
 
 Notes on the attached roles (subtlety #7):
@@ -257,7 +257,7 @@ Notes on the attached roles (subtlety #7):
 Source:
 
 ```swift
-@QueryType struct UserByID {
+@Query struct UserByID {
     @Key var id: Int
     var api: FakeAPI = FakeAPI()
     func fetch() async throws -> User { await api.user(id) }
@@ -272,7 +272,7 @@ struct UserByID {
     var api: FakeAPI = FakeAPI()
     func fetch() async throws -> User { await api.user(id) }
 
-    // --- synthesized by @QueryType (member role) ---
+    // --- synthesized by @Query (member role) ---
     var queryKey: QueryKey {
         ["UserByID"] + _qkc(id)
     }
@@ -283,14 +283,14 @@ struct UserByID {
     }
 }
 
-// --- synthesized by @QueryType (extension role) ---
+// --- synthesized by @Query (extension role) ---
 extension UserByID: Query {
 }
 ```
 
 Key observations:
 
-- `@Key` remains in the expanded source. It is a **marker peer macro that expands to nothing** (§4); it survives only as a syntactic annotation that `@QueryType` read. (Cf. how `@State` survives in the `@Component` expansion in `ComponentMacroTests.testEmitsRuntimeMembers`.)
+- `@Key` remains in the expanded source. It is a **marker peer macro that expands to nothing** (§4); it survives only as a syntactic annotation that `@Query` read. (Cf. how `@State` survives in the `@Component` expansion in `ComponentMacroTests.testEmitsRuntimeMembers`.)
 - `queryKey` is the uniform `["<prefix>"] + _qkc(<key>)` shape. `["UserByID"]` is a `QueryKey` (array) via `ExpressibleByStringLiteral` on `QueryKeyComponent` + array literal; `+ _qkc(id)` appends `[.int(id)]`. Result: `["UserByID", .int(id)]`. (Note this differs from the hand-written `["users", .int(id)]` — the *default* prefix is the type name; the migration uses `prefix: "users"` to preserve the existing key — see §8.)
 - The init defaults `api` to `FakeAPI()` by **copying the default-value expression from the member syntax** (`var api = FakeAPI()` → `api: FakeAPI = FakeAPI()`). This is the test seam, synthesized for free.
 - `tags` is **not** synthesized (no `@Key`-equivalent for tags; protocol default is `[]`). To set tags, the user writes `var tags: Set<QueryTag> { ["users"] }` by hand — and the macro skips nothing because it never tries to emit `tags`. (We considered a `tags:` macro arg; rejected — see §3.5.)
@@ -299,14 +299,14 @@ Key observations:
 
 This is the crux, and it requires precise analysis of what Swift gives us for free.
 
-**The free memberwise init.** If `@QueryType` added *no* stored properties and *no* init, the Swift compiler would synthesize an **`internal`** memberwise initializer — and crucially, it *does* preserve property defaults. So `var api = FakeAPI()` already yields a free `init(id: Int, api: FakeAPI = FakeAPI())`. For an `internal` query in the same module, **we'd need to synthesize nothing.**
+**The free memberwise init.** If `@Query` added *no* stored properties and *no* init, the Swift compiler would synthesize an **`internal`** memberwise initializer — and crucially, it *does* preserve property defaults. So `var api = FakeAPI()` already yields a free `init(id: Int, api: FakeAPI = FakeAPI())`. For an `internal` query in the same module, **we'd need to synthesize nothing.**
 
 So when is macro init-synthesis actually needed? Two cases:
 
 1. **`public` query types.** Swift's *free* memberwise init is `internal`. A `public struct UserByID` constructed from another module (or, in Swiflow's case, the common pattern where queries live in a library target and components in the app target) needs a **`public init`**. Swift will not synthesize a public memberwise init; you must write one. This is the real motivation.
-2. **Guaranteeing the test seam regardless of access.** Even for `internal` types, the contract "every `@QueryType` is constructible with its dependencies defaulted" should be *explicit and stable*, not dependent on the user remembering not to write a stored `let` without a default (which would suppress Swift's free init's default for that field). Synthesizing the init makes the seam a guarantee of the macro, not an accident of Swift's synthesis rules.
+2. **Guaranteeing the test seam regardless of access.** Even for `internal` types, the contract "every `@Query` is constructible with its dependencies defaulted" should be *explicit and stable*, not dependent on the user remembering not to write a stored `let` without a default (which would suppress Swift's free init's default for that field). Synthesizing the init makes the seam a guarantee of the macro, not an accident of Swift's synthesis rules.
 
-**Decision: `@QueryType` always synthesizes the memberwise init** (unless the user wrote their own — see below). Rationale: it costs nothing for the common case, it's *required* for `public` types, and it makes the test-seam contract explicit. This matches how `ComponentMacro` always emits `bind`/`stateCells` rather than relying on defaults.
+**Decision: `@Query` always synthesizes the memberwise init** (unless the user wrote their own — see below). Rationale: it costs nothing for the common case, it's *required* for `public` types, and it makes the test-seam contract explicit. This matches how `ComponentMacro` always emits `bind`/`stateCells` rather than relying on defaults.
 
 **How the synthesized init carries each piece, all from syntax:**
 
@@ -319,7 +319,7 @@ So when is macro init-synthesis actually needed? Two cases:
 **The no-annotation inference subtlety (and its resolution).** Consider:
 
 ```swift
-@QueryType struct Foo {
+@Query struct Foo {
     @Key var id = 5            // inferred Int, no annotation
     var api = FakeAPI()        // inferred FakeAPI, no annotation
 }
@@ -327,14 +327,14 @@ So when is macro init-synthesis actually needed? Two cases:
 
 The macro cannot write `init(id: <?>, api: <?>)` because it doesn't know the inferred types. Two viable strategies:
 
-- **(A) Require annotations on stored properties** and diagnose a missing one (`@QueryType` properties need explicit types). Clean, but slightly more ceremony, and `var api = FakeAPI()` *is* the headline example — forcing `var api: FakeAPI = FakeAPI()` is mildly annoying.
+- **(A) Require annotations on stored properties** and diagnose a missing one (`@Query` properties need explicit types). Clean, but slightly more ceremony, and `var api = FakeAPI()` *is* the headline example — forcing `var api: FakeAPI = FakeAPI()` is mildly annoying.
 - **(B) Emit the init only for *annotated* properties and fall back to Swift's free init when any stored property lacks an annotation.** Fragile: silently downgrades to `internal`, breaking `public` types with an inferred field.
 
 **Decision: (A) for `@Key`, (B-relaxed) for dependencies — concretely:**
 
 - **`@Key` properties:** keep the headline ergonomic by allowing inference where it's unambiguous, BUT for the *init* we need the type. Resolution: if a `@Key` (or any stored property we must put in the init) has **no type annotation and a default we can't type**, we *do not* attempt to type the parameter — we emit the parameter as `<name>: <inferred-via-default-expr>` only when the default is a trivially-typed literal we recognize is risky. Rather than do brittle literal inference, we choose the clean rule:
 
-  > **Rule (crisp): every stored property in a `@QueryType` that participates in the init must have an explicit type annotation OR a default-value expression.**
+  > **Rule (crisp): every stored property in a `@Query` that participates in the init must have an explicit type annotation OR a default-value expression.**
   > - With an annotation: parameter type = the annotation; default = the initializer if present.
   > - With a default but no annotation: we **cannot** name the type, so we emit the parameter using the *declared default as the only construction path* — i.e. we omit that property from the parameter list and assign it from its own default in the body **only if it has no `@Key`** (a defaulted dependency like `var api = FakeAPI()`); a `@Key` with no annotation is a **diagnostic** (`keyNeedsType`, §6), because a key *must* appear in the init for tests to vary it.
 
@@ -351,18 +351,18 @@ The macro cannot write `init(id: <?>, api: <?>)` because it doesn't know the inf
 
 **Crisp statement of the init rule:**
 
-> `@QueryType` synthesizes a memberwise `init` at the struct's access level, one parameter per stored property in source order, copying each property's default-value expression as the parameter default. It is suppressed entirely if the struct declares any `init`. A `@Key` property must have an explicit type annotation (diagnostic `keyNeedsType` otherwise). A non-`@Key` stored property without an annotation is initialized from its own default and omitted from the init parameter list (so it is not injectable); annotate it to make it an injectable, defaulted parameter (the test seam).
+> `@Query` synthesizes a memberwise `init` at the struct's access level, one parameter per stored property in source order, copying each property's default-value expression as the parameter default. It is suppressed entirely if the struct declares any `init`. A `@Key` property must have an explicit type annotation (diagnostic `keyNeedsType` otherwise). A non-`@Key` stored property without an annotation is initialized from its own default and omitted from the init parameter list (so it is not injectable); annotate it to make it an injectable, defaulted parameter (the test seam).
 
 ### 3.3 Not fighting hand-written `queryKey` / `tags`
 
 Before emitting `queryKey`, scan members for a `queryKey` declaration (a `VariableDeclSyntax` whose binding pattern identifier is `queryKey`). If present, **skip emitting `queryKey`** — the user's explicit one wins, and the macro only contributes the `Query` conformance + (maybe) the init. Same principle as the init suppression. `tags` is never synthesized, so there's nothing to skip there.
 
-This makes the macro *purely additive on top of a partially-hand-written query*, which is the property that makes §8's migration non-breaking: a fully hand-written `Query` that adds `@QueryType` gets the (suppressed-because-already-present) members skipped and **no** `extension … : Query {}` emitted. The `@attached(extension, conformances:)` role guards on the compiler-provided `conformingTo` set: when the type already conforms via its own `: Query`, that set is empty and the role emits nothing. (Correction to an earlier draft: a duplicate `extension … : Query {}` is a hard *redundant-conformance* error — NOT "a no-op the compiler dedups." The `guard !protocols.isEmpty` is load-bearing. See the `extension-macro-conditional-conformance` memory.)
+This makes the macro *purely additive on top of a partially-hand-written query*, which is the property that makes §8's migration non-breaking: a fully hand-written `Query` that adds `@Query` gets the (suppressed-because-already-present) members skipped and **no** `extension … : Query {}` emitted. The `@attached(extension, conformances:)` role guards on the compiler-provided `conformingTo` set: when the type already conforms via its own `: Query`, that set is empty and the role emits nothing. (Correction to an earlier draft: a duplicate `extension … : Query {}` is a hard *redundant-conformance* error — NOT "a no-op the compiler dedups." The `guard !protocols.isEmpty` is load-bearing. See the `extension-macro-conditional-conformance` memory.)
 
 ### 3.4 Prefix / opt-out (subtlety #5)
 
 - **Default prefix** = the type-name string component: `["UserByID", …]`. Read `structDecl.name.text`.
-- **Custom prefix** via `@QueryType(prefix: "users")` → `["users", …]`. Parse the macro's argument list (`node.arguments`), find the `prefix:` labeled argument, require it to be a **static string literal** (a `StringLiteralExprSyntax` with a single string segment — same rigor as `CSSMacro` requiring a static literal). Use its text as the prefix component. A non-literal (`prefix: someVar`) → diagnostic `prefixMustBeLiteral` (§6), because the key must be statically derivable for the cache.
+- **Custom prefix** via `@Query(prefix: "users")` → `["users", …]`. Parse the macro's argument list (`node.arguments`), find the `prefix:` labeled argument, require it to be a **static string literal** (a `StringLiteralExprSyntax` with a single string segment — same rigor as `CSSMacro` requiring a static literal). Use its text as the prefix component. A non-literal (`prefix: someVar`) → diagnostic `prefixMustBeLiteral` (§6), because the key must be statically derivable for the cache.
 - The prefix is always exactly **one** `.string` component. (Multi-component static prefixes — `["users", "active"]` — are the zero-`@Key` case below, handled by letting the user write `queryKey` by hand, OR by a future `prefix:` accepting an array; out of scope for v1. Decision: v1 `prefix:` is a single `String`.)
 
 ### 3.5 Should `tags:` be a macro argument?
@@ -378,7 +378,7 @@ This makes the macro *purely additive on top of a partially-hand-written query*,
 A static-key query has no identity fields:
 
 ```swift
-@QueryType struct TodoList {
+@Query struct TodoList {
     var tags: Set<QueryTag> { ["todos"] }
     var refetchInterval: Duration? { .seconds(5) }
     func fetch() async throws -> [Todo] { try await api.get("/todos", as: [Todo].self) }
@@ -393,7 +393,7 @@ var queryKey: QueryKey {
 }
 ```
 
-To get the existing `["todos"]` key, use the prefix: `@QueryType(prefix: "todos") struct TodoList { … }` → `var queryKey: QueryKey { ["todos"] }`.
+To get the existing `["todos"]` key, use the prefix: `@Query(prefix: "todos") struct TodoList { … }` → `var queryKey: QueryKey { ["todos"] }`.
 
 For a genuinely multi-component static key like `["users", "active"]`, v1 has the author write `queryKey` by hand (the macro skips it per §3.3) — or we extend `prefix:` to an array in a follow-up. The init synthesis still applies (here it'd be a zero-parameter `init()` — useful so `TodoList()` is `public` if the struct is `public`; otherwise the free `init()` already exists, so synthesis is harmless and consistent).
 
@@ -404,10 +404,10 @@ For a genuinely multi-component static key like `["users", "active"]`, v1 has th
 ### What it is
 
 ```swift
-// Sources/SwiflowQuery/QueryTypeMacro.swift  (continued)
+// Sources/SwiflowQuery/QueryMacro.swift  (continued)
 
-/// Marks a stored property as part of a `@QueryType`'s identity (`queryKey`).
-/// Read by `@QueryType` from the syntax tree; expands to nothing on its own.
+/// Marks a stored property as part of a `@Query`'s identity (`queryKey`).
+/// Read by `@Query` from the syntax tree; expands to nothing on its own.
 /// Applies to `let` or `var`. The property's type must conform to
 /// `QueryKeyConvertible`.
 @attached(peer, names: arbitrary)
@@ -424,7 +424,7 @@ public struct KeyMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // Validate placement; emit no peers. @Key is a marker read by @QueryType.
+        // Validate placement; emit no peers. @Key is a marker read by @Query.
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
               varDecl.bindings.first?.accessorBlock == nil else {
             context.diagnose(Diagnostic(
@@ -441,14 +441,14 @@ public struct KeyMacro: PeerMacro {
 
 - **vs. property wrapper (`@Key var id: Int`).** A property wrapper would *change the stored type* to `Key<Int>`, forcing unwrapping at every use (`fetch()` would see `id.wrappedValue`), break `Equatable`/`Sendable` derivation, and add runtime overhead to a value constructed every render. The marker leaves `id` a plain `Int`. **Decisive reason: the property must stay its natural type for `fetch()` and for the synthesized init parameter.** This is the same reason `@State` is an accessor+peer macro, not a wrapper class (the Phase-15 migration in `ComponentMacro` *removed* the old `State<T>` wrapper class precisely for this).
 - **vs. a naming convention** (e.g. "properties before the first `var api` are keys"). Implicit, position-fragile, unteachable. Rejected.
-- **vs. a macro argument listing key names** (`@QueryType(keys: ["id"])`). Stringly-typed, decoupled from the declaration, no autocomplete, easy to typo. Rejected. The annotation lives *on* the property — discoverable, refactor-safe.
+- **vs. a macro argument listing key names** (`@Query(keys: ["id"])`). Stringly-typed, decoupled from the declaration, no autocomplete, easy to typo. Rejected. The annotation lives *on* the property — discoverable, refactor-safe.
 - **The chosen design mirrors SwiftData `@Attribute`/`@Relationship`**: marker macros on stored properties, read by the type-level `@Model` macro. Familiar to the audience.
 
 `@Key` is declared `@attached(peer, names: arbitrary)` and emits **no** peers. (An empty `names: []` would express the no-op intent better, but it is *not* valid Swift — *"introduced name argument should be a name"* — so the marker reuses the same `arbitrary` form `@State`/`@MutationState` use for their real `$name` peers. Discovered during Phase 1 implementation.)
 
 ### `let` vs `var`
 
-Both supported. The `KeyMacro` no-op doesn't care; `@QueryType`'s reader treats `let id: Int` and `var id: Int` identically for key derivation. For the init, a `let` key still becomes an init parameter (a `let` stored property is settable exactly once, in `init`). The headline uses `var id: Int`; the existing `examples/QueryDemo` uses `let id: Int` — both must work, and do.
+Both supported. The `KeyMacro` no-op doesn't care; `@Query`'s reader treats `let id: Int` and `var id: Int` identically for key derivation. For the init, a `let` key still becomes an init parameter (a `let` stored property is settable exactly once, in `init`). The headline uses `var id: Int`; the existing `examples/QueryDemo` uses `let id: Int` — both must work, and do.
 
 ### Zero `@Key` allowed
 
@@ -456,14 +456,14 @@ Yes — that's §3.6. The reader simply finds no `@Key` properties and emits the
 
 ---
 
-## 5. `@MutationType` (subtlety #6)
+## 5. `@Mutation` (subtlety #6)
 
 ### The shape
 
 Mutations have **no key**. `Mutation`'s requirements are `perform` (always hand-written business logic), `optimistic` + `invalidations` (defaulted, usually hand-written), and `Input`/`Output` associated types (inferred from `perform`). There is *nothing to derive* except the conformance and the test-seam init.
 
 ```swift
-@MutationType struct RenameUser {
+@Mutation struct RenameUser {
     let id: Int
     var api: FakeAPI = FakeAPI()
     func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -482,7 +482,7 @@ struct RenameUser {
     func optimistic(_ newName: String) -> [OptimisticEdit] { … }
     func invalidations(input: String, output: User) -> [Invalidation] { … }
 
-    // --- synthesized by @MutationType ---
+    // --- synthesized by @Mutation ---
     init(id: Int, api: FakeAPI = FakeAPI()) {
         self.id = id
         self.api = api
@@ -498,23 +498,23 @@ Macro declaration (no `prefix:`, no key, just the init + conformance):
 ```swift
 @attached(extension, conformances: Mutation)
 @attached(member, names: arbitrary)   // init labels are data-dependent
-public macro MutationType() =
-    #externalMacro(module: "SwiflowMacrosPlugin", type: "MutationTypeMacro")
+public macro Mutation() =
+    #externalMacro(module: "SwiflowMacrosPlugin", type: "MutationMacro")
 ```
 
-Implementation note: `MutationTypeMacro` is **literally `@QueryType` minus key/prefix derivation** — same struct-check, same init-synthesis routine, same access-level logic, same "suppress if user wrote an init." So the two share an `InitSynthesis` helper in the plugin (a free function taking the `StructDeclSyntax` and returning the `init` `DeclSyntax?`), and `MutationTypeMacro` just omits the `queryKey` member and points the extension at `Mutation`.
+Implementation note: `MutationMacro` is **literally `@Query` minus key/prefix derivation** — same struct-check, same init-synthesis routine, same access-level logic, same "suppress if user wrote an init." So the two share an `InitSynthesis` helper in the plugin (a free function taking the `StructDeclSyntax` and returning the `init` `DeclSyntax?`), and `MutationMacro` just omits the `queryKey` member and points the extension at `Mutation`.
 
 ### Ship or skip?
 
 **Recommendation: ship it, but it is deliberately thin — and document its single value proposition clearly.**
 
-The honest tension: a `Mutation` author who writes their own `init` (or whose mutation has no stored deps, like `AddTodo`/`ToggleTodo`/`DeleteTodo` in `examples/TodoCRUD`, which use the free `init()`) gets *zero* benefit from `@MutationType` — Swift's free memberwise init already covers them. The macro earns its keep in exactly one scenario:
+The honest tension: a `Mutation` author who writes their own `init` (or whose mutation has no stored deps, like `AddTodo`/`ToggleTodo`/`DeleteTodo` in `examples/TodoCRUD`, which use the free `init()`) gets *zero* benefit from `@Mutation` — Swift's free memberwise init already covers them. The macro earns its keep in exactly one scenario:
 
 - **A `public` mutation with stored dependencies** that needs a `public` defaulted init for cross-module construction + test injection (`public struct RenameUser` with `var api = FakeAPI()`). Here, as with queries, Swift's free init is only `internal`, so the macro is genuinely load-bearing.
 
-Given that, the decision is **ship for symmetry and the public-mutation case, but lead documentation with: "for mutations with no stored dependencies, just conform `: Mutation` and use the free initializer — `@MutationType` is for `public` mutations that capture dependencies."** Shipping it also keeps the mental model uniform (`@QueryType` / `@MutationType` as a pair), which has real teaching value even when one is thin. The cost is ~30 lines of plugin code reusing the shared `InitSynthesis` helper, so the maintenance burden is negligible.
+Given that, the decision is **ship for symmetry and the public-mutation case, but lead documentation with: "for mutations with no stored dependencies, just conform `: Mutation` and use the free initializer — `@Mutation` is for `public` mutations that capture dependencies."** Shipping it also keeps the mental model uniform (`@Query` / `@Mutation` as a pair), which has real teaching value even when one is thin. The cost is ~30 lines of plugin code reusing the shared `InitSynthesis` helper, so the maintenance burden is negligible.
 
-Concretely: in `examples/TodoCRUD`, `AddTodo`/`ToggleTodo`/`DeleteTodo` would **stay `: Mutation`** (no `@MutationType`) because they have no captured deps — and the spike's migration (§8) does exactly that, demonstrating the recommended boundary in the canonical example.
+Concretely: in `examples/TodoCRUD`, `AddTodo`/`ToggleTodo`/`DeleteTodo` would **stay `: Mutation`** (no `@Mutation`) because they have no captured deps — and the spike's migration (§8) does exactly that, demonstrating the recommended boundary in the canonical example.
 
 ---
 
@@ -524,16 +524,16 @@ All diagnostics follow the existing pattern: an enum conforming to `DiagnosticMe
 
 | # | When | Anchor node | Exact message | Fix-it |
 |---|------|-------------|---------------|--------|
-| 1 | `@QueryType` / `@MutationType` on a non-`struct` (class/enum/actor) | the type keyword (`class`/`enum`/`actor`), via the `ComponentMacro` keyword-extraction pattern | `@QueryType requires a struct — queries are value types constructed every render.` (mutation variant: `@MutationType requires a struct — mutations are value types.`) | — (no safe automatic fix) |
+| 1 | `@Query` / `@Mutation` on a non-`struct` (class/enum/actor) | the type keyword (`class`/`enum`/`actor`), via the `ComponentMacro` keyword-extraction pattern | `@Query requires a struct — queries are value types constructed every render.` (mutation variant: `@Mutation requires a struct — mutations are value types.`) | — (no safe automatic fix) |
 | 2 | `@Key` on a non-stored property (has a getter/`accessorBlock`) | the variable decl | `@Key marks a stored property; computed properties cannot be query-key components.` | — |
-| 3 | `@Key` used outside a `@QueryType` | the `@Key` attribute | `@Key has no effect outside a @QueryType — move it onto a stored property of a @QueryType struct, or remove it.` | remove `@Key` |
+| 3 | `@Key` used outside a `@Query` | the `@Key` attribute | `@Key has no effect outside a @Query — move it onto a stored property of a @Query struct, or remove it.` | remove `@Key` |
 | 4 | `@Key var id` with no type annotation (and we need it for the init) | the variable decl | `@Key requires an explicit type annotation so the key can be injected in tests (e.g. @Key var id: Int).` | insert `: <Type>` placeholder |
-| 5 | `@QueryType(prefix:)` argument is not a static string literal | the argument expression | `@QueryType(prefix:) requires a string literal — the key prefix must be statically known for the cache.` | — |
+| 5 | `@Query(prefix:)` argument is not a static string literal | the argument expression | `@Query(prefix:) requires a string literal — the key prefix must be statically known for the cache.` | — |
 | 6 | A `@Key` property's type does not conform to `QueryKeyConvertible` | (see note) | (see note) | — |
 
 Notes:
 
-- **Diagnostic #3 (`@Key` outside `@QueryType`)** is subtle: `@Key`'s own peer macro runs without knowing its enclosing type. The cleanest enforcement is *passive*: `@Key` expands to nothing and is harmless anywhere; if it's on a struct that *isn't* `@QueryType`, nothing reads it and it's a silent no-op — arguably fine. But errors-as-documentation favors catching the mistake. Resolution: `KeyMacro` can inspect `context` for the lexical parent is **not** reliably available in swift-syntax 600.x peer-macro expansion (peer macros don't get the enclosing decl). **Decision: we do *not* emit #3 from `KeyMacro`** (we can't see the parent). Instead, `@Key`'s doc comment states it's only meaningful inside `@QueryType`, and the *absence* of effect is benign. We keep #3 in this table as a known limitation, not a shipped diagnostic. (If a future swift-syntax exposes lexical context to peer macros, we add it.)
+- **Diagnostic #3 (`@Key` outside `@Query`)** is subtle: `@Key`'s own peer macro runs without knowing its enclosing type. The cleanest enforcement is *passive*: `@Key` expands to nothing and is harmless anywhere; if it's on a struct that *isn't* `@Query`, nothing reads it and it's a silent no-op — arguably fine. But errors-as-documentation favors catching the mistake. Resolution: `KeyMacro` can inspect `context` for the lexical parent is **not** reliably available in swift-syntax 600.x peer-macro expansion (peer macros don't get the enclosing decl). **Decision: we do *not* emit #3 from `KeyMacro`** (we can't see the parent). Instead, `@Key`'s doc comment states it's only meaningful inside `@Query`, and the *absence* of effect is benign. We keep #3 in this table as a known limitation, not a shipped diagnostic. (If a future swift-syntax exposes lexical context to peer macros, we add it.)
 
 - **Diagnostic #6 (non-conforming key type)** is the one the macro *cannot* fully enforce, by design (subtlety #1: it doesn't know the type). We do **not** emit a macro diagnostic for it. Instead, the `_qkc` generic helper (§2) makes the *natural Swift conformance error* land correctly:
 
@@ -551,31 +551,31 @@ This split — *the macro diagnoses what it can see in syntax (shape, placement,
 
 ## 7. HMR & macro-kind confirmation (subtlety #7)
 
-- **No `stateCells` interaction.** `stateCells` exists only for `@Component` classes, to snapshot/restore `@State` across hot reloads (`ComponentMacro` member expansion). `@QueryType`/`@MutationType` produce **value types** observed via `query(_:)` / `@MutationState`; they hold no `@State`, are reconstructed every render, and never participate in HMR snapshotting. `@QueryType` emits **no** `stateCells`, `bind`, `runtimeOwner`, or `runtimeScheduler`. The HMR machinery is entirely orthogonal.
-- **The `@MutationState`/`MutationRuntime` plumbing is untouched.** `@QueryType`/`@MutationType` change *how a `Query`/`Mutation` value type is declared*, not how it's *used*. `@MutationState var rename: RenameUser` and `MutationRuntime<RenameUser>()` keep working byte-for-byte — `RenameUser` is still a `Mutation`, just one whose conformance + init were synthesized.
+- **No `stateCells` interaction.** `stateCells` exists only for `@Component` classes, to snapshot/restore `@State` across hot reloads (`ComponentMacro` member expansion). `@Query`/`@Mutation` produce **value types** observed via `query(_:)` / `@MutationState`; they hold no `@State`, are reconstructed every render, and never participate in HMR snapshotting. `@Query` emits **no** `stateCells`, `bind`, `runtimeOwner`, or `runtimeScheduler`. The HMR machinery is entirely orthogonal.
+- **The `@MutationState`/`MutationRuntime` plumbing is untouched.** `@Query`/`@Mutation` change *how a `Query`/`Mutation` value type is declared*, not how it's *used*. `@MutationState var rename: RenameUser` and `MutationRuntime<RenameUser>()` keep working byte-for-byte — `RenameUser` is still a `Mutation`, just one whose conformance + init were synthesized.
 - **Exact attached-macro roles** (the deliverable's checklist):
-  - `@QueryType`: `@attached(extension, conformances: Query)` + `@attached(member, names: named(queryKey), arbitrary)`. Two roles.
-  - `@MutationType`: `@attached(extension, conformances: Mutation)` + `@attached(member, names: arbitrary)`. Two roles.
+  - `@Query`: `@attached(extension, conformances: Query)` + `@attached(member, names: named(queryKey), arbitrary)`. Two roles.
+  - `@Mutation`: `@attached(extension, conformances: Mutation)` + `@attached(member, names: arbitrary)`. Two roles.
   - `@Key`: `@attached(peer, names: arbitrary)`. One role, no-op.
   - `names:` list rationale: `named(queryKey)` is the one fixed member; `arbitrary` covers the init whose parameter labels are data-dependent (precedent: `@State`/`@MutationState` both use `arbitrary` for their peer role).
-- **Plugin registration** (`SwiflowMacrosPlugin.swift`): add `QueryTypeMacro.self`, `MutationTypeMacro.self`, `KeyMacro.self` to `providingMacros`.
+- **Plugin registration** (`SwiflowMacrosPlugin.swift`): add `QueryMacro.self`, `MutationMacro.self`, `KeyMacro.self` to `providingMacros`.
 
 ---
 
 ## 8. Golden tests
 
-Mirroring the two existing styles in `Tests/SwiflowMacrosTests` (`MutationStateMacroTests` uses swift-testing `@Suite`/`@Test`; `ComponentMacroTests` uses `XCTestCase`). New tests follow `ComponentMacroTests`' `XCTestCase` + `assertMacroExpansion` style since `@QueryType` is a multi-role macro like `@Component`. The macro dictionary registers all three so cross-macro expansion (`@Key` surviving inside `@QueryType`) is exercised.
+Mirroring the two existing styles in `Tests/SwiflowMacrosTests` (`MutationStateMacroTests` uses swift-testing `@Suite`/`@Test`; `ComponentMacroTests` uses `XCTestCase`). New tests follow `ComponentMacroTests`' `XCTestCase` + `assertMacroExpansion` style since `@Query` is a multi-role macro like `@Component`. The macro dictionary registers all three so cross-macro expansion (`@Key` surviving inside `@Query`) is exercised.
 
 ```swift
-// Tests/SwiflowMacrosTests/QueryTypeMacroTests.swift
+// Tests/SwiflowMacrosTests/QueryMacroTests.swift
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 @testable import SwiflowMacrosPlugin
 
-final class QueryTypeMacroTests: XCTestCase {
+final class QueryMacroTests: XCTestCase {
     private let macros: [String: Macro.Type] = [
-        "QueryType": QueryTypeMacro.self,
+        "Query": QueryMacro.self,
         "Key": KeyMacro.self,
     ]
 
@@ -586,7 +586,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testCanonicalQuery() {
         assertMacroExpansion(
             """
-            @QueryType struct UserByID {
+            @Query struct UserByID {
                 @Key var id: Int
                 var api: FakeAPI = FakeAPI()
                 func fetch() async throws -> User { await api.user(id) }
@@ -621,7 +621,7 @@ final class QueryTypeMacroTests: XCTestCase {
     func testStaticKeyWithPrefix() {
         assertMacroExpansion(
             """
-            @QueryType(prefix: "todos") struct TodoList {
+            @Query(prefix: "todos") struct TodoList {
                 var tags: Set<QueryTag> { ["todos"] }
                 func fetch() async throws -> [Todo] { try await api.get("/todos", as: [Todo].self) }
             }
@@ -646,13 +646,13 @@ final class QueryTypeMacroTests: XCTestCase {
         )
     }
 
-    // Test 3 — diagnostic: @QueryType on a non-struct.
+    // Test 3 — diagnostic: @Query on a non-struct.
     // Anchored at the `class` keyword (ComponentMacro keyword-extraction
     // pattern); no members or extension emitted.
     func testNonStructDiagnostic() {
         assertMacroExpansion(
             """
-            @QueryType final class UserByID {
+            @Query final class UserByID {
                 @Key var id: Int
                 func fetch() async throws -> User { await api.user(id) }
             }
@@ -665,7 +665,7 @@ final class QueryTypeMacroTests: XCTestCase {
             """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@QueryType requires a struct — queries are value types constructed every render.",
+                    message: "@Query requires a struct — queries are value types constructed every render.",
                     line: 1,
                     column: 18   // the `class` keyword
                 )
@@ -676,12 +676,12 @@ final class QueryTypeMacroTests: XCTestCase {
 
     // Test 4 (optional, recommended) — user-written init suppresses synthesis;
     // hand-written queryKey is not fought. Proves the additive-migration story:
-    // a fully hand-written Query that adds @QueryType still compiles, the macro
+    // a fully hand-written Query that adds @Query still compiles, the macro
     // only contributing the (idempotent) `: Query` conformance.
     func testHandWrittenMembersSuppressSynthesis() {
         assertMacroExpansion(
             """
-            @QueryType struct UserByID {
+            @Query struct UserByID {
                 let id: Int
                 let api: FakeAPI
                 var queryKey: QueryKey { ["users", .int(id)] }
@@ -707,7 +707,7 @@ final class QueryTypeMacroTests: XCTestCase {
 }
 ```
 
-(A `MutationTypeMacroTests` mirrors Test 1 with the `Mutation` conformance and no `queryKey` — omitted here for brevity but part of the deliverable.)
+(A `MutationMacroTests` mirrors Test 1 with the `Mutation` conformance and no `queryKey` — omitted here for brevity but part of the deliverable.)
 
 Note on `assertMacroExpansion` whitespace: the existing `ComponentMacroTests` documents (Tests 7–9) that SwiftSyntax's pretty-printer splits/indents emitted closures and arrays in specific ways. The golden strings above are the *intended* shape; during implementation we will run the tests and pin the *actual* pretty-printer output (e.g. exact indentation of the `init` body), exactly as the existing tests were pinned against real output.
 
@@ -736,7 +736,7 @@ struct UserByID: Query {
 After:
 
 ```swift
-@QueryType(prefix: "users") struct UserByID {
+@Query(prefix: "users") struct UserByID {
     @Key var id: Int
     var api: FakeAPI = FakeAPI()
     var tags: Set<QueryTag> { ["users"] }   // tags stay hand-written (protocol default is [])
@@ -765,7 +765,7 @@ struct RenameUser: Mutation {
 After:
 
 ```swift
-@MutationType struct RenameUser {
+@Mutation struct RenameUser {
     let id: Int
     var api: FakeAPI = FakeAPI()
     func perform(_ newName: String) async throws -> User { try await api.renameUser(id, name: newName) }
@@ -775,16 +775,16 @@ After:
 ```
 
 - `RenameUser` has a captured dependency (`api`) but its construction in `QueryDemo` (`RenameUser(id: 1, api: FakeAPI())`, lines 56 & 62) currently passes `api` explicitly. After migration, those call sites can drop to `RenameUser(id: 1)` thanks to the synthesized default — though leaving them explicit also compiles. (The component's resync line `self.rename = RenameUser(id: userID, api: FakeAPI())` stays application logic; the macro doesn't touch it.)
-- This is the *exact* public/dependency case where `@MutationType` earns its keep — though note `RenameUser` here is `internal`, so strictly the free init would suffice; the macro makes the seam explicit and the migration symmetric with `UserByID`.
+- This is the *exact* public/dependency case where `@Mutation` earns its keep — though note `RenameUser` here is `internal`, so strictly the free init would suffice; the macro makes the seam explicit and the migration symmetric with `UserByID`.
 
 ### `examples/TodoCRUD` — mutations stay `: Mutation`
 
-`AddTodo`, `ToggleTodo`, `DeleteTodo` (lines 31–67) have **no stored dependencies** (they call the module-level `let api`). Per §5's recommendation, they **do not** migrate to `@MutationType` — they keep `: Mutation` and the free `init()`. This demonstrates the documented boundary in the canonical example: *use `@MutationType` only when a mutation captures dependencies and needs a defaulted/public init.*
+`AddTodo`, `ToggleTodo`, `DeleteTodo` (lines 31–67) have **no stored dependencies** (they call the module-level `let api`). Per §5's recommendation, they **do not** migrate to `@Mutation` — they keep `: Mutation` and the free `init()`. This demonstrates the documented boundary in the canonical example: *use `@Mutation` only when a mutation captures dependencies and needs a defaulted/public init.*
 
 `TodoList` (lines 20–27), a zero-`@Key` query, *can* migrate:
 
 ```swift
-@QueryType(prefix: "todos") struct TodoList {
+@Query(prefix: "todos") struct TodoList {
     var tags: Set<QueryTag> { ["todos"] }
     var refetchInterval: Duration? { .seconds(5) }
     func fetch() async throws -> [Todo] { try await api.get("/todos", as: [Todo].self) }
@@ -798,7 +798,7 @@ After:
 A good multi-`@Key` showcase (two string keys):
 
 ```swift
-@QueryType(prefix: "quakes") struct QuakeFeedQuery {
+@Query(prefix: "quakes") struct QuakeFeedQuery {
     @Key var magnitude: String
     @Key var window: String
     var tags: Set<QueryTag> { ["quakes"] }
@@ -812,7 +812,7 @@ A good multi-`@Key` showcase (two string keys):
 
 ### Non-breaking guarantee
 
-Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and (b) the `@attached(extension, conformances:)` role emits the conformance only when it's still missing — it guards on the compiler-provided `conformingTo` set, since a duplicate `extension … : Query {}` is a hard error, not idempotent — a fully hand-written conformance that *adds* `@QueryType` compiles unchanged. So migration can proceed incrementally, and a half-migrated file (some queries macro'd, some not) is fine. CI builds the library targets; per the `ci-skips-example-builds` memory, the **example apps are not built in CI**, so each migrated example must be built locally (`swiflow build --path examples/QueryDemo`, `examples/TodoCRUD`, `examples/MissionControl`) before merge to catch key-prefix regressions the type system can't.
+Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and (b) the `@attached(extension, conformances:)` role emits the conformance only when it's still missing — it guards on the compiler-provided `conformingTo` set, since a duplicate `extension … : Query {}` is a hard error, not idempotent — a fully hand-written conformance that *adds* `@Query` compiles unchanged. So migration can proceed incrementally, and a half-migrated file (some queries macro'd, some not) is fine. CI builds the library targets; per the `ci-skips-example-builds` memory, the **example apps are not built in CI**, so each migrated example must be built locally (`swiflow build --path examples/QueryDemo`, `examples/TodoCRUD`, `examples/MissionControl`) before merge to catch key-prefix regressions the type system can't.
 
 ---
 
@@ -822,7 +822,7 @@ Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and 
 2. **`names: arbitrary` for the init.** Using `arbitrary` (vs. enumerating `named(init(...))`) is the safe, precedent-backed choice but slightly loosens the compiler's name-introduction contract. **Mitigation:** it's exactly what `@State`/`@MutationState` already do; no new risk.
 3. **The no-annotation dependency case** (`var api = FakeAPI()` with no type annotation) loses *that field's* test-seam (it's initialized from its own default, not an init parameter). **Open question:** do we (a) accept it and document "annotate deps to make them injectable," or (b) diagnose unannotated non-`@Key` deps too? Spike's recommendation: **(a)** — the headline example reads best with `var api = FakeAPI()`, and most deps don't need per-test override (the *type* is the seam: swap `FakeAPI` for a test double at the type level). Revisit if real usage wants per-instance dep injection without annotations.
 4. **Default-prefix surprise.** The default prefix is the *type name*, which differs from the conventional lowercase resource name (`"UserByID"` vs `"users"`). Every existing example uses a lowercase resource prefix, so **every migration needs `prefix:`**. **Open question:** should the default instead be the lowercased type name, or should `prefix:` be effectively mandatory? Recommendation: keep type-name default (it's *correct and unique* out of the box — two query types never collide), document that `prefix:` aligns the key with a REST resource, and make the migration examples model it. A lowercasing heuristic ("UserByID" → "userByID"? "user"? ) is guess-y and would itself surprise.
-5. **`Mutation` has no `Equatable`/key, so `@MutationType` truly only saves the init.** Already addressed in §5 (ship-but-thin). Risk is *over*-selling it; mitigated by documentation that steers no-dependency mutations to plain `: Mutation`.
+5. **`Mutation` has no `Equatable`/key, so `@Mutation` truly only saves the init.** Already addressed in §5 (ship-but-thin). Risk is *over*-selling it; mitigated by documentation that steers no-dependency mutations to plain `: Mutation`.
 6. **Composite-key ordering stability.** `queryKey` order = source order of `@Key` properties. Reordering `@Key` declarations silently changes the cache key. **Mitigation:** document that `@Key` order is significant (it already is for any hand-written `queryKey`); consider a future lint. Low risk (reordering stored properties is rare and already semantically loaded).
 7. **`prefix:` as a single string only (v1).** Multi-component static keys (`["users", "active"]`) fall back to hand-written `queryKey`. **Open question:** add `prefix: ["users", "active"]` overload later? Defer until a real case appears.
 
@@ -834,11 +834,11 @@ Because (a) synthesis of `queryKey`/`init` is suppressed when hand-written, and 
 
 **Phase 1 — `@Key` no-op marker.** `KeyMacro` + its `@attached(peer, names: arbitrary)` decl + plugin registration. *Verify:* a golden test asserting `@Key var id: Int` expands to itself (no peers) and the placement diagnostic (#2) fires on a computed property.
 
-**Phase 2 — shared `InitSynthesis` helper.** A plugin-internal free function: `(StructDeclSyntax, isPublic: Bool) -> DeclSyntax?` returning the memberwise init (or `nil` if a user init exists). This is the riskiest syntax logic (default-expr copying, access level, annotation rules from §3.2), so build and test it in isolation first via the `@QueryType` golden tests' init lines. *Verify:* the canonical-query test (§8 Test 1) and the suppression test (Test 4).
+**Phase 2 — shared `InitSynthesis` helper.** A plugin-internal free function: `(StructDeclSyntax, isPublic: Bool) -> DeclSyntax?` returning the memberwise init (or `nil` if a user init exists). This is the riskiest syntax logic (default-expr copying, access level, annotation rules from §3.2), so build and test it in isolation first via the `@Query` golden tests' init lines. *Verify:* the canonical-query test (§8 Test 1) and the suppression test (Test 4).
 
-**Phase 3 — `@QueryType`.** `QueryTypeMacro` as `ExtensionMacro` + `MemberMacro`: struct-check + diagnostics (§6 #1, #4, #5), `@Key` scanning (source order), `queryKey` emission (prefix + `_qkc` concat), `queryKey`-suppression (§3.3), `prefix:` arg parsing, and reuse of `InitSynthesis`. *Verify:* §8 Tests 1–4 green; then locally migrate + build `examples/QueryDemo` and `examples/MissionControl` and confirm the rendered key matches (the apps still load users/quakes — the only real test that the *prefix* is right, since the type system can't catch a wrong-but-valid key).
+**Phase 3 — `@Query`.** `QueryMacro` as `ExtensionMacro` + `MemberMacro`: struct-check + diagnostics (§6 #1, #4, #5), `@Key` scanning (source order), `queryKey` emission (prefix + `_qkc` concat), `queryKey`-suppression (§3.3), `prefix:` arg parsing, and reuse of `InitSynthesis`. *Verify:* §8 Tests 1–4 green; then locally migrate + build `examples/QueryDemo` and `examples/MissionControl` and confirm the rendered key matches (the apps still load users/quakes — the only real test that the *prefix* is right, since the type system can't catch a wrong-but-valid key).
 
-**Phase 4 — `@MutationType`.** `MutationTypeMacro` = struct-check + `Mutation` extension + `InitSynthesis` reuse, no key. *Verify:* a `MutationTypeMacroTests` mirror of Test 1; migrate `examples/QueryDemo`'s `RenameUser`; build locally and exercise rename (optimistic update + invalidation still fire).
+**Phase 4 — `@Mutation`.** `MutationMacro` = struct-check + `Mutation` extension + `InitSynthesis` reuse, no key. *Verify:* a `MutationMacroTests` mirror of Test 1; migrate `examples/QueryDemo`'s `RenameUser`; build locally and exercise rename (optimistic update + invalidation still fire).
 
 **Phase 5 — docs + example migration.** Migrate `QueryDemo`/`TodoCRUD`/`MissionControl` per §9, update the `examples/QueryDemo/README.md` query snippet, and write the macro doc comments leading with the §5 guidance (no-dep mutations stay `: Mutation`). *Verify:* `swiflow build --path …` for each migrated example (CI won't — `ci-skips-example-builds`); run the QueryDemo/TodoCRUD e2e suites locally if touched (`run-e2e-locally-before-push`).
 
