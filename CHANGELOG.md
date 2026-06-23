@@ -16,6 +16,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **`swiflow doctor` now catches a WASM SDK that doesn't match the compiler.**
+  Previously it greenlit any installed wasm SDK, so a 6.3 SDK against a 6.3.2
+  compiler passed `doctor` and then failed at `swiflow dev`/`build` with
+  "module compiled with Swift 6.3 cannot be imported by the Swift 6.3.2
+  compiler". Doctor now compares the SDK version against `swift --version` and
+  fails with the exact `swift sdk remove` + `swift sdk install` remediation on a
+  mismatch.
+
+---
+
 ## [0.3.1] — 2026-06-23
 
 Distribution: prebuilt CLI binaries. No library or API changes.
