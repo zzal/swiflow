@@ -25,6 +25,11 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 /// each property's default value (the test seam) at the struct's access level.
 /// `fetch()` stays hand-written.
 ///
+/// - Note: Unrelated to SwiftData's `@Query`. That one is a property wrapper for a
+///   live read from a local store (`@Query var items: [Item]`); this one reduces a
+///   `struct` into an async, cache-keyed fetch — the `useQuery` model from TanStack
+///   Query, not a local-database read.
+///
 /// - A hand-written `queryKey` or `init` suppresses synthesis of that member —
 ///   the macro never fights an explicit declaration.
 /// - Zero `@Key` properties yields a static key: just the prefix component.
