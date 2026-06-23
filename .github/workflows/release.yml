@@ -51,28 +51,16 @@ jobs:
       matrix:
         include:
           - asset: macos-arm64
-            # macos-15 (Sequoia), NOT macos-14: the macos-14 image's newest
-            # Xcode tops out at Swift 6.0, which fails the >= 6.3 guard below.
-            runner: macos-15
+            # macos-26 (Tahoe): its default Xcode (26.2+) bundles Swift 6.3.
+            # Earlier images fail the >= 6.3 guard below — macos-14 tops out at
+            # Swift 6.0, macos-15 at 6.2. We rely on the image's *default*
+            # Xcode (the static-stdlib-complete toolchain) rather than
+            # xcode-select'ing an alternate, and let the guard catch a regress.
+            runner: macos-26
           - asset: linux-x86_64
             runner: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Select Xcode toolchain (macOS)
-        if: runner.os == 'macOS'
-        # Pick the newest installed Xcode (Swift 6.3+ on current images) and
-        # make it the active toolchain. We deliberately do NOT use swiftly here
-        # — see the job comment for the static-stdlib link failure it causes.
-        run: |
-          set -euo pipefail
-          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)"
-          if [ -n "$newest" ]; then
-            echo "Selecting $newest"
-            sudo xcode-select -s "$newest"
-          else
-            echo "No versioned Xcode found; using the default toolchain."
-          fi
 
       - name: Set up Swift 6.3.2 (Linux)
         if: runner.os == 'Linux'
