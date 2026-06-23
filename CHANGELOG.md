@@ -16,6 +16,32 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.3.0] — 2026-06-22
+
+Type-reducer macros for the Query/Mutation data layer: declare a query or
+mutation as a plain `struct` and let the macro synthesize the conformance and
+the boilerplate.
+
+### Added
+
+- **`@Query` / `@Mutation`.** Attach to a `struct` to synthesize `Query` /
+  `Mutation` conformance plus the memberwise initializer — you write only the
+  identity, the captured dependencies, and `fetch` / `perform`. A hand-written
+  `queryKey` or `init` is never overridden; `@Query(prefix:)` sets a custom
+  cache-key prefix. As with Apple's `@Observable`/`Observable`, the macro and
+  the protocol share a name in one module, so the idiomatic form is a bare
+  `@Query struct …` — no explicit `: Query` needed.
+- **`@Key` + `QueryKeyConvertible`.** `@Key` marks a query's identity
+  properties; `queryKey` is derived from them in source order. Identity types
+  conform to `QueryKeyConvertible` (`Int`, `String`, `Bool`, and
+  `RawRepresentable` enums out of the box).
+- **`@MutationState` auto-init.** `@Component` now synthesizes `init()` for
+  zero-arg `@MutationState` properties, so a component of mutations no longer
+  needs a hand-written initializer that only restates their names. Capturing
+  mutations (those with stored dependencies) still take an explicit init.
+
+**Stability: experimental — interface may change.**
+
 ## [0.2.1] — 2026-06-17
 
 Developer-experience polish for SwiflowUI.
