@@ -1307,7 +1307,6 @@ final class SignIn {
   <body>
     <div id="app"></div>
     <script src="swiflow-driver.js"></script>
-    <script type="module" src="swiflow-regions.js"></script>
   </body>
 </html>
 
