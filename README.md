@@ -75,22 +75,21 @@ swift sdk install \
   https://download.swift.org/swift-6.3.2-release/wasm-sdk/swift-6.3.2-RELEASE/swift-6.3.2-RELEASE_wasm.artifactbundle.tar.gz \
   --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
 
-# 2. Install the swiflow CLI — prebuilt binary for your platform.
-#    Find the current version at https://github.com/zzal/swiflow/releases/latest
-VERSION=X.Y.Z
-ASSET=swiflow-$VERSION-macos-arm64                 # or: swiflow-$VERSION-linux-x86_64
-curl -fsSL "https://github.com/zzal/swiflow/releases/download/v$VERSION/$ASSET.tar.gz" | tar xz
-sudo mv "$ASSET/swiflow" /usr/local/bin/swiflow
+# 2. Install the swiflow CLI (prebuilt: macOS arm64 / Linux x86_64)
+curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh | sh
 
 # 3. Scaffold and run, with state-preserving hot reload on every save
 swiflow init my-app
 cd my-app && swiflow dev      # → http://localhost:3000
 ```
 
-Prefer to build from source? Skip step 2 and run `swift build -c release --product
-swiflow`, then invoke the CLI from `./.build/release/swiflow`. The prebuilt binary
-isn't fully standalone either way — it shells out to your Swift 6.3 toolchain and
-the WASM SDK from step 1 to build your app.
+The installer detects your platform, verifies the download's checksum, and drops
+the binary in `/usr/local/bin` (override with `SWIFLOW_INSTALL_DIR`, or pin a
+version with `SWIFLOW_VERSION`). Prefer to build from source — or on an unlisted
+host like an Intel Mac? Skip step 2 and run `swift build -c release --product
+swiflow`, then invoke the CLI from `./.build/release/swiflow`. Either way the
+binary isn't fully standalone: it shells out to your Swift 6.3 toolchain and the
+WASM SDK from step 1 to build your app.
 
 Run `swiflow doctor` to verify your toolchain. Hacking on Swiflow itself? Add
 `--swiflow-source $(pwd)` to `init` so the new project depends on your local clone
