@@ -27,20 +27,21 @@ struct ProjectWriterRegionTests {
         #expect(!FileManager.default.fileExists(atPath: proj.appendingPathComponent("swiflow-region-guest.js").path))
     }
 
-    // HelloWorld's index.html carries the regions script → region template.
-    @Test("a region template scaffolds the region JS pair")
-    func regionTemplateWritesRegions() throws {
+    // HelloWorld is the basic starter and uses no regions; its index.html must
+    // not carry the regions script, so init emits only driver + service worker.
+    @Test("HelloWorld (default starter) scaffolds no region JS")
+    func helloWorldIsPlain() throws {
         let parent = try tmp()
         defer { try? FileManager.default.removeItem(at: parent) }
         let tpl = try #require(EmbeddedTemplates.lookup("HelloWorld"))
         try ProjectWriter.writeProject(
-            name: "Reg", template: tpl, into: parent, swiflowDep: .path("../.."),
+            name: "Hello", template: tpl, into: parent, swiflowDep: .path("../.."),
             jsDriverSource: "D", jsServiceWorkerSource: "S",
             jsRegionsSource: "R", jsGuestSdkSource: "G"
         )
-        let proj = parent.appendingPathComponent("Reg")
-        #expect(try String(contentsOf: proj.appendingPathComponent("swiflow-regions.js"), encoding: .utf8) == "R")
-        #expect(try String(contentsOf: proj.appendingPathComponent("swiflow-region-guest.js"), encoding: .utf8) == "G")
+        let proj = parent.appendingPathComponent("Hello")
+        #expect(!FileManager.default.fileExists(atPath: proj.appendingPathComponent("swiflow-regions.js").path))
+        #expect(!FileManager.default.fileExists(atPath: proj.appendingPathComponent("swiflow-region-guest.js").path))
     }
 
     // A hand-crafted stub template with regions in its index.html must also
