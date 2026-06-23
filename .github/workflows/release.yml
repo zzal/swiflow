@@ -51,7 +51,9 @@ jobs:
       matrix:
         include:
           - asset: macos-arm64
-            runner: macos-14
+            # macos-15 (Sequoia), NOT macos-14: the macos-14 image's newest
+            # Xcode tops out at Swift 6.0, which fails the >= 6.3 guard below.
+            runner: macos-15
           - asset: linux-x86_64
             runner: ubuntu-22.04
     steps:
