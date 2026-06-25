@@ -176,7 +176,8 @@ padding (`.padding(.lg, .horizontal)`).
 ### M8 (1.1) — Token correctness & generation
 
 *Origin: evaluation of the [Reshaped](https://github.com/reshaped-ui/reshaped) design
-system (MIT) against this roadmap, 2026-06-25. Reshaped's components mostly don't port
+system (MIT) against this roadmap, 2026-06-25 — full grid, scores, and sources in
+[`swiflowui-reshaped-evaluation.md`](swiflowui-reshaped-evaluation.md). Reshaped's components mostly don't port
 (React), but its **token layer** is architecturally convergent with our media-feature-first
 stance — CSS custom properties, automatic dark mode in tokens, responsive resolved in CSS not
 JS — and it solves a problem 1.0 left hand-rolled: deriving **correct** base token values.
