@@ -59,8 +59,13 @@ public enum SwiflowUI {
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);
+          /* hover/active derive from --sw-accent (darken in light, lighten in dark) so
+             re-pointing --sw-accent cascades the whole accent family. Literal fallback
+             first for pre-oklch(from) browsers. */
           --sw-accent-hover: light-dark(#2563eb, #7cb0fb);
+          --sw-accent-hover: light-dark(oklch(from var(--sw-accent) calc(l - 0.08) c h), oklch(from var(--sw-accent) calc(l + 0.08) c h));
           --sw-accent-active: light-dark(#1d4ed8, #93c1fc);
+          --sw-accent-active: light-dark(oklch(from var(--sw-accent) calc(l - 0.16) c h), oklch(from var(--sw-accent) calc(l + 0.16) c h));
           /* Solid-fill text: contrast-color() picks black on the accent (both modes — the
              accent is medium/light blue), fixing today's sub-AA white (3.68:1 on #3b82f6).
              Fallback is dark in BOTH arms so pre-Baseline browsers also pass. See Button. */

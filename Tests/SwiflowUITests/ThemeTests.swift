@@ -96,6 +96,18 @@ struct ThemeTests {
         #expect(ids == ["swiflow-ui-base"])
     }
 
+    @Test("Accent hover/active derive from --sw-accent with a calc lightness step")
+    func accentRampDerivesFromAccent() {
+        let css = sheet
+        for token in ["--sw-accent-hover", "--sw-accent-active"] {
+            #expect(css.contains("\(token): light-dark(#"), "\(token) missing literal fallback")
+        }
+        #expect(css.contains("--sw-accent-hover: light-dark(oklch(from var(--sw-accent) calc(l - 0.08) c h)"),
+                "hover missing derived layer")
+        #expect(css.contains("--sw-accent-active: light-dark(oklch(from var(--sw-accent) calc(l - 0.16) c h)"),
+                "active missing derived layer")
+    }
+
     @Test("Each derived text token ships a static fallback AND a dynamic layer")
     func progressiveEnhancementPairsEmitted() {
         let css = sheet
