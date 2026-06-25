@@ -11,10 +11,14 @@ struct AccentThemeTests {
         #expect(css.contains(":root"))
     }
 
-    @Test("3-digit hex and missing # are normalized")
+    @Test("3-digit hex (#rgb) and missing # are normalized")
     func normalizesHex() throws {
-        let css = try Color.accentThemeCSS(primaryHex: "3b82f6")
-        #expect(css.contains("--sw-accent: light-dark(#3b82f6,"))
+        // 6-char without the leading #
+        let css6 = try Color.accentThemeCSS(primaryHex: "3b82f6")
+        #expect(css6.contains("--sw-accent: light-dark(#3b82f6,"))
+        // 3-digit shorthand expands to #rrggbb
+        let css3 = try Color.accentThemeCSS(primaryHex: "#06f")
+        #expect(css3.contains("--sw-accent: light-dark(#0066ff,"))
     }
 
     @Test("A medium-dark accent passes (the legacy -text fallback is not gated)")
