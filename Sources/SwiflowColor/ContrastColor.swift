@@ -18,7 +18,8 @@ public enum Color {
     static func gammaToLinear(_ c: Double) -> Double {
         c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
     }
-    /// "#rrggbb" → linear-light sRGB.
+    /// "#rrggbb" → linear-light sRGB. Expects a valid 6-digit hex (e.g. as produced by
+    /// `normalizeHex`); traps on malformed input — gate user input through `normalizeHex` first.
     public static func hex(_ hex: String) -> LinRGB {
         let h = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
         let v = UInt32(h, radix: 16)!
@@ -102,7 +103,9 @@ extension Color {
         return String(format: "#%02x%02x%02x", channel(c.r), channel(c.g), channel(c.b))
     }
     /// Derive a dark-mode accent from a light-mode seed: raise OKLCH lightness into the
-    /// dark-mode band and modestly reduce chroma, preserving hue. Roughly reproduces the
+    /// dark-mode band and modestly reduce chroma, preserving hue. NOTE: this does not exactly
+    /// reproduce the shipped `#3b82f6 → #60a5fa` default pair (that was hand-tuned); a user
+    /// running `theme --primary "#3b82f6"` gets a near-but-different dark arm. Roughly reproduces the
     /// shipped #3b82f6 → #60a5fa pairing. Constants tunable; validation is the safety net.
     public static func darkAccent(from hex: String) -> String {
         let lch = okLabToOKLCH(linRGBToOKLab(Color.hex(hex)))
