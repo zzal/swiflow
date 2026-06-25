@@ -173,7 +173,7 @@ Custom portal/overlay-root host; `Menu`/`Dropdown`; `Tooltip`; full ARIA hardeni
 (`CustomEvent` detail payloads, non-reconciled escape hatch — roadmap #2); edge-specific
 padding (`.padding(.lg, .horizontal)`).
 
-### M8 (1.1) — Token correctness & generation
+### M8 (1.1) — Token correctness & generation — ✅ SHIPPED (2026-06-25)
 
 *Origin: evaluation of the [Reshaped](https://github.com/reshaped-ui/reshaped) design
 system (MIT) against this roadmap, 2026-06-25 — full grid, scores, and sources in
@@ -182,27 +182,35 @@ system (MIT) against this roadmap, 2026-06-25 — full grid, scores, and sources
 stance — CSS custom properties, automatic dark mode in tokens, responsive resolved in CSS not
 JS — and it solves a problem 1.0 left hand-rolled: deriving **correct** base token values.
 M1–M7 shipped the media-feature **response** system (override layers re-point tokens), but
-the base values are hand-authored in `Theme.swift`/`Tokens.swift`. This is the first
-**theming-tooling** entry in 1.1+ (everything else deferred here is components).*
+the base values were hand-authored in `Theme.swift`/`Tokens.swift`.*
 
-A single pure-token-layer milestone — **no component API changes, no new state machinery**
-(honors the non-goals); all output is `--sw-*` values emitted into `baseStyleSheet`:
+**All three parts shipped** (recorded under CHANGELOG `[Unreleased]`, pre-1.0). Note: the
+original "pure-token-layer, no component API" framing did **not** hold — the realized milestone
+added the build-time `swiflow theme` CLI **and** a small `Theme` component. What actually shipped:
 
-- **On-background contrast tokens** — autogenerate per-surface text tokens computed against a
-  contrast criterion (WCAG by default, opt-in APCA), replacing the hand-curated
-  `--sw-<semantic>-strong` tokens. This **structurally fixes the light-mode soft-tint
-  contrast failure** (mid-tone tokens on pale `color-mix` tints fail WCAG in light mode) that
-  is currently worked around by hand-picking `-strong` text tokens. Highest-value item.
-  Distinct from the existing `prefers-contrast: more` layer, which responds to a *user
-  preference* rather than guaranteeing a ratio *per background*.
-- **OKLCH-based palette generator** — seed color(s) → a full light+dark `--sw-*` set. OKLCH is
-  perceptually uniform, which is what makes contrast-correct derivation tractable; pairs with
-  the contrast-token item. (We already emit `color(display-p3 …)` with sRGB fallback in the
-  `color-gamut` layer, but author no OKLCH today.)
-- **Scoped theme region** — a subtree-level `--sw-*` override (Reshaped's `Theme` fragment:
-  e.g. a brand-colored section). *Extends* — does not fight — the "components read tokens"
-  model: it just re-points tokens on a subtree, reusing the existing
-  `CSSEntry.group(prefix:, entries:)` machinery. Medium priority.
+- **✅ Contrast tokens (PR #66)** — instead of *autogenerating* `-strong` tokens, the `-strong`
+  and `-text` tokens **derive at render time** from `var(--sw-accent)` via
+  `oklch(from … L c h)` (soft-tint text) and `contrast-color()` (solid-fill text), each over a
+  progressive-enhancement literal fallback; proven WCAG (4.5, + 7 under `prefers-contrast: more`)
+  by a **test-only** Swift pipeline (`Sources/SwiflowColor`). Structurally fixes the light-mode
+  soft-tint failure **and** fixed a latent sub-AA primary button (white-on-accent was 3.68:1 →
+  now contrast-color picks dark text). No color math ships in wasm; the browser is the engine.
+- **✅ OKLCH palette generator (PR #67)** — a **build-time** `swiflow theme --primary "#hex"`
+  CLI (not a runtime API — keeps color math out of wasm) that derives the dark-mode accent and
+  **validates** the family against WCAG (accent-as-text ≥ 3:1 catches washed-out colors; fails
+  the build with a diagnostic). Also made `--sw-accent-hover`/`-active` derive from
+  `--sw-accent`, so re-pointing one token cascades the whole accent family. **Accent-only**;
+  neutrals/semantics/full-palette, APCA, and p3-for-generated-accent deferred (see below).
+- **✅ Scoped theme region (PR #68)** — a runtime `Theme(.accent("#7c3aed"), .radius("12px")) { … }`
+  component (`Sources/SwiflowUI/ThemeScope.swift`) that scopes `--sw-*` overrides to a subtree
+  as inline custom properties on a `display: contents` wrapper (zero layout impact). Ergonomic
+  multi-token sugar over `.style()` — single-token subtree theming already works and cascades
+  via the accent-family change above. Explicit values only (no runtime derivation).
+
+**Deferred from M8 to a later pass:** neutrals / full-palette generation (derive
+`--sw-bg`/`--sw-surface`/`--sw-text`/`--sw-border` with contrast-proven text-on-surface);
+`--danger`/`--success` seeds for the generator; APCA as an opt-in algorithm; p3 upgrade for a
+generated accent; promoting `SwiflowColor` into a public (shipping) generator.
 
 ### Reshaped evaluation — considered and rejected (with reasons)
 
