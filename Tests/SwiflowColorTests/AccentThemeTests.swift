@@ -54,4 +54,24 @@ struct AccentThemeTests {
         #expect(fails.contains { $0.token.contains("as text") })
         #expect(fails.allSatisfy { !$0.token.isEmpty && $0.ratio < $0.target })
     }
+
+    @Test("includeNeutrals: false is byte-for-byte the accent-only output (no neutral tokens)")
+    func accentOnlyUnchanged() throws {
+        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6")
+        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", includeNeutrals: false)
+        #expect(a == b)
+        #expect(!a.contains("--sw-surface"))
+        #expect(!a.contains("@media"))
+    }
+
+    @Test("includeNeutrals: true emits the neutral ramp and a prefers-contrast block")
+    func fullPaletteEmitted() throws {
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed", includeNeutrals: true)
+        #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
+        #expect(css.contains("--sw-surface: light-dark(#"))
+        #expect(css.contains("--sw-text: light-dark(#"))
+        #expect(css.contains("--sw-border: light-dark(#"))
+        #expect(css.contains("@media (prefers-contrast: more)"))
+        #expect(css.contains("--neutrals"))   // header mentions the flag
+    }
 }
