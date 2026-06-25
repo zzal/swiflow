@@ -173,6 +173,55 @@ Custom portal/overlay-root host; `Menu`/`Dropdown`; `Tooltip`; full ARIA hardeni
 (`CustomEvent` detail payloads, non-reconciled escape hatch — roadmap #2); edge-specific
 padding (`.padding(.lg, .horizontal)`).
 
+### M8 (1.1) — Token correctness & generation
+
+*Origin: evaluation of the [Reshaped](https://github.com/reshaped-ui/reshaped) design
+system (MIT) against this roadmap, 2026-06-25. Reshaped's components mostly don't port
+(React), but its **token layer** is architecturally convergent with our media-feature-first
+stance — CSS custom properties, automatic dark mode in tokens, responsive resolved in CSS not
+JS — and it solves a problem 1.0 left hand-rolled: deriving **correct** base token values.
+M1–M7 shipped the media-feature **response** system (override layers re-point tokens), but
+the base values are hand-authored in `Theme.swift`/`Tokens.swift`. This is the first
+**theming-tooling** entry in 1.1+ (everything else deferred here is components).*
+
+A single pure-token-layer milestone — **no component API changes, no new state machinery**
+(honors the non-goals); all output is `--sw-*` values emitted into `baseStyleSheet`:
+
+- **On-background contrast tokens** — autogenerate per-surface text tokens computed against a
+  contrast criterion (WCAG by default, opt-in APCA), replacing the hand-curated
+  `--sw-<semantic>-strong` tokens. This **structurally fixes the light-mode soft-tint
+  contrast failure** (mid-tone tokens on pale `color-mix` tints fail WCAG in light mode) that
+  is currently worked around by hand-picking `-strong` text tokens. Highest-value item.
+  Distinct from the existing `prefers-contrast: more` layer, which responds to a *user
+  preference* rather than guaranteeing a ratio *per background*.
+- **OKLCH-based palette generator** — seed color(s) → a full light+dark `--sw-*` set. OKLCH is
+  perceptually uniform, which is what makes contrast-correct derivation tractable; pairs with
+  the contrast-token item. (We already emit `color(display-p3 …)` with sRGB fallback in the
+  `color-gamut` layer, but author no OKLCH today.)
+- **Scoped theme region** — a subtree-level `--sw-*` override (Reshaped's `Theme` fragment:
+  e.g. a brand-colored section). *Extends* — does not fight — the "components read tokens"
+  model: it just re-points tokens on a subtree, reusing the existing
+  `CSSEntry.group(prefix:, entries:)` machinery. Medium priority.
+
+### Reshaped evaluation — considered and rejected (with reasons)
+
+Recorded so a future session doesn't re-litigate these:
+
+- **Single flexible `View` primitive** (Reshaped collapses Stack/Box/Grid into one `View`
+  with all-responsive props) — **rejected.** M1 deliberately shipped `VStack`/`HStack`/`Grid`/
+  `ZStack`/`Spacer`/`Divider` as separate SwiftUI-idiom free functions because the audience is
+  Swift developers who expect that mental model. Collapsing to one `View` is a breaking change
+  against a shipped, audience-fit choice. Keep only the lesson: *lean on modifiers, not a new
+  primitive per layout need.*
+- **Headless/utilities package split** (`@reshaped/headless` + `@reshaped/utilities`) —
+  **deferred as premature.** Revisit only if `Sources/SwiflowUI` outgrows its current
+  footprint.
+- **Polymorphic `Button`** (`href` auto-renders `<a>` vs `<button>`) — **lean reject.** Keeping
+  `Button` and `SwiflowRouter`'s `Link` as separate types is cleaner than overloading one.
+- **Per-component a11y regression tests** — **already covered** by the Verification section
+  (a11y smoke + Playwright `emulateMedia`); optionally tighten to per-component assertions.
+- **`--rs` token prefix discipline** — **already covered** by our `--sw-` prefix.
+
 ## Verification
 
 - **Per component:** a focused entry in the expanded `examples/SwiflowUIDemo` gallery plus a
