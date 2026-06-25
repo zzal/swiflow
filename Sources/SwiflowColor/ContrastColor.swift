@@ -90,3 +90,25 @@ extension Color {
         wcagContrast(.black, bg) >= wcagContrast(.white, bg) ? .black : .white
     }
 }
+
+extension Color {
+    /// Linear channel → sRGB gamma-encoded (inverse of `gammaToLinear`).
+    static func linearToGamma(_ c: Double) -> Double {
+        c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
+    }
+    /// Linear-light sRGB → "#rrggbb" (gamut-clamped, 8-bit).
+    public static func hexString(_ c: LinRGB) -> String {
+        func channel(_ v: Double) -> Int { Int((min(max(linearToGamma(v), 0), 1) * 255).rounded()) }
+        return String(format: "#%02x%02x%02x", channel(c.r), channel(c.g), channel(c.b))
+    }
+    /// Derive a dark-mode accent from a light-mode seed: raise OKLCH lightness into the
+    /// dark-mode band and modestly reduce chroma, preserving hue. Roughly reproduces the
+    /// shipped #3b82f6 → #60a5fa pairing. Constants tunable; validation is the safety net.
+    public static func darkAccent(from hex: String) -> String {
+        let lch = okLabToOKLCH(linRGBToOKLab(Color.hex(hex)))
+        let darkL = min(max(lch.L + 0.10, 0.68), 0.76)
+        let darkC = lch.C * 0.78
+        let lin = clampGamut(okLabToLinRGB(okLCHToOKLab(OKLCH(L: darkL, C: darkC, H: lch.H))))
+        return hexString(lin)
+    }
+}

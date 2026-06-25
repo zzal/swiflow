@@ -141,6 +141,12 @@ let package = Package(
             path: "Sources/SwiflowColor",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .testTarget(
+            name: "SwiflowColorTests",
+            dependencies: ["SwiflowColor"],
+            path: "Tests/SwiflowColorTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .target(
             name: "SwiflowUI",
             dependencies: [
