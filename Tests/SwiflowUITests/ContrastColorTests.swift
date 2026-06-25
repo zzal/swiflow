@@ -54,3 +54,38 @@ struct ContrastColorTests {
         #expect(Color.contrastColor(against: Color.hex("#3b82f6")) == .black)
     }
 }
+
+@Suite("CSSValueParsing")
+@MainActor
+struct CSSValueParsingTests {
+    private var sheet: String { SwiflowUI.baseStyleSheet.cssString(scopeClass: "") }
+
+    @Test("baseRegion stops before the first media layer")
+    func baseRegionSplit() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        #expect(base.contains("--sw-accent"))
+        #expect(!base.contains("@media"))
+    }
+
+    @Test("lightDarkHex reads the current accent/surface/accent-text literals")
+    func lightDarkHexReads() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        #expect(CSSValueParsing.lightDarkHex(base, "--sw-accent")!  == ("#3b82f6", "#60a5fa"))
+        #expect(CSSValueParsing.lightDarkHex(base, "--sw-surface")! == ("#ffffff", "#1a1a1a"))
+    }
+
+    @Test("contrastMoreRegion isolates the prefers-contrast block")
+    func contrastMoreRegionReads() {
+        let region = CSSValueParsing.contrastMoreRegion(sheet)
+        #expect(region.contains("--sw-border-width: 2px"))
+        #expect(!region.contains("color-gamut"))   // a different layer
+    }
+
+    @Test("oklchLightnesses parses an L pair from a sample declaration")
+    func oklchLightnessesParses() {
+        let sample = "--sw-accent-strong: light-dark(oklch(from var(--sw-accent) 0.40 c h), oklch(from var(--sw-accent) 0.80 c h));"
+        let L = CSSValueParsing.oklchLightnesses(sample, "--sw-accent-strong")!
+        #expect(abs(L.light - 0.40) < 1e-9)
+        #expect(abs(L.dark - 0.80) < 1e-9)
+    }
+}
