@@ -64,12 +64,17 @@ public enum SwiflowUI {
           --sw-accent-text: light-dark(#ffffff, #0b1220);
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);
-          /* "strong" = readable as TEXT on a soft tint of the same hue. Darker in
-             light (the base token is mid-tone there → fails WCAG on a pale tint);
-             unchanged in dark (the base token is already light → passes). See Badge. */
+          /* "strong" = semantic-hue text readable on a 15% tint of that hue.
+             Static fallback first (hand-tuned, kept for pre-Baseline browsers); the
+             dynamic oklch(from …) derivation below re-pins lightness to clear WCAG 4.5
+             on the tint and recomputes when an app overrides the base hue.
+             Lightnesses proven by ThemeContrastTests. */
           --sw-accent-strong: light-dark(#1d4ed8, #60a5fa);
+          --sw-accent-strong: light-dark(oklch(from var(--sw-accent) 0.40 c h), oklch(from var(--sw-accent) 0.80 c h));
           --sw-danger-strong: light-dark(#b91c1c, #f87171);
+          --sw-danger-strong: light-dark(oklch(from var(--sw-danger) 0.40 c h), oklch(from var(--sw-danger) 0.80 c h));
           --sw-success-strong: light-dark(#15803d, #4ade80);
+          --sw-success-strong: light-dark(oklch(from var(--sw-success) 0.40 c h), oklch(from var(--sw-success) 0.80 c h));
 
           /* borders, focus ring & elevation */
           --sw-border: light-dark(#e5e7eb, #333333);
