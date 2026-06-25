@@ -31,4 +31,19 @@ struct ThemeContrastTests {
                     "\(strong) dark fails AA")
         }
     }
+
+    @Test("Under prefers-contrast: more, -strong clears WCAG 7 on the 15% tint")
+    func softTintMeetsAAA() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        let more = CSSValueParsing.contrastMoreRegion(sheet)
+        let surface = CSSValueParsing.lightDarkHex(base, "--sw-surface")!
+        for (strong, hue) in Self.hues {
+            let hueHex = CSSValueParsing.lightDarkHex(base, hue)!
+            let L = CSSValueParsing.oklchLightnesses(more, strong)!
+            #expect(tintContrast(hueHex: hueHex.light, surfaceHex: surface.light, textL: L.light) >= 7.0,
+                    "\(strong) light fails AAA under more-contrast")
+            #expect(tintContrast(hueHex: hueHex.dark, surfaceHex: surface.dark, textL: L.dark) >= 7.0,
+                    "\(strong) dark fails AAA under more-contrast")
+        }
+    }
 }
