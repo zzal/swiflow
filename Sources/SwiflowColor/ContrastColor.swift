@@ -251,3 +251,30 @@ extension Color {
     /// The text/text-muted/border overrides for `@media (prefers-contrast: more)`.
     public static func neutralContrastMore(accentHex: String) -> [TokenPair] { ramp(neutralRampMore, accentHex: accentHex) }
 }
+
+extension Color {
+    /// WCAG check on a neutral palette: body and secondary text must clear 4.5 on both the
+    /// card surface and the page background, in both schemes. (Border is intentionally not
+    /// gated — see the spec.) Returns every shortfall.
+    public static func validateNeutrals(_ palette: [TokenPair]) -> [PaletteFailure] {
+        func find(_ n: String) -> (light: String, dark: String)? {
+            palette.first { $0.name == n }.map { ($0.light, $0.dark) }
+        }
+        guard let surface = find("--sw-surface"), let bg = find("--sw-bg"),
+              let text = find("--sw-text"), let muted = find("--sw-text-muted") else { return [] }
+        var out: [PaletteFailure] = []
+        let checks: [(String, (light: String, dark: String), (light: String, dark: String))] = [
+            ("--sw-text on --sw-surface",       text,  surface),
+            ("--sw-text on --sw-bg",            text,  bg),
+            ("--sw-text-muted on --sw-surface", muted, surface),
+            ("--sw-text-muted on --sw-bg",      muted, bg),
+        ]
+        for (label, fg, bgc) in checks {
+            for (mode, f, b) in [("light", fg.light, bgc.light), ("dark", fg.dark, bgc.dark)] {
+                let r = wcagContrast(hex(f), hex(b))
+                if r < 4.5 { out.append(.init(token: label, mode: mode, ratio: r, target: 4.5)) }
+            }
+        }
+        return out
+    }
+}
