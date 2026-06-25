@@ -132,6 +132,15 @@ let package = Package(
             path: "Sources/SwiflowStore",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Native-only color pipeline (OKLab/OKLCH, WCAG, color-mix, oklch-from,
+        // contrast-color) + the accent palette generator. Used by SwiflowCLI's
+        // `theme` command and by SwiflowUI's contrast tests. NEVER a dependency
+        // of the wasm SwiflowUI library — no color math ships in a wasm bundle.
+        .target(
+            name: "SwiflowColor",
+            path: "Sources/SwiflowColor",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .target(
             name: "SwiflowUI",
             dependencies: [
@@ -192,7 +201,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowUITests",
-            dependencies: ["SwiflowUI", "Swiflow"],
+            dependencies: ["SwiflowUI", "Swiflow", "SwiflowColor"],
             path: "Tests/SwiflowUITests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
