@@ -154,7 +154,6 @@ extension Color {
     // -strong lightnesses: (normal 4.5 → light/dark), (more-contrast 7 → light/dark)
     private static let strongAA: (Double, Double) = (0.40, 0.80)
     private static let strongAAA: (Double, Double) = (0.30, 0.88)
-    private static let textFallbackDark = "#0b1220"
 
     /// Recompute the accent-derived tokens (-strong at 4.5 + 7, -text, and --sw-accent used
     /// as text/links) for the given light/dark accents and return every WCAG shortfall.
@@ -178,11 +177,14 @@ extension Color {
             if rAA < 4.5 { out.append(.init(token: "--sw-accent-strong", mode: mode, ratio: rAA, target: 4.5)) }
             let rAAA = wcagContrast(oklchFrom(accent, lightness: lAAA), tint)
             if rAAA < 7.0 { out.append(.init(token: "--sw-accent-strong (more-contrast)", mode: mode, ratio: rAAA, target: 7.0)) }
-            // -text on the solid accent: contrast-color result AND the dark fallback.
+            // -text on the solid accent: the Baseline contrast-color() result. We do NOT
+            // validate the static #0b1220 fallback — it's tuned for the default (light) accent
+            // and is sub-AA on medium-dark custom accents (violet/indigo) where contrast-color
+            // correctly flips to white. contrast-color is Baseline 2026, so the fallback is a
+            // pre-Baseline-only courtesy; gating on it would reject common brand colors. See
+            // the palette-generator spec's "legacy fallback gap" note.
             let rText = wcagContrast(contrastColor(against: accent), accent)
             if rText < 4.5 { out.append(.init(token: "--sw-accent-text", mode: mode, ratio: rText, target: 4.5)) }
-            let rFallback = wcagContrast(hex(textFallbackDark), accent)
-            if rFallback < 4.5 { out.append(.init(token: "--sw-accent-text fallback", mode: mode, ratio: rFallback, target: 4.5)) }
         }
         return out
     }

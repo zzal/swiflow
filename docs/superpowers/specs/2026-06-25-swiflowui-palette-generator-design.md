@@ -105,13 +105,21 @@ for the seed in both modes using `SwiflowColor` and checks WCAG:
   light yellow is ~1.07:1 as text on white. The 3:1 (not 4.5) bar is deliberate: it allows the
   conventional blue-on-white link/ghost pattern (the default `#3b82f6` is 3.68:1) while rejecting
   genuinely unreadable accents.
-- `-text` (`contrast-color` result + the dark fallback) ≥ 4.5 on the accent fill.
+- `-text` `contrast-color()` result ≥ 4.5 on the accent fill (the Baseline path).
 - `-strong` (the `oklch(from)` derivation at the shipped lightnesses) ≥ 4.5 on the 15% tint
   (and ≥ 7 under `prefers-contrast: more`).
 
 The latter two are **robust by construction** — `contrast-color()` mathematically can't fall
 below ~4.58:1, and the `oklch(from)` derivation pins lightness — so they rarely trip; they're a
-regression guard. The accent-as-text check carries the real coverage. On any failure the command
+regression guard. The accent-as-text check carries the real coverage.
+
+**Legacy-fallback gap (deliberate):** validation does **not** gate on the static
+`--sw-accent-text` fallback (`#0b1220`). That fallback is tuned for the default light accent and
+is sub-AA on *medium-dark* custom accents (violet `#7c3aed`, indigo) — but `contrast-color()`
+(Baseline 2026) correctly flips those to white, so the rendered result is AA on every modern
+browser. Gating on the pre-Baseline-only fallback would reject common brand colors for an
+audience that barely exists, so we don't. The trade-off: a violet-themed app viewed on a
+pre-`contrast-color` browser gets a sub-AA primary-button label. Accepted; documented here. On any failure the command
 prints a specific diagnostic (token, mode, measured ratio, target) and **exits nonzero**, so a
 poor brand color fails a build rather than silently shipping sub-AA. On success it exits zero and
 emits the CSS.

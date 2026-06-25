@@ -17,6 +17,16 @@ struct AccentThemeTests {
         #expect(css.contains("--sw-accent: light-dark(#3b82f6,"))
     }
 
+    @Test("A medium-dark accent passes (the legacy -text fallback is not gated)")
+    func mediumDarkAccentPasses() throws {
+        // #7c3aed (violet) fails only the pre-Baseline dark-text fallback; the Baseline
+        // contrast-color() path flips to white and is AA, so it must validate clean.
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed")
+        #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
+        #expect(Color.validateAccentFamily(lightAccentHex: "#7c3aed",
+                                            darkAccentHex: Color.darkAccent(from: "#7c3aed")).isEmpty)
+    }
+
     @Test("A washed-out seed fails validation with a specific diagnostic")
     func badSeedThrows() {
         // A light yellow: ~1.07:1 as accent text/links on white — below the 3:1 UI bar.
