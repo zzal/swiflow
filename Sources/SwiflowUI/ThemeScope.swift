@@ -22,3 +22,22 @@ public struct ThemeToken: Equatable, Sendable {
     /// Escape hatch for any other token (spacing scale, motion, overlay, custom props).
     public static func token(_ name: String, _ value: String) -> ThemeToken { .init(name: name, value: value) }
 }
+
+/// Scope a set of `--sw-*` token overrides to a subtree. Renders a `display: contents`
+/// wrapper carrying the overrides as inline custom properties: the wrapper's box is
+/// removed (children participate in the parent's layout directly), but the element stays
+/// in the DOM tree so its custom properties inherit to descendants. Zero layout impact,
+/// no new stylesheet, no runtime color math — it just re-points explicit token values.
+///
+///     Theme(.accent("#7c3aed"), .radius("12px")) {
+///         Card { Button("Branded") { … } }    // accent family + radius re-skinned here
+///     }
+@MainActor
+public func Theme(
+    _ tokens: ThemeToken...,
+    @ChildrenBuilder children: () -> [VNode] = { [] }
+) -> VNode {
+    ensureBaseStyles()
+    let styleAttrs: [Attribute] = [.style("display", "contents")] + tokens.map { .style($0.name, $0.value) }
+    return element("div", attributes: styleAttrs, children: children())
+}
