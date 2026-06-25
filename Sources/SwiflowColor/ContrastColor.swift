@@ -208,3 +208,46 @@ extension Color {
         """
     }
 }
+
+extension Color {
+    /// A derived token as `(name, lightHex, darkHex)`. Ordered arrays keep emitted CSS
+    /// deterministic (a dict would not).
+    public typealias TokenPair = (name: String, light: String, dark: String)
+
+    // Faint accent cast — small enough to read as gray, large enough to survive 8-bit hex.
+    private static let neutralTintChroma = 0.01
+    // (token, L_light, L_dark) — lightness targets lifted from the shipped defaults; the muted
+    // light target (0.46) is pinned so secondary text clears AA on the near-white page bg.
+    private static let neutralRamp: [(String, Double, Double)] = [
+        ("--sw-bg",         0.97, 0.15),
+        ("--sw-surface",    1.00, 0.20),
+        ("--sw-surface-2",  0.96, 0.24),
+        ("--sw-text",       0.18, 0.96),
+        ("--sw-text-muted", 0.46, 0.72),
+        ("--sw-border",     0.92, 0.30),
+    ]
+    // prefers-contrast: more overrides (text/text-muted/border pushed toward the extremes).
+    private static let neutralRampMore: [(String, Double, Double)] = [
+        ("--sw-text",       0.10, 0.99),
+        ("--sw-text-muted", 0.25, 0.90),
+        ("--sw-border",     0.10, 0.99),
+    ]
+
+    /// OKLCH(L, C, H) → gamut-clamped "#rrggbb".
+    private static func oklchHex(_ L: Double, _ C: Double, _ H: Double) -> String {
+        hexString(clampGamut(okLabToLinRGB(okLCHToOKLab(OKLCH(L: L, C: C, H: H)))))
+    }
+
+    private static func ramp(_ rows: [(String, Double, Double)], accentHex: String) -> [TokenPair] {
+        let hue = okLabToOKLCH(linRGBToOKLab(hex(accentHex))).H
+        return rows.map { (name, ll, ld) in
+            (name: name, light: oklchHex(ll, neutralTintChroma, hue), dark: oklchHex(ld, neutralTintChroma, hue))
+        }
+    }
+
+    /// The six neutral tokens, tinted to the accent hue, as light/dark hex pairs (ordered).
+    public static func neutralPalette(accentHex: String) -> [TokenPair] { ramp(neutralRamp, accentHex: accentHex) }
+
+    /// The text/text-muted/border overrides for `@media (prefers-contrast: more)`.
+    public static func neutralContrastMore(accentHex: String) -> [TokenPair] { ramp(neutralRampMore, accentHex: accentHex) }
+}
