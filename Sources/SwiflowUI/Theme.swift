@@ -112,6 +112,10 @@ public enum SwiflowUI {
             --sw-border-width: 2px;
             --sw-focus-ring-width: 3px;
             --sw-shadow: 0 0 0 var(--sw-border-width) var(--sw-border);  /* solid ring, not a soft shadow */
+            /* -strong pushed to WCAG 7 on the tint (proven by ThemeContrastTests). */
+            --sw-accent-strong: light-dark(oklch(from var(--sw-accent) 0.30 c h), oklch(from var(--sw-accent) 0.88 c h));
+            --sw-danger-strong: light-dark(oklch(from var(--sw-danger) 0.30 c h), oklch(from var(--sw-danger) 0.88 c h));
+            --sw-success-strong: light-dark(oklch(from var(--sw-success) 0.30 c h), oklch(from var(--sw-success) 0.88 c h));
           }
         }
 
