@@ -5,6 +5,11 @@ import Foundation
 @Suite("Theme contrast")
 @MainActor
 struct ThemeContrastTests {
+    // These tests prove the sRGB base palette (the specification contract). The
+    // `@media (color-gamut: p3)` block re-points the same hues to display-p3 values,
+    // but the `oklch(from …)` text derivation pins the SAME lightnesses regardless of
+    // input hue, so p3 is a gamut upgrade of the same perceptual lightness and is
+    // intentionally not re-tested here (the parser reads only the #rrggbb sRGB literals).
     private var sheet: String { SwiflowUI.baseStyleSheet.cssString(scopeClass: "") }
 
     private static let hues = [("--sw-accent-strong", "--sw-accent"),
