@@ -61,7 +61,11 @@ public enum SwiflowUI {
           --sw-accent: light-dark(#3b82f6, #60a5fa);
           --sw-accent-hover: light-dark(#2563eb, #7cb0fb);
           --sw-accent-active: light-dark(#1d4ed8, #93c1fc);
-          --sw-accent-text: light-dark(#ffffff, #0b1220);
+          /* Solid-fill text: contrast-color() picks black on the accent (both modes — the
+             accent is medium/light blue), fixing today's sub-AA white (3.68:1 on #3b82f6).
+             Fallback is dark in BOTH arms so pre-Baseline browsers also pass. See Button. */
+          --sw-accent-text: light-dark(#0b1220, #0b1220);
+          --sw-accent-text: contrast-color(var(--sw-accent));
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);
           /* "strong" = semantic-hue text readable on a 15% tint of that hue.
