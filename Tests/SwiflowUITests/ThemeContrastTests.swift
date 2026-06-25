@@ -46,4 +46,18 @@ struct ThemeContrastTests {
                     "\(strong) dark fails AAA under more-contrast")
         }
     }
+
+    @Test("Solid-fill accent text clears WCAG 4.5 (contrast-color result AND fallback)")
+    func solidFillMeetsAA() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        let accent = CSSValueParsing.lightDarkHex(base, "--sw-accent")!
+        let fallback = CSSValueParsing.lightDarkHex(base, "--sw-accent-text")!
+        for (accentHex, fallbackHex) in [(accent.light, fallback.light), (accent.dark, fallback.dark)] {
+            let bg = Color.hex(accentHex)
+            let derived = Color.contrastColor(against: bg)        // what the browser renders
+            #expect(Color.wcagContrast(derived, bg) >= 4.5, "contrast-color on \(accentHex) fails AA")
+            #expect(Color.wcagContrast(Color.hex(fallbackHex), bg) >= 4.5, "fallback \(fallbackHex) on \(accentHex) fails AA")
+        }
+        #expect(base.contains("contrast-color(var(--sw-accent))"), "dynamic declaration missing")
+    }
 }
