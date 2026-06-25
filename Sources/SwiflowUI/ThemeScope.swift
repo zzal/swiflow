@@ -1,0 +1,24 @@
+// Sources/SwiflowUI/ThemeScope.swift
+//
+// `Theme { }` — scope a set of `--sw-*` token overrides to a subtree. See the
+// `Theme` component below; `ThemeToken` is its typed override vocabulary.
+
+import Swiflow
+
+/// A single `--sw-*` override for a `Theme` region. Use the typed statics for the
+/// commonly-branded tokens, or `.token(_:_:)` for anything else.
+public struct ThemeToken: Equatable, Sendable {
+    public let name: String     // e.g. "--sw-accent"
+    public let value: String
+
+    public static func accent(_ v: String)  -> ThemeToken { .init(name: "--sw-accent",  value: v) }
+    public static func radius(_ v: String)  -> ThemeToken { .init(name: "--sw-radius",  value: v) }
+    public static func surface(_ v: String) -> ThemeToken { .init(name: "--sw-surface", value: v) }
+    public static func text(_ v: String)    -> ThemeToken { .init(name: "--sw-text",    value: v) }
+    public static func border(_ v: String)  -> ThemeToken { .init(name: "--sw-border",  value: v) }
+    public static func danger(_ v: String)  -> ThemeToken { .init(name: "--sw-danger",  value: v) }
+    public static func success(_ v: String) -> ThemeToken { .init(name: "--sw-success", value: v) }
+
+    /// Escape hatch for any other token (spacing scale, motion, overlay, custom props).
+    public static func token(_ name: String, _ value: String) -> ThemeToken { .init(name: name, value: value) }
+}
