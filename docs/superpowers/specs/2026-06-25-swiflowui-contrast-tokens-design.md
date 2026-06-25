@@ -114,22 +114,28 @@ has no such gap.
 
 ## Part B — solid-fill `-text` token
 
-`contrast-color(<color>)` returns **black or white** — whichever contrasts better with the
-argument. That auto-derives what `light-dark(#ffffff, #0b1220)` hand-encodes today, and adapts
-to any hue an app sets:
+`contrast-color(<color>)` returns **black or white** — whichever *maximizes* WCAG contrast with
+the argument. On the default accent it picks **black in both modes** (light `#3b82f6`: black
+5.70:1 vs white 3.68:1; dark `#60a5fa`: black 8.20:1 vs white 2.55:1):
 
 ```css
 /* in baseStyleSheet :root */
---sw-accent-text: light-dark(#ffffff, #0b1220);    /* static fallback — unchanged */
+--sw-accent-text: light-dark(#0b1220, #0b1220);     /* static fallback — dark both arms */
 --sw-accent-text: contrast-color(var(--sw-accent)); /* dynamic */
 ```
 
 `Button` `.primary` already reads `color: var(--sw-accent-text)` — no component change.
 
-**Caveat carried into the proof:** `contrast-color()` *maximizes* (better of black/white); it
-does not *guarantee* a threshold. For a true mid-luminance background, even the better of
-black/white can fall near or below 4.5:1. For accent/danger/success solids this is safe, but
-the proof still asserts it rather than assuming it.
+**This is a deliberate, visible restyle** (decided during brainstorming): the primary button's
+**light-mode label changes from white to dark**. It fixes a latent failure — today's white on
+`#3b82f6` is only **3.68:1**, below AA 4.5 for 16px/500 text — and makes the default
+AA-correct. The static fallback's light arm therefore changes from `#ffffff` to `#0b1220` so
+non-`contrast-color` browsers also pass; the dark arm (`#0b1220`) is unchanged.
+
+**Caveat carried into the proof:** `contrast-color()` *maximizes*; it does not *guarantee* a
+threshold. For a true mid-luminance background even the better of black/white can fall near or
+below 4.5:1. For the accent solid this is safe (5.7/8.2:1), but the proof asserts it — for both
+the `contrast-color` result and the static fallback — rather than assuming it.
 
 ## The Swift proof harness
 
@@ -190,3 +196,9 @@ A self-contained, dependency-free color pipeline (~200–300 LOC):
    utility deferred.
 3. **`contrast-color()` fit** → folded in as **Part B** (both mechanisms now Baseline, so the
    support story is symmetric; shared proof harness). Part A ships first as its own sub-step.
+4. **Primary-button restyle** → *Adopt the `contrast-color` result.* It picks black on the
+   default accent in both modes, so the light-mode button label changes white→dark. Accepted as
+   the AA-correct outcome (today's white-on-accent is 3.68:1); the static fallback's light arm
+   moves to `#0b1220` to match. Alternatives considered and rejected: dropping Part B to keep
+   white-on-blue; darkening `--sw-accent` to navy so white passes (changes the accent
+   everywhere).
