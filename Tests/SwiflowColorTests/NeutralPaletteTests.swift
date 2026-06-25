@@ -38,3 +38,29 @@ struct NeutralPaletteTests {
         #expect(Color.hex(moreText.light).luminance <= Color.hex(baseText.light).luminance)
     }
 }
+
+@Suite("ValidateNeutrals")
+struct ValidateNeutralsTests {
+    @Test("Default-derived neutrals clear AA for normal accents")
+    func passesForNormalAccents() {
+        for accent in ["#3b82f6", "#7c3aed", "#16a34a", "#dc2626"] {
+            let fails = Color.validateNeutrals(Color.neutralPalette(accentHex: accent))
+            #expect(fails.isEmpty, "neutrals for \(accent) should be AA, got \(fails)")
+        }
+    }
+
+    @Test("Text too light against the surface fails with a per-mode diagnostic")
+    func failsWhenTextTooLight() {
+        // Contrived: light-mode text is near-white on a white surface → ~1:1.
+        let bad: [Color.TokenPair] = [
+            ("--sw-bg", "#ffffff", "#000000"),
+            ("--sw-surface", "#ffffff", "#000000"),
+            ("--sw-text", "#eeeeee", "#111111"),
+            ("--sw-text-muted", "#dddddd", "#222222"),
+        ]
+        let fails = Color.validateNeutrals(bad)
+        #expect(!fails.isEmpty)
+        #expect(fails.contains { $0.token.contains("--sw-text") && $0.mode == "light" })
+        #expect(fails.allSatisfy { $0.ratio < $0.target })
+    }
+}
