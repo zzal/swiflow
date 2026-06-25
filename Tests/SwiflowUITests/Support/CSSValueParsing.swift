@@ -37,7 +37,7 @@ enum CSSValueParsing {
         let t = NSRegularExpression.escapedPattern(for: token)
         // Match the inner var(--sw-…) explicitly — a `[^)]` class would stop at the ")"
         // that closes var(), never reaching the lightness.
-        let oklch = "oklch\\(from var\\(--sw-[a-z]+\\)\\s+([0-9.]+) c h\\)"
+        let oklch = "oklch\\(from var\\(--sw-[a-z][a-z-]*\\)\\s+([0-9.]+) c h\\)"
         let pattern = "\(t)\\s*:\\s*light-dark\\(\\s*\(oklch)\\s*,\\s*\(oklch)\\s*\\)"
         guard let g = firstMatch(pattern, in: region), let a = Double(g[1]), let b = Double(g[2]) else { return nil }
         return (a, b)
