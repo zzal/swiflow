@@ -100,12 +100,21 @@ overrides go (a `<style>`/`<link>` in `<head>`); custom-property resolution mean
 
 **Validation (the real value-add):** before emitting, the command recomputes the derived family
 for the seed in both modes using `SwiflowColor` and checks WCAG:
+- **`--sw-accent` used as text/links** (ghost buttons, links) on the surface ≥ **3:1** (the
+  UI/large-text bar). This is the check that actually catches a washed-out brand color — e.g. a
+  light yellow is ~1.07:1 as text on white. The 3:1 (not 4.5) bar is deliberate: it allows the
+  conventional blue-on-white link/ghost pattern (the default `#3b82f6` is 3.68:1) while rejecting
+  genuinely unreadable accents.
 - `-text` (`contrast-color` result + the dark fallback) ≥ 4.5 on the accent fill.
-- `-strong` (the `oklch(from)` derivation at the shipped lightnesses) ≥ 4.5 on the 15% tint.
+- `-strong` (the `oklch(from)` derivation at the shipped lightnesses) ≥ 4.5 on the 15% tint
+  (and ≥ 7 under `prefers-contrast: more`).
 
-On any failure it prints a specific diagnostic (token, mode, measured ratio, target) and **exits
-nonzero**, so a poor brand color fails a build rather than silently shipping sub-AA. On success
-it exits zero and emits the CSS.
+The latter two are **robust by construction** — `contrast-color()` mathematically can't fall
+below ~4.58:1, and the `oklch(from)` derivation pins lightness — so they rarely trip; they're a
+regression guard. The accent-as-text check carries the real coverage. On any failure the command
+prints a specific diagnostic (token, mode, measured ratio, target) and **exits nonzero**, so a
+poor brand color fails a build rather than silently shipping sub-AA. On success it exits zero and
+emits the CSS.
 
 ## Dark-accent derivation algorithm
 
