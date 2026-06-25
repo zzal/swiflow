@@ -95,4 +95,18 @@ struct ThemeTests {
         SwiflowUI.installBaseStyles()
         #expect(ids == ["swiflow-ui-base"])
     }
+
+    @Test("Each derived text token ships a static fallback AND a dynamic layer")
+    func progressiveEnhancementPairsEmitted() {
+        let css = sheet
+        // -strong: a light-dark hex fallback and an oklch(from …) dynamic layer.
+        for token in ["--sw-accent-strong", "--sw-danger-strong", "--sw-success-strong"] {
+            let hue = token.replacingOccurrences(of: "-strong", with: "")  // e.g. --sw-accent
+            #expect(css.contains("\(token): light-dark(#"), "\(token) missing static fallback")
+            #expect(css.contains("oklch(from var(\(hue))"), "\(token) missing oklch(from …) dynamic layer")
+        }
+        // -text: dark fallback + contrast-color dynamic layer.
+        #expect(css.contains("--sw-accent-text: light-dark(#0b1220, #0b1220)"))
+        #expect(css.contains("--sw-accent-text: contrast-color(var(--sw-accent))"))
+    }
 }
