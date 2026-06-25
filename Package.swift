@@ -72,6 +72,7 @@ let package = Package(
                 // we'd just use CryptoKit; swift-crypto's `Crypto` module has
                 // an API-compatible SHA256 that also builds on Linux.
                 .product(name: "Crypto", package: "swift-crypto"),
+                "SwiflowColor",
             ],
             path: "Sources/SwiflowCLI",
             swiftSettings: [.swiftLanguageMode(.v6)]
