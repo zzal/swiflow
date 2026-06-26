@@ -32,6 +32,7 @@ struct ThemeTests {
             "--sw-focus-ring", "--sw-focus-ring-width", "--sw-disabled-opacity",
             "--sw-overlay-bg", "--sw-backdrop", "--sw-accent-hover", "--sw-accent-active", "--sw-shadow",
             "--sw-accent-strong", "--sw-danger-strong", "--sw-success-strong", "--sw-bg",
+            "--sw-warning", "--sw-info", "--sw-warning-strong", "--sw-info-strong",
         ] {
             #expect(css.contains(token), "missing token \(token)")
         }
@@ -129,5 +130,23 @@ struct ThemeTests {
         #expect(css.contains("--sw-accent"))
         #expect(css.contains("@media (prefers-contrast: more)"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)   // braces balanced
+    }
+
+    @Test("warning/info status tokens are present across the right layers") func warningInfoTokens() {
+        let css = sheet
+        // :root defaults — warning is a literal amber; info aliases the accent.
+        #expect(css.contains("--sw-warning: light-dark(#b45309, #fbbf24)"))
+        #expect(css.contains("--sw-info: var(--sw-accent)"))
+        // -strong derivations exist for both.
+        #expect(css.contains("--sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.40 c h)"))
+        #expect(css.contains("--sw-info-strong: light-dark(oklch(from var(--sw-info) 0.40 c h)"))
+        // more-contrast pushes both strong tokens to the 0.30/0.88 band.
+        #expect(css.contains("--sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.30 c h)"))
+        #expect(css.contains("--sw-info-strong: light-dark(oklch(from var(--sw-info) 0.30 c h)"))
+        // warning has its own P3 raw line; info does NOT (it inherits the accent's via var()).
+        #expect(css.contains("--sw-warning: light-dark(color(display-p3"))
+        #expect(!css.contains("--sw-info: light-dark(color(display-p3"))
+        // wrapping kept braces balanced.
+        #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }
