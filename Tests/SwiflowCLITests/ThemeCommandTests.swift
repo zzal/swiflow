@@ -105,4 +105,14 @@ struct ThemeCommandTests {
         #expect(!css.contains("--sw-warning"))
         #expect(!css.contains("--sw-info"))
     }
+
+    @Test("generated file carries a progressive oklch accent line") func fileHasOklch() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse(["--primary", "#7c3aed", "--out", tmp.path])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(css.contains("--sw-accent: light-dark(oklch("))
+    }
 }
