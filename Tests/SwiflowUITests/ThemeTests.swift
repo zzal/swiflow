@@ -132,6 +132,23 @@ struct ThemeTests {
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)   // braces balanced
     }
 
+    @Test("Scalar tokens are registered with @property (typed + animatable)") func scalarPropertyRegistration() {
+        let css = sheet
+        // The @property block must be emitted OUTSIDE @layer swiflow.base (layer-agnostic at-rule).
+        #expect(css.contains("@property --sw-border-width"))
+        #expect(css.contains("@property --sw-duration"))
+        #expect(css.contains("@property --sw-radius"))
+        #expect(css.contains("@property --sw-disabled-opacity"))
+        // Each registration carries syntax + inherits + initial-value.
+        #expect(css.contains(#"@property --sw-border-width { syntax: "<length>"; inherits: true; initial-value: 1px; }"#))
+        #expect(css.contains(#"@property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }"#))
+        #expect(css.contains(#"@property --sw-disabled-opacity { syntax: "<number>"; inherits: true; initial-value: 0.5; }"#))
+        // The block precedes the cascade layer in source order.
+        let propIdx = css.range(of: "@property --sw-space-xs")!.lowerBound
+        let layerIdx = css.range(of: "@layer swiflow.base")!.lowerBound
+        #expect(propIdx < layerIdx)
+    }
+
     @Test("warning/info status tokens are present across the right layers") func warningInfoTokens() {
         let css = sheet
         // :root defaults — warning is a literal amber; info aliases the accent.
