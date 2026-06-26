@@ -245,7 +245,8 @@ extension Color {
     // Faint accent cast — small enough to read as gray, large enough to survive 8-bit hex.
     private static let neutralTintChroma = 0.01
     // (token, L_light, L_dark) — lightness targets lifted from the shipped defaults; the muted
-    // light target (0.46) is pinned so secondary text clears AA on the near-white page bg.
+    // light target (0.46) is conservatively pinned to clear AA with headroom on near-white
+    // backgrounds (validateNeutrals is the gate that actually enforces it).
     private static let neutralRamp: [(String, Double, Double)] = [
         ("--sw-bg",         0.97, 0.15),
         ("--sw-surface",    1.00, 0.20),
