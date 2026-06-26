@@ -49,7 +49,9 @@ test.describe("SwiflowUI theming responds to media features", () => {
     // …and a real component that reads it (the .sw-btn transition) collapses too.
     const btnDur = await page.getByRole("button", { name: "Increment" })
       .evaluate((el) => getComputedStyle(el).transitionDuration);
-    expect(btnDur.split(",").every((d) => d.trim() === "0s")).toBe(true);
+    // Chromium serializes a 0s transition-duration as "1e-05s" under reduced-motion, so
+    // assert effectively-zero rather than the literal "0s".
+    expect(btnDur.split(",").every((d) => parseFloat(d) <= 0.001)).toBe(true);
   });
 
   test("prefers-contrast: more thickens --sw-border-width", async ({ page }) => {
