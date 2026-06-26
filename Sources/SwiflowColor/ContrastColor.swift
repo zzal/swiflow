@@ -134,7 +134,7 @@ extension Color {
         public var description: String {
             switch self {
             case .invalidHex(let s):
-                return "invalid --primary hex: \(s) (expected #rgb or #rrggbb)"
+                return "invalid theme color hex: \(s) (expected #rgb or #rrggbb)"
             case .contrastFailures(let fs):
                 return "brand color fails WCAG for the derived accent family:\n  "
                     + fs.map(\.description).joined(separator: "\n  ")
