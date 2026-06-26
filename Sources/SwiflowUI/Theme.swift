@@ -36,6 +36,7 @@ public enum SwiflowUI {
     /// `rule(_:)`/`media(_:)` builders so their rules get the scope class.
     public static let baseStyleSheet: CSSSheet = css {
         raw("""
+        @layer swiflow.base {
         :root {
           color-scheme: light dark;
 
@@ -154,6 +155,7 @@ public enum SwiflowUI {
               --sw-success: light-dark(color(display-p3 0.15 0.63 0.32), color(display-p3 0.42 0.86 0.55));
             }
           }
+        }
         }
         """)
     }
