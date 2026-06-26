@@ -29,13 +29,24 @@ struct NeutralPaletteTests {
         #expect(!(c.r == c.g && c.g == c.b))   // channels differ → tinted, not pure gray
     }
 
-    @Test("neutralContrastMore overrides text/text-muted/border at higher contrast")
+    @Test("neutralContrastMore strengthens text contrast on the surfaces in both modes")
     func moreContrast() {
-        let m = Color.neutralContrastMore(accentHex: "#7c3aed")
-        #expect(m.map(\.name) == ["--sw-text", "--sw-text-muted", "--sw-border"])
-        let baseText = Color.neutralPalette(accentHex: "#7c3aed").first { $0.name == "--sw-text" }!
-        let moreText = m.first { $0.name == "--sw-text" }!
-        #expect(Color.hex(moreText.light).luminance <= Color.hex(baseText.light).luminance)
+        let accent = "#7c3aed"
+        let base = Color.neutralPalette(accentHex: accent)
+        let more = Color.neutralContrastMore(accentHex: accent)
+        #expect(more.map(\.name) == ["--sw-text", "--sw-text-muted", "--sw-border"])
+        let surface = base.first { $0.name == "--sw-surface" }!
+        for token in ["--sw-text", "--sw-text-muted"] {
+            let b = base.first { $0.name == token }!
+            let m = more.first { $0.name == token }!
+            // more-contrast must be a higher WCAG ratio than base against the surface, both modes.
+            #expect(Color.wcagContrast(Color.hex(m.light), Color.hex(surface.light))
+                  > Color.wcagContrast(Color.hex(b.light), Color.hex(surface.light)),
+                    "\(token) light should strengthen under more-contrast")
+            #expect(Color.wcagContrast(Color.hex(m.dark), Color.hex(surface.dark))
+                  > Color.wcagContrast(Color.hex(b.dark), Color.hex(surface.dark)),
+                    "\(token) dark should strengthen under more-contrast")
+        }
     }
 }
 
@@ -62,5 +73,14 @@ struct ValidateNeutralsTests {
         #expect(!fails.isEmpty)
         #expect(fails.contains { $0.token.contains("--sw-text") && $0.mode == "light" })
         #expect(fails.allSatisfy { $0.ratio < $0.target })
+    }
+
+    @Test("Incomplete palette short-circuits to no failures (documented guard behavior)")
+    func incompletePaletteGuard() {
+        // validateNeutrals requires surface/bg/text/text-muted; absent any, it returns [].
+        // This is the intentional guard — the production caller (neutralPalette) always supplies
+        // all six. Documented so a partial-palette caller knows [] means "couldn't check," not "AA".
+        #expect(Color.validateNeutrals([]).isEmpty)
+        #expect(Color.validateNeutrals([("--sw-text", "#000", "#fff")]).isEmpty)
     }
 }
