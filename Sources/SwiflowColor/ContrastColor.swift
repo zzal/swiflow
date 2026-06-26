@@ -192,6 +192,36 @@ extension Color {
         return out
     }
 
+    /// Validate one fixed-hue status token (danger/success) against how it is actually used:
+    /// the RAW token on the surface at `rawBar` (danger renders as error text → pass 4.5;
+    /// success is borders/tints only → pass 3.0), and the base-sheet-derived `-strong`
+    /// (L 0.40/0.80 normal, 0.30/0.88 more-contrast) on the 15% tint at 4.5 / 7. No `-text`
+    /// check — there are no solid-fill status buttons. Mirrors `validateAccentFamily`'s machinery.
+    public static func validateStatusFamily(name: String,
+                                            lightHex: String,
+                                            darkHex: String,
+                                            rawBar: Double) -> [PaletteFailure] {
+        var out: [PaletteFailure] = []
+        let modes: [(String, String, String, Double, Double)] = [
+            ("light", lightHex, surfaceLight, strongAA.0, strongAAA.0),
+            ("dark",  darkHex,  surfaceDark,  strongAA.1, strongAAA.1),
+        ]
+        for (mode, seedHex, surfaceHex, lAA, lAAA) in modes {
+            let seed = hex(seedHex)
+            let surface = hex(surfaceHex)
+            let tint = mixOKLab(seed, surface, weightBase: tintWeight)
+            // RAW token used directly on the surface (error text / borders / tints).
+            let rRaw = wcagContrast(seed, surface)
+            if rRaw < rawBar { out.append(.init(token: name, mode: mode, ratio: rRaw, target: rawBar)) }
+            // -strong on the tint: 4.5 normal, 7 under prefers-contrast: more.
+            let rAA = wcagContrast(oklchFrom(seed, lightness: lAA), tint)
+            if rAA < 4.5 { out.append(.init(token: "\(name)-strong", mode: mode, ratio: rAA, target: 4.5)) }
+            let rAAA = wcagContrast(oklchFrom(seed, lightness: lAAA), tint)
+            if rAAA < 7.0 { out.append(.init(token: "\(name)-strong (more-contrast)", mode: mode, ratio: rAAA, target: 7.0)) }
+        }
+        return out
+    }
+
     /// Full generator: normalize the seed, derive the dark accent, validate, and return the
     /// override CSS. With `includeNeutrals`, also derives the accent-tinted neutral ramp + a
     /// prefers-contrast: more block (and folds neutral failures into the thrown error). The

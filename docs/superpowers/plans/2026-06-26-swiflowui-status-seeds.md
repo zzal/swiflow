@@ -76,7 +76,7 @@ struct StatusSeedTests {
                                            lightHex: "#e11d48", darkHex: dark("#e11d48"),
                                            rawBar: 4.5).isEmpty)
         #expect(Color.validateStatusFamily(name: "--sw-success",
-                                           lightHex: "#10b981", darkHex: dark("#10b981"),
+                                           lightHex: "#059669", darkHex: dark("#059669"),
                                            rawBar: 3.0).isEmpty)
     }
 
@@ -164,10 +164,10 @@ git commit -m "feat(swiflowcolor): validateStatusFamily for danger/success seeds
     @Test("Status seeds emit raw --sw-danger/--sw-success lines, no neutral tokens, no @media")
     func statusSeedsEmit() throws {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
-                                           dangerHex: "#e11d48", successHex: "#10b981")
+                                           dangerHex: "#e11d48", successHex: "#059669")
         #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
         #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
-        #expect(css.contains("--sw-success: light-dark(#10b981, #"))
+        #expect(css.contains("--sw-success: light-dark(#059669, #"))
         #expect(!css.contains("--sw-surface"))   // no neutrals
         #expect(!css.contains("@media"))          // status colors need no media block
         // ordering: accent, then danger, then success
@@ -331,13 +331,13 @@ git commit -m "feat(swiflowcolor): accentThemeCSS emits validated --danger/--suc
             .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
         defer { try? FileManager.default.removeItem(at: tmp) }
         var cmd = try ThemeCommand.parse([
-            "--primary", "#7c3aed", "--danger", "#e11d48", "--success", "#10b981",
+            "--primary", "#7c3aed", "--danger", "#e11d48", "--success", "#059669",
             "--out", tmp.path,
         ])
         try cmd.run()
         let css = try String(contentsOf: tmp, encoding: .utf8)
         #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
-        #expect(css.contains("--sw-success: light-dark(#10b981, #"))
+        #expect(css.contains("--sw-success: light-dark(#059669, #"))
     }
 
     @Test("Without status flags the output has no status overrides")
@@ -413,10 +413,10 @@ Add optional seeds:
 
 - `--neutrals` — also derive the accent-tinted neutral ramp (surfaces/text/border).
 - `--danger "#e11d48"` — set the brand danger/error color (validated as error text, ≥ 4.5:1).
-- `--success "#10b981"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
+- `--success "#059669"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
 
 ```text
-swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#10b981" --neutrals --out theme.css
+swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --neutrals --out theme.css
 ```
 
 Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
