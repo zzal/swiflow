@@ -3,18 +3,19 @@ import Swiflow
 import SwiflowDOM   // after() / TimerHandle for auto-dismiss (WASM-runtime; see ToastView)
 
 /// Severity of a `Toast`, mapped to an accent color + a live-region politeness.
-/// Matches the rest of the palette (accent/success/danger — there is no warning
-/// token; see Theme.swift / Badge). `.danger` is announced assertively.
+/// Matches the rest of the palette (accent/success/danger/warning; see Theme.swift /
+/// Badge). `.danger` is announced assertively.
 public enum ToastVariant: Equatable {
-    case info, success, danger
+    case info, success, danger, warning
     var modifierClass: String {
         switch self {
         case .info:    return "info"
         case .success: return "success"
         case .danger:  return "danger"
+        case .warning: return "warning"
         }
     }
-    /// Danger interrupts (role=alert + aria-live=assertive); info/success are polite.
+    /// Danger interrupts (role=alert + aria-live=assertive); info/success/warning are polite.
     var isAssertive: Bool { self == .danger }
 }
 
@@ -203,8 +204,10 @@ let toastStyleSheet: CSSSheet = css {
       box-shadow: var(--sw-shadow);
       animation: sw-toast-in var(--sw-duration) var(--sw-ease);
     }
+    .sw-toast--info    { border-inline-start-color: var(--sw-info); }
     .sw-toast--success { border-inline-start-color: var(--sw-success); }
     .sw-toast--danger  { border-inline-start-color: var(--sw-danger); }
+    .sw-toast--warning { border-inline-start-color: var(--sw-warning); }
 
     .sw-toast__message { flex: 1 1 auto; }
 
