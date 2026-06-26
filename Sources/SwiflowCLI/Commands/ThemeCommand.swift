@@ -23,8 +23,12 @@ struct ThemeCommand: ParsableCommand {
             help: "Write the CSS to this file. Defaults to stdout.")
     var out: String?
 
+    @Flag(name: .customLong("neutrals"),
+          help: "Also derive the neutral ramp (surfaces/text/border), tinted to the accent.")
+    var neutrals = false
+
     func run() throws {
-        let css = try Color.accentThemeCSS(primaryHex: primary)
+        let css = try Color.accentThemeCSS(primaryHex: primary, includeNeutrals: neutrals)
         if let out {
             try css.write(toFile: out, atomically: true, encoding: .utf8)
         } else {
