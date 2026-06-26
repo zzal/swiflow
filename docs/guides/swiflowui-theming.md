@@ -97,6 +97,9 @@ When a seed fails, its diagnostic also includes an **APCA** (perceptual) reading
 `APCA Lc 68 (suggests ≥ 75 for text)` — as a second opinion alongside the WCAG ratio. APCA is
 advisory only: WCAG 2.x remains the gate, and a passing palette prints nothing extra.
 
+The generator is also a public Swift library — see [SwiflowColor](swiflowcolor.md) to call
+`ThemeGenerator.generate` from your own host tooling instead of the CLI.
+
 Generated accent/status colors ship a progressive `oklch()` line after their hex fallback, so they
 render at the **display-P3 gamut edge** on capable screens (richer color; identical sRGB hex
 fallback elsewhere). Lightness and hue are preserved, so contrast is unchanged. Neutrals stay
