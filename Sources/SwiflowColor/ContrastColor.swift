@@ -33,6 +33,52 @@ public enum Color {
         let hi = max(x.luminance, y.luminance), lo = min(x.luminance, y.luminance)
         return (hi + 0.05) / (lo + 0.05)
     }
+
+    /// APCA-W3 (0.1.9) perceptual lightness contrast, **Lc**, for `textHex` on `bgHex`.
+    /// Returns a signed value (≈ −108…106); the sign encodes polarity (negative = light text
+    /// on a dark background), so callers compare `abs(lc)` to a target. ADVISORY ONLY — this is
+    /// not a gate; WCAG 2.x remains SwiflowColor's contrast gate. Clean-room reimplementation of
+    /// the published APCA-W3 constants (no vendored source). Inputs are sRGB-encoded hex, parsed
+    /// directly — APCA uses a simple `^2.4` luminance model, distinct from the WCAG linear pipeline.
+    public static func apcaContrast(textHex: String, bgHex: String) -> Double {
+        // APCA-W3 0.1.9 constants.
+        let mainTRC = 2.4
+        let (rCo, gCo, bCo) = (0.2126, 0.7152, 0.0722)
+        let (normBG, normTXT, revTXT, revBG) = (0.56, 0.57, 0.62, 0.65)
+        let blkThrs = 0.022, blkClmp = 1.414
+        let scale = 1.14, loOffset = 0.027, loClip = 0.1, deltaYmin = 0.0005
+
+        func srgb(_ raw: String) -> (Double, Double, Double) {
+            let h = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw
+            func byte(_ i: Int) -> Double {
+                let start = h.index(h.startIndex, offsetBy: i)
+                let end = h.index(start, offsetBy: 2)
+                return Double(Int(h[start..<end], radix: 16) ?? 0) / 255.0
+            }
+            return (byte(0), byte(2), byte(4))
+        }
+        // Screen luminance Ys with APCA's near-black soft clamp.
+        func screenY(_ c: (Double, Double, Double)) -> Double {
+            let y = rCo * pow(c.0, mainTRC) + gCo * pow(c.1, mainTRC) + bCo * pow(c.2, mainTRC)
+            return y < blkThrs ? y + pow(blkThrs - y, blkClmp) : y
+        }
+
+        let yTxt = screenY(srgb(textHex))
+        let yBg = screenY(srgb(bgHex))
+        if abs(yBg - yTxt) < deltaYmin { return 0 }
+
+        let sapc: Double, offset: Double
+        if yBg > yTxt {                                   // normal: dark text on light bg
+            sapc = (pow(yBg, normBG) - pow(yTxt, normTXT)) * scale
+            if sapc < loClip { return 0 }
+            offset = -loOffset
+        } else {                                          // reverse: light text on dark bg
+            sapc = (pow(yBg, revBG) - pow(yTxt, revTXT)) * scale
+            if sapc > -loClip { return 0 }
+            offset = loOffset
+        }
+        return (sapc + offset) * 100
+    }
 }
 
 /// OKLab (L, a, b) — Björn Ottosson's perceptual space.
