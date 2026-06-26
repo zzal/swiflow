@@ -16,6 +16,32 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.3.5] — 2026-06-26
+
+`SwiflowColor` becomes a public library, and `swiflow theme` diagnostics gain a
+perceptual (APCA) second opinion.
+
+### Added
+
+- **`SwiflowColor` public theme-generation library.** The contrast-validated color
+  engine behind `swiflow theme` now ships as a public `.library` product with a
+  curated API: `ThemeGenerator.generate(_:)` takes a `ThemeOptions` (mirroring the
+  CLI flags) and returns a `ThemeResult` — the generated CSS plus any contrast
+  `failures` (structured, each with a WCAG ratio and advisory APCA reading). Contrast
+  shortfalls are **returned, never thrown**; only malformed hex throws
+  `ThemeError.invalidHex`. `Contrast.wcag` / `Contrast.apca` expose the hex-based
+  contrast metrics. The library is **native-only** (host tooling, build plugins,
+  scripts — not the browser). Add `.product(name: "SwiflowColor", package: "Swiflow")`;
+  see [`docs/guides/swiflowcolor.md`](docs/guides/swiflowcolor.md).
+- **Advisory APCA reading in `swiflow theme` diagnostics.** When a seed fails its WCAG
+  bar, the per-token diagnostic now also reports an APCA-W3 perceptual reading — e.g.
+  `APCA Lc 68 (suggests ≥ 75 for text)` — as a second opinion. WCAG 2.x remains the
+  sole gate; a passing palette prints nothing extra.
+
+**Stability: stable for pre-1.0 usage.**
+
+---
+
 ## [0.3.4] — 2026-06-26
 
 SwiflowUI theming: status-color seeds for the `swiflow theme` generator, two new
