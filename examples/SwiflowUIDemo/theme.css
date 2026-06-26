@@ -2,6 +2,7 @@
    Re-points --sw-accent (family cascades) + the accent-tinted neutral ramp. */
 :root {
   --sw-accent: light-dark(#7c3aed, #9f7bff);
+  --sw-accent: light-dark(oklch(0.5413 0.3035 293.01), oklch(0.6777 0.2046 293.28));
   --sw-bg: light-dark(#f5f4fb, #0b0a0f);
   --sw-surface: light-dark(#fffeff, #16151a);
   --sw-surface-2: light-dark(#f2f1f8, #1f1e24);
