@@ -246,15 +246,21 @@ p3/OKLCH generator (#73) derive. The article externally validates both bets.
 
 Candidate items, ranked:
 
-- **`@property` registration for `--sw-*` tokens** — *highest value, lowest risk.* Register the
-  color/length tokens (`syntax`, `inherits`, `initial-value`) in `baseStyleSheet`. Buys type
-  safety, **animatable color tokens** (theme cross-fades), and is the **prerequisite** for style
-  queries below. Pure addition to the base sheet; no component changes. Spike'd in the M9 spec.
-- **`@container style()` queries — a standards-based "micro-theming" seam.** Lets *CSS* branch on
-  a token value (e.g. a tinted surface picking readable text) without the *component* branching —
-  inside our no-branch rule. This is the proper fix for the soft-tint-contrast problem the
-  `-strong` tokens currently work around ([[swiflowui-soft-tint-contrast]]). Depends on
-  `@property` registration. Spike'd in the M9 spec.
+- **✅ `@property` registration for `--sw-*` tokens (SHIPPED — this spike)** — scalar tokens
+  (spacing/radius/border-width/focus-ring-width/duration/opacity) **and** color tokens are
+  registered (`syntax`/`inherits`/`initial-value`), so they are type-validated and animatable.
+  Color registration shipped after a 4-gate proof that the literal→`oklch(from)` progressive
+  fallback survives registration (parse-time rejection precedes registered-syntax validation).
+  This is also the prerequisite for any future style-query work. Full results in
+  [`swiflowui-property-style-queries-findings.md`](swiflowui-property-style-queries-findings.md).
+- **`@container style()` queries — a standards-based "micro-theming" seam. → DEFER (this spike).**
+  Lets *CSS* branch on a token value (e.g. a tinted surface picking readable text) without the
+  *component* branching — inside our no-branch rule, and the proper standards fix for the
+  soft-tint-contrast problem the `-strong` tokens work around ([[swiflowui-soft-tint-contrast]]).
+  Spike verdict: our pipeline passes the syntax through verbatim (no CSS minifier), so the only
+  blocker is **no Firefox support** as of 2026 — it can only be a progressive layer over the
+  cross-engine `-strong`, which already works. Deferred; `@property` (shipped) is the groundwork.
+  See findings.
 - **`contrast-color()`** — *watch, gate behind `@supports`.* Auto-picks black/white for WCAG
   contrast at runtime; complements (does not replace) `SwiflowColor`'s build-time validation —
   we validate seeds at generate time, `contrast-color()` would handle arbitrary user backgrounds
