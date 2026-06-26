@@ -211,14 +211,17 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   derives the accent-tinted neutral ramp (`--sw-bg`/`--sw-surface`/`--sw-text`/`--sw-border`) with
   contrast-proven text-on-surface, plus a `prefers-contrast: more` block. Also fixed the base-token
   cascade (`@layer swiflow.base`) so generated/app `:root` overrides reliably win.
-- **✅ Status-color seeds (this PR)** — opt-in `--danger`/`--success` seeds emit contrast-validated
+- **✅ Status-color seeds (PR #71)** — opt-in `--danger`/`--success` seeds emit contrast-validated
   raw status overrides (per-usage bars: danger ≥ 4.5 as error text, success ≥ 3:1 as border/tint,
   derived `-strong` ≥ 4.5/7); compose with `--neutrals`. No base-sheet/component change — the base
   sheet re-derives `-strong`/more-contrast/P3 from the raw token.
+- **✅ Warning/info status tokens + seeds (this PR)** — added `--sw-warning` (amber, full 4-layer
+  treatment) and `--sw-info` (aliases `--sw-accent`, independently overridable) to the base sheet,
+  wired into `Badge`/`Toast` (incl. the previously-missing `.sw-toast--info` rule); `swiflow theme`
+  gains validated `--warning`/`--info` seeds. The status set is now complete
+  (danger/success/warning/info).
 
-**Deferred from M8 to a later pass:** `--warning`/`--info` seeds (blocked on first introducing
-`--sw-warning`/`--sw-info` as base-sheet tokens + component variants — neither exists today, and
-`Toast`'s `info` variant has no dedicated token); APCA as an opt-in algorithm; p3 upgrade for a
+**Deferred from M8 to a later pass:** APCA as an opt-in algorithm; p3 upgrade for a
 generated accent/status color; promoting `SwiflowColor` into a public (shipping) generator.
 
 ### Reshaped evaluation — considered and rejected (with reasons)
