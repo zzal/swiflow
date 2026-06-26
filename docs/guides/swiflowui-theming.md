@@ -19,8 +19,8 @@ per-component code. The token contract lives in
 | **Spacing** | `--sw-space-xs` `--sw-space-sm` `--sw-space-md` `--sw-space-lg` `--sw-space-xl` |
 | **Radius** | `--sw-radius-sm` `--sw-radius` |
 | **Surfaces & text** | `--sw-bg` (page) `--sw-surface` `--sw-surface-2` `--sw-text` `--sw-text-muted` |
-| **Accent & semantic** | `--sw-accent` `--sw-accent-hover` `--sw-accent-active` `--sw-accent-text` `--sw-danger` `--sw-success` |
-| **"Strong" text variants** | `--sw-accent-strong` `--sw-danger-strong` `--sw-success-strong` |
+| **Accent & semantic** | `--sw-accent` `--sw-accent-hover` `--sw-accent-active` `--sw-accent-text` `--sw-danger` `--sw-success` `--sw-warning` `--sw-info` (aliases `--sw-accent`) |
+| **"Strong" text variants** | `--sw-accent-strong` `--sw-danger-strong` `--sw-success-strong` `--sw-warning-strong` `--sw-info-strong` |
 | **Border, focus, elevation** | `--sw-border` `--sw-border-width` `--sw-focus-ring` `--sw-focus-ring-width` `--sw-shadow` |
 | **Motion** | `--sw-duration` `--sw-ease` `--sw-anim-play` |
 | **Affordances** | `--sw-disabled-opacity` |
@@ -83,9 +83,11 @@ Add optional seeds:
 - `--neutrals` — also derive the accent-tinted neutral ramp (surfaces/text/border).
 - `--danger "#e11d48"` — set the brand danger/error color (validated as error text, ≥ 4.5:1).
 - `--success "#059669"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
+- `--warning "#d97706"` — set the brand warning color (amber; validated as a UI/border color, ≥ 3:1).
+- `--info "#0284c7"` — set the brand info color (defaults to the accent if unset; validated ≥ 3:1).
 
 ```text
-swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --neutrals --out theme.css
+swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warning "#d97706" --info "#0284c7" --neutrals --out theme.css
 ```
 
 Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
