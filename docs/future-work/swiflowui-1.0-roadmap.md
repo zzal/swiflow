@@ -230,6 +230,40 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
 **Deferred from M8 to a later pass:** APCA as an opt-in algorithm; promoting `SwiflowColor` into a
 public (shipping) generator.
 
+### M9 (1.1) — Modern CSS theming primitives — candidate
+
+*Origin: evaluation of Una Kravets' ["Modern CSS Theming"](https://una.im/modern-css-theming)
+(2026), which splits theming into **macro** (page-level `light-dark()`) and **micro**
+(per-component palette derivation in CSS) and argues a component should receive only a brand
+color and derive its background/text/elevation itself. That framing is convergent with our
+"components read tokens, never branch" rule — the branching it proposes lives in CSS (style
+queries), not component code. Two of its techniques we already ship; three are candidate
+upgrades.*
+
+**Already aligned (no work):** `light-dark()` driven by `color-scheme` is our token contract;
+relative color syntax (`oklch(from var(--x) calc(l + …) c h)`) is already how `-strong` and the
+p3/OKLCH generator (#73) derive. The article externally validates both bets.
+
+Candidate items, ranked:
+
+- **`@property` registration for `--sw-*` tokens** — *highest value, lowest risk.* Register the
+  color/length tokens (`syntax`, `inherits`, `initial-value`) in `baseStyleSheet`. Buys type
+  safety, **animatable color tokens** (theme cross-fades), and is the **prerequisite** for style
+  queries below. Pure addition to the base sheet; no component changes. Spike'd in the M9 spec.
+- **`@container style()` queries — a standards-based "micro-theming" seam.** Lets *CSS* branch on
+  a token value (e.g. a tinted surface picking readable text) without the *component* branching —
+  inside our no-branch rule. This is the proper fix for the soft-tint-contrast problem the
+  `-strong` tokens currently work around ([[swiflowui-soft-tint-contrast]]). Depends on
+  `@property` registration. Spike'd in the M9 spec.
+- **`contrast-color()`** — *watch, gate behind `@supports`.* Auto-picks black/white for WCAG
+  contrast at runtime; complements (does not replace) `SwiflowColor`'s build-time validation —
+  we validate seeds at generate time, `contrast-color()` would handle arbitrary user backgrounds
+  at runtime. Most useful as the *detector* inside a style query. We already use it for the
+  solid-fill `-text` token (M8/#66); broader adoption is the deferred piece. Very new baseline.
+
+**Rejected:** `@function` custom CSS functions (Chrome-139-only per the article) — too early for a
+cross-engine library; relative color syntax gives the same elevation result at full Baseline.
+
 ### Reshaped evaluation — considered and rejected (with reasons)
 
 Recorded so a future session doesn't re-litigate these:
