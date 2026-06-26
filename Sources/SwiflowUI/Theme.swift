@@ -74,6 +74,8 @@ public enum SwiflowUI {
           --sw-accent-text: contrast-color(var(--sw-accent));
           --sw-danger: light-dark(#dc2626, #f87171);
           --sw-success: light-dark(#16a34a, #4ade80);
+          --sw-warning: light-dark(#b45309, #fbbf24);
+          --sw-info: var(--sw-accent);
           /* "strong" = semantic-hue text readable on a 15% tint of that hue.
              Static fallback first (hand-tuned, kept for pre-Baseline browsers); the
              dynamic oklch(from …) derivation below re-pins lightness to clear WCAG 4.5
@@ -85,6 +87,10 @@ public enum SwiflowUI {
           --sw-danger-strong: light-dark(oklch(from var(--sw-danger) 0.40 c h), oklch(from var(--sw-danger) 0.80 c h));
           --sw-success-strong: light-dark(#15803d, #4ade80);
           --sw-success-strong: light-dark(oklch(from var(--sw-success) 0.40 c h), oklch(from var(--sw-success) 0.80 c h));
+          --sw-warning-strong: light-dark(#92400e, #fbbf24);
+          --sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.40 c h), oklch(from var(--sw-warning) 0.80 c h));
+          --sw-info-strong: var(--sw-accent-strong);
+          --sw-info-strong: light-dark(oklch(from var(--sw-info) 0.40 c h), oklch(from var(--sw-info) 0.80 c h));
 
           /* borders, focus ring & elevation */
           --sw-border: light-dark(#e5e7eb, #333333);
@@ -126,6 +132,8 @@ public enum SwiflowUI {
             --sw-accent-strong: light-dark(oklch(from var(--sw-accent) 0.30 c h), oklch(from var(--sw-accent) 0.88 c h));
             --sw-danger-strong: light-dark(oklch(from var(--sw-danger) 0.30 c h), oklch(from var(--sw-danger) 0.88 c h));
             --sw-success-strong: light-dark(oklch(from var(--sw-success) 0.30 c h), oklch(from var(--sw-success) 0.88 c h));
+            --sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.30 c h), oklch(from var(--sw-warning) 0.88 c h));
+            --sw-info-strong: light-dark(oklch(from var(--sw-info) 0.30 c h), oklch(from var(--sw-info) 0.88 c h));
           }
         }
 
@@ -153,6 +161,7 @@ public enum SwiflowUI {
               --sw-accent: light-dark(color(display-p3 0.21 0.51 0.96), color(display-p3 0.4 0.66 0.98));
               --sw-danger: light-dark(color(display-p3 0.82 0.18 0.18), color(display-p3 0.96 0.5 0.48));
               --sw-success: light-dark(color(display-p3 0.15 0.63 0.32), color(display-p3 0.42 0.86 0.55));
+              --sw-warning: light-dark(color(display-p3 0.68 0.33 0.04), color(display-p3 0.98 0.75 0.14));
             }
           }
         }
