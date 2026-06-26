@@ -205,15 +205,37 @@ extension Color {
 }
 
 extension Color {
-    /// One WCAG shortfall for a generated token, in one color scheme.
+    /// One WCAG shortfall for a generated token, in one color scheme. Carries an APCA
+    /// (perceptual) reading as an advisory second opinion — see `apcaLc` / `apcaTarget`.
     public struct PaletteFailure: Equatable, Sendable, CustomStringConvertible {
         public let token: String
         public let mode: String        // "light" | "dark"
         public let ratio: Double
         public let target: Double
+        /// Signed APCA Lc for this token's text/surface pairing (advisory; `abs` is compared).
+        public let apcaLc: Double
+        /// APCA's recommended Lc for this usage (75 text, 45 non-text). Guidance, never gated.
+        public let apcaTarget: Double
         public var description: String {
-            String(format: "%@ (%@): %.2f:1 < %.1f:1 required", token, mode, ratio, target)
+            let wcag = String(format: "%@ (%@): %.2f:1 < %.1f:1 required", token, mode, ratio, target)
+            let usage = apcaTarget >= 75 ? "text" : "non-text"
+            let apca = String(format: " — APCA Lc %.0f (suggests ≥ %.0f for %@)",
+                              abs(apcaLc), apcaTarget, usage)
+            return wcag + apca
         }
+    }
+
+    /// APCA advisory target for a usage: fluent text 75, non-text/UI element 45. Guidance only.
+    static func recommendedLc(isText: Bool) -> Double { isText ? 75 : 45 }
+
+    /// Build a `PaletteFailure`, computing its advisory APCA reading from the same text/surface
+    /// pair used for the WCAG ratio. APCA runs on the rendered 8-bit color (`hexString`).
+    private static func paletteFailure(_ token: String, _ mode: String,
+                                       ratio: Double, target: Double,
+                                       text: LinRGB, bg: LinRGB, isText: Bool) -> PaletteFailure {
+        PaletteFailure(token: token, mode: mode, ratio: ratio, target: target,
+                       apcaLc: apcaContrast(textHex: hexString(text), bgHex: hexString(bg)),
+                       apcaTarget: recommendedLc(isText: isText))
     }
 
     public enum PaletteError: Error, CustomStringConvertible {
@@ -257,25 +279,36 @@ extension Color {
         ]
         for (mode, accentHex, surfaceHex, lAA, lAAA) in modes {
             let accent = hex(accentHex)
-            let tint = mixOKLab(accent, hex(surfaceHex), weightBase: tintWeight)
-            // --sw-accent used as TEXT (ghost buttons, links) on the surface. UI/large-text
-            // bar (3:1): catches washed-out brand colors while allowing conventional
-            // blue-on-white links (the default #3b82f6 is 3.68:1).
-            let rAccentText = wcagContrast(accent, hex(surfaceHex))
-            if rAccentText < 3.0 { out.append(.init(token: "--sw-accent (as text/links)", mode: mode, ratio: rAccentText, target: 3.0)) }
+            let surface = hex(surfaceHex)
+            let tint = mixOKLab(accent, surface, weightBase: tintWeight)
+            // --sw-accent used as TEXT (ghost buttons, links) on the surface; UI/large-text bar (3:1).
+            let rAccentText = wcagContrast(accent, surface)
+            if rAccentText < 3.0 {
+                out.append(paletteFailure("--sw-accent (as text/links)", mode,
+                                          ratio: rAccentText, target: 3.0,
+                                          text: accent, bg: surface, isText: true))
+            }
             // -strong on the tint: 4.5 normal, 7 under prefers-contrast: more.
-            let rAA = wcagContrast(oklchFrom(accent, lightness: lAA), tint)
-            if rAA < 4.5 { out.append(.init(token: "--sw-accent-strong", mode: mode, ratio: rAA, target: 4.5)) }
-            let rAAA = wcagContrast(oklchFrom(accent, lightness: lAAA), tint)
-            if rAAA < 7.0 { out.append(.init(token: "--sw-accent-strong (more-contrast)", mode: mode, ratio: rAAA, target: 7.0)) }
-            // -text on the solid accent: the Baseline contrast-color() result. We do NOT
-            // validate the static #0b1220 fallback — it's tuned for the default (light) accent
-            // and is sub-AA on medium-dark custom accents (violet/indigo) where contrast-color
-            // correctly flips to white. contrast-color is Baseline 2026, so the fallback is a
-            // pre-Baseline-only courtesy; gating on it would reject common brand colors. See
-            // the palette-generator spec's "legacy fallback gap" note.
-            let rText = wcagContrast(contrastColor(against: accent), accent)
-            if rText < 4.5 { out.append(.init(token: "--sw-accent-text", mode: mode, ratio: rText, target: 4.5)) }
+            let strongAA = oklchFrom(accent, lightness: lAA)
+            let rAA = wcagContrast(strongAA, tint)
+            if rAA < 4.5 {
+                out.append(paletteFailure("--sw-accent-strong", mode, ratio: rAA, target: 4.5,
+                                          text: strongAA, bg: tint, isText: true))
+            }
+            let strongAAA = oklchFrom(accent, lightness: lAAA)
+            let rAAA = wcagContrast(strongAAA, tint)
+            if rAAA < 7.0 {
+                out.append(paletteFailure("--sw-accent-strong (more-contrast)", mode,
+                                          ratio: rAAA, target: 7.0,
+                                          text: strongAAA, bg: tint, isText: true))
+            }
+            // -text on the solid accent: the Baseline contrast-color() result.
+            let textColor = contrastColor(against: accent)
+            let rText = wcagContrast(textColor, accent)
+            if rText < 4.5 {
+                out.append(paletteFailure("--sw-accent-text", mode, ratio: rText, target: 4.5,
+                                          text: textColor, bg: accent, isText: true))
+            }
         }
         return out
     }
@@ -294,18 +327,33 @@ extension Color {
             ("light", lightHex, surfaceLight, strongAA.0, strongAAA.0),
             ("dark",  darkHex,  surfaceDark,  strongAA.1, strongAAA.1),
         ]
+        // danger's raw token renders as error text (bar 4.5 → APCA text); success/warning/info
+        // are non-text UI colors (bar 3.0 → APCA non-text).
+        let rawIsText = rawBar >= 4.5
         for (mode, seedHex, surfaceHex, lAA, lAAA) in modes {
             let seed = hex(seedHex)
             let surface = hex(surfaceHex)
             let tint = mixOKLab(seed, surface, weightBase: tintWeight)
             // RAW token used directly on the surface (error text / borders / tints).
             let rRaw = wcagContrast(seed, surface)
-            if rRaw < rawBar { out.append(.init(token: name, mode: mode, ratio: rRaw, target: rawBar)) }
-            // -strong on the tint: 4.5 normal, 7 under prefers-contrast: more.
-            let rAA = wcagContrast(oklchFrom(seed, lightness: lAA), tint)
-            if rAA < 4.5 { out.append(.init(token: "\(name)-strong", mode: mode, ratio: rAA, target: 4.5)) }
-            let rAAA = wcagContrast(oklchFrom(seed, lightness: lAAA), tint)
-            if rAAA < 7.0 { out.append(.init(token: "\(name)-strong (more-contrast)", mode: mode, ratio: rAAA, target: 7.0)) }
+            if rRaw < rawBar {
+                out.append(paletteFailure(name, mode, ratio: rRaw, target: rawBar,
+                                          text: seed, bg: surface, isText: rawIsText))
+            }
+            // -strong on the tint: 4.5 normal, 7 under prefers-contrast: more (always text).
+            let strongAA = oklchFrom(seed, lightness: lAA)
+            let rAA = wcagContrast(strongAA, tint)
+            if rAA < 4.5 {
+                out.append(paletteFailure("\(name)-strong", mode, ratio: rAA, target: 4.5,
+                                          text: strongAA, bg: tint, isText: true))
+            }
+            let strongAAA = oklchFrom(seed, lightness: lAAA)
+            let rAAA = wcagContrast(strongAAA, tint)
+            if rAAA < 7.0 {
+                out.append(paletteFailure("\(name)-strong (more-contrast)", mode,
+                                          ratio: rAAA, target: 7.0,
+                                          text: strongAAA, bg: tint, isText: true))
+            }
         }
         return out
     }
@@ -467,8 +515,12 @@ extension Color {
         ]
         for (label, fg, bgc) in checks {
             for (mode, f, b) in [("light", fg.light, bgc.light), ("dark", fg.dark, bgc.dark)] {
-                let r = wcagContrast(hex(f), hex(b))
-                if r < 4.5 { out.append(.init(token: label, mode: mode, ratio: r, target: 4.5)) }
+                let fLin = hex(f), bLin = hex(b)
+                let r = wcagContrast(fLin, bLin)
+                if r < 4.5 {
+                    out.append(paletteFailure(label, mode, ratio: r, target: 4.5,
+                                              text: fLin, bg: bLin, isText: true))
+                }
             }
         }
         return out
