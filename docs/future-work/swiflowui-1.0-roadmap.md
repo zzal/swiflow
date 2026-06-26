@@ -215,14 +215,22 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   raw status overrides (per-usage bars: danger ≥ 4.5 as error text, success ≥ 3:1 as border/tint,
   derived `-strong` ≥ 4.5/7); compose with `--neutrals`. No base-sheet/component change — the base
   sheet re-derives `-strong`/more-contrast/P3 from the raw token.
-- **✅ Warning/info status tokens + seeds (this PR)** — added `--sw-warning` (amber, full 4-layer
+- **✅ Warning/info status tokens + seeds (PR #72)** — added `--sw-warning` (amber, full 4-layer
   treatment) and `--sw-info` (aliases `--sw-accent`, independently overridable) to the base sheet,
   wired into `Badge`/`Toast` (incl. the previously-missing `.sw-toast--info` rule); `swiflow theme`
-  gains validated `--warning`/`--info` seeds. The status set is now complete
-  (danger/success/warning/info).
+  gains validated `--warning`/`--info` seeds. **The status set is now complete**
+  (danger/success/warning/info), so the generator covers every shipped token.
 
-**Deferred from M8 to a later pass:** APCA as an opt-in algorithm; p3 upgrade for a
-generated accent/status color; promoting `SwiflowColor` into a public (shipping) generator.
+**Next (in progress):** **p3 / wide-gamut upgrade for generated colors** — `swiflow theme`
+currently emits seeded accent/status colors as sRGB hex only, so they don't pick up the wider
+gamut the hand-authored base-sheet defaults get via their `@media (color-gamut: p3)` blocks. Emit
+the seeds in **OKLCH** (`oklch(L C H)`) instead — a single value renders the full wide gamut
+natively on capable displays and clamps cleanly to sRGB elsewhere, with a hex fallback for
+pre-OKLCH browsers. Replaces the per-color `color(display-p3 …)` dance with one better color
+definition.
+
+**Deferred from M8 to a later pass:** APCA as an opt-in algorithm; promoting `SwiflowColor` into a
+public (shipping) generator.
 
 ### Reshaped evaluation — considered and rejected (with reasons)
 
