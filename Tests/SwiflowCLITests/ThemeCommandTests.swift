@@ -81,4 +81,28 @@ struct ThemeCommandTests {
         var cmd = try ThemeCommand.parse(["--primary", "#7c3aed", "--danger", "#f5a3a3"])
         #expect(throws: (any Error).self) { try cmd.run() }
     }
+
+    @Test("--warning/--info write validated overrides to --out") func warningInfoFlags() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse([
+            "--primary", "#7c3aed", "--warning", "#d97706", "--info", "#0284c7", "--out", tmp.path,
+        ])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(css.contains("--sw-warning: light-dark(#d97706, #"))
+        #expect(css.contains("--sw-info: light-dark(#0284c7, #"))
+    }
+
+    @Test("Without --warning/--info neither token is emitted") func noWarningInfoFlags() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse(["--primary", "#7c3aed", "--out", tmp.path])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(!css.contains("--sw-warning"))
+        #expect(!css.contains("--sw-info"))
+    }
 }
