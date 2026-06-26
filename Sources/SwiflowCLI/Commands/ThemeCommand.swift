@@ -27,8 +27,19 @@ struct ThemeCommand: ParsableCommand {
           help: "Also derive the neutral ramp (surfaces/text/border), tinted to the accent.")
     var neutrals = false
 
+    @Option(name: .customLong("danger"),
+            help: "Brand danger/error color (light-mode), as #rgb or #rrggbb.")
+    var danger: String?
+
+    @Option(name: .customLong("success"),
+            help: "Brand success color (light-mode), as #rgb or #rrggbb.")
+    var success: String?
+
     func run() throws {
-        let css = try Color.accentThemeCSS(primaryHex: primary, includeNeutrals: neutrals)
+        let css = try Color.accentThemeCSS(primaryHex: primary,
+                                           dangerHex: danger,
+                                           successHex: success,
+                                           includeNeutrals: neutrals)
         if let out {
             try css.write(toFile: out, atomically: true, encoding: .utf8)
         } else {
