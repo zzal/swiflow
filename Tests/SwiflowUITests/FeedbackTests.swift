@@ -143,4 +143,20 @@ struct BadgeTests {
         #expect(css.contains("var(--sw-danger-strong)"))   // darker text → passes WCAG on the pale light tint
         #expect(css.contains("var(--sw-surface-2)"))        // neutral
     }
+
+    @Test("info and warning variants map to their modifier classes") func infoWarningVariants() {
+        #expect(el(Badge("i", variant: .info))!.attributes["class"] == "sw-badge sw-badge--info")
+        #expect(el(Badge("w", variant: .warning))!.attributes["class"] == "sw-badge sw-badge--warning")
+    }
+
+    @Test("info/warning stylesheet rules use the matching token tint + -strong text") func infoWarningStylesheet() {
+        _ = Badge("x")  // installs the sheet
+        let sheet = badgeStyleSheet.cssString(scopeClass: "")
+        #expect(sheet.contains(".sw-badge--info"))
+        #expect(sheet.contains("var(--sw-info) 15%"))
+        #expect(sheet.contains("color: var(--sw-info-strong)"))
+        #expect(sheet.contains(".sw-badge--warning"))
+        #expect(sheet.contains("var(--sw-warning) 15%"))
+        #expect(sheet.contains("color: var(--sw-warning-strong)"))
+    }
 }

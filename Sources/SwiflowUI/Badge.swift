@@ -4,13 +4,15 @@ import Swiflow
 /// Visual style of a `Badge`. `.neutral` is muted; `.accent`/`.danger`/`.success`
 /// are soft tints of the matching token. Maps to a `sw-badge--<variant>` class.
 public enum BadgeVariant: Equatable {
-    case neutral, accent, danger, success
+    case neutral, accent, danger, success, info, warning
     var modifierClass: String {
         switch self {
         case .neutral: return "neutral"
         case .accent:  return "accent"
         case .danger:  return "danger"
         case .success: return "success"
+        case .info:    return "info"
+        case .warning: return "warning"
         }
     }
 }
@@ -52,5 +54,7 @@ let badgeStyleSheet: CSSSheet = css {
     .sw-badge--accent  { background-color: color-mix(in oklab, var(--sw-accent) 15%, var(--sw-surface)); color: var(--sw-accent-strong); }
     .sw-badge--danger  { background-color: color-mix(in oklab, var(--sw-danger) 15%, var(--sw-surface)); color: var(--sw-danger-strong); }
     .sw-badge--success { background-color: color-mix(in oklab, var(--sw-success) 15%, var(--sw-surface)); color: var(--sw-success-strong); }
+    .sw-badge--info    { background-color: color-mix(in oklab, var(--sw-info) 15%, var(--sw-surface)); color: var(--sw-info-strong); }
+    .sw-badge--warning { background-color: color-mix(in oklab, var(--sw-warning) 15%, var(--sw-surface)); color: var(--sw-warning-strong); }
     """)
 }
