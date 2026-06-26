@@ -230,7 +230,18 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
 **Deferred from M8 to a later pass:** APCA as an opt-in algorithm; promoting `SwiflowColor` into a
 public (shipping) generator.
 
-### M9 (1.1) — Modern CSS theming primitives — candidate
+### M9 (1.1) — Modern CSS theming primitives — ⏸ PARKED (blocked on Firefox `style()` support)
+
+> **Status (2026-06-26): PARKED.** The one actionable item — `@property` registration —
+> **shipped** (released in 0.3.4). The two remaining items are blocked on external
+> browser-support triggers, not on us, so M9 is parked rather than open:
+> - `@container style()` micro-theming → revisit **when Firefox ships `style()` queries**.
+>   Until then it can only layer over the cross-engine `-strong`, which already works.
+> - `contrast-color()` broader adoption → low value now (we already use it for the one
+>   solid-fill text token; broader use as a style-query *detector* depends on the blocked
+>   `@container style()`, and we have little other solid-colored surface to apply it to).
+>
+> No further M9 work is scheduled until the Firefox trigger lands.
 
 *Origin: evaluation of Una Kravets' ["Modern CSS Theming"](https://una.im/modern-css-theming)
 (2026), which splits theming into **macro** (page-level `light-dark()`) and **micro**
