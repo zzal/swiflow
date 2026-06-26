@@ -144,9 +144,13 @@ struct ThemeTests {
         #expect(css.contains(#"@property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }"#))
         #expect(css.contains(#"@property --sw-disabled-opacity { syntax: "<number>"; inherits: true; initial-value: 0.5; }"#))
         // The block precedes the cascade layer in source order.
-        let propIdx = css.range(of: "@property --sw-space-xs")!.lowerBound
-        let layerIdx = css.range(of: "@layer swiflow.base")!.lowerBound
-        #expect(propIdx < layerIdx)
+        let propRange = css.range(of: "@property --sw-space-xs")
+        let layerRange = css.range(of: "@layer swiflow.base")
+        #expect(propRange != nil, "@property block must be present")
+        #expect(layerRange != nil, "@layer swiflow.base must be present")
+        if let propIdx = propRange?.lowerBound, let layerIdx = layerRange?.lowerBound {
+            #expect(propIdx < layerIdx)
+        }
     }
 
     @Test("Color tokens are registered AND keep their literal→oklch double-declaration") func colorPropertyRegistration() {
