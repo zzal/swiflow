@@ -207,10 +207,19 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   multi-token sugar over `.style()` — single-token subtree theming already works and cascades
   via the accent-family change above. Explicit values only (no runtime derivation).
 
-**Deferred from M8 to a later pass:** neutrals / full-palette generation (derive
-`--sw-bg`/`--sw-surface`/`--sw-text`/`--sw-border` with contrast-proven text-on-surface);
-`--danger`/`--success` seeds for the generator; APCA as an opt-in algorithm; p3 upgrade for a
-generated accent; promoting `SwiflowColor` into a public (shipping) generator.
+- **✅ Neutral / full-palette generation (PR #70)** — opt-in `swiflow theme --primary X --neutrals`
+  derives the accent-tinted neutral ramp (`--sw-bg`/`--sw-surface`/`--sw-text`/`--sw-border`) with
+  contrast-proven text-on-surface, plus a `prefers-contrast: more` block. Also fixed the base-token
+  cascade (`@layer swiflow.base`) so generated/app `:root` overrides reliably win.
+- **✅ Status-color seeds (this PR)** — opt-in `--danger`/`--success` seeds emit contrast-validated
+  raw status overrides (per-usage bars: danger ≥ 4.5 as error text, success ≥ 3:1 as border/tint,
+  derived `-strong` ≥ 4.5/7); compose with `--neutrals`. No base-sheet/component change — the base
+  sheet re-derives `-strong`/more-contrast/P3 from the raw token.
+
+**Deferred from M8 to a later pass:** `--warning`/`--info` seeds (blocked on first introducing
+`--sw-warning`/`--sw-info` as base-sheet tokens + component variants — neither exists today, and
+`Toast`'s `info` variant has no dedicated token); APCA as an opt-in algorithm; p3 upgrade for a
+generated accent/status color; promoting `SwiflowColor` into a public (shipping) generator.
 
 ### Reshaped evaluation — considered and rejected (with reasons)
 

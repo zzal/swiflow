@@ -74,6 +74,23 @@ no component code touched. This is the primary customization path:
 > component) beats a layer regardless of source order, so the override applies even though
 > the base sheet is injected at runtime.
 
+### Generating a theme from brand colors
+
+`swiflow theme --primary "#7c3aed"` derives a contrast-validated `--sw-accent` family and prints
+a `:root` override (use `--out theme.css` to write a file, then link it after SwiflowUI's styles).
+Add optional seeds:
+
+- `--neutrals` — also derive the accent-tinted neutral ramp (surfaces/text/border).
+- `--danger "#e11d48"` — set the brand danger/error color (validated as error text, ≥ 4.5:1).
+- `--success "#059669"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
+
+```text
+swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --neutrals --out theme.css
+```
+
+Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
+its bar fails the build with a per-token diagnostic rather than shipping an unreadable theme.
+
 Scope an override to a subtree by setting tokens on a container:
 
 ```swift
