@@ -16,6 +16,52 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.3.4] — 2026-06-26
+
+SwiflowUI theming: status-color seeds for the `swiflow theme` generator, two new
+semantic tokens, wide-gamut output, and `@property`-registered design tokens.
+
+### Added
+
+- **`swiflow theme` status-color seeds.** The palette generator gains `--danger`,
+  `--success`, `--warning`, and `--info` flags that emit brand status colors into
+  the generated `:root`. Each is WCAG-validated for how its token is actually
+  rendered — `--danger` ≥ 4.5:1 as error text; `--success` / `--warning` /
+  `--info` ≥ 3:1 as a border/tint; the derived `-strong` text variants ≥ 4.5 (≥ 7
+  under `prefers-contrast: more`) — and a seed that can't meet its bar fails the
+  build with a per-token diagnostic instead of shipping an unreadable theme.
+  `--info` defaults to the accent when unset. Composes with `--primary` and
+  `--neutrals`.
+- **`--neutrals` palette generation.** `swiflow theme --primary X --neutrals`
+  derives an accent-tinted neutral ramp (`--sw-bg` / `--sw-surface` / `--sw-text`
+  / `--sw-border`) with contrast-proven text-on-surface, plus a
+  `prefers-contrast: more` block.
+- **`--sw-warning` / `--sw-info` semantic tokens.** Two new tokens in the
+  SwiflowUI base sheet: `--sw-warning` (amber — full light/dark, `-strong`,
+  `prefers-contrast`, and P3 treatment) and `--sw-info` (aliases `--sw-accent`,
+  independently overridable). Wired into `Badge` (`.warning` / `.info` variants)
+  and `Toast` (`.warning` variant + the previously-missing info border), so the
+  status set is now complete (danger / success / warning / info).
+- **`@property`-registered design tokens.** The `--sw-*` contract registers its
+  scalar tokens (`<length>` / `<time>` / `<number>`) and color tokens (`<color>`)
+  via `@property`, so they are type-validated (a malformed app override is ignored
+  rather than poisoning the cascade) and animatable (e.g. `--sw-border-width` can
+  transition as it thickens under `prefers-contrast`).
+
+### Changed
+
+- **Generated accent and status colors ship a progressive `oklch()` line** after
+  their sRGB hex fallback, rendering at the display-P3 gamut edge on capable
+  displays — richer color with lightness and hue preserved (so contrast is
+  unchanged) and the identical sRGB hex everywhere else. Neutrals stay hex-only.
+- **SwiflowUI base tokens now live in `@layer swiflow.base`,** so an app's own
+  unlayered `:root` overrides — and a generated `theme.css` — reliably win
+  regardless of stylesheet injection order.
+
+**Stability: stable for pre-1.0 usage.**
+
+---
+
 ## [0.3.3] — 2026-06-23
 
 ### Changed
