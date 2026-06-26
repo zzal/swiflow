@@ -51,6 +51,31 @@ public enum SwiflowUI {
         @property --sw-focus-ring-width { syntax: "<length>"; inherits: true; initial-value: 2px; }
         @property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }
         @property --sw-disabled-opacity { syntax: "<number>"; inherits: true; initial-value: 0.5; }
+        /* Color tokens registered as <color>. initial-value must be computation-independent
+           (no light-dark()/var()/relative color) — the light-arm hex is the fallback floor.
+           The literal→oklch(from) double-declarations in :root are unaffected: an unsupported
+           oklch(from …) is rejected at PARSE time (before registered-syntax validation), so the
+           literal still wins on pre-Baseline engines exactly as before registration. */
+        @property --sw-bg { syntax: "<color>"; inherits: true; initial-value: #f6f7f9; }
+        @property --sw-surface { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+        @property --sw-surface-2 { syntax: "<color>"; inherits: true; initial-value: #f3f4f6; }
+        @property --sw-text { syntax: "<color>"; inherits: true; initial-value: #111111; }
+        @property --sw-text-muted { syntax: "<color>"; inherits: true; initial-value: #5b616b; }
+        @property --sw-accent { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
+        @property --sw-accent-hover { syntax: "<color>"; inherits: true; initial-value: #2563eb; }
+        @property --sw-accent-active { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
+        @property --sw-accent-text { syntax: "<color>"; inherits: true; initial-value: #0b1220; }
+        @property --sw-danger { syntax: "<color>"; inherits: true; initial-value: #dc2626; }
+        @property --sw-success { syntax: "<color>"; inherits: true; initial-value: #16a34a; }
+        @property --sw-warning { syntax: "<color>"; inherits: true; initial-value: #b45309; }
+        @property --sw-info { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
+        @property --sw-accent-strong { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
+        @property --sw-danger-strong { syntax: "<color>"; inherits: true; initial-value: #b91c1c; }
+        @property --sw-success-strong { syntax: "<color>"; inherits: true; initial-value: #15803d; }
+        @property --sw-warning-strong { syntax: "<color>"; inherits: true; initial-value: #92400e; }
+        @property --sw-info-strong { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
+        @property --sw-border { syntax: "<color>"; inherits: true; initial-value: #e5e7eb; }
+        @property --sw-focus-ring { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
 
         @layer swiflow.base {
         :root {

@@ -128,4 +128,22 @@ test.describe("SwiflowUI theming responds to media features", () => {
     });
     expect(resolved).toBe("1px"); // invalid value rejected → inherited, not "banana"
   });
+
+  test("registered color tokens are active and harmless (Unit B gate)", async ({ page }) => {
+    // A registered <color> resolves normally AND rejects an invalid override (the element
+    // inherits the :root value rather than echoing garbage) — proving registration is live
+    // without changing any rendered color. An unregistered prop would echo "not-a-color".
+    await gotoMounted(page);
+    const r = await page.evaluate(() => {
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--sw-accent").trim();
+      const el = document.createElement("span");
+      document.body.appendChild(el);
+      el.style.setProperty("--sw-accent", "not-a-color");
+      const overridden = getComputedStyle(el).getPropertyValue("--sw-accent").trim();
+      el.remove();
+      return { accent, overridden };
+    });
+    expect(r.accent).not.toBe("");        // base sheet resolves to a real color
+    expect(r.overridden).toBe(r.accent);  // invalid override rejected → inherited, not "not-a-color"
+  });
 });
