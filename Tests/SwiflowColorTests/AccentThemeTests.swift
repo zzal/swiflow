@@ -6,7 +6,7 @@ import Foundation
 struct AccentThemeTests {
     @Test("A good brand color validates clean and emits a light-dark --sw-accent")
     func goodSeedEmitsCSS() throws {
-        let css = try Color.accentThemeCSS(primaryHex: "#3b82f6")
+        let css = try Color.accentThemeCSS(primaryHex: "#3b82f6").css
         #expect(css.contains("--sw-accent: light-dark(#3b82f6, #"))
         #expect(css.contains(":root"))
     }
@@ -14,10 +14,10 @@ struct AccentThemeTests {
     @Test("3-digit hex (#rgb) and missing # are normalized")
     func normalizesHex() throws {
         // 6-char without the leading #
-        let css6 = try Color.accentThemeCSS(primaryHex: "3b82f6")
+        let css6 = try Color.accentThemeCSS(primaryHex: "3b82f6").css
         #expect(css6.contains("--sw-accent: light-dark(#3b82f6,"))
         // 3-digit shorthand expands to #rrggbb
-        let css3 = try Color.accentThemeCSS(primaryHex: "#06f")
+        let css3 = try Color.accentThemeCSS(primaryHex: "#06f").css
         #expect(css3.contains("--sw-accent: light-dark(#0066ff,"))
     }
 
@@ -25,23 +25,23 @@ struct AccentThemeTests {
     func mediumDarkAccentPasses() throws {
         // #7c3aed (violet) fails only the pre-Baseline dark-text fallback; the Baseline
         // contrast-color() path flips to white and is AA, so it must validate clean.
-        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed")
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed").css
         #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
         #expect(Color.validateAccentFamily(lightAccentHex: "#7c3aed",
                                             darkAccentHex: Color.darkAccent(from: "#7c3aed")).isEmpty)
     }
 
     @Test("A washed-out seed fails validation with a specific diagnostic")
-    func badSeedThrows() {
-        // A light yellow: ~1.07:1 as accent text/links on white — below the 3:1 UI bar.
-        #expect(throws: Color.PaletteError.self) {
-            _ = try Color.accentThemeCSS(primaryHex: "#fde047")
-        }
+    func badSeedReturnsFailures() throws {
+        // #fde047 (yellow) can't meet the accent-as-text bar; the generator now RETURNS the
+        // shortfalls rather than throwing (only malformed hex throws).
+        let result = try Color.accentThemeCSS(primaryHex: "#fde047")
+        #expect(!result.failures.isEmpty)
     }
 
     @Test("Invalid hex throws invalidHex")
     func invalidHexThrows() {
-        #expect(throws: Color.PaletteError.self) {
+        #expect(throws: ThemeError.self) {
             _ = try Color.accentThemeCSS(primaryHex: "nope")
         }
     }
@@ -57,8 +57,8 @@ struct AccentThemeTests {
 
     @Test("includeNeutrals: false is byte-for-byte the accent-only output (no neutral tokens)")
     func accentOnlyUnchanged() throws {
-        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6")
-        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", includeNeutrals: false)
+        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6").css
+        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", includeNeutrals: false).css
         #expect(a == b)
         #expect(!a.contains("--sw-surface"))
         #expect(!a.contains("@media"))
@@ -66,7 +66,7 @@ struct AccentThemeTests {
 
     @Test("includeNeutrals: true emits the neutral ramp and a prefers-contrast block")
     func fullPaletteEmitted() throws {
-        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed", includeNeutrals: true)
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed", includeNeutrals: true).css
         #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
         #expect(css.contains("--sw-surface: light-dark(#"))
         #expect(css.contains("--sw-text: light-dark(#"))
@@ -78,7 +78,7 @@ struct AccentThemeTests {
     @Test("Status seeds emit raw --sw-danger/--sw-success lines, no neutral tokens, no @media")
     func statusSeedsEmit() throws {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
-                                           dangerHex: "#e11d48", successHex: "#059669")
+                                           dangerHex: "#e11d48", successHex: "#059669").css
         #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))
         #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
         #expect(css.contains("--sw-success: light-dark(#059669, #"))
@@ -93,31 +93,31 @@ struct AccentThemeTests {
 
     @Test("Only the supplied status flag is emitted")
     func oneStatusSeedOnly() throws {
-        let css = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48")
+        let css = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48").css
         #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
         #expect(!css.contains("--sw-success"))
     }
 
     @Test("No status seeds is byte-for-byte the accent-only output")
     func noStatusSeedsUnchanged() throws {
-        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6")
-        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: nil, successHex: nil)
+        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6").css
+        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: nil, successHex: nil).css
         #expect(a == b)
         #expect(!a.contains("--sw-danger"))
     }
 
     @Test("No status seeds is byte-for-byte the accent+neutrals output")
     func noStatusSeedsUnchangedWithNeutrals() throws {
-        let a = try Color.accentThemeCSS(primaryHex: "#7c3aed", includeNeutrals: true)
+        let a = try Color.accentThemeCSS(primaryHex: "#7c3aed", includeNeutrals: true).css
         let b = try Color.accentThemeCSS(primaryHex: "#7c3aed",
-                                         dangerHex: nil, successHex: nil, includeNeutrals: true)
+                                         dangerHex: nil, successHex: nil, includeNeutrals: true).css
         #expect(a == b)
     }
 
     @Test("Status seeds compose with --neutrals (status lines + neutral ramp + media block)")
     func statusComposesWithNeutrals() throws {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
-                                           dangerHex: "#e11d48", includeNeutrals: true)
+                                           dangerHex: "#e11d48", includeNeutrals: true).css
         #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
         #expect(css.contains("--sw-surface: light-dark(#"))
         #expect(css.contains("@media (prefers-contrast: more)"))
@@ -125,17 +125,16 @@ struct AccentThemeTests {
         #expect(css.range(of: "--sw-danger:")!.lowerBound < css.range(of: "--sw-surface:")!.lowerBound)
     }
 
-    @Test("A contrast-failing status seed throws PaletteError")
-    func badStatusSeedThrows() {
-        #expect(throws: Color.PaletteError.self) {
-            // pale pink danger: raw < 4.5 on white
-            _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#f5a3a3")
-        }
+    @Test("A contrast-failing status seed returns failures")
+    func badStatusSeedReturnsFailures() throws {
+        // pale pink danger: raw < 4.5 on white — returns failures rather than throwing
+        let result = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#f5a3a3")
+        #expect(!result.failures.isEmpty)
     }
 
     @Test("An invalid status hex throws invalidHex")
     func invalidStatusHexThrows() {
-        #expect(throws: Color.PaletteError.self) {
+        #expect(throws: ThemeError.self) {
             _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", successHex: "nope")
         }
     }
@@ -150,7 +149,7 @@ struct AccentThemeTests {
     @Test("warning/info seeds emit raw lines in order accent→danger→success→warning→info") func warningInfoEmit() throws {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
                                            dangerHex: "#e11d48", successHex: "#059669",
-                                           warningHex: "#d97706", infoHex: "#0284c7")
+                                           warningHex: "#d97706", infoHex: "#0284c7").css
         for t in ["--sw-danger:", "--sw-success:", "--sw-warning:", "--sw-info:"] {
             #expect(css.contains(t))
         }
@@ -162,23 +161,22 @@ struct AccentThemeTests {
     }
 
     @Test("No warning/info seeds is byte-for-byte the prior output") func noWarningInfoUnchanged() throws {
-        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48")
+        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48").css
         let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48",
-                                         warningHex: nil, infoHex: nil)
+                                         warningHex: nil, infoHex: nil).css
         #expect(a == b)
         #expect(!a.contains("--sw-warning"))
         #expect(!a.contains("--sw-info"))
     }
 
-    @Test("A washed warning seed throws") func badWarningThrows() {
-        #expect(throws: Color.PaletteError.self) {
-            // amber-500 #f59e0b is 2.15:1 on white — below the 3:1 border bar.
-            _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", warningHex: "#f59e0b")
-        }
+    @Test("A washed warning seed returns failures") func badWarningReturnsFailures() throws {
+        // amber-500 #f59e0b is 2.15:1 on white — below the 3:1 border bar.
+        let result = try Color.accentThemeCSS(primaryHex: "#3b82f6", warningHex: "#f59e0b")
+        #expect(!result.failures.isEmpty)
     }
 
     @Test("accent gets a progressive oklch() line after the hex line") func accentHasOklch() throws {
-        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed")
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed").css
         #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))   // hex fallback still first
         #expect(css.contains("--sw-accent: light-dark(oklch("))        // oklch upgrade line
         let hexAt = css.range(of: "--sw-accent: light-dark(#")!.lowerBound
@@ -188,7 +186,7 @@ struct AccentThemeTests {
 
     @Test("each status seed also gets an oklch line; neutrals stay hex-only") func statusOklchNeutralsHex() throws {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
-                                           dangerHex: "#e11d48", includeNeutrals: true)
+                                           dangerHex: "#e11d48", includeNeutrals: true).css
         #expect(css.contains("--sw-danger: light-dark(oklch("))
         #expect(css.contains("--sw-bg: light-dark(#"))
         #expect(!css.contains("--sw-bg: light-dark(oklch("))
