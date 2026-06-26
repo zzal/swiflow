@@ -117,6 +117,48 @@ extension Color {
 }
 
 extension Color {
+    /// Linear-sRGB → linear-Display-P3. Both are D65, so it is a single matrix (no chromatic
+    /// adaptation). Used to test P3-gamut membership of an (out-of-sRGB) OKLab color.
+    static func linRGBToLinP3(_ c: LinRGB) -> LinRGB {
+        LinRGB(
+            r: 0.82246197 * c.r + 0.17753803 * c.g + 0.0        * c.b,
+            g: 0.03319420 * c.r + 0.96680580 * c.g + 0.0        * c.b,
+            b: 0.01708263 * c.r + 0.07239744 * c.g + 0.91051993 * c.b)
+    }
+
+    /// Is this OKLab color representable in the Display-P3 gamut? (small epsilon tolerance)
+    static func inP3Gamut(_ lab: OKLab) -> Bool {
+        let p = linRGBToLinP3(okLabToLinRGB(lab))
+        let eps = 1e-6
+        return p.r >= -eps && p.r <= 1 + eps
+            && p.g >= -eps && p.g <= 1 + eps
+            && p.b >= -eps && p.b <= 1 + eps
+    }
+
+    /// Largest chroma whose OKLCH(L, C, H) stays inside Display-P3, via binary search.
+    static func p3MaxChroma(L: Double, H: Double) -> Double {
+        var lo = 0.0, hi = 0.5   // 0.5 is beyond any real-display chroma
+        for _ in 0..<24 {
+            let mid = (lo + hi) / 2
+            if inP3Gamut(okLCHToOKLab(OKLCH(L: L, C: mid, H: H))) { lo = mid } else { hi = mid }
+        }
+        return lo
+    }
+
+    /// A hex color re-expressed as `oklch(L C Hdeg)` with chroma pushed to the P3 gamut edge at
+    /// its own L and H (same lightness/hue → same luminance/contrast; only chroma widens, and
+    /// only on P3 displays). H is converted radians→degrees.
+    public static func p3OKLCHString(fromHex hexStr: String) -> String {
+        let lch = okLabToOKLCH(linRGBToOKLab(hex(hexStr)))
+        let c = max(lch.C, p3MaxChroma(L: lch.L, H: lch.H))   // can only widen
+        var deg = lch.H * 180 / .pi
+        if deg < 0 { deg += 360 }
+        func round(_ x: Double, _ scale: Double) -> Double { (x * scale).rounded() / scale }
+        return "oklch(\(round(lch.L, 10000)) \(round(c, 10000)) \(round(deg, 100)))"
+    }
+}
+
+extension Color {
     /// One WCAG shortfall for a generated token, in one color scheme.
     public struct PaletteFailure: Equatable, Sendable, CustomStringConvertible {
         public let token: String
