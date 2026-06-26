@@ -149,6 +149,16 @@ struct ThemeTests {
         #expect(propIdx < layerIdx)
     }
 
+    @Test("Color tokens are registered AND keep their literal→oklch double-declaration") func colorPropertyRegistration() {
+        let css = sheet
+        #expect(css.contains(#"@property --sw-accent { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }"#))
+        #expect(css.contains(#"@property --sw-bg { syntax: "<color>"; inherits: true; initial-value: #f6f7f9; }"#))
+        // The progressive fallback MUST stay physically present: literal line first,
+        // oklch(from …) line second. Registration must not collapse it.
+        #expect(css.contains("--sw-accent-hover: light-dark(#"))
+        #expect(css.contains("--sw-accent-hover: light-dark(oklch(from var(--sw-accent)"))
+    }
+
     @Test("warning/info status tokens are present across the right layers") func warningInfoTokens() {
         let css = sheet
         // :root defaults — warning is a literal amber; info aliases the accent.
