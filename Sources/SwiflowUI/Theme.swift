@@ -36,6 +36,22 @@ public enum SwiflowUI {
     /// `rule(_:)`/`media(_:)` builders so their rules get the scope class.
     public static let baseStyleSheet: CSSSheet = css {
         raw("""
+        /* Register the scalar tokens so they are TYPE-VALIDATED and ANIMATABLE.
+           @property is layer-agnostic and sits outside the cascade layer below.
+           initial-value is the bottom-of-cascade fallback only — :root below always
+           sets each token, and unlayered app overrides still win. */
+        @property --sw-space-xs { syntax: "<length>"; inherits: true; initial-value: 0.25rem; }
+        @property --sw-space-sm { syntax: "<length>"; inherits: true; initial-value: 0.5rem; }
+        @property --sw-space-md { syntax: "<length>"; inherits: true; initial-value: 0.75rem; }
+        @property --sw-space-lg { syntax: "<length>"; inherits: true; initial-value: 1.25rem; }
+        @property --sw-space-xl { syntax: "<length>"; inherits: true; initial-value: 2rem; }
+        @property --sw-radius-sm { syntax: "<length>"; inherits: true; initial-value: 4px; }
+        @property --sw-radius { syntax: "<length>"; inherits: true; initial-value: 8px; }
+        @property --sw-border-width { syntax: "<length>"; inherits: true; initial-value: 1px; }
+        @property --sw-focus-ring-width { syntax: "<length>"; inherits: true; initial-value: 2px; }
+        @property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }
+        @property --sw-disabled-opacity { syntax: "<number>"; inherits: true; initial-value: 0.5; }
+
         @layer swiflow.base {
         :root {
           color-scheme: light dark;
