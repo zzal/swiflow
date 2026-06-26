@@ -61,4 +61,24 @@ test.describe("SwiflowUI theming responds to media features", () => {
     await gotoMounted(page);
     expect(await borderWidthToken(page)).toBe("2px");
   });
+
+  test("an app :root --sw-accent override (in <head>) wins over the base sheet", async ({ page }) => {
+    // Inject a static override into the INITIAL HTML <head> — parsed before the runtime-
+    // appended base sheet. It only wins if base tokens are in @layer swiflow.base
+    // (unlayered beats layered regardless of source order). rgb() keeps the computed value
+    // unambiguous and scheme-independent.
+    await page.route("**/*", async (route) => {
+      if (route.request().resourceType() !== "document") return route.continue();
+      const res = await route.fetch();
+      const html = (await res.text()).replace(
+        "</head>",
+        "<style>:root { --sw-accent: rgb(225, 29, 72) }</style></head>"
+      );
+      await route.fulfill({ response: res, body: html });
+    });
+    await gotoMounted(page);
+    const bg = await page.getByRole("button", { name: "Increment" })
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bg).toBe("rgb(225, 29, 72)");
+  });
 });
