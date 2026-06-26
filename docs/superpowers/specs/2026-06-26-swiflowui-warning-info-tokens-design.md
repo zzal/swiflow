@@ -116,7 +116,7 @@ Extend `accentThemeCSS` with `warningHex:`/`infoHex:` (default `nil`), mirroring
   (regression-guarded). The header command-echo lists only the flags supplied.
 
 ```
-swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warning "#d97706" --info "#0ea5e9" --neutrals
+swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warning "#d97706" --info "#0284c7" --neutrals
 ```
 
 ## Validation contract (what must hold)
@@ -151,7 +151,7 @@ swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warni
   `.info` emits `sw-badge--info`; a `.warning` toast emits `sw-toast--warning`; the stylesheet
   includes the four new rules.
 - **`SwiflowColorTests`:** shipped warning default passes `validateStatusFamily(rawBar: 3.0)`;
-  `accentThemeCSS(primaryHex:…, warningHex: "#d97706", infoHex: "#0ea5e9")` contains `--sw-warning`
+  `accentThemeCSS(primaryHex:…, warningHex: "#d97706", infoHex: "#0284c7")` contains `--sw-warning`
   and `--sw-info` in the right order; no-seed output is byte-for-byte unchanged; a washed
   warning/info throws.
 - **`SwiflowCLITests`:** `theme … --warning … --info …` writes both tokens; without them, neither

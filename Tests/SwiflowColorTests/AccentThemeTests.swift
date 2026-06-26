@@ -139,4 +139,41 @@ struct AccentThemeTests {
             _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", successHex: "nope")
         }
     }
+
+    @Test("Shipped warning default passes the status validator (raw 3:1 + strong 4.5/7)") func shippedWarningAccessible() {
+        // The base-sheet default is hand-authored light-dark(#b45309, #fbbf24) — guard it stays accessible.
+        #expect(Color.validateStatusFamily(name: "--sw-warning",
+                                           lightHex: "#b45309", darkHex: "#fbbf24",
+                                           rawBar: 3.0).isEmpty)
+    }
+
+    @Test("warning/info seeds emit raw lines in order accent→danger→success→warning→info") func warningInfoEmit() throws {
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
+                                           dangerHex: "#e11d48", successHex: "#059669",
+                                           warningHex: "#d97706", infoHex: "#0284c7")
+        for t in ["--sw-danger:", "--sw-success:", "--sw-warning:", "--sw-info:"] {
+            #expect(css.contains(t))
+        }
+        let i = { (s: String) in css.range(of: s)!.lowerBound }
+        #expect(i("--sw-accent:") < i("--sw-danger:"))
+        #expect(i("--sw-danger:") < i("--sw-success:"))
+        #expect(i("--sw-success:") < i("--sw-warning:"))
+        #expect(i("--sw-warning:") < i("--sw-info:"))
+    }
+
+    @Test("No warning/info seeds is byte-for-byte the prior output") func noWarningInfoUnchanged() throws {
+        let a = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48")
+        let b = try Color.accentThemeCSS(primaryHex: "#3b82f6", dangerHex: "#e11d48",
+                                         warningHex: nil, infoHex: nil)
+        #expect(a == b)
+        #expect(!a.contains("--sw-warning"))
+        #expect(!a.contains("--sw-info"))
+    }
+
+    @Test("A washed warning seed throws") func badWarningThrows() {
+        #expect(throws: Color.PaletteError.self) {
+            // amber-500 #f59e0b is 2.15:1 on white — below the 3:1 border bar.
+            _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", warningHex: "#f59e0b")
+        }
+    }
 }

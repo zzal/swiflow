@@ -231,6 +231,8 @@ extension Color {
     public static func accentThemeCSS(primaryHex: String,
                                       dangerHex: String? = nil,
                                       successHex: String? = nil,
+                                      warningHex: String? = nil,
+                                      infoHex: String? = nil,
                                       includeNeutrals: Bool = false) throws -> String {
         let light = try normalizeHex(primaryHex)
         let dark = darkAccent(from: light)
@@ -253,6 +255,20 @@ extension Color {
             failures += validateStatusFamily(name: "--sw-success", lightHex: sl, darkHex: sd, rawBar: 3.0)
             statusLines.append("  --sw-success: light-dark(\(sl), \(sd));")
             flagEcho += " --success \(sl)"
+        }
+        if let warningHex {
+            let wl = try normalizeHex(warningHex)
+            let wd = darkAccent(from: wl)
+            failures += validateStatusFamily(name: "--sw-warning", lightHex: wl, darkHex: wd, rawBar: 3.0)
+            statusLines.append("  --sw-warning: light-dark(\(wl), \(wd));")
+            flagEcho += " --warning \(wl)"
+        }
+        if let infoHex {
+            let il = try normalizeHex(infoHex)
+            let id = darkAccent(from: il)
+            failures += validateStatusFamily(name: "--sw-info", lightHex: il, darkHex: id, rawBar: 3.0)
+            statusLines.append("  --sw-info: light-dark(\(il), \(id));")
+            flagEcho += " --info \(il)"
         }
 
         if !includeNeutrals {
