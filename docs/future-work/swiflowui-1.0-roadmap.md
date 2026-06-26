@@ -221,13 +221,11 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   gains validated `--warning`/`--info` seeds. **The status set is now complete**
   (danger/success/warning/info), so the generator covers every shipped token.
 
-**Next (in progress):** **p3 / wide-gamut upgrade for generated colors** — `swiflow theme`
-currently emits seeded accent/status colors as sRGB hex only, so they don't pick up the wider
-gamut the hand-authored base-sheet defaults get via their `@media (color-gamut: p3)` blocks. Emit
-the seeds in **OKLCH** (`oklch(L C H)`) instead — a single value renders the full wide gamut
-natively on capable displays and clamps cleanly to sRGB elsewhere, with a hex fallback for
-pre-OKLCH browsers. Replaces the per-color `color(display-p3 …)` dance with one better color
-definition.
+- **✅ p3 / wide-gamut generated colors (this PR)** — `swiflow theme` emits accent + status colors
+  with a progressive `oklch()` line (chroma pushed to the display-P3 gamut edge at the seed's L/H)
+  after the sRGB hex fallback, so generated themes render wide-gamut on capable displays without an
+  `@media` block. Neutrals stay hex-only; validation still runs on the hex (L/H preserved →
+  contrast unchanged).
 
 **Deferred from M8 to a later pass:** APCA as an opt-in algorithm; promoting `SwiflowColor` into a
 public (shipping) generator.

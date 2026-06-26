@@ -93,6 +93,11 @@ swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warni
 Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
 its bar fails the build with a per-token diagnostic rather than shipping an unreadable theme.
 
+Generated accent/status colors ship a progressive `oklch()` line after their hex fallback, so they
+render at the **display-P3 gamut edge** on capable screens (richer color; identical sRGB hex
+fallback elsewhere). Lightness and hue are preserved, so contrast is unchanged. Neutrals stay
+hex-only (grays gain nothing from a wider gamut).
+
 Scope an override to a subtree by setting tokens on a container:
 
 ```swift
