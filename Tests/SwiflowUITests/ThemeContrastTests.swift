@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import SwiflowColor
+@testable import SwiflowColor
 @testable import SwiflowUI
 
 @Suite("Theme contrast")
