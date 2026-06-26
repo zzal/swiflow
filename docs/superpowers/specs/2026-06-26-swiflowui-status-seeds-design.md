@@ -30,8 +30,16 @@ them into the same generated `:root`. Omitting a flag leaves that token at its s
   unchanged (so is `--primary X --neutrals`).
 - **No auto-derivation from the accent hue.** Status colors keep their own seed hues; we do not
   rotate the accent into red/green (rejected in brainstorming — weakens the semantic signal).
-- **No `--warning`/`--info` seeds.** There are no `--sw-warning`/`--sw-info` tokens in the system;
-  adding them is a separate, larger feature (new base-sheet tokens). Out of scope.
+- **No `--warning`/`--info` seeds.** The generator can only seed tokens that exist, and these
+  don't: there is no `--sw-warning` token or `warning` component variant anywhere, and while
+  `Toast` has an `info` variant it has **no dedicated `--sw-info` token** (`.sw-toast--info`
+  falls through to the default/neutral border — "info" is effectively accent/neutral, already
+  covered by `--primary`). Seeding either would first require *introducing the token* with the
+  full base-sheet treatment danger/success get (`:root` default + the `oklch(from …)` `-strong`
+  derivation + `prefers-contrast: more` + P3 variant) **and** wiring it into Badge/Toast/etc. —
+  a base-sheet + component feature, not a generator one. Deferred to its own small feature
+  (introduce the token → the seed then follows for ~free: one `validateStatusFamily` call + one
+  emitted line). Recorded as a follow-up in the M8 roadmap entry.
 - **No new base-sheet or component change.** The base sheet already derives `-strong`
   (+ its `prefers-contrast: more` and P3 variants) from `var(--sw-danger)`/`var(--sw-success)`;
   overriding the raw token cascades automatically.
