@@ -69,6 +69,11 @@ no component code touched. This is the primary customization path:
 </style>
 ```
 
+> Your `:root` overrides win because SwiflowUI's base tokens ship in `@layer swiflow.base`
+> — any unlayered rule (your `index.html`, a `swiflow theme` `theme.css`, the `Theme`
+> component) beats a layer regardless of source order, so the override applies even though
+> the base sheet is injected at runtime.
+
 Scope an override to a subtree by setting tokens on a container:
 
 ```swift

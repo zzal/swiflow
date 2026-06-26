@@ -121,4 +121,13 @@ struct ThemeTests {
         #expect(css.contains("--sw-accent-text: light-dark(#0b1220, #0b1220)"))
         #expect(css.contains("--sw-accent-text: contrast-color(var(--sw-accent))"))
     }
+
+    @Test("Base tokens live in @layer swiflow.base so unlayered app overrides win")
+    func baseTokensAreLayered() {
+        let css = sheet
+        #expect(css.contains("@layer swiflow.base"))
+        #expect(css.contains("--sw-accent"))
+        #expect(css.contains("@media (prefers-contrast: more)"))
+        #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)   // braces balanced
+    }
 }
