@@ -272,7 +272,7 @@ git commit -m "feat(swiflowui): Toast warning variant + explicit info border rul
     @Test("warning/info seeds emit raw lines in order accent→danger→success→warning→info") func warningInfoEmit() {
         let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
                                            dangerHex: "#e11d48", successHex: "#059669",
-                                           warningHex: "#d97706", infoHex: "#0ea5e9")
+                                           warningHex: "#d97706", infoHex: "#0284c7")
         for t in ["--sw-danger:", "--sw-success:", "--sw-warning:", "--sw-info:"] {
             #expect(css.contains(t))
         }
@@ -358,12 +358,12 @@ git commit -m "feat(swiflowcolor): accentThemeCSS emits validated --warning/--in
             .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
         defer { try? FileManager.default.removeItem(at: tmp) }
         var cmd = try ThemeCommand.parse([
-            "--primary", "#7c3aed", "--warning", "#d97706", "--info", "#0ea5e9", "--out", tmp.path,
+            "--primary", "#7c3aed", "--warning", "#d97706", "--info", "#0284c7", "--out", tmp.path,
         ])
         try cmd.run()
         let css = try String(contentsOf: tmp, encoding: .utf8)
         #expect(css.contains("--sw-warning: light-dark(#d97706, #"))
-        #expect(css.contains("--sw-info: light-dark(#0ea5e9, #"))
+        #expect(css.contains("--sw-info: light-dark(#0284c7, #"))
     }
 
     @Test("Without --warning/--info neither token is emitted") func noWarningInfoFlags() throws {
@@ -502,7 +502,7 @@ git commit -m "test(e2e): warning Badge renders the amber token"
 - [ ] **Step 1: Document the new tokens + flags** — In `docs/guides/swiflowui-theming.md`, find the `### Generating a theme from brand colors` section (added in #71) and its flag bullet list. Add two bullets after the `--success` bullet:
 ```markdown
 - `--warning "#d97706"` — set the brand warning color (amber; validated as a UI/border color, ≥ 3:1).
-- `--info "#0ea5e9"` — set the brand info color (defaults to the accent if unset; validated ≥ 3:1).
+- `--info "#0284c7"` — set the brand info color (defaults to the accent if unset; validated ≥ 3:1).
 ```
 Then, in `## The token contract` (or wherever the status tokens are listed), add a one-line note:
 ```markdown
