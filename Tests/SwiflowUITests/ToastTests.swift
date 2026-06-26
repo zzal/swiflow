@@ -152,4 +152,20 @@ struct ToastTests {
         #expect(css.contains("@keyframes sw-toast-out"))
         #expect(css.contains("animation: sw-toast-in var(--sw-duration)"))   // reduced-motion → 0s → instant
     }
+
+    @Test("warning variant lowers to sw-toast--warning and is polite") func warningVariant() {
+        let warn = el(building { ToastView(item: ToastItem("Careful", variant: .warning), onDismiss: {}).body })!
+        #expect(allText(.element(warn)).contains("Careful"))
+        #expect(firstWithClass(warn, "sw-toast--warning") != nil)
+        #expect(ToastVariant.warning.isAssertive == false)   // warning is polite, only danger is assertive
+    }
+
+    @Test("stylesheet has explicit info + warning border rules") func infoWarningRules() {
+        _ = building { ToastView(item: ToastItem("x"), onDismiss: {}).body }  // installs the sheet
+        let sheet = toastStyleSheet.cssString(scopeClass: "")
+        #expect(sheet.contains(".sw-toast--info"))
+        #expect(sheet.contains("border-inline-start-color: var(--sw-info)"))
+        #expect(sheet.contains(".sw-toast--warning"))
+        #expect(sheet.contains("border-inline-start-color: var(--sw-warning)"))
+    }
 }
