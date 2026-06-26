@@ -93,6 +93,10 @@ swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warni
 Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
 its bar fails the build with a per-token diagnostic rather than shipping an unreadable theme.
 
+When a seed fails, its diagnostic also includes an **APCA** (perceptual) reading — e.g.
+`APCA Lc 68 (suggests ≥ 75 for text)` — as a second opinion alongside the WCAG ratio. APCA is
+advisory only: WCAG 2.x remains the gate, and a passing palette prints nothing extra.
+
 Generated accent/status colors ship a progressive `oklch()` line after their hex fallback, so they
 render at the **display-P3 gamut edge** on capable screens (richer color; identical sRGB hex
 fallback elsewhere). Lightness and hue are preserved, so contrast is unchanged. Neutrals stay
