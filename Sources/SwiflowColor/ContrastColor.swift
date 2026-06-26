@@ -209,7 +209,7 @@ extension Color {
             :root {
               --sw-accent: light-dark(\(light), \(dark));
             }
-            """
+            """ + "\n"
         }
 
         let neutrals = neutralPalette(accentHex: light)
@@ -233,7 +233,7 @@ extension Color {
         \(moreLines)
           }
         }
-        """
+        """ + "\n"
     }
 }
 
