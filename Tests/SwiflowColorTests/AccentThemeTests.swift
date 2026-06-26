@@ -176,4 +176,26 @@ struct AccentThemeTests {
             _ = try Color.accentThemeCSS(primaryHex: "#3b82f6", warningHex: "#f59e0b")
         }
     }
+
+    @Test("accent gets a progressive oklch() line after the hex line") func accentHasOklch() throws {
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed")
+        #expect(css.contains("--sw-accent: light-dark(#7c3aed, #"))   // hex fallback still first
+        #expect(css.contains("--sw-accent: light-dark(oklch("))        // oklch upgrade line
+        let hexAt = css.range(of: "--sw-accent: light-dark(#")!.lowerBound
+        let oklchAt = css.range(of: "--sw-accent: light-dark(oklch(")!.lowerBound
+        #expect(hexAt < oklchAt)
+    }
+
+    @Test("each status seed also gets an oklch line; neutrals stay hex-only") func statusOklchNeutralsHex() throws {
+        let css = try Color.accentThemeCSS(primaryHex: "#7c3aed",
+                                           dangerHex: "#e11d48", includeNeutrals: true)
+        #expect(css.contains("--sw-danger: light-dark(oklch("))
+        #expect(css.contains("--sw-bg: light-dark(#"))
+        #expect(!css.contains("--sw-bg: light-dark(oklch("))
+    }
+
+    @Test("contrast still validates (boosted oklch shares the hex's L/H)") func contrastPreserved() {
+        #expect(Color.validateAccentFamily(lightAccentHex: "#7c3aed",
+                                           darkAccentHex: Color.darkAccent(from: "#7c3aed")).isEmpty)
+    }
 }
