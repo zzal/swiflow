@@ -111,4 +111,21 @@ test.describe("SwiflowUI theming responds to media features", () => {
     // info aliases the accent by default (--sw-info: var(--sw-accent))
     expect(t.info).toBe(t.accent);
   });
+
+  test("registered scalar tokens reject invalid values (proves @property is live)", async ({ page }) => {
+    // A registered <length> property rejects an invalid value at computed-value time,
+    // so the element keeps the inherited :root value (1px). An UNregistered custom
+    // property would instead echo the raw "banana" string. Reading getComputedStyle
+    // (not .style) is what surfaces the registration.
+    await gotoMounted(page);
+    const resolved = await page.evaluate(() => {
+      const el = document.createElement("span");
+      document.body.appendChild(el);
+      el.style.setProperty("--sw-border-width", "banana");
+      const v = getComputedStyle(el).getPropertyValue("--sw-border-width").trim();
+      el.remove();
+      return v;
+    });
+    expect(resolved).toBe("1px"); // invalid value rejected → inherited, not "banana"
+  });
 });
