@@ -227,8 +227,9 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   `@media` block. Neutrals stay hex-only; validation still runs on the hex (L/H preserved →
   contrast unchanged).
 
-**Deferred from M8 to a later pass:** APCA as an opt-in algorithm; promoting `SwiflowColor` into a
-public (shipping) generator.
+**Deferred from M8 to a later pass:** ~~APCA as an opt-in algorithm~~ — **shipped** as an advisory
+APCA-W3 reading in failed-seed diagnostics (WCAG 2.x stays the gate); promoting `SwiflowColor` into
+a public (shipping) generator remains deferred.
 
 ### M9 (1.1) — Modern CSS theming primitives — ⏸ PARKED (blocked on Firefox `style()` support)
 
