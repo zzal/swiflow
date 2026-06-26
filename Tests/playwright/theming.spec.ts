@@ -83,4 +83,32 @@ test.describe("SwiflowUI theming responds to media features", () => {
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(bg).toBe("rgb(225, 29, 72)");
   });
+
+  test("--sw-warning / --sw-info status tokens resolve in the browser (info aliases the accent)", async ({ page }) => {
+    // The base sheet is injected at runtime by any SwiflowUI app (the counter demo's Button
+    // pulls it in — sibling tests read --sw-accent the same way). Probe the new tokens by
+    // resolving them on a throwaway element rather than via a Badge (this demo has no badges).
+    await gotoMounted(page);
+    const t = await page.evaluate(() => {
+      const resolve = (name: string) => {
+        const el = document.createElement("span");
+        el.style.color = `var(${name})`;
+        document.body.appendChild(el);
+        const c = getComputedStyle(el).color;
+        el.remove();
+        return c;
+      };
+      return {
+        warning: resolve("--sw-warning"),
+        success: resolve("--sw-success"),
+        info: resolve("--sw-info"),
+        accent: resolve("--sw-accent"),
+      };
+    });
+    // warning is a real amber color present in the base sheet, distinct from success (green)
+    expect(t.warning).toMatch(/^rgb/);
+    expect(t.warning).not.toBe(t.success);
+    // info aliases the accent by default (--sw-info: var(--sw-accent))
+    expect(t.info).toBe(t.accent);
+  });
 });
