@@ -48,4 +48,37 @@ struct ThemeCommandTests {
         let css = try String(contentsOf: tmp, encoding: .utf8)
         #expect(!css.contains("--sw-surface"))
     }
+
+    @Test("--danger/--success write validated status overrides to --out")
+    func statusFlagsWriteFile() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse([
+            "--primary", "#7c3aed", "--danger", "#e11d48", "--success", "#059669",
+            "--out", tmp.path,
+        ])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(css.contains("--sw-danger: light-dark(#e11d48, #"))
+        #expect(css.contains("--sw-success: light-dark(#059669, #"))
+    }
+
+    @Test("Without status flags the output has no status overrides")
+    func noStatusFlagsByDefault() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse(["--primary", "#7c3aed", "--out", tmp.path])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(!css.contains("--sw-danger"))
+        #expect(!css.contains("--sw-success"))
+    }
+
+    @Test("A contrast-failing --danger makes run() throw")
+    func badDangerThrows() throws {
+        var cmd = try ThemeCommand.parse(["--primary", "#7c3aed", "--danger", "#f5a3a3"])
+        #expect(throws: (any Error).self) { try cmd.run() }
+    }
 }
