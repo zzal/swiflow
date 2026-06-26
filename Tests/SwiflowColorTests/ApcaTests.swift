@@ -28,8 +28,8 @@ struct ApcaTests {
     }
 
     @Test("PaletteFailure.description appends the APCA clause after the WCAG part") func descriptionShowsApca() {
-        let f = Color.PaletteFailure(token: "--x", mode: "light", ratio: 3.9, target: 4.5,
-                                     apcaLc: 68, apcaTarget: 75)
+        let f = PaletteFailure(token: "--x", mode: "light", ratio: 3.9, target: 4.5,
+                               apcaLc: 68, apcaTarget: 75)
         #expect(f.description.contains("3.90:1 < 4.5:1 required"))  // WCAG portion unchanged
         #expect(f.description.contains("APCA Lc 68"))
         #expect(f.description.contains("≥ 75 for text"))

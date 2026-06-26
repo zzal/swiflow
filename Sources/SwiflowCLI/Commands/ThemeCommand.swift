@@ -44,16 +44,27 @@ struct ThemeCommand: ParsableCommand {
     var info: String?
 
     func run() throws {
-        let css = try Color.accentThemeCSS(primaryHex: primary,
-                                           dangerHex: danger,
-                                           successHex: success,
-                                           warningHex: warning,
-                                           infoHex: info,
-                                           includeNeutrals: neutrals)
+        let result = try ThemeGenerator.generate(.init(primary: primary,
+                                                        danger: danger,
+                                                        success: success,
+                                                        warning: warning,
+                                                        info: info,
+                                                        includeNeutrals: neutrals))
+        guard result.isValid else { throw ContrastFailuresError(failures: result.failures) }
         if let out {
-            try css.write(toFile: out, atomically: true, encoding: .utf8)
+            try result.css.write(toFile: out, atomically: true, encoding: .utf8)
         } else {
-            print(css)
+            print(result.css)
         }
+    }
+}
+
+/// Reproduces the pre-public-API `PaletteError.contrastFailures` message so `swiflow theme`
+/// output on a failing seed is byte-identical to before.
+private struct ContrastFailuresError: Error, CustomStringConvertible {
+    let failures: [PaletteFailure]
+    var description: String {
+        "brand color fails WCAG for the derived accent family:\n  "
+            + failures.map(\.description).joined(separator: "\n  ")
     }
 }
