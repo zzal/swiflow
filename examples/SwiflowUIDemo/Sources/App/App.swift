@@ -169,6 +169,8 @@ final class Demo {
                     HStack(spacing: .sm, align: .center) {
                         Badge("Error", variant: .danger)
                         Badge("Done", variant: .success)
+                        Badge("Warn", variant: .warning)
+                        Badge("Info", variant: .info)
                         Badge("Muted")
                     }
                 }
@@ -189,6 +191,7 @@ final class Demo {
             HStack(spacing: .md, align: .center) {
                 Button("Toast: success", variant: .ghost) { self.toasts.append(ToastItem("Saved successfully", variant: .success)) }
                 Button("Toast: info", variant: .ghost) { self.toasts.append(ToastItem("Heads up — sync running")) }
+                Button("Toast: warning", variant: .ghost) { self.toasts.append(ToastItem("Low disk space", variant: .warning)) }
                 Button("Toast: error", variant: .ghost) { self.toasts.append(ToastItem("Couldn't reach the server", variant: .danger)) }
             }
             HStack(spacing: .md, align: .center) {
