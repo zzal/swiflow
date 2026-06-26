@@ -35,10 +35,20 @@ struct ThemeCommand: ParsableCommand {
             help: "Brand success color (light-mode), as #rgb or #rrggbb.")
     var success: String?
 
+    @Option(name: .customLong("warning"),
+            help: "Brand warning color (light-mode), as #rgb or #rrggbb.")
+    var warning: String?
+
+    @Option(name: .customLong("info"),
+            help: "Brand info color (light-mode); defaults to the accent if unset.")
+    var info: String?
+
     func run() throws {
         let css = try Color.accentThemeCSS(primaryHex: primary,
                                            dangerHex: danger,
                                            successHex: success,
+                                           warningHex: warning,
+                                           infoHex: info,
                                            includeNeutrals: neutrals)
         if let out {
             try css.write(toFile: out, atomically: true, encoding: .utf8)
