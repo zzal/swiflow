@@ -2,25 +2,25 @@ import Foundation
 
 /// A color in linear-light sRGB. Components are nominally 0...1 but may fall
 /// outside during intermediate math (clamp before using as a rendered color).
-public struct LinRGB: Equatable, Sendable {
-    public var r: Double, g: Double, b: Double
+struct LinRGB: Equatable, Sendable {
+    var r: Double, g: Double, b: Double
     /// WCAG relative luminance.
-    public var luminance: Double { 0.2126 * r + 0.7152 * g + 0.0722 * b }
-    public static let black = LinRGB(r: 0, g: 0, b: 0)
-    public static let white = LinRGB(r: 1, g: 1, b: 1)
+    var luminance: Double { 0.2126 * r + 0.7152 * g + 0.0722 * b }
+    static let black = LinRGB(r: 0, g: 0, b: 0)
+    static let white = LinRGB(r: 1, g: 1, b: 1)
 }
 
 /// Test-only color pipeline that replicates the browser math the base stylesheet
 /// relies on, so `ThemeContrastTests` can prove the shipped defaults meet WCAG.
 /// Nothing here ships in the SwiflowUI module.
-public enum Color {
+enum Color {
     /// sRGB gamma-encoded channel (0...1) → linear-light.
     static func gammaToLinear(_ c: Double) -> Double {
         c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
     }
     /// "#rrggbb" → linear-light sRGB. Expects a valid 6-digit hex (e.g. as produced by
     /// `normalizeHex`); traps on malformed input — gate user input through `normalizeHex` first.
-    public static func hex(_ hex: String) -> LinRGB {
+    static func hex(_ hex: String) -> LinRGB {
         let h = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
         let v = UInt32(h, radix: 16)!
         let r = Double((v >> 16) & 0xff) / 255.0
@@ -29,7 +29,7 @@ public enum Color {
         return LinRGB(r: gammaToLinear(r), g: gammaToLinear(g), b: gammaToLinear(b))
     }
     /// WCAG 2.x contrast ratio between two colors (order-independent).
-    public static func wcagContrast(_ x: LinRGB, _ y: LinRGB) -> Double {
+    static func wcagContrast(_ x: LinRGB, _ y: LinRGB) -> Double {
         let hi = max(x.luminance, y.luminance), lo = min(x.luminance, y.luminance)
         return (hi + 0.05) / (lo + 0.05)
     }
@@ -40,7 +40,7 @@ public enum Color {
     /// not a gate; WCAG 2.x remains SwiflowColor's contrast gate. Clean-room reimplementation of
     /// the published APCA-W3 constants (no vendored source). Inputs are sRGB-encoded hex, parsed
     /// directly — APCA uses a simple `^2.4` luminance model, distinct from the WCAG linear pipeline.
-    public static func apcaContrast(textHex: String, bgHex: String) -> Double {
+    static func apcaContrast(textHex: String, bgHex: String) -> Double {
         // APCA-W3 0.1.9 constants.
         let mainTRC = 2.4
         let (rCo, gCo, bCo) = (0.2126729, 0.7151522, 0.0721750)
@@ -82,12 +82,12 @@ public enum Color {
 }
 
 /// OKLab (L, a, b) — Björn Ottosson's perceptual space.
-public struct OKLab: Equatable, Sendable { public var L: Double, a: Double, b: Double }
+struct OKLab: Equatable, Sendable { var L: Double, a: Double, b: Double }
 /// OKLCH (L, C, H in radians).
-public struct OKLCH: Equatable, Sendable { public var L: Double, C: Double, H: Double }
+struct OKLCH: Equatable, Sendable { var L: Double, C: Double, H: Double }
 
 extension Color {
-    public static func linRGBToOKLab(_ c: LinRGB) -> OKLab {
+    static func linRGBToOKLab(_ c: LinRGB) -> OKLab {
         let l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b
         let m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b
         let s = 0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b
@@ -97,7 +97,7 @@ extension Color {
             a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
             b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_)
     }
-    public static func okLabToLinRGB(_ c: OKLab) -> LinRGB {
+    static func okLabToLinRGB(_ c: OKLab) -> LinRGB {
         let l_ = c.L + 0.3963377774 * c.a + 0.2158037573 * c.b
         let m_ = c.L - 0.1055613458 * c.a - 0.0638541728 * c.b
         let s_ = c.L - 0.0894841775 * c.a - 1.2914855480 * c.b
@@ -107,7 +107,7 @@ extension Color {
             g: -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
             b: -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
     }
-    public static func okLabToOKLCH(_ c: OKLab) -> OKLCH {
+    static func okLabToOKLCH(_ c: OKLab) -> OKLCH {
         OKLCH(L: c.L, C: (c.a * c.a + c.b * c.b).squareRoot(), H: atan2(c.b, c.a))
     }
     static func okLCHToOKLab(_ c: OKLCH) -> OKLab {
@@ -120,7 +120,7 @@ extension Color {
         LinRGB(r: min(max(c.r, 0), 1), g: min(max(c.g, 0), 1), b: min(max(c.b, 0), 1))
     }
     /// CSS `color-mix(in oklab, base <weightBase·100>%, other)`: lerp in OKLab.
-    public static func mixOKLab(_ base: LinRGB, _ other: LinRGB, weightBase w: Double) -> LinRGB {
+    static func mixOKLab(_ base: LinRGB, _ other: LinRGB, weightBase w: Double) -> LinRGB {
         let a = linRGBToOKLab(base), b = linRGBToOKLab(other)
         return clampGamut(okLabToLinRGB(OKLab(
             L: w * a.L + (1 - w) * b.L,
@@ -128,12 +128,12 @@ extension Color {
             b: w * a.b + (1 - w) * b.b)))
     }
     /// CSS `oklch(from <source> <lightness> c h)`: source chroma+hue, replaced lightness.
-    public static func oklchFrom(_ source: LinRGB, lightness: Double) -> LinRGB {
+    static func oklchFrom(_ source: LinRGB, lightness: Double) -> LinRGB {
         let lch = okLabToOKLCH(linRGBToOKLab(source))
         return clampGamut(okLabToLinRGB(okLCHToOKLab(OKLCH(L: lightness, C: lch.C, H: lch.H))))
     }
     /// CSS `contrast-color(<bg>)`: black or white, whichever maximizes WCAG contrast.
-    public static func contrastColor(against bg: LinRGB) -> LinRGB {
+    static func contrastColor(against bg: LinRGB) -> LinRGB {
         wcagContrast(.black, bg) >= wcagContrast(.white, bg) ? .black : .white
     }
 }
@@ -144,7 +144,7 @@ extension Color {
         c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
     }
     /// Linear-light sRGB → "#rrggbb" (gamut-clamped, 8-bit).
-    public static func hexString(_ c: LinRGB) -> String {
+    static func hexString(_ c: LinRGB) -> String {
         func channel(_ v: Double) -> Int { Int((min(max(linearToGamma(v), 0), 1) * 255).rounded()) }
         return String(format: "#%02x%02x%02x", channel(c.r), channel(c.g), channel(c.b))
     }
@@ -153,7 +153,7 @@ extension Color {
     /// reproduce the shipped `#3b82f6 → #60a5fa` default pair (that was hand-tuned); a user
     /// running `theme --primary "#3b82f6"` gets a near-but-different dark arm. Roughly reproduces the
     /// shipped #3b82f6 → #60a5fa pairing. Constants tunable; validation is the safety net.
-    public static func darkAccent(from hex: String) -> String {
+    static func darkAccent(from hex: String) -> String {
         let lch = okLabToOKLCH(linRGBToOKLab(Color.hex(hex)))
         let darkL = min(max(lch.L + 0.10, 0.68), 0.76)
         let darkC = lch.C * 0.78
@@ -194,7 +194,7 @@ extension Color {
     /// A hex color re-expressed as `oklch(L C Hdeg)` with chroma pushed to the P3 gamut edge at
     /// its own L and H (same lightness/hue → same luminance/contrast; only chroma widens, and
     /// only on P3 displays). H is converted radians→degrees.
-    public static func p3OKLCHString(fromHex hexStr: String) -> String {
+    static func p3OKLCHString(fromHex hexStr: String) -> String {
         let lch = okLabToOKLCH(linRGBToOKLab(hex(hexStr)))
         let c = max(lch.C, p3MaxChroma(L: lch.L, H: lch.H))   // can only widen
         var deg = lch.H * 180 / .pi
@@ -236,7 +236,7 @@ extension Color {
 
     /// Recompute the accent-derived tokens (-strong at 4.5 + 7, -text, and --sw-accent used
     /// as text/links) for the given light/dark accents and return every WCAG shortfall.
-    public static func validateAccentFamily(lightAccentHex: String, darkAccentHex: String) -> [PaletteFailure] {
+    static func validateAccentFamily(lightAccentHex: String, darkAccentHex: String) -> [PaletteFailure] {
         var out: [PaletteFailure] = []
         let modes: [(String, String, String, Double, Double)] = [
             // mode, accentHex, surfaceHex, strongL(AA), strongL(AAA)
@@ -284,7 +284,7 @@ extension Color {
     /// success is borders/tints only → pass 3.0), and the base-sheet-derived `-strong`
     /// (L 0.40/0.80 normal, 0.30/0.88 more-contrast) on the 15% tint at 4.5 / 7. No `-text`
     /// check — there are no solid-fill status buttons. Mirrors `validateAccentFamily`'s machinery.
-    public static func validateStatusFamily(name: String,
+    static func validateStatusFamily(name: String,
                                             lightHex: String,
                                             darkHex: String,
                                             rawBar: Double) -> [PaletteFailure] {
@@ -330,7 +330,7 @@ extension Color {
     /// more-contrast, and P3 from the raw token). With `includeNeutrals`, also derives the
     /// accent-tinted neutral ramp + a prefers-contrast: more block. With no status seeds and
     /// `includeNeutrals: false`, the output is byte-for-byte the original accent-only block.
-    public static func accentThemeCSS(primaryHex: String,
+    static func accentThemeCSS(primaryHex: String,
                                       dangerHex: String? = nil,
                                       successHex: String? = nil,
                                       warningHex: String? = nil,
@@ -421,7 +421,7 @@ extension Color {
 extension Color {
     /// A derived token as `(name, lightHex, darkHex)`. Ordered arrays keep emitted CSS
     /// deterministic (a dict would not).
-    public typealias TokenPair = (name: String, light: String, dark: String)
+    typealias TokenPair = (name: String, light: String, dark: String)
 
     // Faint accent cast — small enough to read as gray, large enough to survive 8-bit hex.
     private static let neutralTintChroma = 0.01
@@ -456,17 +456,17 @@ extension Color {
     }
 
     /// The six neutral tokens, tinted to the accent hue, as light/dark hex pairs (ordered).
-    public static func neutralPalette(accentHex: String) -> [TokenPair] { ramp(neutralRamp, accentHex: accentHex) }
+    static func neutralPalette(accentHex: String) -> [TokenPair] { ramp(neutralRamp, accentHex: accentHex) }
 
     /// The text/text-muted/border overrides for `@media (prefers-contrast: more)`.
-    public static func neutralContrastMore(accentHex: String) -> [TokenPair] { ramp(neutralRampMore, accentHex: accentHex) }
+    static func neutralContrastMore(accentHex: String) -> [TokenPair] { ramp(neutralRampMore, accentHex: accentHex) }
 }
 
 extension Color {
     /// WCAG check on a neutral palette: body and secondary text must clear 4.5 on both the
     /// card surface and the page background, in both schemes. (Border is intentionally not
     /// gated — see the spec.) Returns every shortfall.
-    public static func validateNeutrals(_ palette: [TokenPair]) -> [PaletteFailure] {
+    static func validateNeutrals(_ palette: [TokenPair]) -> [PaletteFailure] {
         func find(_ n: String) -> (light: String, dark: String)? {
             palette.first { $0.name == n }.map { ($0.light, $0.dark) }
         }
