@@ -43,7 +43,7 @@ public enum Color {
     public static func apcaContrast(textHex: String, bgHex: String) -> Double {
         // APCA-W3 0.1.9 constants.
         let mainTRC = 2.4
-        let (rCo, gCo, bCo) = (0.2126, 0.7152, 0.0722)
+        let (rCo, gCo, bCo) = (0.2126729, 0.7151522, 0.0721750)
         let (normBG, normTXT, revTXT, revBG) = (0.56, 0.57, 0.62, 0.65)
         let blkThrs = 0.022, blkClmp = 1.414
         let scale = 1.14, loOffset = 0.027, loClip = 0.1, deltaYmin = 0.0005
