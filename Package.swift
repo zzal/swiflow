@@ -16,6 +16,9 @@ let package = Package(
         .library(name: "SwiflowFetcher", targets: ["SwiflowFetcher"]),
         .library(name: "SwiflowStore", targets: ["SwiflowStore"]),
         .library(name: "SwiflowUI", targets: ["SwiflowUI"]),
+        // Native-only contrast/theme-generation library (host tooling, build plugins, scripts).
+        // NEVER a dependency of the wasm SwiflowUI — it uses host Double/Foundation math.
+        .library(name: "SwiflowColor", targets: ["SwiflowColor"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
     ],
     dependencies: [
