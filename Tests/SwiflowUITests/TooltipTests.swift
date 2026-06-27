@@ -26,11 +26,21 @@ import Swiflow
     return body()
 }
 
+// The TooltipView @Component body (what the Tooltip free fn embeds).
+@MainActor private func tip(
+    _ message: String,
+    placement: TooltipPlacement = .top,
+    attributes: [Attribute] = [],
+    content: @escaping () -> VNode
+) -> VNode {
+    TooltipView(message: message, placement: placement, attributes: attributes, content: content).body
+}
+
 @MainActor
 @Suite("Tooltip")
 struct TooltipTests {
     @Test("wraps the trigger, wires aria-describedby to a role=tooltip bubble") func wiresAria() {
-        let node = building { Tooltip("Delete permanently") { Button("Delete") {} } }
+        let node = building { tip("Delete permanently") { Button("Delete") {} } }
         let wrap = el(node)
         #expect(wrap?.attributes["class"]?.contains("sw-tooltip-wrap") == true)
         let kids = wrap?.children ?? []
@@ -44,13 +54,13 @@ struct TooltipTests {
     }
 
     @Test("placement sets the bubble modifier class") func placement() {
-        let node = building { Tooltip("hi", placement: .bottom) { Button("x") {} } }
+        let node = building { tip("hi", placement: .bottom) { Button("x") {} } }
         let bubble = el(el(node)?.children[1])
         #expect(bubble?.attributes["class"]?.contains("sw-tooltip--bottom") == true)
     }
 
     @Test("non-element trigger: no crash, no aria link, bubble still role=tooltip") func nonElementTrigger() {
-        let node = Tooltip("hi") { VNode.text("plain") }
+        let node = tip("hi") { VNode.text("plain") }
         let kids = el(node)?.children ?? []
         #expect(kids.count == 2)
         #expect(el(kids[1])?.attributes["role"] == "tooltip")

@@ -3088,7 +3088,7 @@ final class Demo {
                 Tooltip("Appears below the trigger", placement: .bottom) { Button("Below") {} }
             }
             p("Tooltip wraps any trigger — hover or focus to reveal. Placement defaults to .top; "
-              + "pass placement: .bottom (or .left / .right) to anchor it on another side. "
+              + "pass placement: .bottom (or .leading / .trailing) to anchor it on another side. "
               + "Pure CSS — no JS, no z-index juggling.")
 
             Divider()
