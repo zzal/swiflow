@@ -198,6 +198,22 @@ TextField("Email", field: email, type: .email)
 Button("Submit", disabled: !form.isValid) { form.touchAll(); if form.isValid { submit() } }
 ```
 
+### Tooltip
+
+A descriptive overlay shown on hover and keyboard focus. Wrap any trigger:
+
+```swift
+Tooltip("Delete permanently") { Button("Delete", variant: .danger) { delete() } }
+Tooltip("Appears below", placement: .bottom) { Button("Below") {} }
+```
+
+CSS-only (no JS): `:hover`/`:focus-within` reveal a `role="tooltip"` bubble linked to the trigger
+via `aria-describedby`. Placements: `.top` (default), `.bottom`, `.leading`, `.trailing`.
+
+> Limitations (CSS-only): no Escape-to-dismiss (so it doesn't fully meet WCAG 1.4.13), and the
+> bubble is not in the top layer, so an ancestor with `overflow: hidden` can crop it. For
+> dismissable, top-layer overlays use `Dropdown`/Popover.
+
 ## Accessibility
 
 Native elements carry their own semantics; SwiflowUI adds: `aria-invalid` + `role=alert`

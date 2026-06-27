@@ -168,10 +168,13 @@ below remain for 1.1+.
 
 ## Deferred to 1.1+ (explicitly out of 1.0)
 
-Custom portal/overlay-root host; `Menu`/`Dropdown`; `Tooltip`; full ARIA hardening pass
+Custom portal/overlay-root host; `Menu`; full ARIA hardening pass
 (beyond native-leaning baseline); `DataTable`/virtualized `List`; richer element-model work
 (`CustomEvent` detail payloads, non-reconciled escape hatch — roadmap #2); edge-specific
 padding (`.padding(.lg, .horizontal)`).
+
+**Shipped since:** `Tooltip` (CSS-only; hover/focus reveal, `aria-describedby`, 4 placements — no
+Escape-dismiss/top-layer, see the component guide) and `Dropdown` have landed from the 1.1+ list.
 
 ### M8 (1.1) — Token correctness & generation — ✅ COMPLETE (2026-06-25 → 06-27; released through 0.3.5)
 
