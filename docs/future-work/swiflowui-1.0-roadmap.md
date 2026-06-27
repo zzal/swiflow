@@ -173,7 +173,7 @@ Custom portal/overlay-root host; `Menu`/`Dropdown`; `Tooltip`; full ARIA hardeni
 (`CustomEvent` detail payloads, non-reconciled escape hatch — roadmap #2); edge-specific
 padding (`.padding(.lg, .horizontal)`).
 
-### M8 (1.1) — Token correctness & generation — ✅ SHIPPED (2026-06-25)
+### M8 (1.1) — Token correctness & generation — ✅ COMPLETE (2026-06-25 → 06-27; released through 0.3.5)
 
 *Origin: evaluation of the [Reshaped](https://github.com/reshaped-ui/reshaped) design
 system (MIT) against this roadmap, 2026-06-25 — full grid, scores, and sources in
@@ -184,9 +184,10 @@ JS — and it solves a problem 1.0 left hand-rolled: deriving **correct** base t
 M1–M7 shipped the media-feature **response** system (override layers re-point tokens), but
 the base values were hand-authored in `Theme.swift`/`Tokens.swift`.*
 
-**All three parts shipped** (recorded under CHANGELOG `[Unreleased]`, pre-1.0). Note: the
-original "pure-token-layer, no component API" framing did **not** hold — the realized milestone
-added the build-time `swiflow theme` CLI **and** a small `Theme` component. What actually shipped:
+**M8 is complete — every part below shipped, with no remaining deferrals** (the early parts were
+recorded under CHANGELOG `[Unreleased]` pre-tag; the full set is released through 0.3.4/0.3.5).
+Note: the original "pure-token-layer, no component API" framing did **not** hold — the realized
+milestone added the build-time `swiflow theme` CLI **and** a small `Theme` component. What shipped:
 
 - **✅ Contrast tokens (PR #66)** — instead of *autogenerating* `-strong` tokens, the `-strong`
   and `-text` tokens **derive at render time** from `var(--sw-accent)` via
@@ -221,17 +222,24 @@ added the build-time `swiflow theme` CLI **and** a small `Theme` component. What
   gains validated `--warning`/`--info` seeds. **The status set is now complete**
   (danger/success/warning/info), so the generator covers every shipped token.
 
-- **✅ p3 / wide-gamut generated colors (this PR)** — `swiflow theme` emits accent + status colors
+- **✅ p3 / wide-gamut generated colors (PR #73)** — `swiflow theme` emits accent + status colors
   with a progressive `oklch()` line (chroma pushed to the display-P3 gamut edge at the seed's L/H)
   after the sRGB hex fallback, so generated themes render wide-gamut on capable displays without an
   `@media` block. Neutrals stay hex-only; validation still runs on the hex (L/H preserved →
   contrast unchanged).
 
-**M8 fully shipped.** ~~APCA as an opt-in algorithm~~ — shipped as an advisory APCA-W3 reading in
-failed-seed diagnostics (WCAG 2.x stays the gate). ~~promoting `SwiflowColor` into a public
-(shipping) generator~~ — shipped: `SwiflowColor` is now a public `.library` product
-(`ThemeGenerator.generate`, `Contrast.wcag`/`apca`); see
-[`docs/guides/swiflowcolor.md`](../guides/swiflowcolor.md).
+- **✅ Advisory APCA contrast (PR #77)** — when a `swiflow theme` seed fails its WCAG bar, the
+  per-token diagnostic also reports an APCA-W3 perceptual reading (`APCA Lc … (suggests ≥ … for …)`)
+  as a second opinion. Advisory only — WCAG 2.x stays the sole gate; passing palettes are unchanged.
+- **✅ Public `SwiflowColor` library (PR #78)** — the contrast/generation engine ships as a public
+  `.library` product with a curated API: `ThemeGenerator.generate(_:)` → `ThemeResult` (CSS +
+  structured `failures`, shortfalls returned not thrown; only malformed hex throws), plus
+  `Contrast.wcag`/`apca`. Native-only — color math never enters wasm. See
+  [`docs/guides/swiflowcolor.md`](../guides/swiflowcolor.md).
+
+**No M8 deferrals remain.** The two originally deferred items — APCA (opt-in algorithm) and a
+public/shipping `SwiflowColor` — both shipped above; APCA landed as an *advisory* reading rather
+than a gate (WCAG 2.x stays the gate).
 
 ### M9 (1.1) — Modern CSS theming primitives — ⏸ PARKED (blocked on Firefox `style()` support)
 
