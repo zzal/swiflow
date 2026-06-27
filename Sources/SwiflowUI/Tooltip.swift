@@ -15,49 +15,78 @@ public enum TooltipPlacement: Equatable {
     }
 }
 
-/// A descriptive overlay shown on hover and keyboard focus of its trigger. CSS-only — no JS,
-/// no lifecycle: `:hover`/`:focus-within` on the wrapper reveal a `role="tooltip"` bubble, and
-/// `aria-describedby` links the trigger to it so screen readers announce it on focus.
+/// A descriptive overlay shown on hover and keyboard focus of its trigger. CSS-only — no JS:
+/// `:hover`/`:focus-within` on the wrapper reveal a `role="tooltip"` bubble, and `aria-describedby`
+/// links the trigger to it so screen readers announce it on focus.
 ///
 ///     Tooltip("Delete permanently") { Button("Delete", variant: .danger) { delete() } }
 ///     Tooltip("Appears below", placement: .bottom) { Button("Below") {} }
 ///
 /// Caller `Attribute...`/`.class` merge onto the WRAPPER. The bubble is a text label only.
 ///
-/// > A11y: revealed on hover AND focus, and "hoverable" (the pointer can move onto the bubble).
-/// > It does NOT support Escape-to-dismiss (CSS can't handle keys), so it does not fully meet
-/// > WCAG 1.4.13; a future JS-driven variant would add dismissal. Positioned with plain
-/// > absolute offsets (every engine); the bubble is not in the top layer, so an ancestor with
-/// > `overflow: hidden`/`clip` can crop it.
+/// Backed by a `@Component` purely so the bubble's id is generated ONCE (in `init`) and stays
+/// stable across re-renders — a bare free function would mint a fresh `nextSwID` every render,
+/// churning the bubble `id` + the trigger's `aria-describedby` (re-announcing on focus). The embed
+/// key is derived from the message + placement, so changing either rebuilds with a fresh bubble
+/// (no stale-prop pitfall).
+///
+/// > A11y: revealed on hover AND focus, and "hoverable" (the pointer can move onto the bubble). It
+/// > does NOT support Escape-to-dismiss (CSS can't handle keys), so it does not fully meet WCAG
+/// > 1.4.13; a future JS-driven variant would add dismissal. Positioned with plain absolute offsets
+/// > (every engine); not in the top layer, so an `overflow: hidden`/`clip` ancestor can crop it.
 @MainActor
 public func Tooltip(
     _ message: String,
     placement: TooltipPlacement = .top,
     _ attributes: Attribute...,
-    content: () -> VNode
+    content: @escaping () -> VNode
 ) -> VNode {
-    ensureBaseStyles()
-    installControlSheet(id: "sw-tooltip", tooltipStyleSheet)
+    embedKeyed("\(placement.modifierClass):\(message)") {
+        TooltipView(message: message, placement: placement, attributes: attributes, content: content)
+    }
+}
 
-    let tipID = nextSwID("sw-tip")
-    let trigger = addingDescribedBy(tipID, to: content())
+/// Implementation behind `Tooltip`. A `@Component` so the bubble id is pinned in `init` (stable
+/// across re-renders). No lifecycle/JS — reveal is pure CSS.
+@MainActor @Component
+final class TooltipView {
+    private let message: String
+    private let placement: TooltipPlacement
+    private let attributes: [Attribute]
+    private let content: () -> VNode
+    private let tipID: String
 
-    let bubble = element("span", attributes: [
-        .class("sw-tooltip sw-tooltip--\(placement.modifierClass)"),
-        .attr("role", "tooltip"),
-        .attr("id", tipID),
-    ], children: [.text(message)])
+    init(message: String, placement: TooltipPlacement, attributes: [Attribute],
+         content: @escaping () -> VNode) {
+        self.message = message
+        self.placement = placement
+        self.attributes = attributes
+        self.content = content
+        self.tipID = nextSwID("sw-tip")
+    }
 
-    let (callerClasses, callerRest) = splitClasses(attributes)
-    let wrapClass = (["sw-tooltip-wrap"] + callerClasses).joined(separator: " ")
-    return element("span", attributes: [.class(wrapClass)] + callerRest,
-                   children: [trigger, bubble])
+    var body: VNode {
+        ensureBaseStyles()
+        installControlSheet(id: "sw-tooltip", tooltipStyleSheet)
+
+        let trigger = addingDescribedBy(tipID, to: content())
+        let bubble = element("span", attributes: [
+            .class("sw-tooltip sw-tooltip--\(placement.modifierClass)"),
+            .attr("role", "tooltip"),
+            .attr("id", tipID),
+        ], children: [.text(message)])
+
+        let (callerClasses, callerRest) = splitClasses(attributes)
+        let wrapClass = (["sw-tooltip-wrap"] + callerClasses).joined(separator: " ")
+        return element("span", attributes: [.class(wrapClass)] + callerRest,
+                       children: [trigger, bubble])
+    }
 }
 
 /// Add `aria-describedby` to a single-element trigger so SR announces the bubble on focus.
 /// Non-element triggers (component anchors, text, fragments) are returned unchanged — the
 /// visual tooltip still works; only the explicit SR link is skipped.
-private func addingDescribedBy(_ id: String, to node: VNode) -> VNode {
+func addingDescribedBy(_ id: String, to node: VNode) -> VNode {
     guard case .element(var data) = node else { return node }
     if let existing = data.attributes["aria-describedby"], !existing.isEmpty {
         data.attributes["aria-describedby"] = existing + " " + id
