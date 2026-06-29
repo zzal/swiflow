@@ -325,3 +325,39 @@ struct DataTablePaginationTests {
         #expect(pagerButtons(building { small.body }).isEmpty)
     }
 }
+
+@Suite("DataTable — empty & loading")
+@MainActor
+struct DataTableStateTests {
+    private let people = [Person(id: 1, name: "Ada", age: 36)]
+
+    @Test("empty rows render the empty-state cell spanning all columns") func empty() {
+        let b = makeDataTableBox([Person](), id: \.id, selection: Binding<Set<Int>>(get: { [] }, set: { _ in }),
+                                 emptyText: "Nothing here") {
+            Column("Name", value: \.name); Column("Age", value: \.age)
+        }
+        let root = building { b.body }
+        let tds = allTags(.element(allTags(root, "tbody").first!), "td")
+        #expect(tds.count == 1)
+        #expect(tds[0].attributes["class"] == "sw-table__empty")
+        #expect(tds[0].attributes["colspan"] == "3")   // 2 columns + selection
+        #expect(allText(.element(tds[0])) == "Nothing here")
+    }
+
+    @Test("loading renders a spinner row spanning all columns (rows hidden)") func loading() {
+        let b = makeDataTableBox(people, id: \.id, loading: true) { Column("Name", value: \.name) }
+        let root = building { b.body }
+        let tds = allTags(.element(allTags(root, "tbody").first!), "td")
+        #expect(tds.count == 1)
+        #expect(tds[0].attributes["class"] == "sw-table__loading")
+        #expect(tds[0].attributes["colspan"] == "1")
+        #expect(allTags(.element(tds[0]), "span").contains { $0.attributes["role"] == "status" })  // Spinner
+    }
+
+    @Test("loading takes precedence over having rows") func loadingPrecedence() {
+        let b = makeDataTableBox(people, id: \.id, loading: true) { Column("Name", value: \.name) }
+        let root = building { b.body }
+        let trs = allTags(.element(allTags(root, "tbody").first!), "tr")
+        #expect(trs.count == 1)   // the loading row, not the data row
+    }
+}
