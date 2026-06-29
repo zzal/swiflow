@@ -3,14 +3,20 @@ import { test, expect } from "@playwright/test";
 // SwiflowUIDemo DataTable: columns Name, Age (right-aligned, sortable), Role (Badge),
 // Edit (button). Rendered with sortable + selection + pageSize 5 over 14 rows.
 // Cell order per row: [1] select checkbox, [2] Name, [3] Age, [4] Role, [5] Edit.
+//
+// The demo ALSO renders a virtualized table (`.sw-table--virtual`), so the paged-table
+// tests scope to `.sw-table:not(.sw-table--virtual)`; the virtualization test below targets
+// `.sw-table--virtual`.
+const PAGED = ".sw-table:not(.sw-table--virtual)";
+
 test.describe("DataTable", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".sw-table")).toBeVisible();
+    await expect(page.locator(".sw-table").first()).toBeVisible();
   });
 
   test("clicking the Age header sorts ascending then descending (aria-sort + ordered values)", async ({ page }) => {
-    const table = page.locator(".sw-table");
+    const table = page.locator(PAGED);
     const ageHeader = table.getByRole("button", { name: /^Age/ });
     await ageHeader.click();
 
@@ -28,7 +34,7 @@ test.describe("DataTable", () => {
   });
 
   test("header select-all checks every visible row checkbox", async ({ page }) => {
-    const table = page.locator(".sw-table");
+    const table = page.locator(PAGED);
     await table.locator("thead input[type=checkbox]").check();
     const rowBoxes = table.locator("tbody input[type=checkbox]");
     const n = await rowBoxes.count();
@@ -37,10 +43,29 @@ test.describe("DataTable", () => {
   });
 
   test("pager Next advances to a different page of rows", async ({ page }) => {
-    const table = page.locator(".sw-table");
+    const table = page.locator(PAGED);
     const firstName = table.locator("tbody tr td:nth-child(2)").first();
     const before = await firstName.innerText();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(firstName).not.toHaveText(before);
+  });
+
+  test("virtualized table windows rows to the viewport and re-windows on scroll", async ({ page }) => {
+    const vtable = page.locator(".sw-table--virtual");
+    await expect(vtable).toBeVisible();
+    await expect(vtable).toHaveAttribute("aria-rowcount", "2000");
+
+    const rows = vtable.locator("tbody tr");
+    const scroll = page.locator(".sw-table__scroll:has(.sw-table--virtual)");
+
+    // After onAppear measures the viewport, only a window (viewport + overscan) of the 2000
+    // rows is in the DOM — poll to absorb the initial pre-measure paint.
+    await expect.poll(async () => rows.count()).toBeLessThan(60);
+    await expect(rows.first()).toContainText("Person 0");
+
+    // Scroll down; the window shifts to later rows but stays small.
+    await scroll.evaluate((el) => { (el as HTMLElement).scrollTop = 4000; });
+    await expect.poll(async () => (await rows.first().innerText())).not.toContain("Person 0");
+    expect(await rows.count()).toBeLessThan(60);
   });
 });
