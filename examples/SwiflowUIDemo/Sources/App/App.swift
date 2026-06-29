@@ -21,6 +21,7 @@ final class Demo {
     @State var asyncElement: String = ""
     @State var selectedPeople: Set<Int> = []
     @State var peoplePage: Int = 0
+    @State var roleFilter: String = "All"
 
     /// Shared by the sync Autocomplete (static options) and the async one (a loader that
     /// filters the same list behind a simulated network delay).
@@ -246,27 +247,7 @@ final class Demo {
             Divider()
 
             // --- DataTable -----------------------------------------------
-            h2("DataTable")
-            DataTable(Demo.samplePeople,
-                      selection: $selectedPeople,
-                      sortable: true,
-                      pageSize: 5,
-                      page: $peoplePage,
-                      maxHeight: .custom("360px")) {
-                Column("Name", value: \.name)
-                Column("Age", value: \.age).align(.trailing)
-                Column("Role") { p in Badge(p.role, variant: .accent) }
-                Column("") { p in
-                    Button("Edit", variant: .secondary, size: .sm) {
-                        self.toasts.append(ToastItem("Editing \(p.name)", variant: .info))
-                    }
-                }
-            }
-            p("DataTable with sortable: true, pageSize: 5, and multi-select checkboxes. "
-              + "Click a column header to cycle ascending → descending → unsorted (tri-state). "
-              + "The header stays pinned inside the 360 px scroll container (maxHeight). "
-              + "\"Edit\" fires a toast so you can see the action without mixing onRowClick "
-              + "with in-cell buttons (they share click events).")
+            dataTableSection
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
@@ -275,6 +256,49 @@ final class Demo {
         .style("background", "var(--sw-bg)")   // page/canvas, so the surface cards lift off it
         .style("color", "var(--sw-text)")
         .style("min-height", "100vh")
+    }
+
+    /// The DataTable showcase. Extracted from `body` to keep that single result-builder
+    /// expression within the Swift type-checker's budget. Demonstrates the dynamic-data
+    /// `key:` contract: the role filter changes `rows`, and the `key:` (encoding the filter)
+    /// remounts the reused table so it re-reads fresh rows.
+    var dataTableSection: VNode {
+        let shown = roleFilter == "All"
+            ? Demo.samplePeople
+            : Demo.samplePeople.filter { $0.role == roleFilter }
+        let note = "DataTable with sortable: true, pageSize: 5, and multi-select checkboxes. "
+            + "Click a header to cycle ascending → descending → unsorted. The header stays "
+            + "pinned inside the 360 px scroll container (maxHeight). The role filter changes "
+            + "rows, so a key: encoding the filter remounts the table with fresh data — embedded "
+            + "components freeze rows at first mount. \"Edit\" fires a toast so the in-cell action "
+            + "is visible without mixing onRowClick with in-cell buttons (they share click events)."
+        return VStack(spacing: .md, align: .stretch) {
+            h2("DataTable")
+            Select("Filter by role", selection: $roleFilter,
+                   options: ["All", "Engineer", "Researcher", "Inventor", "Designer"])
+            // A keyed component can't share a parent with unkeyed siblings (Swiflow's
+            // all-or-none keyed-children rule), so the keyed table lives in its own
+            // single-child container rather than directly beside the h2/Select/p.
+            VStack(spacing: .none, align: .stretch) {
+                DataTable(shown,
+                          selection: $selectedPeople,
+                          sortable: true,
+                          pageSize: 5,
+                          page: $peoplePage,
+                          maxHeight: .custom("360px"),
+                          key: "people-\(roleFilter)-\(shown.count)") {
+                    Column("Name", value: \.name)
+                    Column("Age", value: \.age).align(.trailing)
+                    Column("Role") { p in Badge(p.role, variant: .accent) }
+                    Column("") { p in
+                        Button("Edit", variant: .secondary, size: .sm) {
+                            self.toasts.append(ToastItem("Editing \(p.name)", variant: .info))
+                        }
+                    }
+                }
+            }
+            p(note)
+        }
     }
 
     static let samplePeople: [DemoPerson] = [
