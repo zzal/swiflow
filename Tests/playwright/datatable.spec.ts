@@ -63,6 +63,20 @@ test.describe("DataTable", () => {
     await expect.poll(async () => rows.count()).toBeLessThan(60);
     await expect(rows.first()).toContainText("Person 0");
 
+    // Columns must lay out HORIZONTALLY via the inline grid template (regression guard: a broken
+    // grid-template-columns collapses cells into one stacked column). Assert the first row's three
+    // cells share a row (same y) and march left→right (strictly increasing x).
+    const cells = rows.first().locator("td");
+    const boxes = await Promise.all(
+      (await cells.all()).map((c) => c.boundingBox()),
+    );
+    expect(boxes.length).toBe(3);
+    for (const b of boxes) expect(b).not.toBeNull();
+    expect(Math.abs(boxes[1]!.y - boxes[0]!.y)).toBeLessThan(4);   // same line
+    expect(Math.abs(boxes[2]!.y - boxes[0]!.y)).toBeLessThan(4);
+    expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x);              // columns advance rightward
+    expect(boxes[2]!.x).toBeGreaterThan(boxes[1]!.x);
+
     // Scroll down; the window shifts to later rows but stays small.
     await scroll.evaluate((el) => { (el as HTMLElement).scrollTop = 4000; });
     await expect.poll(async () => (await rows.first().innerText())).not.toContain("Person 0");

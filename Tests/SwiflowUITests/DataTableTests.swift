@@ -442,12 +442,16 @@ struct DataTableStateTests {
         let root = building { box.body }
         let table = allTags(root, "table").first!
         #expect(table.attributes["class"]?.contains("sw-table--virtual") == true)
-        #expect(table.style["--sw-table-cols"] == "1fr")
         #expect(table.attributes["aria-rowcount"] == "1000")
+        // grid-template-columns is inline on each row (NOT a `--var` — Swiflow's .style() can't
+        // set custom properties on the DOM), so header + body rows must carry it directly.
+        let headTr = allTags(.element(allTags(root, "thead").first!), "tr").first!
+        #expect(headTr.style["grid-template-columns"] == "1fr")
         let tbody = allTags(root, "tbody").first!
         #expect(tbody.style["height"] == "40000px")          // 1000 * 40
         let trs = allTags(.element(tbody), "tr")
         #expect(trs.count == 16)
+        #expect(trs.first!.style["grid-template-columns"] == "1fr")
         #expect(trs.first!.style["transform"] == "translateY(3880px)")   // window start 97 * 40
         #expect(trs.first!.attributes["aria-rowindex"] == "98")          // 97 + 1
     }
@@ -571,7 +575,7 @@ extension DataTableStateTests {
     @Test func sheetContainsVirtualRules() {
         let css = dataTableSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-table--virtual"))
-        #expect(css.contains("grid-template-columns: var(--sw-table-cols)"))
+        #expect(css.contains("display: grid"))       // rows are grid containers (template is inline per row)
         #expect(css.contains("position: sticky"))   // header row pins in virtual mode
     }
 }
