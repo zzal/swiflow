@@ -220,6 +220,126 @@ via `aria-describedby`. Placements: `.top` (default), `.bottom`, `.leading`, `.t
 > bubble is not in the top layer, so an ancestor with `overflow: hidden` can crop it. For
 > dismissable, top-layer overlays use `Dropdown`/Popover.
 
+## DataTable
+
+A declarative, accessible data table over a typed row model. Sort, multi-select,
+pagination, sticky header, empty/loading states, and per-column alignment and width
+are all driven by parameters and bindings — no subclassing or delegate pattern.
+
+```swift
+DataTable(people, selection: $selected, sortable: true, pageSize: 25) {
+    Column("Name",   value: \.name)
+    Column("Age",    value: \.age).align(.trailing)
+    Column("Role")   { p in Badge(p.role, variant: .accent) }
+    Column("") { p in Button("Edit", variant: .secondary, size: .sm) { edit(p) } }
+}
+```
+
+`Row: Identifiable` rows use the short form above. For non-`Identifiable` rows supply
+`id:` explicitly: `DataTable(rows, id: \.uuid, …) { … }`.
+
+### Column model
+
+**Value column** — pass a keypath to any `Comparable & CustomStringConvertible` value.
+The column gets a default text cell *and* a comparator for sorting:
+
+```swift
+Column("Name", value: \.name)          // text cell + sortable
+Column("Age",  value: \.age).align(.trailing)   // numeric, right-aligned
+Column("Score", value: \.score).sortable(false) // text cell only, not sortable
+```
+
+**Custom-cell column** — trailing closure returns `[VNode]` (single-expression also
+works, the `@ChildrenBuilder` unwraps it). No comparator; not sortable by default:
+
+```swift
+Column("Role") { p in Badge(p.role, variant: .info) }
+Column("") { p in Button("Edit", variant: .secondary, size: .sm) { edit(p) } }
+```
+
+Mix a value-column comparator with a custom cell by chaining `.cell { }` after the
+value initialiser:
+
+```swift
+Column("Score", value: \.score).cell { p in StarRating(p.score) }
+```
+
+**Modifiers** chain on any `Column`:
+
+| Modifier | Effect |
+|---|---|
+| `.align(.leading / .center / .trailing)` | Logical text alignment (RTL-aware) |
+| `.width(.px(80) / .fr(2) / .auto / .custom("…"))` | Inline `width` hint |
+| `.sortable(false)` | Remove the comparator from a value column |
+| `.cell { … }` | Override the render, keep the comparator |
+
+### Table knobs
+
+```swift
+DataTable(rows,
+          selection: $selectedIDs,       // Binding<Set<Row.ID>>? — adds checkbox column
+          sortable: true,                // Bool — enable header sort buttons
+          sortOrder: $order,             // Binding<SortOrder?>? — controlled sort state
+          pageSize: 25,                  // Int? — enables pagination
+          page: $pageIndex,             // Binding<Int>? — opt-in controlled page
+          onRowClick: { row in … },      // ((Row)->Void)? — whole-row click handler
+          loading: false,               // Bool — shows Spinner in the body
+          maxHeight: .custom("400px"),   // Spacing? — overflow container for sticky header
+          emptyText: "No results") { … }
+```
+
+All bindings are optional. When omitted, sort and page self-manage internal `@State`.
+`sortOrder` and `page` let you lift that state into the parent (e.g. to persist it or
+drive server-side queries).
+
+`SortOrder` carries `columnID: String` and `ascending: Bool`; `nil` means unsorted.
+Sort cycles tri-state: ascending → descending → unsorted.
+
+### Sticky header
+
+The table header (`<thead>`) is `position: sticky; top: 0` inside the `.sw-table__scroll`
+overflow container. **The header only pins while the table is actually scrolling.** Pass
+`maxHeight:` to give the scroll container a bounded height:
+
+```swift
+// Header pins while you scroll the 400 px viewport.
+DataTable(rows, maxHeight: .custom("400px")) { … }
+
+// Without maxHeight the container never overflows, so the header just sits
+// at the top of the flow — no sticky behaviour visible.
+DataTable(rows) { … }
+```
+
+`Spacing` has no `.px` case — use `.custom("400px")`.
+
+### Caveats
+
+**Row-click + interactive cells.** Swiflow handlers cannot stop event propagation.
+A click on an in-cell `Button` also fires `onRowClick`. Avoid combining `onRowClick`
+with buttons or links inside cells; use one or the other:
+
+```swift
+// Fine — action is only in the button, no onRowClick.
+Column("") { p in Button("Edit", variant: .secondary, size: .sm) { edit(p) } }
+
+// Fine — whole-row is clickable, cells are display-only.
+DataTable(rows, onRowClick: { select($0) }) {
+    Column("Name", value: \.name)
+}
+
+// Avoid — button click also fires onRowClick.
+DataTable(rows, onRowClick: { select($0) }) {
+    Column("") { p in Button("Edit") { edit(p) } }   // both fire
+}
+```
+
+### Deferred
+
+Virtualization (windowed rendering for large datasets), density/zebra-stripe variants,
+column resize, full ARIA-grid keyboard roving (`role=grid`, arrow-key cell focus),
+totals/summary row, and server-side sort are not in this version. The pagination +
+`maxHeight` scroll container is the current strategy for large-but-bounded datasets.
+
 ## Accessibility
 
 Native elements carry their own semantics; SwiflowUI adds: `aria-invalid` + `role=alert`
