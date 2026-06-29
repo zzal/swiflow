@@ -76,7 +76,7 @@ struct ColumnTests {
         #expect(ColumnAlignment.center.cssTextAlign == "center")
         #expect(ColumnAlignment.trailing.cssTextAlign == "end")
         #expect(ColumnWidth.px(80).css == "80px")
-        #expect(ColumnWidth.fr(2).css == "2fr")
+        #expect(ColumnWidth.auto.css == "auto")
         #expect(ColumnWidth.custom("10ch").css == "10ch")
     }
 }

@@ -19,13 +19,14 @@ public enum ColumnAlignment: Equatable, Sendable {
     }
 }
 
-/// A column width hint, written as an inline `width` on the column's cells.
+/// A column width hint, written as an inline `width` on the column's cells. Use a length
+/// (`.px`/`.custom`) — `fr` units are intentionally absent: they only size CSS grid tracks,
+/// not table cells, so `width: Nfr` on a `<td>`/`<th>` is silently ignored by the browser.
 public enum ColumnWidth: Equatable, Sendable {
-    case px(Int), fr(Int), auto, custom(String)
+    case px(Int), auto, custom(String)
     var css: String {
         switch self {
         case .px(let n):     return "\(n)px"
-        case .fr(let n):     return "\(n)fr"
         case .auto:          return "auto"
         case .custom(let v): return v
         }
