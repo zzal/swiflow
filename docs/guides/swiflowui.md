@@ -64,6 +64,12 @@ Stacks take postfix modifiers: `.padding(.lg)`, `.gap(.sm)`. `Grid(columns: "1fr
 accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 (`.xs/.sm/.md/.lg/.xl/.none`).
 
+`.padding` takes an optional edge set as a second argument — `.padding(.lg, .horizontal)`,
+`.padding(.sm, [.top, .leading])`. Edges are logical/RTL-aware (`Edge`: `.top`/`.bottom`/
+`.leading`/`.trailing` plus the `.horizontal`/`.vertical`/`.all` presets, where `leading`/
+`trailing` follow text direction). Chained calls compose per-edge, e.g.
+`.padding(.md, .horizontal).padding(.sm, .vertical)` for 16px-horizontal / 8px-vertical.
+
 ## Controls
 
 ### Button
