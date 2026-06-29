@@ -362,6 +362,22 @@ struct DataTableStateTests {
     }
 }
 
+@MainActor
+@Suite struct DataTableVirtualizationTests {
+    @Test func boxStoresVirtualizationConfig() {
+        let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: 20 + $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+                                   virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr 80px 1fr") {
+            Column("Name", value: \.name)
+            Column("Age", value: \.age)
+            Column("Name2", value: \.name)
+        }
+        #expect(box.virtualization == .fixed(rowHeight: 40))
+        #expect(box.columnsTemplate == "1fr 80px 1fr")
+    }
+}
+
 @Suite("DataTable — row interaction")
 @MainActor
 struct DataTableRowClickTests {

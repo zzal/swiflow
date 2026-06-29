@@ -1,6 +1,15 @@
 // Sources/SwiflowUI/DataTable.swift
 import Swiflow
 
+// MARK: - Virtualization config
+
+/// How a `DataTable` renders large datasets. `.fixed` keeps only the visible window of rows
+/// in the DOM, sized by a constant row height. (`measured` variable-height is reserved for 1.x.)
+public enum Virtualization: Equatable, Sendable {
+    case fixed(rowHeight: Int)
+    // case measured(estimated: Int)   // 1.x — not implemented
+}
+
 // MARK: - Erased descriptors (the box is non-generic — see plan header for why)
 
 /// A column erased to operate on row INDICES (the box never sees `Row`). Built by
@@ -54,6 +63,8 @@ public func DataTable<Row, ID: Hashable>(
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
     maxHeight: Spacing? = nil,
+    virtualization: Virtualization? = nil,
+    columnsTemplate: String? = nil,
     emptyText: String = "No results",
     _ attributes: Attribute...,
     key: String? = nil,
@@ -65,6 +76,7 @@ public func DataTable<Row, ID: Hashable>(
         makeDataTableBox(rows, id: id, selection: selection, sortable: sortable,
                          sortOrder: sortOrder, pageSize: pageSize, page: page,
                          onRowClick: onRowClick, loading: loading, maxHeight: maxHeight,
+                         virtualization: virtualization, columnsTemplate: columnsTemplate,
                          emptyText: emptyText, caller: caller, columnsList: cols)
     }
 }
@@ -81,6 +93,8 @@ public func DataTable<Row: Identifiable>(
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
     maxHeight: Spacing? = nil,
+    virtualization: Virtualization? = nil,
+    columnsTemplate: String? = nil,
     emptyText: String = "No results",
     _ attributes: Attribute...,
     key: String? = nil,
@@ -92,6 +106,7 @@ public func DataTable<Row: Identifiable>(
         makeDataTableBox(rows, id: \.id, selection: selection, sortable: sortable,
                          sortOrder: sortOrder, pageSize: pageSize, page: page,
                          onRowClick: onRowClick, loading: loading, maxHeight: maxHeight,
+                         virtualization: virtualization, columnsTemplate: columnsTemplate,
                          emptyText: emptyText, caller: caller, columnsList: cols)
     }
 }
@@ -112,13 +127,16 @@ func makeDataTableBox<Row, ID: Hashable>(
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
     maxHeight: Spacing? = nil,
+    virtualization: Virtualization? = nil,
+    columnsTemplate: String? = nil,
     emptyText: String = "No results",
     caller: [Attribute] = [],
     @ColumnBuilder<Row> columnsList: () -> [Column<Row>]
 ) -> DataTableBox {
     makeDataTableBox(rows, id: id, selection: selection, sortable: sortable, sortOrder: sortOrder,
                      pageSize: pageSize, page: page, onRowClick: onRowClick, loading: loading,
-                     maxHeight: maxHeight, emptyText: emptyText, caller: caller, columnsList: columnsList())
+                     maxHeight: maxHeight, virtualization: virtualization, columnsTemplate: columnsTemplate,
+                     emptyText: emptyText, caller: caller, columnsList: columnsList())
 }
 
 @MainActor
@@ -133,6 +151,8 @@ func makeDataTableBox<Row, ID: Hashable>(
     onRowClick: ((Row) -> Void)?,
     loading: Bool,
     maxHeight: Spacing?,
+    virtualization: Virtualization?,
+    columnsTemplate: String?,
     emptyText: String,
     caller: [Attribute],
     columnsList cols: [Column<Row>]
@@ -179,6 +199,8 @@ func makeDataTableBox<Row, ID: Hashable>(
         onRowClick: onClick,
         loading: loading,
         maxHeight: maxHeight?.css,
+        virtualization: virtualization,
+        columnsTemplate: columnsTemplate,
         emptyText: emptyText,
         caller: caller
     )
@@ -201,6 +223,8 @@ final class DataTableBox {
     let onRowClick: ((Int) -> Void)?
     let loading: Bool
     let maxHeight: String?
+    let virtualization: Virtualization?
+    let columnsTemplate: String?
     let emptyText: String
     let caller: [Attribute]
 
@@ -210,12 +234,14 @@ final class DataTableBox {
     init(rowCount: Int, columns: [DataColumn], rowKey: @escaping (Int) -> String,
          selection: SelectionModel?, sortable: Bool, sortOrder: Binding<SortOrder?>?,
          pageSize: Int?, page: Binding<Int>?, onRowClick: ((Int) -> Void)?,
-         loading: Bool, maxHeight: String?, emptyText: String, caller: [Attribute]) {
+         loading: Bool, maxHeight: String?, virtualization: Virtualization?, columnsTemplate: String?,
+         emptyText: String, caller: [Attribute]) {
         self.rowCount = rowCount; self.columns = columns; self.rowKey = rowKey
         self.selection = selection; self.sortable = sortable; self.sortOrderBinding = sortOrder
         self.pageSize = pageSize; self.pageBinding = page; self.onRowClick = onRowClick
-        self.loading = loading; self.maxHeight = maxHeight; self.emptyText = emptyText
-        self.caller = caller
+        self.loading = loading; self.maxHeight = maxHeight
+        self.virtualization = virtualization; self.columnsTemplate = columnsTemplate
+        self.emptyText = emptyText; self.caller = caller
     }
 
     // MARK: sort/page state (internal so controlled-binding tests can drive them)
