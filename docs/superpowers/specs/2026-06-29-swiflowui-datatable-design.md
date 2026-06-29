@@ -7,8 +7,9 @@
 > keep it feasible (see §4).
 > **Prior art:** the stateful-component idiom (`Sources/SwiflowUI/Autocomplete.swift` — public
 > factory function + `@Component` class via `embedKeyed`), the keyed-children diff
-> (`ElementData.key`), the control-styling seams (`scopedStyles` for stateful `@Component`s), the
-> `inert`-for-disabled project rule, and the `Field`/`Binding` reactive idiom.
+> (`ElementData.key`), the global control-styling seam (`installControlSheet` + a `.sw-*` `CSSSheet`,
+> as used by Button + the form controls), the `inert`-for-disabled project rule, and the
+> `Field`/`Binding` reactive idiom.
 
 ## Problem
 
@@ -153,28 +154,31 @@ writes it on checkbox toggle / select-all. There is **no internal selection stat
   when partially selected (set via a DOM property, like other controls); each row checkbox has an
   accessible label; the `<tr>` carries `aria-selected`.
 - **Row interaction** (`onRowClick`): the click handler is bound on the `<tr>`; a hover affordance
-  via tokens. Cells containing their own controls (buttons/links) keep working — row-click reads
-  `EventInfo.isSelfTarget`/target so a button click inside a row does not double-fire row-click.
+  via tokens. **Caveat (as built):** Swiflow handlers cannot stop propagation, so a click on an
+  in-cell control (button/link) ALSO bubbles to fire `onRowClick`. v1 therefore does **not** de-dupe
+  in-cell clicks — don't combine `onRowClick` with interactive cells. (Documented in the guide.)
 - **Sticky header**: `position: sticky; top: 0` on `<thead>`/header cells, inside the `maxHeight`
   scroll container (sticky needs a scroll ancestor; documented).
 - **Disabled affordances** (e.g. prev/next pager buttons at range ends) render with **`inert`**
   (project rule), styled via `[inert]`.
-- **Styling** via **`scopedStyles`** (the stateful-`@Component` styling seam), fully token-driven
-  (spacing, border, surface, accent, text tokens) so it follows theming/dark-mode/media features.
+- **Styling** via the global **`installControlSheet`** seam (a once-injected `.sw-table*` `CSSSheet`),
+  fully token-driven (spacing, border, surface, accent, text tokens) so it follows theming/dark-mode/
+  media features. (As built: `DataTable` is not an overlay, so it uses the stateless global sheet that
+  Button + the form controls use — not the `scopedStyles` seam reserved for overlays.)
 
 ## Components & boundaries
 
 | Unit | Responsibility |
 |------|----------------|
 | `DataTable(_:…)` factory function(s) (`DataTable.swift`) | Public API; two overloads (`Identifiable` / explicit `id:`); captures config + columns; `embedKeyed(key) { DataTableBox(...) }` |
-| `DataTableBox` `@Component` (`DataTable.swift`) | Sort/page `@State`; sort→window→render pipeline; selection read/write; ARIA wiring; scroll container; `scopedStyles` |
+| `DataTableBox` `@Component` (`DataTable.swift`) | Sort/page `@State`; sort→window→render pipeline; selection read/write; ARIA wiring; scroll container; `installControlSheet` |
 | `Column<Row>` + `ColumnBuilder` + `SortOrder`/`ColumnAlignment`/`ColumnWidth` (`Column.swift`) | Value-type column model: cell builder, comparator capture, alignment/width, result builder |
 
 All in SwiflowUI. No core `Swiflow`, JS driver, patch opcode, or serializer change.
 
 ## Files
 
-- **Create** `Sources/SwiflowUI/DataTable.swift` — factory function(s) + `DataTableBox` + pipeline + `scopedStyles`.
+- **Create** `Sources/SwiflowUI/DataTable.swift` — factory function(s) + `DataTableBox` + pipeline + `installControlSheet` sheet.
 - **Create** `Sources/SwiflowUI/Column.swift` — `Column<Row>`, `@ColumnBuilder`, `SortOrder<Row>`, `ColumnAlignment`, `ColumnWidth`.
 - **Create** `Tests/SwiflowUITests/ColumnTests.swift` — column value type + builder + comparator.
 - **Create** `Tests/SwiflowUITests/DataTableTests.swift` — emitted-structure / behavior tests.

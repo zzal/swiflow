@@ -269,7 +269,7 @@ Column("Score", value: \.score).cell { p in StarRating(p.score) }
 | Modifier | Effect |
 |---|---|
 | `.align(.leading / .center / .trailing)` | Logical text alignment (RTL-aware) |
-| `.width(.px(80) / .fr(2) / .auto / .custom("…"))` | Inline `width` hint |
+| `.width(.px(80) / .auto / .custom("…"))` | Inline `width` hint |
 | `.sortable(false)` | Remove the comparator from a value column |
 | `.cell { … }` | Override the render, keep the comparator |
 
