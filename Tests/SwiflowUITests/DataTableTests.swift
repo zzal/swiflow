@@ -361,3 +361,36 @@ struct DataTableStateTests {
         #expect(trs.count == 1)   // the loading row, not the data row
     }
 }
+
+@Suite("DataTable — row interaction")
+@MainActor
+struct DataTableRowClickTests {
+    private let people = [Person(id: 1, name: "Ada", age: 36), Person(id: 2, name: "Bob", age: 28)]
+
+    @Test("onRowClick fires with the row's index→row, and rows get the clickable class") func rowClick() {
+        var clicked: [Int] = []
+        let b = makeDataTableBox(people, id: \.id, onRowClick: { clicked.append($0.id) }) {
+            Column("Name", value: \.name)
+        }
+        let root = building { b.body }
+        let trs = allTags(.element(allTags(root, "tbody").first!), "tr")
+        #expect(trs.allSatisfy { $0.attributes["class"]?.contains("sw-table__tr--clickable") == true })
+        // invoke the row-0 click handler through the ambient registry
+        // NOTE: HandlerRegistry accessor is `handler(forID:)` (not `handler(for:)` as the plan says)
+        let reg = HandlerRegistry()
+        HandlerAmbient.current = reg
+        let node = b.body
+        let tr0 = allTags(.element(allTags(node, "tbody").first!), "tr")[0]
+        let handlerID = tr0.handlers["click"]!.id
+        reg.handler(forID: handlerID)!.invoke(EventInfo(type: "click"))
+        #expect(clicked == [1])
+    }
+
+    @Test("no onRowClick ⇒ no click handler and no clickable class") func noRowClick() {
+        let b = makeDataTableBox(people, id: \.id) { Column("Name", value: \.name) }
+        let root = building { b.body }
+        let tr = allTags(.element(allTags(root, "tbody").first!), "tr")[0]
+        #expect(tr.handlers["click"] == nil)
+        #expect(tr.attributes["class"]?.contains("clickable") != true)
+    }
+}
