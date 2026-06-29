@@ -3232,6 +3232,7 @@ final class Demo {
 
             // --- DataTable -----------------------------------------------
             dataTableSection
+            virtualTableSection
         }
         .padding(.xl)
         .style("background", "var(--sw-bg)")   // page/canvas, so the surface cards lift off it
@@ -3300,6 +3301,31 @@ final class Demo {
         }
     }
 
+    /// A 2,000-row virtualized DataTable. `virtualized: .fixed(rowHeight:)` keeps only the
+    /// visible window in the DOM; `columnsTemplate` gives the grid its (shared, stable) column
+    /// tracks; `maxHeight` is the required scroll container. Static dataset ⇒ no `key:` needed.
+    var virtualTableSection: VNode {
+        let note = "Virtualized DataTable over 2,000 rows: only the rows in (and just around) "
+            + "the 440 px viewport are in the DOM. Scroll to stream rows; sorting reorders the "
+            + "whole dataset. Columns come from columnsTemplate (per-column .width is ignored "
+            + "when virtualized)."
+        return VStack(spacing: .md, align: .stretch) {
+            h2("DataTable — virtualized")
+            VStack(spacing: .none, align: .stretch) {
+                DataTable(Demo.bigPeople,
+                          sortable: true,
+                          maxHeight: .custom("440px"),
+                          virtualization: .fixed(rowHeight: 44),
+                          columnsTemplate: "2fr 80px 1fr") {
+                    Column("Name", value: \.name)
+                    Column("Age", value: \.age).align(.trailing)
+                    Column("Role") { p in Badge(p.role, variant: .accent) }
+                }
+            }
+            p(note)
+        }
+    }
+
     static let samplePeople: [DemoPerson] = [
         DemoPerson(id: 1,  name: "Ada Lovelace",      age: 36, role: "Engineer"),
         DemoPerson(id: 2,  name: "Grace Hopper",       age: 85, role: "Admiral"),
@@ -3316,6 +3342,11 @@ final class Demo {
         DemoPerson(id: 13, name: "Ken Thompson",       age: 82, role: "Inventor"),
         DemoPerson(id: 14, name: "Bjarne Stroustrup",  age: 74, role: "Designer"),
     ]
+
+    static let bigPeople: [DemoPerson] = (0..<2000).map { i in
+        DemoPerson(id: 1000 + i, name: "Person \(i)", age: 18 + (i % 70),
+                   role: ["Engineer", "Researcher", "Inventor", "Designer"][i % 4])
+    }
 
     /// A small surfaced tile used to fill the grid demo.
     private func card(_ title: String) -> VNode {
