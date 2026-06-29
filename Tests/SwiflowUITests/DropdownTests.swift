@@ -98,7 +98,7 @@ struct DropdownTests {
 
     @Test("a disabled item has no action and no close wiring") func disabledItem() {
         let item = firstWithClass(el(building { dd { [DropdownItem("X", disabled: true) {}] } })!, "sw-dropdown__item")!
-        #expect(item.attributes["disabled"] == "")
+        #expect(item.attributes["inert"] == "")
         #expect(item.handlers["click"] == nil)
         #expect(item.attributes["popovertarget"] == nil)
     }
@@ -126,6 +126,20 @@ struct DropdownTests {
     @Test("the public Dropdown(...) free function lowers to an embedded component") func freeFunctionEmbeds() {
         let node = building { Dropdown("Actions") { DropdownItem("Edit") {} } }
         if case .component = node {} else { Issue.record("expected an embedded component node, got \(node)") }
+    }
+
+    @Test("disabled item renders inert (not the disabled attribute), with no action/close") func disabledIsInert() {
+        let node = building {
+            dd { [DropdownItem("Edit") {}, DropdownItem("Archive", disabled: true) {}] }
+        }
+        let root = el(node)!
+        let menu = firstWithClass(root, "sw-dropdown__menu")!
+        // The disabled item is the one whose label is "Archive".
+        let archive = menu.children.compactMap(el).first { allText(.element($0)).contains("Archive") }!
+        #expect(archive.attributes["inert"] == "")          // presence-only boolean attribute
+        #expect(archive.attributes["disabled"] == nil)      // no longer uses the disabled attribute
+        #expect(archive.handlers["click"] == nil)           // no action
+        #expect(archive.attributes["popovertarget"] == nil) // no close-on-select
     }
 
     @Test("stylesheet: anchored popover menu with token-driven entry animation") func stylesheet() {

@@ -145,7 +145,7 @@ public func DropdownItem(
 
     var attrs: [Attribute] = [.class(cls), .attr("type", "button")]
     if disabled {
-        attrs.append(.attr("disabled", true))   // no action, no close
+        attrs.append(.attr("inert", true))   // not focusable, removed from the a11y tree; no action/close
     } else {
         attrs.append(.on(.click, perform: action))
         // Close the menu on select (declarative), when rendered inside a Dropdown.
@@ -236,13 +236,13 @@ let dropdownStyleSheet: CSSSheet = css {
       font: inherit;
       cursor: pointer;
     }
-    .sw-dropdown__item:hover:not(:disabled) { background-color: var(--sw-surface-2); }
+    .sw-dropdown__item:hover:not([inert]) { background-color: var(--sw-surface-2); }
     .sw-dropdown__item:focus-visible {
       outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
       outline-offset: -2px;
     }
     .sw-dropdown__item--danger { color: var(--sw-danger-strong); }
-    .sw-dropdown__item:disabled { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
+    .sw-dropdown__item[inert] { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
 
     .sw-dropdown__divider {
       height: var(--sw-border-width);
