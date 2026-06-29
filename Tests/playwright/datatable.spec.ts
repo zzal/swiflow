@@ -81,5 +81,11 @@ test.describe("DataTable", () => {
     await scroll.evaluate((el) => { (el as HTMLElement).scrollTop = 4000; });
     await expect.poll(async () => (await rows.first().innerText())).not.toContain("Person 0");
     expect(await rows.count()).toBeLessThan(60);
+
+    // Header stays pinned (sticky on <thead>, not the header <tr>) while the body scrolls:
+    // its top must sit at the scroll container's top, not scroll away.
+    const headTop = await vtable.locator("thead").evaluate((el) => el.getBoundingClientRect().top);
+    const containerTop = await scroll.evaluate((el) => el.getBoundingClientRect().top);
+    expect(Math.abs(headTop - containerTop)).toBeLessThan(3);
   });
 });

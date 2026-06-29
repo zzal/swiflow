@@ -614,7 +614,12 @@ let dataTableSheet: CSSSheet = css {
       display: grid;
       align-items: center;
     }
-    .sw-table--virtual thead .sw-table__tr { position: sticky; top: 0; z-index: 1; background-color: var(--sw-surface); }
+    /* Sticky on the <thead> (parent = the full-height <table>), NOT the header <tr> (parent =
+       the short <thead>): a sticky element only pins within its parent's box. */
+    .sw-table--virtual thead {
+      position: sticky; top: 0; z-index: 1;
+      background-color: var(--sw-surface);
+    }
     .sw-table--virtual tbody .sw-table__tr {
       position: absolute; inset-inline: 0; top: 0;
       border-block-end: 1px solid var(--sw-border);
