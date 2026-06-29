@@ -230,6 +230,9 @@ final class DataTableBox {
 
     @State private var internalSort: SortOrder? = nil
     @State private var internalPage: Int = 0
+    @State private var scrollTop: Double = 0
+    @State private var viewportHeight: Double = 0
+    private let overscan = 3
 
     init(rowCount: Int, columns: [DataColumn], rowKey: @escaping (Int) -> String,
          selection: SelectionModel?, sortable: Bool, sortOrder: Binding<SortOrder?>?,
@@ -276,6 +279,22 @@ final class DataTableBox {
     }
     func clampedPage() -> Int { max(0, min(currentPage(), pageCount() - 1)) }
 
+    /// Test/host seam: drive scroll metrics directly (the scroll handler does this from the DOM).
+    func setViewportMetrics(scrollTop: Double, viewportHeight: Double) {
+        if self.scrollTop != scrollTop { self.scrollTop = scrollTop }
+        if self.viewportHeight != viewportHeight { self.viewportHeight = viewportHeight }
+    }
+
+    /// Row at the TOP edge of the viewport (no overscan), clamped to [0, count). 0 when not virtualized.
+    func firstVisibleIndex() -> Int {
+        guard let rh = activeRowHeight(), rh > 0 else { return 0 }
+        let raw = Int(scrollTop) / rh        // floor for scrollTop ≥ 0; Foundation-free
+        return max(0, min(raw, max(0, rowCount - 1)))
+    }
+
+    /// Runway height for the sized `<tbody>`: total rows × rowHeight. 0 when not virtualized.
+    func runwayHeightPx() -> Int { activeRowHeight().map { rowCount * $0 } ?? 0 }
+
     /// Resolved row height when virtualization is *active* this render, else nil.
     /// Active requires a positive rowHeight AND a bounded scroll container (`maxHeight`).
     /// Emits a DEBUG diagnostic when the config asked for virtualization but a precondition
@@ -296,9 +315,17 @@ final class DataTableBox {
     /// Pagination renders only when a pageSize is set AND virtualization is not active.
     func paginationActive() -> Bool { pageSize != nil && activeRowHeight() == nil }
 
-    /// THE virtualization seam: which sorted indices are visible this render. v1 = page slice
-    /// (or all rows when unpaginated). A future virtualizer replaces only this method.
+    /// THE virtualization seam: which sorted indices are visible this render.
+    /// virtualized ⇒ scroll-driven window (+overscan); paginated ⇒ page slice; else all rows.
     func visibleWindow(_ order: [Int], page: Int) -> [Int] {
+        if let rh = activeRowHeight(), rh > 0 {
+            let total = order.count
+            guard total > 0 else { return [] }
+            let rowsInView = viewportHeight > 0 ? (Int(viewportHeight) + rh - 1) / rh : total  // ceil, Foundation-free
+            let first = max(0, firstVisibleIndex() - overscan)
+            let end = min(total, first + rowsInView + 2 * overscan)
+            return first < end ? Array(order[first..<end]) : []
+        }
         guard let size = pageSize, size > 0 else { return order }
         let start = page * size
         guard start < order.count else { return [] }

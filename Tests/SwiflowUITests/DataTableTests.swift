@@ -360,6 +360,58 @@ struct DataTableStateTests {
         let trs = allTags(.element(allTags(root, "tbody").first!), "tr")
         #expect(trs.count == 1)   // the loading row, not the data row
     }
+
+    @Test func windowSlicesToViewportPlusOverscan() {
+        let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+                                   virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        // 400px viewport / 40px row = 10 rows in view; overscan 3 each side.
+        box.setViewportMetrics(scrollTop: 0, viewportHeight: 400)
+        let win = box.visibleWindow(box.sortedIndices(), page: 0)
+        #expect(win.first == 0)            // top clamps overscan
+        #expect(win.count == 16)           // 10 + 2*3
+        #expect(box.firstVisibleIndex() == 0)
+    }
+
+    @Test func windowOffsetsWhenScrolled() {
+        let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+                                   virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        box.setViewportMetrics(scrollTop: 4000, viewportHeight: 400)   // viewport-top row = 100
+        let win = box.visibleWindow(box.sortedIndices(), page: 0)
+        #expect(box.firstVisibleIndex() == 100)   // no overscan
+        #expect(win.first == 97)                  // window start = 100 - overscan(3)
+        #expect(win.count == 16)
+    }
+
+    @Test func windowClampsAtBottom() {
+        let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+                                   virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        box.setViewportMetrics(scrollTop: 39_600, viewportHeight: 400)  // bottom: 1000*40 - 400
+        let win = box.visibleWindow(box.sortedIndices(), page: 0)
+        #expect(win.last == 999)                  // never past the end
+        #expect(win.allSatisfy { $0 < 1000 })
+    }
+
+    @Test func nonVirtualizedWindowUnchanged() {
+        let people = (0..<30).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let paged = makeDataTableBox(people, id: \.id, pageSize: 10) { Column("Name", value: \.name) }
+        #expect(paged.visibleWindow(paged.sortedIndices(), page: 1).count == 10)  // page slice intact
+        let all = makeDataTableBox(people, id: \.id) { Column("Name", value: \.name) }
+        #expect(all.visibleWindow(all.sortedIndices(), page: 0).count == 30)      // all rows intact
+    }
+
+    @Test func runwayHeightIsTotalTimesRowHeight() {
+        let people = (0..<250).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+                                   virtualization: .fixed(rowHeight: 32),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #expect(box.runwayHeightPx() == 250 * 32)
+    }
 }
 
 @MainActor
