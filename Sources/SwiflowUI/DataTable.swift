@@ -35,6 +35,13 @@ struct SelectionModel {
 ///
 /// `selection`/`sortOrder`/`page` are opt-in bindings; sort & page otherwise self-manage.
 /// `maxHeight` provides the scroll container the sticky header needs.
+///
+/// > **Dynamic data — pass a `key:`.** Like every embedded component, the table is reused across
+/// > renders, so `rows` (and `loading`, `pageSize`, the columns) are captured at **first mount** —
+/// > only `selection`/`sortOrder`/`page` stay live. If your `rows` or `loading` change at runtime
+/// > (filtering, fetching, upstream re-sort), pass a `key:` that changes with them so the table
+/// > remounts with fresh data, e.g. `key: "people-\(filtered.count)"`. Remounting resets the
+/// > self-managed sort/page state; drive `sortOrder:`/`page:` bindings if you need it preserved.
 @MainActor
 public func DataTable<Row, ID: Hashable>(
     _ rows: [Row],
@@ -141,19 +148,20 @@ func makeDataTableBox<Row, ID: Hashable>(
     }
 
     let selModel: SelectionModel? = selection.map { sel in
-        SelectionModel(
+        // `rows` is frozen for the box's life (embed-reuse), so its id set is computed once
+        // here rather than rebuilt on every render/click.
+        let allIDs = rows.map(idOf)
+        let allIDSet = Set(allIDs)
+        return SelectionModel(
             isSelected: { sel.get().contains(idOf(rows[$0])) },
             toggle: { i in
                 var s = sel.get(); let k = idOf(rows[i])
                 if s.contains(k) { s.remove(k) } else { s.insert(k) }
                 sel.set(s)
             },
-            selectedCount: { let ids = Set(rows.map(idOf)); return sel.get().intersection(ids).count },
+            selectedCount: { sel.get().intersection(allIDSet).count },
             total: rows.count,
-            setAll: { on in
-                let ids = rows.map(idOf)
-                sel.set(on ? sel.get().union(ids) : sel.get().subtracting(ids))
-            }
+            setAll: { on in sel.set(on ? sel.get().union(allIDs) : sel.get().subtracting(allIDs)) }
         )
     }
 
@@ -321,7 +329,7 @@ final class DataTableBox {
         let input = element("input", attributes: [
             .attr("type", "checkbox"), .attr("aria-label", "Select all rows"),
             .prop("checked", .bool(allOn)), .prop("indeterminate", .bool(indeterminate)),
-            .on(.change) { _ in self.selection!.setAll(!allOn) },
+            .on(.change) { _ in sel.setAll(!allOn) },
         ])
         return element("th", attributes: [.class("sw-table__th sw-table__select"), .attr("scope", "col")],
                        children: [input])
@@ -360,7 +368,7 @@ final class DataTableBox {
         let input = element("input", attributes: [
             .attr("type", "checkbox"), .attr("aria-label", "Select row"),
             .prop("checked", .bool(sel.isSelected(i))),
-            .on(.change) { _ in self.selection!.toggle(i) },
+            .on(.change) { _ in sel.toggle(i) },
         ])
         return element("td", attributes: [.class("sw-table__td sw-table__select")], children: [input])
     }
