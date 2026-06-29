@@ -20,6 +20,35 @@ public enum Spacing: Equatable {
     }
 }
 
+/// A set of box edges for directional spacing modifiers (e.g. `.padding(.lg, .horizontal)`).
+/// Logical / writing-mode & RTL aware: `leading`/`trailing` follow text direction
+/// (inline-start/-end), `top`/`bottom` are block-start/-end.
+public struct Edge: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+
+    public static let top      = Edge(rawValue: 1 << 0)   // block-start
+    public static let bottom   = Edge(rawValue: 1 << 1)   // block-end
+    public static let leading  = Edge(rawValue: 1 << 2)   // inline-start
+    public static let trailing = Edge(rawValue: 1 << 3)   // inline-end
+
+    public static let horizontal: Edge = [.leading, .trailing]
+    public static let vertical:   Edge = [.top, .bottom]
+    public static let all:        Edge = [.top, .bottom, .leading, .trailing]
+
+    /// The atomic logical box-side suffixes this set covers (`block-start`, `inline-end`, …), in a
+    /// stable order. Atomic only — never the `inline`/`block` axis shorthands — so directional
+    /// spacing composes deterministically across chained modifiers over the unordered style dict.
+    var logicalSides: [String] {
+        var sides: [String] = []
+        if contains(.top)      { sides.append("block-start") }
+        if contains(.bottom)   { sides.append("block-end") }
+        if contains(.leading)  { sides.append("inline-start") }
+        if contains(.trailing) { sides.append("inline-end") }
+        return sides
+    }
+}
+
 /// Cross-axis alignment → `align-items`.
 public enum CrossAlign: Equatable {
     case start, center, end, stretch, baseline
