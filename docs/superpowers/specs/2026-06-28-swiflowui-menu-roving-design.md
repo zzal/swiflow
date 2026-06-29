@@ -64,10 +64,14 @@ handling open (trigger click/Enter/Space), dismiss (Esc, click-outside), and foc
     `popovertargetaction="hide"` closes the menu. (No custom handling.)
   - `Escape` → **native** popover light-dismiss, which returns focus to the trigger. (No custom
     handling.)
-- **Disabled items:** `DropdownItem(disabled:)` already renders a native `disabled` `<button>`
-  (not focusable). Disabled items are **excluded from the roving order** and never receive
-  `autofocus`. (Keeping native `disabled` rather than `aria-disabled`-focusable is a deliberate
-  scope choice — see non-goals.)
+- **Disabled items:** `DropdownItem(disabled:)` renders the `<button>` with the **`inert`**
+  attribute (project-wide rule: disabled ⇒ `inert`, not the `disabled` attribute). `inert` removes
+  the element from focus, the tab order, pointer events, **and the accessibility tree** — so a
+  disabled item is **excluded from the roving order**, never receives `autofocus`, and `.focus()`
+  on it is a no-op. The disabled *appearance* is styled via the `[inert]` attribute selector
+  (`.sw-dropdown__item[inert]`), replacing the old `:disabled` rule. Trade-off recorded: `inert`
+  hides the disabled item from screen readers entirely (vs. `disabled`, which is announced as
+  "dimmed"); this "disabled = gone" stance is the deliberate, project-wide choice.
 
 ## Where the wiring lives
 
@@ -76,7 +80,7 @@ roving assembly in `DropdownMenu.body`**, because only it knows item order/count
 item nodes (via the existing `items()` builder + `DropdownAmbient`), it post-processes them:
 
 1. Identify the **enabled menu items**: `.element` nodes whose `class` contains
-   `sw-dropdown__item` and whose attributes do **not** include `disabled`. (Dividers / non-item
+   `sw-dropdown__item` and whose attributes do **not** include `inert`. (Dividers / non-item
    nodes are passed through untouched.)
 2. For each item node (enabled and disabled alike) inject `role="menuitem"`, `tabindex="-1"`, and a
    stable `id` via the same `ElementData.attributes` mutation helper `Tooltip` used.
@@ -111,8 +115,9 @@ All in `Sources/SwiflowUI/Dropdown.swift`. No core/framework change; SwiflowUI s
 
 - **Unit (`Tests/SwiflowUITests/DropdownTests.swift`):** assert the container has `role="menu"`;
   the trigger has `aria-haspopup="menu"`; every item has `role="menuitem"` + `tabindex="-1"` + an
-  `id`; the first enabled item has `autofocus`; a disabled item is present but excluded from
-  `autofocus`/roving; each enabled item carries a `keydown` handler. (Actual focus *movement* is
+  `id`; the first enabled item has `autofocus`; a disabled item carries `inert` and is excluded
+  from `autofocus`/roving (no keydown handler, never gets `autofocus`); each enabled item carries a
+  `keydown` handler. (Actual focus *movement* is
   imperative DOM → browser-only, covered by e2e.)
 - **Playwright (local; run via the existing dropdown/`router` config or `counter` config to avoid
   the `.e2e-cache/sw` SourceKit-LSP scaffold race; build the release CLI first):** open the menu →
@@ -127,8 +132,9 @@ All in `Sources/SwiflowUI/Dropdown.swift`. No core/framework change; SwiflowUI s
 - **No value binding** — actions menu only; values → `Select` / `Autocomplete`.
 - **No submenus, no typeahead** (type-a-letter jump), **no horizontal menubar**, no
   `menuitemcheckbox` / `menuitemradio`.
-- **No `aria-disabled`-focusable disabled items** — disabled items keep native `disabled` and are
-  skipped (a future enhancement could make them focusable-but-inert).
+- **No `aria-disabled`-focusable disabled items** — disabled items are `inert` (removed from the
+  a11y tree and roving order), not focusable-but-announced. (A future enhancement could expose
+  them via `aria-disabled` if discoverability of disabled commands is wanted.)
 - **No core/framework changes** (`EventInfo.key`, `Event` cases all already sufficient).
 
 ## Decisions resolved during brainstorming
