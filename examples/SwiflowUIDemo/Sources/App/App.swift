@@ -19,6 +19,8 @@ final class Demo {
     @State var toasts: [ToastItem] = []
     @State var element: String = ""
     @State var asyncElement: String = ""
+    @State var selectedPeople: Set<Int> = []
+    @State var peoplePage: Int = 0
 
     /// Shared by the sync Autocomplete (static options) and the async one (a loader that
     /// filters the same list behind a simulated network delay).
@@ -240,6 +242,31 @@ final class Demo {
             // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
             // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
             ToastStack(toasts: $toasts)
+
+            Divider()
+
+            // --- DataTable -----------------------------------------------
+            h2("DataTable")
+            DataTable(Demo.samplePeople,
+                      selection: $selectedPeople,
+                      sortable: true,
+                      pageSize: 5,
+                      page: $peoplePage,
+                      maxHeight: .custom("360px")) {
+                Column("Name", value: \.name)
+                Column("Age", value: \.age).align(.trailing)
+                Column("Role") { p in Badge(p.role, variant: .accent) }
+                Column("") { p in
+                    Button("Edit", variant: .secondary, size: .sm) {
+                        self.toasts.append(ToastItem("Editing \(p.name)", variant: .info))
+                    }
+                }
+            }
+            p("DataTable with sortable: true, pageSize: 5, and multi-select checkboxes. "
+              + "Click a column header to cycle ascending → descending → unsorted (tri-state). "
+              + "The header stays pinned inside the 360 px scroll container (maxHeight). "
+              + "\"Edit\" fires a toast so you can see the action without mixing onRowClick "
+              + "with in-cell buttons (they share click events).")
         }
         .padding(.xl)
         // Forcing `color-scheme` on the root makes every descendant's light-dark()
@@ -250,6 +277,23 @@ final class Demo {
         .style("min-height", "100vh")
     }
 
+    static let samplePeople: [DemoPerson] = [
+        DemoPerson(id: 1,  name: "Ada Lovelace",      age: 36, role: "Engineer"),
+        DemoPerson(id: 2,  name: "Grace Hopper",       age: 85, role: "Admiral"),
+        DemoPerson(id: 3,  name: "Alan Turing",        age: 41, role: "Researcher"),
+        DemoPerson(id: 4,  name: "Margaret Hamilton",  age: 87, role: "Engineer"),
+        DemoPerson(id: 5,  name: "Linus Torvalds",     age: 55, role: "Maintainer"),
+        DemoPerson(id: 6,  name: "Vint Cerf",          age: 81, role: "Architect"),
+        DemoPerson(id: 7,  name: "Tim Berners-Lee",    age: 70, role: "Inventor"),
+        DemoPerson(id: 8,  name: "Guido van Rossum",   age: 69, role: "Designer"),
+        DemoPerson(id: 9,  name: "Brendan Eich",       age: 63, role: "Engineer"),
+        DemoPerson(id: 10, name: "Barbara Liskov",     age: 83, role: "Researcher"),
+        DemoPerson(id: 11, name: "Katherine Johnson",  age: 101, role: "Mathematician"),
+        DemoPerson(id: 12, name: "Dennis Ritchie",     age: 70, role: "Inventor"),
+        DemoPerson(id: 13, name: "Ken Thompson",       age: 82, role: "Inventor"),
+        DemoPerson(id: 14, name: "Bjarne Stroustrup",  age: 74, role: "Designer"),
+    ]
+
     /// A small surfaced tile used to fill the grid demo.
     private func card(_ title: String) -> VNode {
         div { text(title) }
@@ -259,6 +303,13 @@ final class Demo {
             .style("border-radius", "var(--sw-radius)")
             .style("text-align", "center")
     }
+}
+
+struct DemoPerson: Identifiable {
+    let id: Int
+    let name: String
+    let age: Int
+    let role: String
 }
 
 @main
