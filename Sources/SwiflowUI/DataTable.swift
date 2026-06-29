@@ -599,6 +599,21 @@ let dataTableSheet: CSSSheet = css {
     }
     .sw-table__pagebtn[inert] { opacity: 0.5; cursor: default; }
     .sw-table__pagebtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .sw-table--virtual { display: block; }
+    .sw-table--virtual thead,
+    .sw-table--virtual tbody { display: block; }
+    .sw-table--virtual tbody { position: relative; }
+    .sw-table--virtual .sw-table__tr {
+      display: grid;
+      grid-template-columns: var(--sw-table-cols);
+      align-items: center;
+    }
+    .sw-table--virtual thead .sw-table__tr { position: sticky; top: 0; z-index: 1; background-color: var(--sw-surface); }
+    .sw-table--virtual tbody .sw-table__tr {
+      position: absolute; inset-inline: 0; top: 0;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    .sw-table--virtual .sw-table__th { position: static; }
     """)
 }
 
