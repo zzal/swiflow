@@ -235,7 +235,12 @@ final class DataTableBox {
     @State private var internalPage: Int = 0
     @State private var scrollTop: Double = 0
     @State private var viewportHeight: Double = 0
-    private let overscan = 3
+    /// Extra rows rendered above & below the viewport. A buffer that hides the reactive
+    /// re-render latency (~3 frames: @State → whole-tree VDOM diff in Wasm → patch → DOM) when
+    /// scrolling: without enough buffer a moderate drag outruns the last-rendered window and
+    /// briefly shows empty runway. 10 rows masks moderate drags; internal so tests stay
+    /// overscan-agnostic. (A faster fling can still outrun it — the deeper fix is cheaper renders.)
+    let overscan = 10
 
     init(rowCount: Int, columns: [DataColumn], rowKey: @escaping (Int) -> String,
          selection: SelectionModel?, sortable: Bool, sortOrder: Binding<SortOrder?>?,
