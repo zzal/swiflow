@@ -276,6 +276,26 @@ final class DataTableBox {
     }
     func clampedPage() -> Int { max(0, min(currentPage(), pageCount() - 1)) }
 
+    /// Resolved row height when virtualization is *active* this render, else nil.
+    /// Active requires a positive rowHeight AND a bounded scroll container (`maxHeight`).
+    /// Emits a DEBUG diagnostic when the config asked for virtualization but a precondition
+    /// is missing, then falls back to a non-virtualized render.
+    func activeRowHeight() -> Int? {
+        guard case let .fixed(rowHeight)? = virtualization else { return nil }
+        guard rowHeight > 0 else {
+            swiflowDiagnostic("DataTable: virtualized rowHeight must be > 0; rendering all rows.")
+            return nil
+        }
+        guard maxHeight != nil else {
+            swiflowDiagnostic("DataTable: virtualization needs maxHeight (the scroll container); rendering all rows.")
+            return nil
+        }
+        return rowHeight
+    }
+
+    /// Pagination renders only when a pageSize is set AND virtualization is not active.
+    func paginationActive() -> Bool { pageSize != nil && activeRowHeight() == nil }
+
     /// THE virtualization seam: which sorted indices are visible this render. v1 = page slice
     /// (or all rows when unpaginated). A future virtualizer replaces only this method.
     func visibleWindow(_ order: [Int], page: Int) -> [Int] {
@@ -301,7 +321,7 @@ final class DataTableBox {
         let scroll = element("div", attributes: scrollAttrs, children: [table])
 
         var rootChildren: [VNode] = [scroll]
-        if pageSize != nil, pageCount() > 1 { rootChildren.append(pager(page: page)) }
+        if paginationActive(), pageCount() > 1 { rootChildren.append(pager(page: page)) }
         return element("div", attributes: [.class("sw-table-wrap")] + caller, children: rootChildren)
     }
 

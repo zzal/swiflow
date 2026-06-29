@@ -376,6 +376,63 @@ struct DataTableStateTests {
         #expect(box.virtualization == .fixed(rowHeight: 40))
         #expect(box.columnsTemplate == "1fr 80px 1fr")
     }
+
+    @Test func virtualizationInactiveWithoutMaxHeight() {
+        let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #if DEBUG
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+        #expect(box.activeRowHeight() == nil)   // no maxHeight ⇒ not active
+        #expect(captured.contains { $0.contains("maxHeight") })
+        #else
+        #expect(box.activeRowHeight() == nil)
+        #endif
+    }
+
+    @Test func virtualizationInactiveWithNonPositiveRowHeight() {
+        let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+                                   virtualization: .fixed(rowHeight: 0),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #if DEBUG
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+        #expect(box.activeRowHeight() == nil)
+        #expect(captured.contains { $0.contains("rowHeight") })
+        #else
+        #expect(box.activeRowHeight() == nil)
+        #endif
+    }
+
+    @Test func virtualizationActiveWithHeightAndRowHeight() {
+        let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+                                   virtualization: .fixed(rowHeight: 44),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #expect(box.activeRowHeight() == 44)
+    }
+
+    @Test func virtualizationSuppressesPager() {
+        let people = (0..<50).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, pageSize: 10, maxHeight: .custom("300px"),
+                                   virtualization: .fixed(rowHeight: 44),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #expect(box.activeRowHeight() == 44)
+        #expect(box.paginationActive() == false)   // virtualization wins
+    }
+
+    @Test func paginationActiveWhenNotVirtualized() {
+        let people = (0..<50).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(people, id: \.id, pageSize: 10) { Column("Name", value: \.name) }
+        #expect(box.activeRowHeight() == nil)
+        #expect(box.paginationActive() == true)
+    }
 }
 
 @Suite("DataTable — row interaction")
