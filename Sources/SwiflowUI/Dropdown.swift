@@ -1,5 +1,8 @@
 // Sources/SwiflowUI/Dropdown.swift
 import Swiflow
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
 
 /// Where the menu opens relative to its trigger (CSS Anchor Positioning `position-area`).
 public enum DropdownPlacement: Equatable {
@@ -98,8 +101,9 @@ final class DropdownMenu {
         // Items read the menu id from the ambient to wire close-on-select.
         let prev = DropdownAmbient.currentMenuID
         DropdownAmbient.currentMenuID = menuID
-        let itemNodes = items()
+        let rawItems = items()
         DropdownAmbient.currentMenuID = prev
+        let itemNodes = rovingMenuItems(rawItems)
 
         let (callerClasses, callerRest) = splitClasses(triggerAttrs)
         let triggerClass = (["sw-btn", "sw-btn--secondary", "sw-btn--md", "sw-dropdown__trigger"] + callerClasses)
@@ -109,7 +113,7 @@ final class DropdownMenu {
             .class(triggerClass),
             .attr("type", "button"),
             .attr("popovertarget", menuID),
-            .attr("aria-haspopup", "true"),
+            .attr("aria-haspopup", "menu"),
             .style("anchor-name", anchor),
         ] + callerRest, children: [
             text(label),
@@ -119,6 +123,7 @@ final class DropdownMenu {
 
         let menu = element("div", attributes: [
             .class("sw-dropdown__menu"),
+            .attr("role", "menu"),
             .attr("popover", "auto"),
             .attr("id", menuID),
             .style("position-anchor", anchor),
@@ -126,6 +131,81 @@ final class DropdownMenu {
         ], children: itemNodes)
 
         return element("div", attributes: [.class("sw-dropdown")], children: [trigger, menu])
+    }
+
+    /// Post-process the built item nodes into a roving WAI-ARIA menu. Every menu item gets
+    /// `role="menuitem"`, `tabindex="-1"`, and a stable id (`<menuID>-item-<n>`); the first
+    /// ENABLED item gets `autofocus` (the Popover API focuses it when the menu opens); every
+    /// enabled item gets a keydown handler that roves focus. Disabled items are `inert` —
+    /// skipped (no autofocus, no handler, excluded from the roving order). Dividers and any
+    /// non-item nodes pass through untouched. Only the menu knows item order/count, so the
+    /// assembly lives here rather than in `DropdownItem`.
+    private func rovingMenuItems(_ nodes: [VNode]) -> [VNode] {
+        // Pass 1: assign each menu item a stable id; collect the enabled ids in order.
+        var idForNode: [String?] = []
+        var enabledIDs: [String] = []
+        var itemIndex = 0
+        for node in nodes {
+            if isDropdownMenuItem(node) {
+                let id = "\(menuID)-item-\(itemIndex)"
+                itemIndex += 1
+                idForNode.append(id)
+                if isEnabledDropdownItem(node) { enabledIDs.append(id) }
+            } else {
+                idForNode.append(nil)
+            }
+        }
+        // Pass 2: inject menu semantics; first enabled item autofocuses; enabled items rove.
+        var firstEnabledAssigned = false
+        return nodes.enumerated().map { index, node in
+            guard let id = idForNode[index] else { return node }   // non-item → untouched
+            var item = node
+                .attr("role", "menuitem")
+                .attr("tabindex", -1)
+                .id(id)
+            if isEnabledDropdownItem(node) {
+                if !firstEnabledAssigned {
+                    item = item.attr("autofocus", true)
+                    firstEnabledAssigned = true
+                }
+                let currentID = id
+                let order = enabledIDs
+                let owningMenuID = menuID
+                item = item.on(.keydown) { (e: EventInfo) in
+                    DropdownMenu.rove(e, current: currentID, order: order, menuID: owningMenuID)
+                }
+            }
+            return item
+        }
+    }
+
+    /// Imperatively rove focus among the enabled menu items in response to a keydown.
+    /// `#if canImport(JavaScriptKit)`-guarded DOM access (a no-op on host), mirroring
+    /// Autocomplete's focus-by-id. ↑/↓ wrap; Home/End jump to the ends; Tab closes the menu.
+    /// Enter/Space/Escape are intentionally NOT handled here — they are native (`<button>`
+    /// activation + `popovertargetaction="hide"`, and popover light-dismiss with focus return).
+    private static func rove(_ e: EventInfo, current: String, order: [String], menuID: String) {
+        guard let key = e.key, !order.isEmpty,
+              let idx = order.firstIndex(of: current) else { return }
+        let count = order.count
+        let target: String?
+        let close: Bool
+        switch key {
+        case "ArrowDown": target = order[(idx + 1) % count];         close = false
+        case "ArrowUp":   target = order[(idx + count - 1) % count]; close = false
+        case "Home":      target = order[0];                         close = false
+        case "End":       target = order[count - 1];                 close = false
+        case "Tab":       target = nil;                              close = true
+        default:          return
+        }
+        #if canImport(JavaScriptKit)
+        guard let doc = JSObject.global.document.object else { return }
+        if close {
+            _ = doc.getElementById?(menuID).object?.hidePopover?()
+        } else if let target, let el = doc.getElementById?(target).object {
+            _ = el.focus?()
+        }
+        #endif
     }
 }
 
@@ -162,6 +242,23 @@ public func DropdownItem(
 @MainActor
 public func DropdownDivider() -> VNode {
     element("div", attributes: [.class("sw-dropdown__divider"), .attr("role", "separator")])
+}
+
+/// True when `node` is a Dropdown menu item button (enabled or disabled). Dividers
+/// (`sw-dropdown__divider`) and non-element nodes are excluded.
+@MainActor
+func isDropdownMenuItem(_ node: VNode) -> Bool {
+    guard case .element(let data) = node else { return false }
+    return (data.attributes["class"] ?? "").contains("sw-dropdown__item")
+}
+
+/// True when `node` is a Dropdown menu item that is NOT inert (focusable/actionable).
+/// Inert items are stored with a presence-only `inert` attribute (empty-string value).
+@MainActor
+func isEnabledDropdownItem(_ node: VNode) -> Bool {
+    guard case .element(let data) = node else { return false }
+    return (data.attributes["class"] ?? "").contains("sw-dropdown__item")
+        && data.attributes["inert"] == nil
 }
 
 /// Global `.sw-dropdown*` sheet. The menu is a Popover-API panel anchored to the trigger;

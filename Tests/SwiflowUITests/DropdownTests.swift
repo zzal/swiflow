@@ -59,7 +59,7 @@ struct DropdownTests {
         let menu = firstWithClass(root, "sw-dropdown__menu")!
         #expect(trigger.tag == "button")
         #expect(trigger.attributes["type"] == "button")
-        #expect(trigger.attributes["aria-haspopup"] == "true")
+        #expect(trigger.attributes["aria-haspopup"] == "menu")
         #expect(menu.attributes["popover"] == "auto")
         let menuID = menu.attributes["id"]!
         #expect(trigger.attributes["popovertarget"] == menuID)
@@ -140,6 +140,54 @@ struct DropdownTests {
         #expect(archive.attributes["disabled"] == nil)      // no longer uses the disabled attribute
         #expect(archive.handlers["click"] == nil)           // no action
         #expect(archive.attributes["popovertarget"] == nil) // no close-on-select
+    }
+
+    @Test("menu container is role=menu; trigger advertises aria-haspopup=menu") func menuRoles() {
+        let node = building { dd { [DropdownItem("Edit") {}] } }
+        let root = el(node)!
+        let trigger = firstWithClass(root, "sw-dropdown__trigger")!
+        let menu = firstWithClass(root, "sw-dropdown__menu")!
+        #expect(trigger.attributes["aria-haspopup"] == "menu")
+        #expect(menu.attributes["role"] == "menu")
+    }
+
+    @Test("every item gets role=menuitem, tabindex=-1, and a stable per-index id") func menuItemRoving() {
+        let node = building {
+            dd { [DropdownItem("Edit") {}, DropdownDivider(), DropdownItem("Delete", variant: .danger) {}] }
+        }
+        let root = el(node)!
+        let menu = firstWithClass(root, "sw-dropdown__menu")!
+        let menuID = menu.attributes["id"]!
+        let items = menu.children.compactMap(el).filter { ($0.attributes["class"] ?? "").contains("sw-dropdown__item") }
+        #expect(items.count == 2)
+        for item in items {
+            #expect(item.attributes["role"] == "menuitem")
+            #expect(item.attributes["tabindex"] == "-1")
+        }
+        #expect(items[0].attributes["id"] == "\(menuID)-item-0")
+        #expect(items[1].attributes["id"] == "\(menuID)-item-1")
+        // The divider is untouched (still a separator, no menuitem role).
+        let divider = firstWithClass(root, "sw-dropdown__divider")!
+        #expect(divider.attributes["role"] == "separator")
+    }
+
+    @Test("first ENABLED item gets autofocus + a keydown handler; disabled items get neither") func autofocusAndKeydown() {
+        let node = building {
+            dd { [DropdownItem("First", disabled: true) {},
+                  DropdownItem("Second") {},
+                  DropdownItem("Third") {}] }
+        }
+        let root = el(node)!
+        let menu = firstWithClass(root, "sw-dropdown__menu")!
+        let items = menu.children.compactMap(el).filter { ($0.attributes["class"] ?? "").contains("sw-dropdown__item") }
+        // items[0] = First (disabled/inert), items[1] = Second, items[2] = Third
+        #expect(items[0].attributes["inert"] == "")
+        #expect(items[0].attributes["autofocus"] == nil)   // disabled is never the autofocus target
+        #expect(items[0].handlers["keydown"] == nil)       // disabled gets no roving handler
+        #expect(items[1].attributes["autofocus"] == "")    // first ENABLED item
+        #expect(items[1].handlers["keydown"] != nil)
+        #expect(items[2].attributes["autofocus"] == nil)   // only the first enabled item autofocuses
+        #expect(items[2].handlers["keydown"] != nil)
     }
 
     @Test("stylesheet: anchored popover menu with token-driven entry animation") func stylesheet() {
