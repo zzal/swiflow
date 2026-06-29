@@ -314,6 +314,24 @@ DataTable(rows) { … }
 
 ### Caveats
 
+**Dynamic data needs a `key:`.** `DataTable` is an embedded component, so it is reused
+across renders and captures `rows`, `loading`, `pageSize`, and the columns at **first
+mount** — only the `selection`, `sortOrder`, and `page` bindings stay live. If your data
+changes at runtime (a filter, a fetch, an upstream re-sort), the table will not update
+unless you pass a `key:` that changes with the data, which remounts it with fresh rows:
+
+```swift
+// Filtered/fetched data: key changes with the data → table re-reads `rows`.
+DataTable(filtered, selection: $selected,
+          key: "people-\(filtered.count)-\(query)") {
+    Column("Name", value: \.name)
+}
+```
+
+Remounting resets the self-managed sort/page state; bind `sortOrder:`/`page:` if you need
+those preserved across data changes. (Static data — a `let` array that never changes —
+needs no `key:`.)
+
 **Row-click + interactive cells.** Swiflow handlers cannot stop event propagation.
 A click on an in-cell `Button` also fires `onRowClick`. Avoid combining `onRowClick`
 with buttons or links inside cells; use one or the other:
