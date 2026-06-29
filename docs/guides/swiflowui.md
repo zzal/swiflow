@@ -332,6 +332,20 @@ Remounting resets the self-managed sort/page state; bind `sortOrder:`/`page:` if
 those preserved across data changes. (Static data — a `let` array that never changes —
 needs no `key:`.)
 
+A keyed `DataTable` is a *keyed* child, and Swiflow requires siblings to be all-keyed or
+all-unkeyed. If the table sits beside unkeyed siblings (a heading, a filter control), give
+it its own single-child container so it isn't mixed with them:
+
+```swift
+VStack {
+    h2("People")
+    Select("Role", selection: $role, options: roles)
+    VStack {                                  // isolates the keyed table
+        DataTable(filtered, key: "people-\(role)") { … }
+    }
+}
+```
+
 **Row-click + interactive cells.** Swiflow handlers cannot stop event propagation.
 A click on an in-cell `Button` also fires `onRowClick`. Avoid combining `onRowClick`
 with buttons or links inside cells; use one or the other:

@@ -90,6 +90,23 @@ public struct Column<Row> {
                   render: cell, comparator: nil)
     }
 
+    /// A column sortable by a `Comparable` value that renders via a custom cell. Use this when
+    /// the value is `Comparable` but not `CustomStringConvertible` (e.g. a `Comparable` enum), so
+    /// the auto-text `value:` constructor doesn't apply: sorts by the keypath, renders via `cell`.
+    public init<V: Comparable>(
+        _ title: String, value keyPath: KeyPath<Row, V>, id: String? = nil,
+        @ChildrenBuilder cell: @escaping (Row) -> [VNode]
+    ) {
+        self.init(
+            id: id ?? title, title: title, alignment: .leading, width: nil,
+            render: cell,
+            comparator: { a, b in
+                let va = a[keyPath: keyPath], vb = b[keyPath: keyPath]
+                return va < vb ? .ascending : vb < va ? .descending : .same
+            }
+        )
+    }
+
     /// Override how the cell renders (keeps the comparator, if any).
     public func cell(@ChildrenBuilder _ make: @escaping (Row) -> [VNode]) -> Column {
         var c = self; c.render = make; return c

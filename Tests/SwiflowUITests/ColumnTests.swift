@@ -5,6 +5,10 @@ import Testing
 
 private struct Person: Identifiable { let id: Int; let name: String; let age: Int }
 
+// Comparable but deliberately NOT CustomStringConvertible — exercises the relaxed value+cell init.
+private enum Rank: Comparable { case low, mid, high }
+private struct Ranked { let rank: Rank; let label: String }
+
 @MainActor private func textOf(_ nodes: [VNode]) -> String {
     nodes.map { node -> String in
         switch node {
@@ -43,6 +47,14 @@ struct ColumnTests {
     @Test("custom-cell column has no comparator (not sortable)") func customNotSortable() {
         let col = Column<Person>("Actions") { _ in [text("edit")] }
         #expect(col.comparator == nil)
+    }
+
+    @Test("value+cell init sorts a Comparable (non-CustomStringConvertible) value with a custom cell") func comparableOnlyValue() {
+        let col = Column<Ranked>("Rank", value: \.rank) { [text($0.label)] }
+        #expect(col.comparator != nil)
+        #expect(col.comparator!(Ranked(rank: .low, label: "a"), Ranked(rank: .high, label: "b")) == .ascending)
+        #expect(col.comparator!(Ranked(rank: .high, label: "b"), Ranked(rank: .low, label: "a")) == .descending)
+        #expect(textOf(col.render(Ranked(rank: .mid, label: "M"))) == "M")
     }
 
     @Test(".sortable(false) drops the comparator") func optOut() {
