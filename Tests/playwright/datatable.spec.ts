@@ -87,5 +87,10 @@ test.describe("DataTable", () => {
     const headTop = await vtable.locator("thead").evaluate((el) => el.getBoundingClientRect().top);
     const containerTop = await scroll.evaluate((el) => el.getBoundingClientRect().top);
     expect(Math.abs(headTop - containerTop)).toBeLessThan(3);
+
+    // Single row separator (no double line): the row carries the border, cells don't.
+    const tdBorder = await rows.first().locator("td").first()
+      .evaluate((el) => getComputedStyle(el).borderBottomWidth);
+    expect(tdBorder).toBe("0px");
   });
 });
