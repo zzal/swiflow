@@ -624,6 +624,9 @@ let dataTableSheet: CSSSheet = css {
       position: absolute; inset-inline: 0; top: 0;
       border-block-end: 1px solid var(--sw-border);
     }
+    /* The row carries the separator; drop the per-cell border so rows aren't double-lined
+       (cells are centered, so their border-block-end would sit mid-row, not at the edge). */
+    .sw-table--virtual .sw-table__td { border-block-end: none; }
     .sw-table--virtual .sw-table__th { position: static; }
     """)
 }
