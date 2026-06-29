@@ -348,7 +348,9 @@ final class DataTableBox {
         cells.append(contentsOf: columns.map { col in
             element("td", attributes: [.class("sw-table__td")] + alignWidth(col), children: col.render(i))
         })
-        var attrs: [Attribute] = [.class("sw-table__tr"), .key(rowKey(i))]
+        var attrs: [Attribute] = [.key(rowKey(i))]
+        let rowClass = onRowClick != nil ? "sw-table__tr sw-table__tr--clickable" : "sw-table__tr"
+        attrs.insert(.class(rowClass), at: 0)
         if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
         if let onRowClick { attrs.append(.on(.click) { onRowClick(i) }) }
         return element("tr", attributes: attrs, children: cells)
@@ -405,6 +407,8 @@ let dataTableSheet: CSSSheet = css {
       border-block-end: 1px solid var(--sw-border);
     }
     .sw-table__tr[aria-selected="true"] { background-color: var(--sw-accent-soft, color-mix(in oklab, var(--sw-accent) 12%, transparent)); }
+    .sw-table__tr--clickable { cursor: pointer; }
+    .sw-table__tr--clickable:hover { background-color: var(--sw-surface-hover, color-mix(in oklab, var(--sw-text) 5%, transparent)); }
     .sw-table__sort {
       all: unset; cursor: pointer; font: inherit; font-weight: inherit;
       display: inline-flex; align-items: center; gap: 0.25em; width: 100%;
