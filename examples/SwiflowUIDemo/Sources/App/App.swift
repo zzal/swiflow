@@ -212,6 +212,7 @@ final class Demo {
                 Dropdown("Actions") {
                     DropdownItem("Edit") { self.toasts.append(ToastItem("Edit selected")) }
                     DropdownItem("Duplicate") { self.toasts.append(ToastItem("Duplicated", variant: .success)) }
+                    DropdownItem("Archive", disabled: true) {}
                     DropdownDivider()
                     DropdownItem("Delete", variant: .danger) { self.toasts.append(ToastItem("Deleted", variant: .danger)) }
                 }
