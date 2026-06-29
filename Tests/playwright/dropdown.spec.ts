@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // The SwiflowUIDemo dropdown: trigger "Actions"; items Edit, Duplicate,
-// Archive (disabled/inert), Delete. Enabled roving order: Edit, Duplicate, Delete.
+// Archive (disabled/inert), [divider], Delete. Enabled roving order: Edit, Duplicate, Delete.
 test.describe("Dropdown roving menu", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");

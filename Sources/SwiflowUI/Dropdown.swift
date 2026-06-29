@@ -198,6 +198,10 @@ final class DropdownMenu {
         case "ArrowUp":   target = order[(idx + count - 1) % count]; close = false
         case "Home":      target = order[0];                         close = false
         case "End":       target = order[count - 1];                 close = false
+        // Tab: close and let the browser's native Tab focus progression continue (we can't
+        // preventDefault — the no-event-preventDefault project invariant). The menu closes and
+        // focus moves to the next tabbable element outside it, NOT back to the trigger (Escape
+        // does that, via the Popover API's native focus-return).
         case "Tab":       target = nil;                              close = true
         default:          return
         }
@@ -252,7 +256,7 @@ public func DropdownDivider() -> VNode {
 /// True when `node` is a Dropdown menu item button (enabled or disabled). Dividers
 /// (`sw-dropdown__divider`) and non-element nodes are excluded.
 @MainActor
-func isDropdownMenuItem(_ node: VNode) -> Bool {
+private func isDropdownMenuItem(_ node: VNode) -> Bool {
     guard case .element(let data) = node else { return false }
     return (data.attributes["class"] ?? "").contains("sw-dropdown__item")
 }
@@ -260,7 +264,7 @@ func isDropdownMenuItem(_ node: VNode) -> Bool {
 /// True when `node` is a Dropdown menu item that is NOT inert (focusable/actionable).
 /// Inert items are stored with a presence-only `inert` attribute (empty-string value).
 @MainActor
-func isEnabledDropdownItem(_ node: VNode) -> Bool {
+private func isEnabledDropdownItem(_ node: VNode) -> Bool {
     guard case .element(let data) = node else { return false }
     return (data.attributes["class"] ?? "").contains("sw-dropdown__item")
         && data.attributes["inert"] == nil
