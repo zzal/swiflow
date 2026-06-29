@@ -32,16 +32,19 @@ enum DropdownAmbient {
     static var currentMenuID: String?
 }
 
-/// A dropdown of actions: a trigger button that reveals an anchored popover of items.
+/// A **menu** of actions (WAI-ARIA `role="menu"`): a trigger button that reveals an anchored
+/// popover of `role="menuitem"` items.
 ///
-/// Native-first and **lifecycle-free** — no JS, no runtime state. (It's a `@Component`
-/// only to pin a stable popover id across re-renders; see `DropdownMenu` below.) Built on the Popover API
-/// (`popover="auto"`) + CSS Anchor Positioning, so it gets top-layer rendering, ESC +
-/// click-outside dismissal, and trigger-anchored placement for free; each item closes
-/// the menu on select via `popovertargetaction="hide"`. Keyboard: Tab to the trigger,
-/// Enter/Space opens, Tab through items, Enter activates, Esc closes. (Arrow-key roving
-/// — the full `role=menu` pattern — needs an `EventInfo.key` enabler and isn't wired,
-/// so this is a dropdown of actions, not a strict ARIA menu.)
+/// Native-first and lifecycle-free — no runtime state. (It's a `@Component` only to pin a stable
+/// popover id across re-renders; see `DropdownMenu` below.) Built on the Popover API
+/// (`popover="auto"`) + CSS Anchor Positioning, so it gets top-layer rendering, ESC + click-outside
+/// dismissal, and trigger-anchored placement for free; each item closes the menu on select via
+/// `popovertargetaction="hide"`.
+///
+/// **Keyboard (roving tabindex — the APG menu pattern):** Enter/Space on the trigger opens the
+/// menu and focus lands on the first item (native `autofocus`); ↑/↓ move between items and wrap;
+/// Home/End jump to the first/last; Enter/Space activate the focused item and close; Esc closes and
+/// returns focus to the trigger; Tab closes the menu. Disabled items are `inert` and skipped.
 ///
 ///     Dropdown("Actions") {
 ///         DropdownItem("Edit") { edit() }
@@ -209,8 +212,10 @@ final class DropdownMenu {
     }
 }
 
-/// One actionable row in a `Dropdown`. Renders a `<button>` that runs `action` and
-/// closes the menu on click. Use inside a `Dropdown { … }` items builder.
+/// One actionable row in a `Dropdown`. Renders a `<button>`; the parent `Dropdown` injects the
+/// `role="menuitem"`, roving `tabindex`, and stable id. Runs `action` and closes the menu on
+/// select. `disabled: true` renders the button `inert` — removed from focus, pointer events, and
+/// the accessibility tree, and skipped by keyboard roving. Use inside a `Dropdown { … }` builder.
 @MainActor
 public func DropdownItem(
     _ label: String,
