@@ -412,6 +412,53 @@ struct DataTableStateTests {
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #expect(box.runwayHeightPx() == 250 * 32)
     }
+
+    @Test func gridTemplateIncludesSelectionTrack() {
+        let rows = (0..<3).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let sel = Binding<Set<Int>>(get: { [] }, set: { _ in })
+        let box = makeDataTableBox(rows, id: \.id, selection: sel,
+                                   maxHeight: .custom("300px"), virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr 80px") {
+            Column("Name", value: \.name); Column("Age", value: \.age)
+        }
+        #expect(box.gridTemplate() == "min-content 1fr 80px")
+    }
+
+    @Test func gridTemplateDefaultsToRepeatWhenNoTemplate() {
+        let rows = (0..<3).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(rows, id: \.id, maxHeight: .custom("300px"),
+                                   virtualization: .fixed(rowHeight: 40)) {
+            Column("Name", value: \.name); Column("Age", value: \.age)
+        }
+        #expect(box.gridTemplate() == "repeat(2, minmax(0, 1fr))")
+    }
+
+    @Test func virtualBodyHasRunwayAndTranslatedRows() {
+        let rows = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(rows, id: \.id, maxHeight: .custom("400px"),
+                                   virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        box.setViewportMetrics(scrollTop: 4000, viewportHeight: 400)
+        let root = building { box.body }
+        let table = allTags(root, "table").first!
+        #expect(table.attributes["class"]?.contains("sw-table--virtual") == true)
+        #expect(table.style["--sw-table-cols"] == "1fr")
+        #expect(table.attributes["aria-rowcount"] == "1000")
+        let tbody = allTags(root, "tbody").first!
+        #expect(tbody.style["height"] == "40000px")          // 1000 * 40
+        let trs = allTags(.element(tbody), "tr")
+        #expect(trs.count == 16)
+        #expect(trs.first!.style["transform"] == "translateY(3880px)")   // window start 97 * 40
+        #expect(trs.first!.attributes["aria-rowindex"] == "98")          // 97 + 1
+    }
+
+    @Test func nonVirtualizedHasNoVirtualClass() {
+        let rows = (0..<3).map { Person(id: $0, name: "P\($0)", age: $0) }
+        let box = makeDataTableBox(rows, id: \.id) { Column("Name", value: \.name) }
+        let root = building { box.body }
+        let table = allTags(root, "table").first!
+        #expect(table.attributes["class"]?.contains("sw-table--virtual") != true)
+    }
 }
 
 @MainActor

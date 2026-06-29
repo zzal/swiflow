@@ -1,5 +1,8 @@
 // Sources/SwiflowUI/DataTable.swift
 import Swiflow
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
 
 // MARK: - Virtualization config
 
@@ -315,6 +318,13 @@ final class DataTableBox {
     /// Pagination renders only when a pageSize is set AND virtualization is not active.
     func paginationActive() -> Bool { pageSize != nil && activeRowHeight() == nil }
 
+    /// Shared `grid-template-columns` for virtualized mode: an auto `min-content` selection
+    /// track (when selection is on) + the caller's template, or an equal-fraction default.
+    func gridTemplate() -> String {
+        let dataCols = columnsTemplate ?? "repeat(\(columns.count), minmax(0, 1fr))"
+        return selection != nil ? "min-content \(dataCols)" : dataCols
+    }
+
     /// THE virtualization seam: which sorted indices are visible this render.
     /// virtualized ⇒ scroll-driven window (+overscan); paginated ⇒ page slice; else all rows.
     func visibleWindow(_ order: [Int], page: Int) -> [Int] {
@@ -340,12 +350,16 @@ final class DataTableBox {
         let page = clampedPage()
         let window = visibleWindow(order, page: page)
 
-        let table = element("table", attributes: [.class("sw-table")],
-                            children: [headerRow(), element("tbody", children: bodyRows(window))])
-
-        var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
-        if let maxHeight { scrollAttrs.append(.style("max-height", maxHeight)) }
-        let scroll = element("div", attributes: scrollAttrs, children: [table])
+        let scroll: VNode
+        if let rh = activeRowHeight() {
+            scroll = virtualScroll(window: window, rowHeight: rh)
+        } else {
+            let table = element("table", attributes: [.class("sw-table")],
+                                children: [headerRow(), element("tbody", children: bodyRows(window))])
+            var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
+            if let maxHeight { scrollAttrs.append(.style("max-height", maxHeight)) }
+            scroll = element("div", attributes: scrollAttrs, children: [table])
+        }
 
         var rootChildren: [VNode] = [scroll]
         if paginationActive(), pageCount() > 1 { rootChildren.append(pager(page: page)) }
@@ -358,7 +372,7 @@ final class DataTableBox {
         var cells: [VNode] = []
         if selection != nil { cells.append(selectAllCell()) }
         cells.append(contentsOf: columns.map(headerCell))
-        return element("thead", children: [element("tr", children: cells)])
+        return element("thead", children: [element("tr", attributes: [.class("sw-table__tr sw-table__tr--head")], children: cells)])
     }
 
     private func alignWidth(_ col: DataColumn) -> [Attribute] {
@@ -444,6 +458,83 @@ final class DataTableBox {
             .on(.change) { _ in sel.toggle(i) },
         ])
         return element("td", attributes: [.class("sw-table__td sw-table__select")], children: [input])
+    }
+
+    // MARK: virtual render
+
+    #if canImport(JavaScriptKit)
+    private let scrollRef = Ref<JSObject>()
+    #endif
+
+    private func virtualScroll(window: [Int], rowHeight: Int) -> VNode {
+        let first = max(0, firstVisibleIndex() - overscan)   // window start = same as visibleWindow's start
+        let tableAttrs: [Attribute] = [
+            .class("sw-table sw-table--virtual"),
+            .style("--sw-table-cols", gridTemplate()),
+            .attr("aria-rowcount", String(rowCount)),
+        ]
+        let tbody = element("tbody",
+                            attributes: [.style("height", "\(runwayHeightPx())px")],
+                            children: virtualBodyRows(window, first: first, rowHeight: rowHeight))
+        let table = element("table", attributes: tableAttrs, children: [headerRow(), tbody])
+        var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
+        if let maxHeight { scrollAttrs.append(.style("max-height", maxHeight)) }
+        scrollAttrs.append(.on(.custom("scroll")) { self.onScroll() })
+        #if canImport(JavaScriptKit)
+        scrollAttrs.append(.refBinding(AnyRefBinding(scrollRef)))
+        #endif
+        return element("div", attributes: scrollAttrs, children: [table])
+    }
+
+    private func virtualBodyRows(_ window: [Int], first: Int, rowHeight: Int) -> [VNode] {
+        let colspan = columns.count + (selection != nil ? 1 : 0)
+        if loading { return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")])] }
+        if rowCount == 0 { return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)])] }
+        return window.enumerated().map { offset, rowIndex in
+            virtualRowVNode(rowIndex, absolute: first + offset, rowHeight: rowHeight)
+        }
+    }
+
+    private func virtualRowVNode(_ i: Int, absolute: Int, rowHeight: Int) -> VNode {
+        var cells: [VNode] = []
+        if let sel = selection { cells.append(rowSelectCell(i, sel)) }
+        cells.append(contentsOf: columns.map { col in
+            element("td", attributes: [.class("sw-table__td")] + alignWidth(col), children: col.render(i))
+        })
+        let rowClass = onRowClick != nil ? "sw-table__tr sw-table__tr--clickable" : "sw-table__tr"
+        var attrs: [Attribute] = [
+            .class(rowClass), .key(rowKey(i)),
+            .style("transform", "translateY(\(absolute * rowHeight)px)"),
+            .style("height", "\(rowHeight)px"),
+            .attr("aria-rowindex", String(absolute + 1)),
+        ]
+        if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
+        if let onRowClick { attrs.append(.on(.click) { onRowClick(i) }) }
+        return element("tr", attributes: attrs, children: cells)
+    }
+
+    /// Reads scrollTop/clientHeight from the live container and updates metrics ONLY when the
+    /// rendered window would actually shift — avoids a re-render per scrolled pixel.
+    private func onScroll() {
+        #if canImport(JavaScriptKit)
+        guard let node = scrollRef.wrappedValue, let rh = activeRowHeight(), rh > 0 else { return }
+        let top = node.scrollTop.number ?? 0
+        let height = node.clientHeight.number ?? 0
+        let newFirst = max(0, Int(top) / rh)
+        let newRowsInView = (Int(height) + rh - 1) / rh
+        let oldRowsInView = viewportHeight > 0 ? (Int(viewportHeight) + rh - 1) / rh : -1
+        if newFirst != firstVisibleIndex() || newRowsInView != oldRowsInView {
+            setViewportMetrics(scrollTop: top, viewportHeight: height)
+        }
+        #endif
+    }
+
+    func onAppear() {
+        #if canImport(JavaScriptKit)
+        guard activeRowHeight() != nil, let node = scrollRef.wrappedValue else { return }
+        setViewportMetrics(scrollTop: node.scrollTop.number ?? 0,
+                           viewportHeight: node.clientHeight.number ?? 0)
+        #endif
     }
 
     // MARK: pager
