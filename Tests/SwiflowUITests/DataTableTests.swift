@@ -180,3 +180,85 @@ struct DataTableSortTests {
         #expect(allTags(root, "button").isEmpty)
     }
 }
+
+@Suite("DataTable — selection")
+@MainActor
+struct DataTableSelectionTests {
+    private let people = [Person(id: 1, name: "Ada", age: 36),
+                          Person(id: 2, name: "Bob", age: 28),
+                          Person(id: 3, name: "Cy",  age: 41)]
+
+    private func box(_ sel: Binding<Set<Int>>) -> DataTableBox {
+        makeDataTableBox(people, id: \.id, selection: sel) { Column("Name", value: \.name) }
+    }
+    @MainActor private func checkboxes(_ root: VNode) -> [ElementData] {
+        allTags(root, "input").filter { $0.attributes["type"] == "checkbox" }
+    }
+    private func boolProp(_ d: ElementData, _ name: String) -> Bool? {
+        if case .bool(let b)? = d.properties[name] { return b }
+        return nil
+    }
+
+    @Test("a checkbox column appears (header + one per row)") func hasColumn() {
+        let sel = Binding<Set<Int>>(get: { [] }, set: { _ in })
+        let root = building { box(sel).body }
+        #expect(checkboxes(root).count == 4)   // 1 header + 3 rows
+    }
+
+    @Test("no selection binding ⇒ no checkbox column") func noColumn() {
+        let b = makeDataTableBox(people, id: \.id) { Column("Name", value: \.name) }
+        let root = building { b.body }
+        #expect(checkboxes(root).isEmpty)
+    }
+
+    @Test("row checkbox reflects selected state; toggle adds/removes the id") func toggle() {
+        var set: Set<Int> = [2]
+        let sel = Binding<Set<Int>>(get: { set }, set: { set = $0 })
+        let b = box(sel)
+        var root = building { b.body }
+        // header is checkboxes[0]; row order is 1,2,3 → row 2 is checkboxes[2]
+        #expect(boolProp(checkboxes(root)[2], "checked") == true)
+        b.selection!.toggle(0)            // row index 0 = id 1
+        #expect(set == [1, 2])
+        b.selection!.toggle(1)            // row index 1 = id 2 → removed
+        #expect(set == [1])
+        root = building { b.body }
+        #expect(boolProp(checkboxes(root)[1], "checked") == true)   // id 1 now checked
+    }
+
+    @Test("rows carry aria-selected") func ariaSelected() {
+        var set: Set<Int> = [1]
+        let sel = Binding<Set<Int>>(get: { set }, set: { set = $0 })
+        let root = building { box(sel).body }
+        let trs = allTags(.element(allTags(root, "tbody").first!), "tr")
+        #expect(trs[0].attributes["aria-selected"] == "true")
+        #expect(trs[1].attributes["aria-selected"] == "false")
+    }
+
+    @Test("header is indeterminate on partial, checked on full") func selectAllStates() {
+        var set: Set<Int> = []
+        let sel = Binding<Set<Int>>(get: { set }, set: { set = $0 })
+        let b = box(sel)
+        // none selected
+        var header = checkboxes(building { b.body })[0]
+        #expect(boolProp(header, "checked") == false)
+        #expect(boolProp(header, "indeterminate") == false)
+        // partial
+        set = [1]
+        header = checkboxes(building { b.body })[0]
+        #expect(boolProp(header, "indeterminate") == true)
+        // full
+        set = [1, 2, 3]
+        header = checkboxes(building { b.body })[0]
+        #expect(boolProp(header, "checked") == true)
+        #expect(boolProp(header, "indeterminate") == false)
+    }
+
+    @Test("setAll selects every row then clears") func setAll() {
+        var set: Set<Int> = []
+        let sel = Binding<Set<Int>>(get: { set }, set: { set = $0 })
+        let b = box(sel)
+        b.selection!.setAll(true);  #expect(set == [1, 2, 3])
+        b.selection!.setAll(false); #expect(set.isEmpty)
+    }
+}
