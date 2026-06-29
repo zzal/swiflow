@@ -262,3 +262,66 @@ struct DataTableSelectionTests {
         b.selection!.setAll(false); #expect(set.isEmpty)
     }
 }
+
+@Suite("DataTable — pagination")
+@MainActor
+struct DataTablePaginationTests {
+    private let many = (1...10).map { Person(id: $0, name: "P\($0)", age: $0) }
+
+    private func box(pageSize: Int, page: Binding<Int>) -> DataTableBox {
+        makeDataTableBox(many, id: \.id, pageSize: pageSize, page: page) { Column("Name", value: \.name) }
+    }
+    private func rowKeys(_ root: VNode) -> [String] {
+        allTags(.element(allTags(root, "tbody").first!), "tr").map { $0.key ?? "" }
+    }
+    private func pagerButtons(_ root: VNode) -> [ElementData] {
+        guard let pager = allTags(root, "div").first(where: { $0.attributes["class"] == "sw-table__pager" }) else { return [] }
+        return allTags(.element(pager), "button")
+    }
+
+    @Test("first page shows the first slice") func firstSlice() {
+        let page = Binding<Int>(get: { 0 }, set: { _ in })
+        #expect(rowKeys(building { box(pageSize: 4, page: page).body }) == ["1", "2", "3", "4"])
+    }
+
+    @Test("second page shows the next slice") func secondSlice() {
+        let page = Binding<Int>(get: { 1 }, set: { _ in })
+        #expect(rowKeys(building { box(pageSize: 4, page: page).body }) == ["5", "6", "7", "8"])
+    }
+
+    @Test("last partial page shows the remainder") func lastSlice() {
+        let page = Binding<Int>(get: { 2 }, set: { _ in })
+        #expect(rowKeys(building { box(pageSize: 4, page: page).body }) == ["9", "10"])
+    }
+
+    @Test("page index is clamped when it exceeds the range") func clamp() {
+        let page = Binding<Int>(get: { 99 }, set: { _ in })
+        #expect(rowKeys(building { box(pageSize: 4, page: page).body }) == ["9", "10"])   // clamped to page 2
+    }
+
+    @Test("Previous is inert on the first page; Next on the last") func inertEnds() {
+        let first = Binding<Int>(get: { 0 }, set: { _ in })
+        let btnsFirst = pagerButtons(building { box(pageSize: 4, page: first).body })
+        #expect(btnsFirst.first!.attributes["inert"] == "")        // Previous inert
+        #expect(btnsFirst.last!.attributes["inert"] == nil)        // Next active
+
+        let last = Binding<Int>(get: { 2 }, set: { _ in })
+        let btnsLast = pagerButtons(building { box(pageSize: 4, page: last).body })
+        #expect(btnsLast.first!.attributes["inert"] == nil)
+        #expect(btnsLast.last!.attributes["inert"] == "")          // Next inert
+    }
+
+    @Test("Next advances the bound page") func next() {
+        var p = 0
+        let page = Binding<Int>(get: { p }, set: { p = $0 })
+        let b = box(pageSize: 4, page: page)
+        b.setPage(1)
+        #expect(p == 1)
+    }
+
+    @Test("no pager when everything fits on one page") func noPager() {
+        let page = Binding<Int>(get: { 0 }, set: { _ in })
+        let small = makeDataTableBox(Array(many.prefix(3)), id: \.id, pageSize: 10, page: page) { Column("Name", value: \.name) }
+        #expect(pagerButtons(building { small.body }).isEmpty)
+    }
+}
