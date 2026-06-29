@@ -369,8 +369,8 @@ struct DataTableStateTests {
         // 400px viewport / 40px row = 10 rows in view; overscan 3 each side.
         box.setViewportMetrics(scrollTop: 0, viewportHeight: 400)
         let win = box.visibleWindow(box.sortedIndices(), page: 0)
-        #expect(win.first == 0)            // top clamps overscan
-        #expect(win.count == 16)           // 10 + 2*3
+        #expect(win.first == 0)                       // top clamps overscan
+        #expect(win.count == 10 + 2 * box.overscan)   // rowsInView(400/40) + overscan both sides
         #expect(box.firstVisibleIndex() == 0)
     }
 
@@ -381,9 +381,9 @@ struct DataTableStateTests {
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         box.setViewportMetrics(scrollTop: 4000, viewportHeight: 400)   // viewport-top row = 100
         let win = box.visibleWindow(box.sortedIndices(), page: 0)
-        #expect(box.firstVisibleIndex() == 100)   // no overscan
-        #expect(win.first == 97)                  // window start = 100 - overscan(3)
-        #expect(win.count == 16)
+        #expect(box.firstVisibleIndex() == 100)          // no overscan
+        #expect(win.first == 100 - box.overscan)         // window start = firstVisible - overscan
+        #expect(win.count == 10 + 2 * box.overscan)
     }
 
     @Test func windowClampsAtBottom() {
@@ -450,10 +450,11 @@ struct DataTableStateTests {
         let tbody = allTags(root, "tbody").first!
         #expect(tbody.style["height"] == "40000px")          // 1000 * 40
         let trs = allTags(.element(tbody), "tr")
-        #expect(trs.count == 16)
+        let start = 100 - box.overscan                       // window start (firstVisible 100)
+        #expect(trs.count == 10 + 2 * box.overscan)
         #expect(trs.first!.style["grid-template-columns"] == "1fr")
-        #expect(trs.first!.style["transform"] == "translateY(3880px)")   // window start 97 * 40
-        #expect(trs.first!.attributes["aria-rowindex"] == "98")          // 97 + 1
+        #expect(trs.first!.style["transform"] == "translateY(\(start * 40)px)")
+        #expect(trs.first!.attributes["aria-rowindex"] == "\(start + 1)")
     }
 
     @Test func nonVirtualizedHasNoVirtualClass() {
