@@ -368,11 +368,17 @@ final class DataTableBox {
 
     // MARK: header
 
-    private func headerRow() -> VNode {
+    /// `gridColumns` (virtualized mode only) is applied INLINE as `grid-template-columns` on the
+    /// header row — NOT via a CSS custom property: Swiflow's `.style()` can't set `--vars` on the
+    /// DOM (the driver assigns `element.style[name]`, which silently no-ops for custom properties),
+    /// so a `var(--…)` template would resolve empty and collapse the grid to one column.
+    private func headerRow(gridColumns: String? = nil) -> VNode {
         var cells: [VNode] = []
         if selection != nil { cells.append(selectAllCell()) }
         cells.append(contentsOf: columns.map(headerCell))
-        return element("thead", children: [element("tr", attributes: [.class("sw-table__tr sw-table__tr--head")], children: cells)])
+        var trAttrs: [Attribute] = [.class("sw-table__tr sw-table__tr--head")]
+        if let gridColumns { trAttrs.append(.style("grid-template-columns", gridColumns)) }
+        return element("thead", children: [element("tr", attributes: trAttrs, children: cells)])
     }
 
     private func alignWidth(_ col: DataColumn) -> [Attribute] {
@@ -468,15 +474,15 @@ final class DataTableBox {
 
     private func virtualScroll(window: [Int], rowHeight: Int) -> VNode {
         let first = max(0, firstVisibleIndex() - overscan)   // window start = same as visibleWindow's start
+        let cols = gridTemplate()
         let tableAttrs: [Attribute] = [
             .class("sw-table sw-table--virtual"),
-            .style("--sw-table-cols", gridTemplate()),
             .attr("aria-rowcount", String(rowCount)),
         ]
         let tbody = element("tbody",
                             attributes: [.style("height", "\(runwayHeightPx())px")],
-                            children: virtualBodyRows(window, first: first, rowHeight: rowHeight))
-        let table = element("table", attributes: tableAttrs, children: [headerRow(), tbody])
+                            children: virtualBodyRows(window, first: first, rowHeight: rowHeight, gridColumns: cols))
+        let table = element("table", attributes: tableAttrs, children: [headerRow(gridColumns: cols), tbody])
         var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
         if let maxHeight { scrollAttrs.append(.style("max-height", maxHeight)) }
         scrollAttrs.append(.on(.custom("scroll")) { self.onScroll() })
@@ -486,16 +492,16 @@ final class DataTableBox {
         return element("div", attributes: scrollAttrs, children: [table])
     }
 
-    private func virtualBodyRows(_ window: [Int], first: Int, rowHeight: Int) -> [VNode] {
+    private func virtualBodyRows(_ window: [Int], first: Int, rowHeight: Int, gridColumns: String) -> [VNode] {
         let colspan = columns.count + (selection != nil ? 1 : 0)
         if loading { return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")])] }
         if rowCount == 0 { return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)])] }
         return window.enumerated().map { offset, rowIndex in
-            virtualRowVNode(rowIndex, absolute: first + offset, rowHeight: rowHeight)
+            virtualRowVNode(rowIndex, absolute: first + offset, rowHeight: rowHeight, gridColumns: gridColumns)
         }
     }
 
-    private func virtualRowVNode(_ i: Int, absolute: Int, rowHeight: Int) -> VNode {
+    private func virtualRowVNode(_ i: Int, absolute: Int, rowHeight: Int, gridColumns: String) -> VNode {
         var cells: [VNode] = []
         if let sel = selection { cells.append(rowSelectCell(i, sel)) }
         cells.append(contentsOf: columns.map { col in
@@ -504,6 +510,7 @@ final class DataTableBox {
         let rowClass = onRowClick != nil ? "sw-table__tr sw-table__tr--clickable" : "sw-table__tr"
         var attrs: [Attribute] = [
             .class(rowClass), .key(rowKey(i)),
+            .style("grid-template-columns", gridColumns),   // inline, not a CSS var — see headerRow note
             .style("transform", "translateY(\(absolute * rowHeight)px)"),
             .style("height", "\(rowHeight)px"),
             .attr("aria-rowindex", String(absolute + 1)),
@@ -605,7 +612,6 @@ let dataTableSheet: CSSSheet = css {
     .sw-table--virtual tbody { position: relative; }
     .sw-table--virtual .sw-table__tr {
       display: grid;
-      grid-template-columns: var(--sw-table-cols);
       align-items: center;
     }
     .sw-table--virtual thead .sw-table__tr { position: sticky; top: 0; z-index: 1; background-color: var(--sw-surface); }
