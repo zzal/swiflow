@@ -365,12 +365,37 @@ DataTable(rows, onRowClick: { select($0) }) {
 }
 ```
 
+### Virtualization
+
+For large datasets, opt into windowed rendering — only the rows in (and just around) the
+viewport stay in the DOM:
+
+```swift
+DataTable(people, sortable: true,
+          maxHeight: .custom("440px"),          // required: the scroll container
+          virtualization: .fixed(rowHeight: 44), // constant row height
+          columnsTemplate: "2fr 80px 1fr") {     // required: shared column track sizes
+    Column("Name", value: \.name)
+    Column("Age", value: \.age).align(.trailing)
+    Column("Role") { p in Badge(p.role, variant: .accent) }
+}
+```
+
+- **`columnsTemplate` is required for stable columns.** Virtualized rows are CSS grid rows
+  sharing one `grid-template-columns`, so per-column `.width` is ignored. `fr` units are valid
+  here. When a selection checkbox column is present, a `min-content` track is auto-prepended.
+- **`maxHeight` is required.** It is the scroll container the window is measured against;
+  without it the table falls back to rendering every row.
+- **Virtualization replaces pagination.** If you set both `virtualization:` and `pageSize:`,
+  virtualization wins and no pager is shown.
+- **Dynamic data still needs a changing `key:`** — rows freeze at first mount (embed reuse).
+- Fixed row height only in this release; variable/measured heights are future work.
+
 ### Deferred
 
-Virtualization (windowed rendering for large datasets), density/zebra-stripe variants,
-column resize, full ARIA-grid keyboard roving (`role=grid`, arrow-key cell focus),
-totals/summary row, and server-side sort are not in this version. The pagination +
-`maxHeight` scroll container is the current strategy for large-but-bounded datasets.
+Density/zebra-stripe variants, column resize, full ARIA-grid keyboard roving (`role=grid`,
+arrow-key cell focus), totals/summary row, and server-side sort are not in this version.
+Variable/measured row heights and a standalone virtualized `List` are also deferred.
 
 ## Accessibility
 
