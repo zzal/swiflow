@@ -75,4 +75,13 @@ public extension VNode {
     func cssVar(_ name: String, _ value: String) -> VNode {
         mergeAttribute(self) { $0.style[name] = value }
     }
+
+    /// Marks this element as managing its own children: Swiflow mounts the initially-declared
+    /// children once, then never reconciles inside it again (the element shell — attributes,
+    /// properties, style, handlers — is still reconciled). Pair with `.ref(_:)` to populate the
+    /// element imperatively (custom elements, a foreign-painted `<canvas>`, third-party widgets).
+    /// A no-op on non-element nodes (the standard postfix-modifier diagnostic path).
+    func unmanagedChildren() -> VNode {
+        mergeAttribute(self) { $0.managesOwnChildren = true }
+    }
 }

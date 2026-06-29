@@ -375,17 +375,23 @@ func update(
             handlers: handlers,
             into: &patches
         )
-        // Children diff lands in Tasks 16–17.
-        diffChildren(
-            mounted: mounted,
-            newChildren: newData.children,
-            handles: handles,
-            handlers: handlers,
-            into: &patches,
-            scheduler: scheduler,
-            parentPath: path,
-            environment: environment
-        )
+        // Escape hatch: an `.unmanagedChildren()` element owns its own subtree — Swiflow mounted
+        // its initial children once and never reconciles inside it again. The shell (the four bags,
+        // diffed above) stays reactive; only children are left alone, so foreign-managed DOM
+        // (custom-element shadow/light children, a WASM-painted <canvas>, third-party widgets)
+        // survives every re-render.
+        if !newData.managesOwnChildren {
+            diffChildren(
+                mounted: mounted,
+                newChildren: newData.children,
+                handles: handles,
+                handlers: handlers,
+                into: &patches,
+                scheduler: scheduler,
+                parentPath: path,
+                environment: environment
+            )
+        }
         mounted.vnode = next
         return mounted
 

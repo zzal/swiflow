@@ -80,6 +80,13 @@ public struct ElementData: Equatable {
     /// Stored out-of-band like `refBindings`: consumed by Diff at mount/update/
     /// destroy and never folded into the four bags or compared in `==`.
     public var taskBindings: [TaskBinding] = []
+    /// When true, Swiflow mounts this element's initially-declared children once, then NEVER
+    /// reconciles inside it again — an escape hatch for elements that own their own DOM subtree
+    /// (custom elements with self-managed light/shadow children, a foreign-painted `<canvas>`, a
+    /// third-party widget). The element shell (tag + attributes/properties/style/handlers) is still
+    /// reactively reconciled; only the children are left alone. Never serialized — it gates patch
+    /// generation on the Swift side only. Set via `VNode.unmanagedChildren()`.
+    public var managesOwnChildren: Bool = false
 
     /// Creates an `ElementData` with the given bags. Every bag defaults to
     /// empty so callers can pass only what they need.
@@ -117,6 +124,7 @@ public struct ElementData: Equatable {
             && lhs.properties == rhs.properties
             && lhs.style == rhs.style
             && lhs.handlers == rhs.handlers
+            && lhs.managesOwnChildren == rhs.managesOwnChildren
             && lhs.children == rhs.children
     }
 }
