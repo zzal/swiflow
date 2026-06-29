@@ -98,3 +98,85 @@ struct DataTableBaseTests {
         #expect(scroll.style["max-height"] == "480px")
     }
 }
+
+@Suite("DataTable — sorting")
+@MainActor
+struct DataTableSortTests {
+    private let people = [Person(id: 1, name: "Ada", age: 36),
+                          Person(id: 2, name: "Bob", age: 28),
+                          Person(id: 3, name: "Cy",  age: 41)]
+
+    private func box(_ order: Binding<SortOrder?>) -> DataTableBox {
+        makeDataTableBox(people, id: \.id, sortable: true, sortOrder: order) {
+            Column("Name", value: \.name)
+            Column("Age", value: \.age)
+        }
+    }
+    private func rowKeys(_ root: VNode) -> [String] {
+        guard let tbody = allTags(root, "tbody").first else { return [] }
+        return allTags(.element(tbody), "tr").map { $0.key ?? "" }
+    }
+
+    @Test("ascending sort by Age reorders rows; aria-sort reflects it") func ascending() {
+        let order = Binding<SortOrder?>(get: { SortOrder(columnID: "Age", ascending: true) }, set: { _ in })
+        let root = building { box(order).body }
+        #expect(rowKeys(root) == ["2", "1", "3"])   // 28, 36, 41
+        let ageTh = allTags(root, "th").first { allText(.element($0)).contains("Age") }!
+        #expect(ageTh.attributes["aria-sort"] == "ascending")
+    }
+
+    @Test("descending sort reverses order") func descending() {
+        let order = Binding<SortOrder?>(get: { SortOrder(columnID: "Age", ascending: false) }, set: { _ in })
+        #expect(rowKeys(building { box(order).body }) == ["3", "1", "2"])
+    }
+
+    @Test("unsorted keeps input order") func unsorted() {
+        let order = Binding<SortOrder?>(get: { nil }, set: { _ in })
+        #expect(rowKeys(building { box(order).body }) == ["1", "2", "3"])
+    }
+
+    @Test("sort is stable for equal keys (tie-break on original order)") func stable() {
+        let dup = [Person(id: 1, name: "A", age: 5), Person(id: 2, name: "B", age: 5), Person(id: 3, name: "C", age: 1)]
+        let order = Binding<SortOrder?>(get: { SortOrder(columnID: "Age", ascending: true) }, set: { _ in })
+        let b = makeDataTableBox(dup, id: \.id, sortable: true, sortOrder: order) { Column("Age", value: \.age) }
+        let keys = { () -> [String] in
+            let root = building { b.body }
+            return allTags(.element(allTags(root, "tbody").first!), "tr").map { $0.key ?? "" }
+        }()
+        #expect(keys == ["3", "1", "2"])   // 1 first, then the two 5s in original order
+    }
+
+    @Test("non-sortable column gets no aria-sort/button") func nonSortable() {
+        let order = Binding<SortOrder?>(get: { nil }, set: { _ in })
+        let b = makeDataTableBox(people, id: \.id, sortable: true, sortOrder: order) {
+            Column("Actions") { _ in [text("x")] }
+        }
+        let root = building { b.body }
+        let th = allTags(root, "th").first!
+        #expect(th.attributes["aria-sort"] == nil)
+        #expect(allTags(.element(th), "button").isEmpty)
+    }
+
+    @Test("cycleSort goes none → asc → desc → none") func cycle() {
+        var current: SortOrder? = nil
+        let order = Binding<SortOrder?>(get: { current }, set: { current = $0 })
+        let b = box(order)
+        b.cycleSort("Age"); #expect(current == SortOrder(columnID: "Age", ascending: true))
+        b.cycleSort("Age"); #expect(current == SortOrder(columnID: "Age", ascending: false))
+        b.cycleSort("Age"); #expect(current == nil)
+    }
+
+    @Test("clicking a different column starts ascending on it") func switchColumn() {
+        var current: SortOrder? = SortOrder(columnID: "Age", ascending: false)
+        let order = Binding<SortOrder?>(get: { current }, set: { current = $0 })
+        box(order).cycleSort("Name")
+        #expect(current == SortOrder(columnID: "Name", ascending: true))
+    }
+
+    @Test("sortable:false on the table renders plain headers") func tableNotSortable() {
+        let order = Binding<SortOrder?>(get: { nil }, set: { _ in })
+        let b = makeDataTableBox(people, id: \.id, sortable: false, sortOrder: order) { Column("Age", value: \.age) }
+        let root = building { b.body }
+        #expect(allTags(root, "button").isEmpty)
+    }
+}
