@@ -171,9 +171,10 @@ below remain for 1.1+.
 Custom portal/overlay-root host; full ARIA hardening pass
 (beyond native-leaning baseline); virtualized `List`.
 
-DataTable-specific deferrals: virtualization (windowed rendering), density/zebra-stripe
-variants, column resize, full ARIA-grid keyboard roving (`role=grid`, arrow-key cell
-focus), totals/summary row, and server-side sort.
+DataTable-specific deferrals: density/zebra-stripe variants, column resize, full
+ARIA-grid keyboard roving (`role=grid`, arrow-key cell focus), totals/summary row,
+server-side sort, measured/variable row heights, standalone virtualized `List`, and
+row pooling/recycling.
 
 **Shipped since:** `Tooltip` (CSS-only; hover/focus reveal, `aria-describedby`, 4 placements — no
 Escape-dismiss/top-layer, see the component guide), `Dropdown`, **`Menu`** (PR #82 — realized as a
@@ -181,10 +182,13 @@ WAI-ARIA roving `role=menu` upgrade to `Dropdown`: arrow-key roving with real fo
 `autofocus` on open, Home/End, Tab-to-close; disabled items use `inert`), **edge-specific
 padding** (`.padding(.lg, .horizontal)` — logical/RTL-aware `Edge` OptionSet),
 **richer element-model escape hatch** (`.unmanagedChildren()` — roadmap #2 — ships the
-non-reconciled subtree seam; `CustomEvent` detail payloads remain deferred), and
+non-reconciled subtree seam; `CustomEvent` detail payloads remain deferred),
 **`DataTable`** (declarative columns, tri-state sort, multi-select checkboxes, sticky
 header, pagination, empty/loading states, per-column align/width, row-click; see the
-component guide for the full knob set and caveats) have landed from the 1.1+ list.
+component guide for the full knob set and caveats), and **DataTable virtualization**
+(`virtualization: .fixed(rowHeight:)` + `columnsTemplate:` — windowed rendering, fixed
+row height; see the Virtualization subsection of the component guide) have landed from
+the 1.1+ list.
 
 ### M8 (1.1) — Token correctness & generation — ✅ COMPLETE (2026-06-25 → 06-27; released through 0.3.5)
 
