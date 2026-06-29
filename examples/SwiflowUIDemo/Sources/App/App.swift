@@ -1,6 +1,9 @@
 import Swiflow
 import SwiflowDOM
 import SwiflowUI
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+#endif
 
 @MainActor @Component
 final class Demo {
@@ -38,8 +41,8 @@ final class Demo {
         let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
 
         return VStack(spacing: .lg, align: .stretch) {
-            // A Toggle wired to `color-scheme` re-themes the whole demo: every
-            // --sw-* token is light-dark(), so flipping the scheme flips them all.
+            // A Toggle wired to `color-scheme` (synced to <html> in onChange) re-themes the
+            // whole demo: every --sw-* token is light-dark(), so flipping the scheme flips them all.
             HStack(align: .center) {
                 h1("SwiflowUI — primitives, controls & feedback")
                 Spacer()
@@ -250,12 +253,27 @@ final class Demo {
             dataTableSection
         }
         .padding(.xl)
-        // Forcing `color-scheme` on the root makes every descendant's light-dark()
-        // token resolve to this scheme — overriding the OS preference live.
-        .style("color-scheme", isDark ? "dark" : "light")
         .style("background", "var(--sw-bg)")   // page/canvas, so the surface cards lift off it
         .style("color", "var(--sw-text)")
         .style("min-height", "100vh")
+    }
+
+    // The "Dark mode" Toggle re-themes the demo by forcing `color-scheme` on the *document
+    // root* (`<html>`). It must be `:root`, not a mounted element: the `--sw-*` color tokens are
+    // registered via `@property { syntax: "<color>" }`, so their `light-dark()` resolves at the
+    // element where they're declared (`:root`) — forcing `color-scheme` on an inner div has no
+    // effect on them. Synced imperatively (idempotent read-diff-write) because the app tree can't
+    // style `<html>`. JS-interop is `#if`-gated so the demo still builds on host.
+    func onAppear() { syncColorScheme() }
+    func onChange() { syncColorScheme() }
+
+    private func syncColorScheme() {
+        #if canImport(JavaScriptKit)
+        guard let html = JSObject.global.document.object?.documentElement.object,
+              let style = html.style.object else { return }
+        let want = isDark ? "dark" : "light"
+        if style.colorScheme.string != want { style.colorScheme = .string(want) }
+        #endif
     }
 
     /// The DataTable showcase. Extracted from `body` to keep that single result-builder
