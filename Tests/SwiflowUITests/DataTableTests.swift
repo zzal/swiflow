@@ -566,3 +566,12 @@ struct DataTableRowClickTests {
         #expect(tr.attributes["class"]?.contains("clickable") != true)
     }
 }
+
+extension DataTableStateTests {
+    @Test func sheetContainsVirtualRules() {
+        let css = dataTableSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-table--virtual"))
+        #expect(css.contains("grid-template-columns: var(--sw-table-cols)"))
+        #expect(css.contains("position: sticky"))   // header row pins in virtual mode
+    }
+}
