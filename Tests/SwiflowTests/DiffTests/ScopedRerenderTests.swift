@@ -49,4 +49,27 @@ struct ScopedRerenderTests {
         let stray = Child()
         #expect(findComponentAnchor(in: root, matching: ObjectIdentifier(stray)) == nil)
     }
+
+    @Test("detects an environmentOverride ancestor")
+    func detectsEnvOverrideAncestor() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let child = Child()
+        // Wrap the child anchor in an environmentOverride node.
+        let v = VNode.environmentOverride(
+            EnvironmentValues(),
+            .component(.init(Child.self) { child })
+        )
+        let root = diff(mounted: nil, next: v, handles: handles, handlers: handlers).newMountTree
+        let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(child))
+        #expect(anchor != nil)
+        #expect(hasEnvironmentOverrideAncestor(anchor!) == true)
+    }
+
+    @Test("no false positive without an override ancestor")
+    func noEnvOverrideAncestor() {
+        let (root, _, child) = mountParent()
+        let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(child))!
+        #expect(hasEnvironmentOverrideAncestor(anchor) == false)
+    }
 }
