@@ -84,4 +84,14 @@ public extension VNode {
     func unmanagedChildren() -> VNode {
         mergeAttribute(self) { $0.managesOwnChildren = true }
     }
+
+    /// Tags this element with a memoization token. When the diff compares this
+    /// element against a previously-mounted element of the same tag and both
+    /// carry an equal, non-nil `memoKey`, the entire subtree is skipped (no
+    /// reconstruction work is saved by this tag alone — pair it with caching the
+    /// VNode so `body` doesn't rebuild it either). Caller's contract: equal key
+    /// ⇒ equal element + children. A no-op on non-element nodes.
+    func memoKey(_ key: AnyHashable) -> VNode {
+        mergeAttribute(self) { $0.memoKey = key }
+    }
 }
