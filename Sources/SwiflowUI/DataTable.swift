@@ -262,12 +262,12 @@ final class DataTableBox {
     /// Current row-cache entry count (eviction probe).
     var _rowCacheCountForTesting: Int { _rowCache.count }
     #endif
-    /// Extra rows rendered above & below the viewport. A buffer that hides the reactive
-    /// re-render latency (~3 frames: @State → whole-tree VDOM diff in Wasm → patch → DOM) when
-    /// scrolling: without enough buffer a moderate drag outruns the last-rendered window and
-    /// briefly shows empty runway. 10 rows masks moderate drags; internal so tests stay
-    /// overscan-agnostic. (A faster fling can still outrun it — the deeper fix is cheaper renders.)
-    let overscan = 10
+    /// Extra rows rendered above & below the viewport — a small buffer covering the
+    /// scroll handler's rAF cadence. Row recycling (#91) made a window-shift re-render
+    /// cheap (~1 frame: only entering rows are rebuilt; the rest hit the memo cache +
+    /// diff bail), so a large overscan is no longer needed to mask latency. Internal so
+    /// tests stay overscan-agnostic.
+    let overscan = 3
 
     init(rowCount: Int, columns: [DataColumn], rowKey: @escaping (Int) -> String,
          selection: SelectionModel?, sortable: Bool, sortOrder: Binding<SortOrder?>?,
