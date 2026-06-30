@@ -699,4 +699,29 @@ struct DataTableRowCacheTests {
         // viewport 11 + 2*overscan; cache must not grow unbounded toward 2000.
         #expect(b._rowCacheCountForTesting <= 11 + 2 * b.overscan + 4)
     }
+
+    @Test("one-row window slide emits a minimal patch set (one row created, no moves)")
+    func windowSlideMinimalPatches() {
+        let b = makeDataTableBox(Array(0..<300).map { Person(id: $0, name: "P\($0)", age: $0) },
+                                 id: \.id, maxHeight: .custom("220px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+        }
+        let h = HandleAllocator(); let hr = HandlerRegistry()
+        b.setViewportMetrics(scrollTop: 2000, viewportHeight: 220)
+        let v1 = building { b.body }
+        let m1 = diff(mounted: nil, next: v1, handles: h, handlers: hr).newMountTree
+
+        b.setViewportMetrics(scrollTop: 2000 + 20, viewportHeight: 220)   // slide one row
+        let v2 = building { b.body }
+        let res = diff(mounted: m1, next: v2, handles: h, handlers: hr)
+
+        // Exactly one new <tr> created (the entering row). Patch shape:
+        // `case createElement(handle: Int, tag: String)`.
+        let createdRows = res.patches.filter {
+            if case .createElement(_, "tr") = $0 { return true }
+            return false
+        }
+        #expect(createdRows.count == 1)
+    }
 }
