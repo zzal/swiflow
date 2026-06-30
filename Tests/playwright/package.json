@@ -12,6 +12,7 @@
     "test:regions": "playwright test --config=playwright.regions.config.ts",
     "test:router": "playwright test --config=playwright.router.config.ts",
     "test:sw": "playwright test --config=playwright.sw.config.ts",
+    "test:todocrud": "playwright test --config=playwright.todocrud.config.ts",
     "install-browsers": "playwright install --with-deps chromium"
   },
   "devDependencies": {
