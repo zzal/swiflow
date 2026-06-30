@@ -178,28 +178,50 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             }
         }
 
+        // Parallel scan for @ReducerState — collect names for bind wiring and
+        // types for the synthesized init (mirrors the @MutationState scan above).
+        var reducerNames: [String] = []
+        var reducerInits: [(name: String, type: String)] = []
+        for member in classDecl.memberBlock.members {
+            guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+            let isReducer = varDecl.attributes.contains { attr in
+                guard let a = attr.as(AttributeSyntax.self),
+                      let n = a.attributeName.as(IdentifierTypeSyntax.self)?.name.text else { return false }
+                return n == "ReducerState"
+            }
+            guard isReducer,
+                  let b = varDecl.bindings.first,
+                  let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier else { continue }
+            reducerNames.append(id.text)
+            if b.initializer == nil, let type = b.typeAnnotation?.type.trimmedDescription {
+                reducerInits.append((id.text, type))
+            }
+        }
+
         // Build the `bind` body: always the two owner/scheduler assignments,
         // plus one wire() line per @MutationState (conditional — mutation-free
-        // components emit a byte-identical body with no SwiflowQuery reference).
+        // components emit a byte-identical body with no SwiflowQuery reference),
+        // then one wire() line per @ReducerState.
         var bindStmts = ["self.runtimeOwner = owner", "self.runtimeScheduler = scheduler"]
         bindStmts += mutationNames.map { name in
             "_\(name)_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())"
         }
+        bindStmts += reducerNames.map { name in
+            "_\(name)_reducerRuntime.wire(owner: owner, scheduler: scheduler)"
+        }
         let bindBody = bindStmts.joined(separator: "\n    ")
         let bindDecl = DeclSyntax(stringLiteral: "\(access)func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
 
-        // Synthesize a zero-arg `init()` for default-constructible mutations
-        // when the class declares none — mirroring Swift's own memberwise-init
-        // suppression (a user-written init opts out entirely). A *capturing*
-        // mutation (one whose init needs args, e.g. `RenameUser(id:api:)`) is
-        // not default-constructible, so the emitted `Type()` won't compile —
-        // pointing the author at the hand-written init that owns that capture.
+        // Synthesize a zero-arg `init()` for default-constructible mutations and
+        // reducers when the class declares none — mirroring Swift's own
+        // memberwise-init suppression (a user-written init opts out entirely).
         let hasUserInit = classDecl.memberBlock.members.contains {
             $0.decl.is(InitializerDeclSyntax.self)
         }
+        let allInits = mutationInits + reducerInits
         var synthesizedInit: DeclSyntax? = nil
-        if !hasUserInit, !mutationInits.isEmpty {
-            let assignments = mutationInits
+        if !hasUserInit, !allInits.isEmpty {
+            let assignments = allInits
                 .map { "    self.\($0.name) = \($0.type)()" }
                 .joined(separator: "\n")
             synthesizedInit = DeclSyntax(stringLiteral: "\(access)init() {\n\(assignments)\n}")
