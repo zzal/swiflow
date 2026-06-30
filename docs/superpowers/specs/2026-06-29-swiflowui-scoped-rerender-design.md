@@ -53,7 +53,8 @@ Today every component's `onChange()` fires on every app render (whole-tree). Und
 - first mount (`mountTree == nil`), or
 - `dirtyIDs.count != 1` (multi-dirty / possible ancestor-overlap → out of scope for v1), or
 - the single dirty instance's anchor cannot be located, or
-- the anchor **is** the root component (full render is already minimal for the root).
+- the anchor **is** the root component (full render is already minimal for the root), or
+- the anchor has an `environmentOverride` **ancestor** (a scoped diff starting at the anchor would reset `EnvironmentValues` to `.init()` and lose the ambient overrides). Detected by walking `parent` pointers from the anchor to the root and checking for any `MountNode` whose `vnode` is `.environmentOverride`. Note: `Theme {}` / `ThemeScope` is **not** an environment override (it is a `display:contents` div with inline custom-property styles), so it never triggers this fallback. Overrides *inside* the subtree are fine — the scoped diff threads environment through them normally.
 
 Otherwise → fast path `scopedRender(anchor:)`.
 
@@ -71,14 +72,16 @@ Mirrors `renderOnce()` but rooted at the dirty anchor instead of `mountTree`:
 
 No `replaceMount` handling here (see "Why the subtree mechanism already exists").
 
-### Anchor location: instance → anchor index
+### Anchor location: pure tree walk (v1)
 
-A `[ObjectIdentifier: MountNode]` index mapping `ObjectIdentifier(instance)` → its component-anchor `MountNode`, maintained at the natural lifecycle points:
+v1 uses a stateless `package func findComponentAnchor(in:matching:) -> MountNode?` that walks a `MountNode` tree (`componentBody` + `children`) and returns the anchor whose `component?.instance === target`. Chosen over a mutable `[ObjectIdentifier: MountNode]` index because:
 
-- **mount** of a component anchor → register;
-- **destroy/unmount** of a component anchor → remove.
+- it cannot go stale (no mount/destroy/HMR/teardown bookkeeping to keep in sync — the very kind of cross-cutting core change to avoid);
+- it is a pure function, trivially host-testable;
+- traversal cost is negligible relative to `body` + diff (pointer `===` compares only), and the fast path runs at most once per frame;
+- the fallback predicate already needs a parent-pointer walk (the `environmentOverride`-ancestor check), so a tree walk is consistent with the rest of the path.
 
-Gives O(1) lookup in `flushDirty`. If wiring the index into `mount`/`destroy` proves awkward, the acceptable fallback is a one-time pointer walk from the root to find the anchor whose `component?.instance === dirtyInstance` — traversal is cheap (the cost is `body` + diff, not pointer-walking). Start with the index.
+A `[ObjectIdentifier: MountNode]` index is a possible future optimization if profiling ever shows the walk to matter; it does not for v1.
 
 ### Complementary cheap win: `sortedIndices()` memoization (direction #2)
 
@@ -94,9 +97,9 @@ Gives O(1) lookup in `flushDirty`. If wiring the index into `mount`/`destroy` pr
 
 ## Files touched
 
+- `Sources/Swiflow/Diff/ScopedRerender.swift` **(new, core, host-testable)** — `findComponentAnchor(in:matching:)`, `hasEnvironmentOverrideAncestor(_:)`, and `scopedRerender(anchor:handles:handlers:scheduler:) -> [Patch]` (capture subtree IDs → rebuild the anchor's component VNode preserving typeID+key → `diff(mounted: anchor, …)` → `firePostRenderLifecycle(anchor, preExistingIDs:)` → return patches). All the risky logic lives here, behind host tests.
 - `Sources/SwiflowDOM/RAFScheduler.swift` — `onFlushBatch` becomes `(Set<ObjectIdentifier>) -> Void`; `flush()` passes the snapshot before clearing.
-- `Sources/SwiflowDOM/Renderer.swift` — `flushDirty(_:)` (predicate), `scopedRender(anchor:)`, extracted `shipPatches(_:)` helper shared with `renderOnce()`, and anchor-index upkeep wiring; the `RAFScheduler` closure becomes `{ [weak self] ids in self?.flushDirty(ids) }`.
-- `Sources/Swiflow/MountTree.swift` (or a small new type in the same file) — the instance→anchor index type and the register/remove hooks called from `mount`/`destroy`.
+- `Sources/SwiflowDOM/Renderer.swift` — `flushDirty(_:)` (the fallback predicate), an extracted `shipPatches(_:)` helper shared with `renderOnce()`, and the fast path that calls the core `scopedRerender(...)` then ships its patches; the `RAFScheduler` closure becomes `{ [weak self] ids in self?.flushDirty(ids) }`.
 - `Sources/SwiflowUI/DataTable.swift` — `sortedIndices()` memoization fields + logic.
 
 The `Scheduler` protocol (`Sources/Swiflow/Reactivity/Scheduler.swift`) is unchanged; only `RAFScheduler`'s internal callback shape changes. `SyncScheduler` (tests/headless) already dispatches per-component and needs no change.
@@ -109,8 +112,9 @@ The `Scheduler` protocol (`Sources/Swiflow/Reactivity/Scheduler.swift`) is uncha
 
 The `MountTree`/diff core is host-compilable.
 
-- **Anchor index:** mounting a component anchor registers it; unmount removes it; lookup returns the correct anchor for a given instance.
-- **Scoped subtree diff:** build a tree with a nested component; call `diff(mounted: anchor, next: anchorVNode)`; assert the emitted patches touch only that subtree and that parent/sibling nodes are untouched.
+- **Anchor location:** `findComponentAnchor(in:matching:)` returns the correct nested anchor for a given instance, the root anchor when the root matches, and `nil` for an instance absent from the tree.
+- **Environment-override ancestor guard:** `hasEnvironmentOverrideAncestor` is true for an anchor mounted beneath `.environment(...)` and false for one under `Theme {}` / no override.
+- **Scoped subtree diff + lifecycle (the heart):** build a parent→child(→grandchild) tree; mutate the child's `@State`; call `scopedRerender(anchor: childAnchor, …)`; assert (a) the emitted patches touch only the child subtree (parent/siblings untouched), (b) the reused instance is identical (`newMountTree.component?.instance === childAnchor.component?.instance`), (c) the child's `onChange` fired while the parent's did **not**, and (d) a child mounted *during* the scoped diff fires `onAppear`, not `onChange`.
 - **`sortedIndices()` cache** (via the existing `makeDataTableBox` seam, rendering `building { box.body }`): inject a comparator that counts invocations; assert a scroll-only re-render (`setViewportMetrics`) does **not** re-invoke the comparator, that changing the sort **does** re-sort, and that the resulting order is correct.
 
 ### Browser verification (the `Renderer`/`RAFScheduler` wiring is WASM-only and cannot be host-tested)
