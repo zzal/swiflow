@@ -72,4 +72,47 @@ struct ScopedRerenderTests {
         let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(child))!
         #expect(hasEnvironmentOverrideAncestor(anchor) == false)
     }
+
+    @Test("single dirty nested component → scoped at its anchor")
+    func planScopesSingleDirty() {
+        let (root, _, child) = mountParent()
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(child)])
+        guard case .scoped(let anchor) = plan else { Issue.record("expected .scoped"); return }
+        #expect(anchor.component?.instance === child)
+    }
+
+    @Test("more than one dirty component → full")
+    func planFullOnMultiDirty() {
+        let (root, parent, child) = mountParent()
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(child), ObjectIdentifier(parent)])
+        #expect({ if case .full = plan { return true } else { return false } }())
+    }
+
+    @Test("root dirty → full (full render is already minimal for the root)")
+    func planFullOnRootDirty() {
+        let (root, parent, _) = mountParent()
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(parent)])
+        #expect({ if case .full = plan { return true } else { return false } }())
+    }
+
+    @Test("dirty instance absent from tree → full")
+    func planFullOnMissing() {
+        let (root, _, _) = mountParent()
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(Child())])
+        #expect({ if case .full = plan { return true } else { return false } }())
+    }
+
+    @Test("dirty anchor under environmentOverride → full")
+    func planFullOnEnvOverride() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let child = Child()
+        let v = VNode.environmentOverride(
+            EnvironmentValues(),
+            .component(.init(Child.self) { child })
+        )
+        let root = diff(mounted: nil, next: v, handles: handles, handlers: handlers).newMountTree
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(child)])
+        #expect({ if case .full = plan { return true } else { return false } }())
+    }
 }
