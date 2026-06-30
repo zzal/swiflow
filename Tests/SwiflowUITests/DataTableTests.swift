@@ -195,7 +195,11 @@ struct DataTableSortTests {
         b.setViewportMetrics(scrollTop: 40, viewportHeight: 100)
         let afterScroll = b.sortedIndices()
         #expect(afterScroll == first)
+        // The hit probe is DEBUG-only (matches the `#if DEBUG` gate on the
+        // property in DataTable.swift), so `swift test -c release` still compiles.
+        #if DEBUG
         #expect(b._sortCacheHitForTesting == true)
+        #endif
     }
 }
 

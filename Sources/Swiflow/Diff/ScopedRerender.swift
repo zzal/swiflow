@@ -57,33 +57,60 @@ package enum RerenderPlan {
 /// - the dirty instance's anchor cannot be located in the tree;
 /// - the anchor IS the root (full render is already minimal for the root);
 /// - the anchor has an `environmentOverride` ancestor (scoped diff would reset
-///   `EnvironmentValues` and lose the ambient overrides).
+///   `EnvironmentValues` and lose the ambient overrides);
+/// - the anchor has NO DOM-tracked ancestor (its body attaches at the selector
+///   root through structural-only nodes). A scoped diff that swaps the body's
+///   root element type then has nowhere to splice the new node — only
+///   `renderOnce()` emits the `replaceMount` patch that covers that. Such
+///   anchors (a root that simply forwards to a single child component, no
+///   element wrapper) must take the full path. Anchors nested under any real
+///   element — the overwhelmingly common case, including the demo table — have
+///   a DOM ancestor and still scope.
 @MainActor
 package func planRerender(root: MountNode, dirtyIDs: Set<ObjectIdentifier>) -> RerenderPlan {
     guard dirtyIDs.count == 1, let only = dirtyIDs.first else { return .full }
     guard let anchor = findComponentAnchor(in: root, matching: only) else { return .full }
     if anchor === root { return .full }
     if hasEnvironmentOverrideAncestor(anchor) { return .full }
+    if domAncestorHandle(of: anchor) == nil { return .full }
     return .scoped(anchor)
 }
 
-/// Re-renders the subtree rooted at `anchor` (a component-anchor MountNode)
-/// and returns the patches to ship. Reuses the live instance via the diff's
-/// component-reuse arm, reconciling the body subtree in place, then fires the
-/// post-render lifecycle scoped to this subtree only.
+/// The outputs of a scoped subtree re-render. The caller must ship `patches`
+/// to the driver and THEN fire the post-render lifecycle on `newMountTree`
+/// with `preExistingIDs` — in that order, so `onAppear`/`onChange` observe a
+/// DOM the patches have already been applied to (e.g. `Ref.wrappedValue` is
+/// only resolvable after its `createElement` patch has shipped). This mirrors
+/// `renderOnce()`'s ship-then-fire ordering.
+package struct ScopedRenderResult {
+    package let patches: [Patch]
+    package let newMountTree: MountNode
+    package let preExistingIDs: Set<ObjectIdentifier>
+}
+
+/// Re-renders the subtree rooted at `anchor` (a component-anchor MountNode) and
+/// returns the patches to ship plus the data the caller needs to fire the
+/// scoped post-render lifecycle AFTER shipping. Reuses the live instance via
+/// the diff's component-reuse arm, reconciling the body subtree in place.
 ///
-/// Precondition: `anchor.component != nil` and `anchor` has no
-/// `environmentOverride` ancestor (callers gate via `planRerender`). The diff
-/// starts with a fresh `EnvironmentValues()`, which reproduces the ambient
-/// environment exactly when no override sits above the anchor.
+/// Does NOT fire lifecycle itself — see `ScopedRenderResult` for why ordering
+/// is the caller's responsibility.
+///
+/// Precondition: `anchor.component != nil`, `anchor` has no `environmentOverride`
+/// ancestor, and `anchor` has a DOM-tracked ancestor (callers gate via
+/// `planRerender`). The diff starts with a fresh `EnvironmentValues()`, which
+/// reproduces the ambient environment exactly when no override sits above the
+/// anchor.
 @MainActor
 package func scopedRerender(
     anchor: MountNode,
     handles: HandleAllocator,
     handlers: HandlerRegistry,
     scheduler: Scheduler?
-) -> [Patch] {
-    guard let instance = anchor.component else { return [] }
+) -> ScopedRenderResult {
+    guard let instance = anchor.component else {
+        return ScopedRenderResult(patches: [], newMountTree: anchor, preExistingIDs: [])
+    }
 
     // Preserve the anchor's identity (typeID + key) so the reuse arm fires
     // rather than destroy+remount (which would drop the instance's state).
@@ -105,6 +132,9 @@ package func scopedRerender(
         scheduler: scheduler,
         environment: .init()
     )
-    firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
-    return result.patches
+    return ScopedRenderResult(
+        patches: result.patches,
+        newMountTree: result.newMountTree,
+        preExistingIDs: preExistingIDs
+    )
 }
