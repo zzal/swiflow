@@ -3,6 +3,7 @@ import Testing
 @testable import Swiflow
 
 @Suite("Scheduler")
+@MainActor
 struct SchedulerTests {
 
     final class StubComponent: Component {

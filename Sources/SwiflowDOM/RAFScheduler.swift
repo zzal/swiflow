@@ -25,6 +25,7 @@ import Swiflow
 /// app. If multi-root support lands in a future phase, each Renderer would
 /// own its own `RAFScheduler` (already the case — `RAFScheduler` is not a
 /// global singleton).
+@MainActor
 public final class RAFScheduler: Scheduler {
     /// Tracks component-instance identity of components that have been
     /// marked dirty since the last flush. Deduplicates multiple `markDirty`
@@ -46,7 +47,7 @@ public final class RAFScheduler: Scheduler {
     /// callback decides per-frame whether to scope the re-render to a single
     /// subtree or fall back to a full-root render. Intentionally one-call-per-
     /// flush rather than one-call-per-component — see type-level documentation.
-    private let onFlushBatch: (Set<ObjectIdentifier>) -> Void
+    private let onFlushBatch: @MainActor (Set<ObjectIdentifier>) -> Void
 
     /// Creates a scheduler that fires `onFlushBatch` at most once per
     /// `requestAnimationFrame` when any component has been marked dirty.
@@ -55,7 +56,7 @@ public final class RAFScheduler: Scheduler {
     ///   non-empty after the rAF fires, receiving that frame's dirty-instance
     ///   set. Typically a closure that calls `Renderer.flushDirty(_:)` with a
     ///   weak self capture.
-    public init(onFlushBatch: @escaping (Set<ObjectIdentifier>) -> Void) {
+    public init(onFlushBatch: @escaping @MainActor (Set<ObjectIdentifier>) -> Void) {
         self.onFlushBatch = onFlushBatch
     }
 
@@ -88,7 +89,10 @@ public final class RAFScheduler: Scheduler {
         // Create and retain the closure before passing it to JS. The
         // JSClosure must outlive the rAF callback invocation.
         let closure = JSClosure { [weak self] _ -> JSValue in
-            self?.rafFired()
+            // requestAnimationFrame fires on the main thread; hop onto MainActor
+            // explicitly (matching DispatcherBridge.swift / Timing.swift) so the
+            // @MainActor scheduler methods are invoked with enforced isolation.
+            MainActor.assumeIsolated { self?.rafFired() }
             return .undefined
         }
         rafClosure = closure
