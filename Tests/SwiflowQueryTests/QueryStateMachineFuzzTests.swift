@@ -222,4 +222,73 @@ struct QueryStateMachineFuzzTests {
         await w.settle()
         #expect(w.client.getQueryDataErased(ServerModel.key(1)) as? [Int] == [1, 2])
     }
+
+    @Test("a stale in-flight fetch from an older generation never clobbers a newer commit")
+    func staleInFlightFetchDropped() async {
+        // Stresses commitFetch's generation guard, which the steady-state
+        // convergence fuzz cannot reach: settle() drains each op before the next,
+        // so a prior-generation fetch can never arrive late. Here we deliberately
+        // interleave — park fetch #1 (carrying a stale snapshot), let an
+        // invalidate-driven fetch #2 commit the fresh value, THEN release fetch #1
+        // and assert it is dropped rather than clobbering the newer value.
+        let model = ServerModel()
+        model.lists[1] = [1]
+        let client = QueryClient(clock: ManualClock())
+        let owner = AnyComponent(FuzzSubscriber())
+        let gate = FetchGate()
+        var callCount = 0
+        var fetch1Resumed = false
+
+        client.reconcile(owner: owner, scheduler: SyncScheduler { _ in }, observations: [
+            QueryClient.QueryObservation(
+                key: ServerModel.key(1), tags: ["lists"], staleTime: .zero,
+                refetchInterval: nil, refetchOnFocus: true, retry: .none,
+                boxedFetch: {
+                    callCount += 1
+                    if callCount == 1 {
+                        let snapshot = model.value(1)   // captures the OLD truth [1]
+                        await gate.wait()               // park fetch #1 until released
+                        fetch1Resumed = true
+                        return snapshot                  // resolves stale [1] late, under the OLD generation
+                    }
+                    return model.value(1)               // fetch #2 reads the FRESH truth
+                },
+                valuesEqual: { ($0 as? [Int]) == ($1 as? [Int]) })
+        ])
+
+        // Let fetch #1 enter boxedFetch (and park on the gate).
+        while callCount < 1 { await Task.yield() }
+
+        // Truth advances; an exact invalidate bumps the generation and starts
+        // fetch #2 (not gated).
+        model.lists[1] = [1, 2]
+        client.invalidate(ServerModel.key(1), exact: true)
+
+        // Wait for fetch #2 to commit the fresh value under the NEW generation.
+        while (client.getQueryDataErased(ServerModel.key(1)) as? [Int]) != [1, 2] { await Task.yield() }
+
+        // Release the stale fetch #1 and let its commitFetch run.
+        gate.open()
+        while !fetch1Resumed { await Task.yield() }
+        for _ in 0..<20 { await Task.yield() }
+
+        // The generation guard must have dropped the stale [1]; [1,2] stands.
+        #expect(client.getQueryDataErased(ServerModel.key(1)) as? [Int] == [1, 2],
+                "a superseded (older-generation) fetch must not clobber the newer committed value")
+    }
+}
+
+/// One-shot gate to deterministically park an async fetch until released.
+@MainActor private final class FetchGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var opened = false
+    func wait() async {
+        if opened { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+    func open() {
+        opened = true
+        continuation?.resume()
+        continuation = nil
+    }
 }
