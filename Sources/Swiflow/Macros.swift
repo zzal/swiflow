@@ -33,6 +33,13 @@ public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "
 @attached(peer, names: arbitrary)
 public macro State() = #externalMacro(module: "SwiflowMacrosPlugin", type: "StateMacro")
 
+/// Declares a local, per-component reducer cell. The annotated `var`'s type is a
+/// `Reducer`; the macro emits the backing runtime + a `$name` `ReducerHandle`
+/// projection (`$name.state` to read, `$name.send(_:)` to dispatch). Wired at
+/// mount by `@Component`. See `Reducer`.
+@attached(peer, names: arbitrary)
+public macro ReducerState() = #externalMacro(module: "SwiflowMacrosPlugin", type: "ReducerStateMacro")
+
 /// Real CSS in Swift. Validates the literal's *structure* at compile time
 /// (balanced braces, `property: value` shape) and expands to a `CSSSheet`
 /// scoped via native CSS nesting — property names, values, and selectors
