@@ -193,4 +193,33 @@ struct QueryStateMachineFuzzTests {
             }
         }
     }
+
+    @Test("a failed, non-superseded mutation rolls back to the exact prior value")
+    func rollbackExactness() async {
+        let w = FuzzWorld()
+        w.subscribe(1); await w.settle()
+        w.mutate(AppendMut(id: 1, model: w.model), 7); await w.settle()
+        let before = w.client.getQueryDataErased(ServerModel.key(1)) as? [Int]
+        #expect(before == [7])
+
+        w.mutate(FailAppendMut(id: 1, model: w.model), 999); await w.settle()
+        let after = w.client.getQueryDataErased(ServerModel.key(1)) as? [Int]
+        #expect(after == [7], "failed mutation must restore the exact prior value")
+        #expect(w.model.value(1) == [7])   // truth never changed
+    }
+
+    @Test("invalidate supersedes the prior generation; the refetched truth wins")
+    func generationSupersedeWins() async {
+        let w = FuzzWorld()
+        w.model.lists[1] = [1]
+        w.subscribe(1); await w.settle()
+        #expect(w.client.getQueryDataErased(ServerModel.key(1)) as? [Int] == [1])
+        // Truth moves on, then an exact invalidate bumps the generation and
+        // refetches; the newer truth must win (and any prior in-flight result is
+        // dropped by commitFetch's generation guard).
+        w.model.lists[1] = [1, 2]
+        w.client.invalidate(ServerModel.key(1), exact: true)
+        await w.settle()
+        #expect(w.client.getQueryDataErased(ServerModel.key(1)) as? [Int] == [1, 2])
+    }
 }
