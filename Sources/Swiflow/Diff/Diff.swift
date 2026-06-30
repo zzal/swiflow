@@ -352,6 +352,13 @@ func update(
 
     // Element → element, same tag: per-bag diff (Tasks 10–13, 16–17).
     case (.element(let oldData), .element(let newData)) where oldData.tag == newData.tag:
+        // Memoization bail (#91): if both elements carry a non-nil, equal
+        // memoKey, the caller declares the element + subtree unchanged. Skip all
+        // reconciliation and keep the mounted node as-is. (mounted.vnode stays
+        // the prior value, which equals `next` by the caller's contract.)
+        if let oldKey = oldData.memoKey, let newKey = newData.memoKey, oldKey == newKey {
+            return mounted
+        }
         // Refs: clear old bindings, then re-bind new bindings to the
         // surviving handle. The DOM node didn't move (same-tag in-place
         // update), so each binding gets the existing `mounted.handle`.

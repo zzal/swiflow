@@ -36,4 +36,41 @@ struct MemoKeyTests {
         #expect(t == .text("hi"))
         #expect(diagnosticFired)
     }
+
+    @Test("equal memoKey → diff skips the subtree (zero patches, mounted reused)")
+    func equalKeyBails() {
+        let h = HandleAllocator(); let hr = HandlerRegistry()
+        // Mount a row whose child text is "A".
+        let v1 = div(.class("row")) { p("A") }.memoKey("k1")
+        let first = diff(mounted: nil, next: v1, handles: h, handlers: hr)
+        // Next render: SAME memoKey but DIFFERENT child content ("B"). The bail
+        // must win — equal key is the contract that content is unchanged.
+        let v2 = div(.class("row")) { p("B") }.memoKey("k1")
+        let second = diff(mounted: first.newMountTree, next: v2, handles: h, handlers: hr)
+        #expect(second.patches.isEmpty)
+        #expect(second.newMountTree === first.newMountTree)
+    }
+
+    @Test("different memoKey → normal diff (patches emitted)")
+    func differentKeyDiffs() {
+        let h = HandleAllocator(); let hr = HandlerRegistry()
+        let first = diff(mounted: nil, next: div(.class("row")) { p("A") }.memoKey("k1"),
+                         handles: h, handlers: hr)
+        let second = diff(mounted: first.newMountTree, next: div(.class("row")) { p("B") }.memoKey("k2"),
+                          handles: h, handlers: hr)
+        let hasSetText = second.patches.contains { if case .setText(_, "B") = $0 { return true }; return false }
+        #expect(hasSetText)
+    }
+
+    @Test("nil memoKey on either side → normal diff")
+    func nilKeyDiffs() {
+        let h = HandleAllocator(); let hr = HandlerRegistry()
+        let first = diff(mounted: nil, next: div(.class("row")) { p("A") }.memoKey("k1"),
+                         handles: h, handlers: hr)
+        // new side has no memoKey → must not bail.
+        let second = diff(mounted: first.newMountTree, next: div(.class("row")) { p("B") },
+                          handles: h, handlers: hr)
+        let hasSetText = second.patches.contains { if case .setText(_, "B") = $0 { return true }; return false }
+        #expect(hasSetText)
+    }
 }
