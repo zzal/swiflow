@@ -516,8 +516,13 @@ final class DataTableBox {
             .class("sw-table sw-table--virtual"),
             .attr("aria-rowcount", String(rowCount)),
         ]
+        let total = rowCount
+        let end = first + window.count
         let tbody = element("tbody",
-                            attributes: [.style("height", "\(runwayHeightPx())px")],
+                            attributes: [
+                                .style("padding-top", "\(first * rowHeight)px"),
+                                .style("padding-bottom", "\(max(0, total - end) * rowHeight)px"),
+                            ],
                             children: virtualBodyRows(window, first: first, rowHeight: rowHeight, gridColumns: cols))
         let table = element("table", attributes: tableAttrs, children: [headerRow(gridColumns: cols), tbody])
         var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
@@ -548,7 +553,6 @@ final class DataTableBox {
         var attrs: [Attribute] = [
             .class(rowClass), .key(rowKey(i)),
             .style("grid-template-columns", gridColumns),   // inline, not a CSS var — see headerRow note
-            .style("transform", "translateY(\(absolute * rowHeight)px)"),
             .style("height", "\(rowHeight)px"),
             .attr("aria-rowindex", String(absolute + 1)),
         ]
@@ -646,7 +650,7 @@ let dataTableSheet: CSSSheet = css {
     .sw-table--virtual { display: block; }
     .sw-table--virtual thead,
     .sw-table--virtual tbody { display: block; }
-    .sw-table--virtual tbody { position: relative; }
+    /* (rows flow normally now; the scroll offset is tbody padding — see virtualScroll) */
     .sw-table--virtual .sw-table__tr {
       display: grid;
       align-items: center;
@@ -658,7 +662,6 @@ let dataTableSheet: CSSSheet = css {
       background-color: var(--sw-surface);
     }
     .sw-table--virtual tbody .sw-table__tr {
-      position: absolute; inset-inline: 0; top: 0;
       border-block-end: 1px solid var(--sw-border);
     }
     /* The row carries the separator; drop the per-cell border so rows aren't double-lined
