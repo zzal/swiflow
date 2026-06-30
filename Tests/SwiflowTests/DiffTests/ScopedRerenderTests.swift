@@ -115,4 +115,94 @@ struct ScopedRerenderTests {
         let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(child)])
         #expect({ if case .full = plan { return true } else { return false } }())
     }
+
+    // Lifecycle-recording components. `events` is shared so a test can assert
+    // exactly which instances' onChange/onAppear fired during a scoped pass.
+    final class RecChild: Component {
+        let name: String
+        let events: EventLog
+        var label = "a"
+        init(name: String, events: EventLog) { self.name = name; self.events = events }
+        var body: VNode { p(label) }
+        func onChange() { events.log.append("change:\(name)") }
+        func onAppear() { events.log.append("appear:\(name)") }
+    }
+    final class EventLog { var log: [String] = [] }
+
+    final class RecParent: Component {
+        let events: EventLog
+        let child: RecChild
+        init(events: EventLog) { self.events = events; self.child = RecChild(name: "child", events: events) }
+        var body: VNode {
+            div {
+                p("parent-chrome")
+                VNode.component(.init(RecChild.self) { self.child })
+            }
+        }
+        func onChange() { events.log.append("change:parent") }
+    }
+
+    @Test("scopedRerender re-renders only the child subtree and fires only its lifecycle")
+    func scopedReRendersChildOnly() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let events = EventLog()
+        let parent = RecParent(events: events)
+        let root = diff(mounted: nil, next: .component(.init(RecParent.self) { parent }),
+                        handles: handles, handlers: handlers).newMountTree
+        events.log.removeAll()  // discard first-mount onAppear noise
+
+        // Mutate ONLY the child's body, then scoped-rerender at the child anchor.
+        parent.child.label = "b"
+        let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(parent.child))!
+        let patches = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+
+        // (a) patches updated the child's text and nothing else.
+        let setTexts: [String] = patches.compactMap {
+            if case .setText(_, let t) = $0 { return t } else { return nil }
+        }
+        #expect(setTexts == ["b"])
+
+        // (b) the reused instance is identical and the anchor object is unchanged.
+        #expect(anchor.component?.instance === parent.child)
+
+        // (c) only the child's onChange fired; the parent's did NOT.
+        #expect(events.log == ["change:child"])
+    }
+
+    @Test("a component mounted DURING the scoped pass fires onAppear, not onChange")
+    func scopedFiresAppearForFreshChild() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let events = EventLog()
+
+        // Parent whose child conditionally renders a grandchild.
+        final class GrandHolder: Component {
+            let events: EventLog
+            var showGrand = false
+            let grand: RecChild
+            init(events: EventLog) { self.events = events; self.grand = RecChild(name: "grand", events: events) }
+            var body: VNode {
+                if showGrand {
+                    return div { VNode.component(.init(RecChild.self) { self.grand }) }
+                } else {
+                    return div { p("empty") }
+                }
+            }
+            func onChange() { events.log.append("change:holder") }
+        }
+        let holder = GrandHolder(events: events)
+        let root = diff(mounted: nil, next: .component(.init(GrandHolder.self) { holder }),
+                        handles: handles, handlers: handlers).newMountTree
+        events.log.removeAll()
+
+        holder.showGrand = true
+        let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(holder))!
+        _ = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+
+        // holder survived → onChange; grand is freshly mounted → onAppear.
+        #expect(events.log.contains("change:holder"))
+        #expect(events.log.contains("appear:grand"))
+        #expect(!events.log.contains("change:grand"))
+    }
 }
