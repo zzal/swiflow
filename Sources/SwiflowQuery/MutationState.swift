@@ -66,9 +66,12 @@ public final class MutationRuntime<M: Mutation> {
                     // cancel its repair fetch).
                     rollback.append((edit.key, prior, client.generation(of: edit.key)))
                 case .noValue:
-                    #if DEBUG
-                    swiflowDiagnostic("OptimisticEdit.update: no cached value for key \(edit.key) — edit skipped.")
-                    #endif
+                    // The query isn't loaded yet — there is nothing to optimistically
+                    // transform. Skip this optimistic layer silently (per
+                    // OptimisticEdit's .noValue contract: "skipped silently"); the
+                    // mutation's perform() and the post-success invalidation/refetch
+                    // reconcile the cache. (Previously this trapped via swiflowDiagnostic.)
+                    break
                 case .typeMismatch(let expected, let actual):
                     // Never intentional: the edit targets the wrong query. Trap
                     // in DEBUG; degrade to a skipped edit in release (the write
