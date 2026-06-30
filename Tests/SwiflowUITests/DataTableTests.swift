@@ -725,3 +725,70 @@ struct DataTableRowCacheTests {
         #expect(createdRows.count == 1)
     }
 }
+
+@MainActor
+@Suite("DataTable — virtualized column widths")
+struct DataTableVirtualWidthTests {
+    private let people = [Person(id: 1, name: "Ada", age: 36),
+                          Person(id: 2, name: "Linus", age: 54)]
+
+    @Test("gridTemplate synthesizes tracks from per-column .width (nil → flexible)")
+    func synthesizesFromColumnWidths() {
+        let b = makeDataTableBox(people, id: \.id,
+                                 maxHeight: .custom("200px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)                 // no width → minmax(0, 1fr)
+            Column("Age", value: \.age).width(.px(80))    // fixed track
+        }
+        #expect(b.gridTemplate() == "minmax(0, 1fr) 80px")
+    }
+
+    @Test("selection prepends a min-content track to the synthesized template")
+    func selectionPrependsMinContent() {
+        var sel: Set<Int> = []
+        let b = makeDataTableBox(people, id: \.id,
+                                 selection: Binding(get: { sel }, set: { sel = $0 }),
+                                 maxHeight: .custom("200px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name).width(.px(120))
+            Column("Age", value: \.age)
+        }
+        #expect(b.gridTemplate() == "min-content 120px minmax(0, 1fr)")
+    }
+
+    @Test("explicit columnsTemplate wins; diagnostic fires when per-column .width is also set")
+    func columnsTemplateWinsWithDiagnostic() {
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        let b = makeDataTableBox(people, id: \.id,
+                                 maxHeight: .custom("200px"),
+                                 virtualization: .fixed(rowHeight: 20),
+                                 columnsTemplate: "2fr 1fr") {
+            Column("Name", value: \.name).width(.px(80))  // conflicts with columnsTemplate
+            Column("Age", value: \.age)
+        }
+        #expect(b.gridTemplate() == "2fr 1fr")
+        #expect(captured.contains { $0.contains("columnsTemplate") && $0.contains("width") })
+    }
+
+    @Test("columnsTemplate with no per-column width does not warn")
+    func columnsTemplateNoWidthNoWarn() {
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        let b = makeDataTableBox(people, id: \.id,
+                                 maxHeight: .custom("200px"),
+                                 virtualization: .fixed(rowHeight: 20),
+                                 columnsTemplate: "2fr 1fr") {
+            Column("Name", value: \.name)
+            Column("Age", value: \.age)
+        }
+        #expect(b.gridTemplate() == "2fr 1fr")
+        #expect(captured.isEmpty)
+    }
+}

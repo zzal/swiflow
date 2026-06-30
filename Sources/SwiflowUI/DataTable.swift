@@ -373,7 +373,26 @@ final class DataTableBox {
     /// Shared `grid-template-columns` for virtualized mode: an auto `min-content` selection
     /// track (when selection is on) + the caller's template, or an equal-fraction default.
     func gridTemplate() -> String {
-        let dataCols = columnsTemplate ?? "repeat(\(columns.count), minmax(0, 1fr))"
+        let dataCols: String
+        let hasPerColumnWidth = columns.contains(where: { $0.width != nil })
+        if let columnsTemplate {
+            // Explicit template is the power-user override and wins. If per-column
+            // .width is ALSO set the intent is ambiguous (the widths can't size
+            // grid tracks under a fixed template) — flag it so the dev picks one.
+            if hasPerColumnWidth {
+                swiflowDiagnostic("DataTable: both columnsTemplate and per-column .width are set — columnsTemplate wins and the per-column widths are ignored in virtualized mode. Use one or the other.")
+            }
+            dataCols = columnsTemplate
+        } else if hasPerColumnWidth {
+            // Synthesize one grid track per column from its .width (so per-column
+            // widths actually size virtualized columns); unsized columns get an
+            // equal flexible share.
+            dataCols = columns.map { $0.width.map(\.css) ?? "minmax(0, 1fr)" }
+                              .joined(separator: " ")
+        } else {
+            // No per-column widths → keep the compact equal-fraction default.
+            dataCols = "repeat(\(columns.count), minmax(0, 1fr))"
+        }
         return selection != nil ? "min-content \(dataCols)" : dataCols
     }
 
