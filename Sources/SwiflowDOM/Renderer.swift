@@ -86,8 +86,8 @@ final class Renderer {
         // _schedulerBox is default-initialised to nil above (let constant
         // with a default value). At this point all stored properties are
         // set and `self` is fully initialised — safe to form a weak capture.
-        let raf = RAFScheduler { [weak self] in
-            self?.renderOnce()
+        let raf = RAFScheduler { [weak self] dirtyIDs in
+            self?.flushDirty(dirtyIDs)
         }
         _schedulerBox.value = raf
         let bg = BackgroundRevalidation(client: queryClient, clock: queryClient.clock)
@@ -163,19 +163,8 @@ final class Renderer {
                 newHandle: result.newMountTree.domHandle
             ))
         }
-        lastPatchCount = outgoingPatches.count
-        renderCount += 1
         lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - renderStartMs
-
-        // Encode patches to a JSArray and ship across the bridge.
-        let jsArray = JSObject.global.Array.function!.new()
-        for (index, patch) in outgoingPatches.enumerated() {
-            let payload = PatchSerializer.encode(patch)
-            jsArray[index] = JSAdapter.toJSValue(payload)
-        }
-
-        let swiflowGlobal = JSObject.global.swiflow.object!
-        _ = swiflowGlobal.applyPatches!(jsArray)
+        shipPatches(outgoingPatches)
 
         let isFirstMount = (mountTree == nil)
         mountTree = result.newMountTree
@@ -185,6 +174,7 @@ final class Renderer {
             // structural-only; `domHandle` is the body's real DOM handle,
             // which is what the driver attaches at `selector`.
             let mountHandle = result.newMountTree.domHandle
+            let swiflowGlobal = JSObject.global.swiflow.object!
             _ = swiflowGlobal.mount!(
                 JSValue.number(Double(mountHandle)),
                 JSValue.string(selector)
@@ -198,6 +188,57 @@ final class Renderer {
         // freshly created during this diff fire onAppear (closes the
         // mid-render-mount lifecycle gap).
         firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
+    }
+
+    /// Entry point for a scheduler flush (issue #89). Chooses the scoped fast
+    /// path when `planRerender` deems it safe — exactly one dirty component
+    /// whose anchor is locatable, is not the root, and has no
+    /// `environmentOverride` ancestor — otherwise falls back to the unchanged
+    /// full-root `renderOnce()`.
+    func flushDirty(_ dirtyIDs: Set<ObjectIdentifier>) {
+        guard let tree = mountTree else { renderOnce(); return }
+        switch planRerender(root: tree, dirtyIDs: dirtyIDs) {
+        case .full:
+            renderOnce()
+        case .scoped(let anchor):
+            // Establish the same ambient context renderOnce() sets, because
+            // scopedRerender re-evaluates `body`: handlers must register into
+            // this root's scope, and `.task` / `query()` must reach this root.
+            HandlerAmbient.current = handlers
+            SwiflowTaskRuntime.currentScope = taskScope
+            RenderObserverBox.current = queryClient
+            defer {
+                HandlerAmbient.current = nil
+                SwiflowTaskRuntime.currentScope = nil
+                RenderObserverBox.current = nil
+            }
+            let startMs = JSObject.global.performance.object?.now?().number ?? 0
+            let patches = scopedRerender(
+                anchor: anchor,
+                handles: handles,
+                handlers: handlers,
+                scheduler: scheduler
+            )
+            shipPatches(patches)
+            lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - startMs
+            // The diff mutates the anchor in place (reuse arm), so the mount
+            // tree stays valid — no `mountTree =` reassignment on this path.
+        }
+    }
+
+    /// Encodes `patches` to a JSArray, ships them via `window.swiflow.applyPatches`,
+    /// and records `lastPatchCount` + `renderCount`. Shared by `renderOnce()`
+    /// (full render) and `flushDirty(_:)` (scoped render).
+    private func shipPatches(_ patches: [Patch]) {
+        lastPatchCount = patches.count
+        renderCount += 1
+        let jsArray = JSObject.global.Array.function!.new()
+        for (index, patch) in patches.enumerated() {
+            let payload = PatchSerializer.encode(patch)
+            jsArray[index] = JSAdapter.toJSValue(payload)
+        }
+        let swiflowGlobal = JSObject.global.swiflow.object!
+        _ = swiflowGlobal.applyPatches!(jsArray)
     }
 
     /// Destroys the mounted tree, emits remove patches to the JS driver,
