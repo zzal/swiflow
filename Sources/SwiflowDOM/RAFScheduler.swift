@@ -9,11 +9,12 @@ import Swiflow
 ///
 /// Unlike `SyncScheduler` (which fires a callback once per dirty
 /// component on `flush()`), `RAFScheduler` fires a SINGLE `onFlushBatch`
-/// callback per rAF tick regardless of how many components were marked dirty.
-/// This is intentional for Phase 3 v1: the Renderer always rerenders the
-/// entire tree from the root component, so per-component dispatch would
-/// trigger N redundant full-tree rerenders per frame for N dirty components.
-/// A single callback per flush is correct and optimal for this architecture.
+/// callback per rAF tick, passing the whole dirty-instance set for that tick.
+/// The Renderer's callback (`flushDirty(_:)`) inspects that set and chooses
+/// per-frame between a scoped subtree re-render (the common single-dirty case)
+/// and a full-root render (multi-dirty / ambiguous frames). Batching to one
+/// callback per flush — rather than one per component — lets that decision see
+/// the entire frame's dirty set at once.
 ///
 /// **Retain-cycle safety:** `RAFScheduler` is owned by `Renderer`. The
 /// `onFlushBatch` closure typically captures `Renderer` weakly. The rAF
@@ -40,19 +41,21 @@ public final class RAFScheduler: Scheduler {
     /// JS engine no longer holds a reference either.
     private var rafClosure: JSClosure?
 
-    /// Invoked once per rAF tick when at least one component is dirty.
-    /// The callback should perform a full-tree rerender from the root.
-    /// Intentionally one-call-per-flush rather than one-call-per-component
-    /// — see type-level documentation for rationale.
-    private let onFlushBatch: () -> Void
+    /// Invoked once per rAF tick when at least one component is dirty, with
+    /// the snapshot of dirty component-instance identities for that tick. The
+    /// callback decides per-frame whether to scope the re-render to a single
+    /// subtree or fall back to a full-root render. Intentionally one-call-per-
+    /// flush rather than one-call-per-component — see type-level documentation.
+    private let onFlushBatch: (Set<ObjectIdentifier>) -> Void
 
     /// Creates a scheduler that fires `onFlushBatch` at most once per
     /// `requestAnimationFrame` when any component has been marked dirty.
     ///
     /// - Parameter onFlushBatch: called once per frame if the dirty set is
-    ///   non-empty after the rAF fires. Typically a closure that calls
-    ///   `Renderer.renderOnce()` with a weak self capture.
-    public init(onFlushBatch: @escaping () -> Void) {
+    ///   non-empty after the rAF fires, receiving that frame's dirty-instance
+    ///   set. Typically a closure that calls `Renderer.flushDirty(_:)` with a
+    ///   weak self capture.
+    public init(onFlushBatch: @escaping (Set<ObjectIdentifier>) -> Void) {
         self.onFlushBatch = onFlushBatch
     }
 
@@ -71,8 +74,9 @@ public final class RAFScheduler: Scheduler {
     /// directly in tests or synchronous contexts.
     public func flush() {
         guard !dirty.isEmpty else { return }
+        let batch = dirty
         dirty.removeAll(keepingCapacity: true)
-        onFlushBatch()
+        onFlushBatch(batch)
     }
 
     // MARK: - Private
