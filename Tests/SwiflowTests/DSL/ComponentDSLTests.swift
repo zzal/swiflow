@@ -68,6 +68,7 @@ private final class IntegrationSimpleComponent {
     var body: VNode { div { text("hello") } }
 }
 
+@MainActor
 @Component
 private final class IntegrationCounterComponent {
     @State var count: Int = 0

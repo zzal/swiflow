@@ -13,6 +13,7 @@
 /// Conforming types are expected to be class-only (the protocol is
 /// `AnyObject`-bound) so the Renderer can hold a reference without
 /// copy-on-mutation surprises.
+@MainActor
 public protocol Scheduler: AnyObject {
     /// Marks `component` as needing re-render. Idempotent within a batch:
     /// the same component marked N times before the next flush produces
@@ -40,6 +41,7 @@ public protocol Scheduler: AnyObject {
 /// callback execution populates a fresh dirty set for the next batch.
 /// A reentrant `flush()` is a no-op (guard at the start) so callbacks
 /// can safely chain into other code that might itself flush.
+@MainActor
 public final class SyncScheduler: Scheduler {
     private var dirty: [ObjectIdentifier: AnyComponent] = [:]
     private var insertionOrder: [ObjectIdentifier] = []
