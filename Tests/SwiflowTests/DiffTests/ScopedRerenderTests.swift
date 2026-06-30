@@ -116,6 +116,31 @@ struct ScopedRerenderTests {
         #expect({ if case .full = plan { return true } else { return false } }())
     }
 
+    // A root component whose body is JUST another component (no element wrapper),
+    // so the inner anchor has no DOM-tracked ancestor between it and the root.
+    final class ShellInner: Component {
+        var flip = false
+        var body: VNode { flip ? p("b") : div { p("a") } }   // root-element type can swap
+    }
+    final class ShellRoot: Component {
+        let inner = ShellInner()
+        var body: VNode { VNode.component(.init(ShellInner.self) { self.inner }) }
+    }
+
+    @Test("dirty anchor with no DOM-tracked ancestor → full (root→component shell, body could tag-swap)")
+    func planFullWhenNoDomAncestor() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let shell = ShellRoot()
+        let root = diff(mounted: nil, next: .component(.init(ShellRoot.self) { shell }),
+                        handles: handles, handlers: handlers).newMountTree
+        // The inner anchor's only ancestor is the ShellRoot anchor (structural),
+        // whose parent is nil → no DOM ancestor → must fall back to full so the
+        // renderer's replaceMount covers a potential body root-element swap.
+        let plan = planRerender(root: root, dirtyIDs: [ObjectIdentifier(shell.inner)])
+        #expect({ if case .full = plan { return true } else { return false } }())
+    }
+
     // Lifecycle-recording components. `events` is shared so a test can assert
     // exactly which instances' onChange/onAppear fired during a scoped pass.
     final class RecChild: Component {
@@ -155,10 +180,13 @@ struct ScopedRerenderTests {
         // Mutate ONLY the child's body, then scoped-rerender at the child anchor.
         parent.child.label = "b"
         let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(parent.child))!
-        let patches = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+        let result = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+        // Caller fires the lifecycle (scopedRerender no longer does — the
+        // renderer fires it AFTER shipping patches).
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: result.preExistingIDs)
 
         // (a) patches updated the child's text and nothing else.
-        let setTexts: [String] = patches.compactMap {
+        let setTexts: [String] = result.patches.compactMap {
             if case .setText(_, let t) = $0 { return t } else { return nil }
         }
         #expect(setTexts == ["b"])
@@ -198,7 +226,8 @@ struct ScopedRerenderTests {
 
         holder.showGrand = true
         let anchor = findComponentAnchor(in: root, matching: ObjectIdentifier(holder))!
-        _ = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+        let result = scopedRerender(anchor: anchor, handles: handles, handlers: handlers, scheduler: nil)
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: result.preExistingIDs)
 
         // holder survived → onChange; grand is freshly mounted → onAppear.
         #expect(events.log.contains("change:holder"))

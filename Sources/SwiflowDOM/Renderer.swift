@@ -213,14 +213,21 @@ final class Renderer {
                 RenderObserverBox.current = nil
             }
             let startMs = JSObject.global.performance.object?.now?().number ?? 0
-            let patches = scopedRerender(
+            let scoped = scopedRerender(
                 anchor: anchor,
                 handles: handles,
                 handlers: handlers,
                 scheduler: scheduler
             )
-            shipPatches(patches)
+            // Measure render compute BEFORE shipping, matching renderOnce() so
+            // lastRenderMs is comparable across the two paths.
             lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - startMs
+            shipPatches(scoped.patches)
+            // Fire lifecycle AFTER patches reach the driver (matching
+            // renderOnce()'s ship-then-fire order) so onAppear/onChange observe
+            // the applied DOM — e.g. Ref.wrappedValue resolves for refs mounted
+            // in this scoped subtree.
+            firePostRenderLifecycle(scoped.newMountTree, preExistingIDs: scoped.preExistingIDs)
             // The diff mutates the anchor in place (reuse arm), so the mount
             // tree stays valid — no `mountTree =` reassignment on this path.
         }
