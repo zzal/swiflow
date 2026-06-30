@@ -455,7 +455,7 @@ struct DataTableStateTests {
         #expect(box.gridTemplate() == "repeat(2, minmax(0, 1fr))")
     }
 
-    @Test func virtualBodyHasRunwayAndTranslatedRows() {
+    @Test func virtualBodyHasPaddingSpacerAndRows() {
         let rows = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
         let box = makeDataTableBox(rows, id: \.id, maxHeight: .custom("400px"),
                                    virtualization: .fixed(rowHeight: 40),
@@ -470,12 +470,15 @@ struct DataTableStateTests {
         let headTr = allTags(.element(allTags(root, "thead").first!), "tr").first!
         #expect(headTr.style["grid-template-columns"] == "1fr")
         let tbody = allTags(root, "tbody").first!
-        #expect(tbody.style["height"] == "40000px")          // 1000 * 40
-        let trs = allTags(.element(tbody), "tr")
         let start = 100 - box.overscan                       // window start (firstVisible 100)
+        let end = start + (10 + 2 * box.overscan)
+        // Scroll offset is now carried by tbody padding, not row transforms.
+        #expect(tbody.style["padding-top"] == "\(start * 40)px")
+        #expect(tbody.style["padding-bottom"] == "\(max(0, 1000 - end) * 40)px")
+        let trs = allTags(.element(tbody), "tr")
         #expect(trs.count == 10 + 2 * box.overscan)
         #expect(trs.first!.style["grid-template-columns"] == "1fr")
-        #expect(trs.first!.style["transform"] == "translateY(\(start * 40)px)")
+        #expect(trs.first!.style["transform"] == nil)        // no per-row transform in padding model
         #expect(trs.first!.attributes["aria-rowindex"] == "\(start + 1)")
     }
 
@@ -591,6 +594,48 @@ struct DataTableRowClickTests {
         let tr = allTags(.element(allTags(root, "tbody").first!), "tr")[0]
         #expect(tr.handlers["click"] == nil)
         #expect(tr.attributes["class"]?.contains("clickable") != true)
+    }
+}
+
+// MARK: VNode-walk helpers for padding-spacer tests
+
+@MainActor private func anyElement(in node: VNode, where pred: (ElementData) -> Bool) -> Bool {
+    switch node {
+    case .element(let d):
+        if pred(d) { return true }
+        return d.children.contains { anyElement(in: $0, where: pred) }
+    default: return false
+    }
+}
+@MainActor private func firstElement(in node: VNode, where pred: (ElementData) -> Bool) -> ElementData? {
+    switch node {
+    case .element(let d):
+        if pred(d) { return d }
+        for c in d.children { if let f = firstElement(in: c, where: pred) { return f } }
+        return nil
+    default: return nil
+    }
+}
+
+extension DataTableStateTests {
+    @Test("virtualized tbody uses padding spacer; rows carry no transform")
+    func virtualPaddingSpacer() {
+        let b = makeDataTableBox(Array(0..<100).map { Person(id: $0, name: "P\($0)", age: $0) },
+                                 id: \.id, maxHeight: .custom("220px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+        }
+        // viewport 220 / row 20 = 11 rows in view; scroll to row 50.
+        b.setViewportMetrics(scrollTop: 50 * 20, viewportHeight: 220)
+        let root = building { b.body }
+
+        let tbody = firstElement(in: root) { $0.tag == "tbody" }
+        #expect(tbody != nil)
+        let first = max(0, 50 - b.overscan)
+        #expect(tbody?.style["padding-top"] == "\(first * 20)px")
+        // No <tr> in the body carries a transform.
+        let anyTransform = anyElement(in: root) { $0.tag == "tr" && $0.style["transform"] != nil }
+        #expect(!anyTransform)
     }
 }
 
