@@ -66,3 +66,45 @@ package func planRerender(root: MountNode, dirtyIDs: Set<ObjectIdentifier>) -> R
     if hasEnvironmentOverrideAncestor(anchor) { return .full }
     return .scoped(anchor)
 }
+
+/// Re-renders the subtree rooted at `anchor` (a component-anchor MountNode)
+/// and returns the patches to ship. Reuses the live instance via the diff's
+/// component-reuse arm, reconciling the body subtree in place, then fires the
+/// post-render lifecycle scoped to this subtree only.
+///
+/// Precondition: `anchor.component != nil` and `anchor` has no
+/// `environmentOverride` ancestor (callers gate via `planRerender`). The diff
+/// starts with a fresh `EnvironmentValues()`, which reproduces the ambient
+/// environment exactly when no override sits above the anchor.
+@MainActor
+package func scopedRerender(
+    anchor: MountNode,
+    handles: HandleAllocator,
+    handlers: HandlerRegistry,
+    scheduler: Scheduler?
+) -> [Patch] {
+    guard let instance = anchor.component else { return [] }
+
+    // Preserve the anchor's identity (typeID + key) so the reuse arm fires
+    // rather than destroy+remount (which would drop the instance's state).
+    let key: String?
+    if case .component(let desc) = anchor.vnode { key = desc.key } else { key = nil }
+    let next = VNode.component(
+        ComponentDescription(typeID: instance.typeID, key: key, factory: { instance })
+    )
+
+    // Capture instances alive in this subtree BEFORE the diff so the lifecycle
+    // walk routes survivors → onChange and fresh mounts → onAppear.
+    let preExistingIDs = collectComponentIDs(anchor)
+
+    let result = diff(
+        mounted: anchor,
+        next: next,
+        handles: handles,
+        handlers: handlers,
+        scheduler: scheduler,
+        environment: .init()
+    )
+    firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
+    return result.patches
+}
