@@ -469,7 +469,7 @@ func update(
             )
             patches.append(.appendChild(parent: domParentHandle, child: newBodyMount.domHandle))
         }
-        mounted.componentBody = newBodyMount
+        mounted.setComponentBody(newBodyMount)
         // Commit the new vnode description so the next render's left-hand
         // side reflects the description that was actually diffed.
         mounted.vnode = next
@@ -508,7 +508,7 @@ func update(
             )
             patches.append(.appendChild(parent: domParentHandle, child: updatedBody.domHandle))
         }
-        mounted.componentBody = updatedBody
+        mounted.setComponentBody(updatedBody)
         mounted.vnode = next
         return mounted
 

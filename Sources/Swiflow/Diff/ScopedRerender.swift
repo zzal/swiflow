@@ -21,3 +21,20 @@ package func findComponentAnchor(in node: MountNode, matching id: ObjectIdentifi
     }
     return nil
 }
+
+/// True when `node` has any ancestor (via `parent` pointers) that is an
+/// `.environmentOverride` node. A scoped re-render starts the diff at the
+/// anchor with a fresh `EnvironmentValues()`, so an anchor beneath an
+/// override would lose the ambient environment — such anchors must take the
+/// full-render fallback instead. Note: `Theme {}` / `ThemeScope` is a plain
+/// `display:contents` div, NOT an environment override, so it does not trip
+/// this guard.
+@MainActor
+package func hasEnvironmentOverrideAncestor(_ node: MountNode) -> Bool {
+    var current = node.parent
+    while let n = current {
+        if case .environmentOverride = n.vnode { return true }
+        current = n.parent
+    }
+    return false
+}

@@ -97,6 +97,16 @@ package final class MountNode {
         for child in children {
             child.parent = self
         }
+        componentBody?.parent = self
+    }
+
+    /// Replaces the `componentBody` slot and wires the new body's `parent`
+    /// pointer. Clears the old body's parent pointer so the detached subtree
+    /// does not hold a stale back-reference.
+    package func setComponentBody(_ newBody: MountNode) {
+        componentBody?.parent = nil
+        componentBody = newBody
+        newBody.parent = self
     }
 
     /// Appends a child and updates its parent pointer.
