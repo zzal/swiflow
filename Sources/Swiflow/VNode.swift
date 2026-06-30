@@ -87,6 +87,13 @@ public struct ElementData: Equatable {
     /// reactively reconciled; only the children are left alone. Never serialized — it gates patch
     /// generation on the Swift side only. Set via `VNode.unmanagedChildren()`.
     public var managesOwnChildren: Bool = false
+    /// Optional memoization token. When two same-tag elements being diffed both
+    /// carry a non-nil, EQUAL `memoKey`, the diff treats the element (and its
+    /// entire subtree) as unchanged and skips all reconciliation. Caller's
+    /// contract: equal key ⇒ equal rendered element + children. Swift-side only —
+    /// excluded from `==` (it is metadata, not rendered shape) and never
+    /// serialized into a `Patch`. Set via `VNode.memoKey(_:)`.
+    public var memoKey: AnyHashable? = nil
 
     /// Creates an `ElementData` with the given bags. Every bag defaults to
     /// empty so callers can pass only what they need.
