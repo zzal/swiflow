@@ -97,9 +97,13 @@ A `[ObjectIdentifier: MountNode]` index is a possible future optimization if pro
 
 ## Files touched
 
-- `Sources/Swiflow/Diff/ScopedRerender.swift` **(new, core, host-testable)** — `findComponentAnchor(in:matching:)`, `hasEnvironmentOverrideAncestor(_:)`, and `scopedRerender(anchor:handles:handlers:scheduler:) -> [Patch]` (capture subtree IDs → rebuild the anchor's component VNode preserving typeID+key → `diff(mounted: anchor, …)` → `firePostRenderLifecycle(anchor, preExistingIDs:)` → return patches). All the risky logic lives here, behind host tests.
+- `Sources/Swiflow/Diff/ScopedRerender.swift` **(new, core, host-testable)** — the entire decision + execution surface, behind host tests:
+  - `findComponentAnchor(in:matching:) -> MountNode?` — locate the anchor for an `ObjectIdentifier` by tree walk.
+  - `hasEnvironmentOverrideAncestor(_:) -> Bool` — parent-pointer walk.
+  - `RerenderPlan` (`.full` | `.scoped(MountNode)`) and `planRerender(root:dirtyIDs:) -> RerenderPlan` — the **fallback predicate as a pure function** (so the decision is host-tested, not buried in the WASM renderer).
+  - `scopedRerender(anchor:handles:handlers:scheduler:) -> [Patch]` — capture subtree IDs → rebuild the anchor's component VNode preserving typeID+key → `diff(mounted: anchor, …)` → `firePostRenderLifecycle(anchor, preExistingIDs:)` → return patches.
 - `Sources/SwiflowDOM/RAFScheduler.swift` — `onFlushBatch` becomes `(Set<ObjectIdentifier>) -> Void`; `flush()` passes the snapshot before clearing.
-- `Sources/SwiflowDOM/Renderer.swift` — `flushDirty(_:)` (the fallback predicate), an extracted `shipPatches(_:)` helper shared with `renderOnce()`, and the fast path that calls the core `scopedRerender(...)` then ships its patches; the `RAFScheduler` closure becomes `{ [weak self] ids in self?.flushDirty(ids) }`.
+- `Sources/SwiflowDOM/Renderer.swift` — `flushDirty(_:)` (thin: call `planRerender`, then either `renderOnce()` or core `scopedRerender(...)` + ship), an extracted `shipPatches(_:)` helper shared with `renderOnce()`; the `RAFScheduler` closure becomes `{ [weak self] ids in self?.flushDirty(ids) }`.
 - `Sources/SwiflowUI/DataTable.swift` — `sortedIndices()` memoization fields + logic.
 
 The `Scheduler` protocol (`Sources/Swiflow/Reactivity/Scheduler.swift`) is unchanged; only `RAFScheduler`'s internal callback shape changes. `SyncScheduler` (tests/headless) already dispatches per-component and needs no change.
