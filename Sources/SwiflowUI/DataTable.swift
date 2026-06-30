@@ -247,6 +247,21 @@ final class DataTableBox {
     /// Test probe: true when the most recent `sortedIndices()` returned the cache.
     private(set) var _sortCacheHitForTesting = false
     #endif
+
+    // Row-VNode memo (#91). A virtualized row's rendered shape depends only on
+    // (rowID, sorted-position, selected): row data + columns are immutable
+    // post-mount, and offset now lives on tbody padding (not per-row transform).
+    // The same value is the cache-validity token AND the .memoKey (it includes
+    // `id`, so it is unique per row across the tbody's children). Non-@State
+    // (invisible to reactivity), same pattern as the sortedIndices memo.
+    private struct RowMemoKey: Hashable { let id: String; let p: Int; let selected: Bool }
+    private var _rowCache: [String: (key: RowMemoKey, vnode: VNode)] = [:]
+    #if DEBUG
+    /// Count of rows actually built (cache misses) during the most recent body render.
+    private(set) var _rowRebuildsForTesting = 0
+    /// Current row-cache entry count (eviction probe).
+    var _rowCacheCountForTesting: Int { _rowCache.count }
+    #endif
     /// Extra rows rendered above & below the viewport. A buffer that hides the reactive
     /// re-render latency (~3 frames: @State → whole-tree VDOM diff in Wasm → patch → DOM) when
     /// scrolling: without enough buffer a moderate drag outruns the last-rendered window and
@@ -536,14 +551,40 @@ final class DataTableBox {
 
     private func virtualBodyRows(_ window: [Int], first: Int, rowHeight: Int, gridColumns: String) -> [VNode] {
         let colspan = columns.count + (selection != nil ? 1 : 0)
-        if loading { return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")])] }
-        if rowCount == 0 { return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)])] }
-        return window.enumerated().map { offset, rowIndex in
-            virtualRowVNode(rowIndex, absolute: first + offset, rowHeight: rowHeight, gridColumns: gridColumns)
+        if loading {
+            _rowCache.removeAll(keepingCapacity: true)
+            return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")])]
         }
+        if rowCount == 0 {
+            _rowCache.removeAll(keepingCapacity: true)
+            return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)])]
+        }
+        #if DEBUG
+        _rowRebuildsForTesting = 0
+        #endif
+        var liveIDs = Set<String>()
+        let rows: [VNode] = window.enumerated().map { offset, rowIndex in
+            let absolute = first + offset
+            let id = rowKey(rowIndex)
+            liveIDs.insert(id)
+            let key = RowMemoKey(id: id, p: absolute, selected: selection?.isSelected(rowIndex) ?? false)
+            if let cached = _rowCache[id], cached.key == key {
+                return cached.vnode
+            }
+            #if DEBUG
+            _rowRebuildsForTesting += 1
+            #endif
+            let vnode = virtualRowVNode(rowIndex, absolute: absolute, rowHeight: rowHeight,
+                                        gridColumns: gridColumns, memoKey: key)
+            _rowCache[id] = (key, vnode)
+            return vnode
+        }
+        // Evict rows no longer in the window so the cache stays ~window-sized.
+        _rowCache = _rowCache.filter { liveIDs.contains($0.key) }
+        return rows
     }
 
-    private func virtualRowVNode(_ i: Int, absolute: Int, rowHeight: Int, gridColumns: String) -> VNode {
+    private func virtualRowVNode(_ i: Int, absolute: Int, rowHeight: Int, gridColumns: String, memoKey key: RowMemoKey) -> VNode {
         var cells: [VNode] = []
         if let sel = selection { cells.append(rowSelectCell(i, sel)) }
         cells.append(contentsOf: columns.map { col in
@@ -558,7 +599,7 @@ final class DataTableBox {
         ]
         if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
         if let onRowClick { attrs.append(.on(.click) { onRowClick(i) }) }
-        return element("tr", attributes: attrs, children: cells)
+        return element("tr", attributes: attrs, children: cells).memoKey(key)
     }
 
     /// Reads scrollTop/clientHeight from the live container and updates metrics ONLY when the

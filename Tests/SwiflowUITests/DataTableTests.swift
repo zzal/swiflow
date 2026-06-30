@@ -647,3 +647,56 @@ extension DataTableStateTests {
         #expect(css.contains("position: sticky"))   // header row pins in virtual mode
     }
 }
+
+@Suite("DataTable — row memo cache")
+@MainActor
+struct DataTableRowCacheTests {
+    @Test("scrolling one row rebuilds only the entering row; others are cache hits")
+    func rowCacheHitOnScroll() {
+        let b = makeDataTableBox(Array(0..<200).map { Person(id: $0, name: "P\($0)", age: $0) },
+                                 id: \.id, maxHeight: .custom("220px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+        }
+        b.setViewportMetrics(scrollTop: 1000, viewportHeight: 220)   // window around row 50
+        _ = building { b.body }                                      // prime: all windowed rows built
+        let builtFirstPass = b._rowRebuildsForTesting
+        #expect(builtFirstPass > 0)
+
+        // Shift the window down by exactly one row.
+        b.setViewportMetrics(scrollTop: 1000 + 20, viewportHeight: 220)
+        _ = building { b.body }
+        #expect(b._rowRebuildsForTesting == 1)   // only the newly-entering row rebuilt
+    }
+
+    @Test("toggling one row's selection rebuilds only that row")
+    func rowCacheInvalidatesOnSelection() {
+        var selected: Set<Int> = []
+        let sel = Binding<Set<Int>>(get: { selected }, set: { selected = $0 })
+        let b = makeDataTableBox(Array(0..<200).map { Person(id: $0, name: "P\($0)", age: $0) },
+                                 id: \.id, selection: sel, maxHeight: .custom("220px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+        }
+        b.setViewportMetrics(scrollTop: 1000, viewportHeight: 220)
+        _ = building { b.body }                  // prime
+        selected = [50]                          // toggle one visible row
+        _ = building { b.body }
+        #expect(b._rowRebuildsForTesting == 1)
+    }
+
+    @Test("row cache stays window-sized after scrolling across many windows")
+    func rowCacheBounded() {
+        let b = makeDataTableBox(Array(0..<2000).map { Person(id: $0, name: "P\($0)", age: $0) },
+                                 id: \.id, maxHeight: .custom("220px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+        }
+        for top in stride(from: 0, to: 20000, by: 400) {
+            b.setViewportMetrics(scrollTop: Double(top), viewportHeight: 220)
+            _ = building { b.body }
+        }
+        // viewport 11 + 2*overscan; cache must not grow unbounded toward 2000.
+        #expect(b._rowCacheCountForTesting <= 11 + 2 * b.overscan + 4)
+    }
+}
