@@ -235,6 +235,18 @@ final class DataTableBox {
     @State private var internalPage: Int = 0
     @State private var scrollTop: Double = 0
     @State private var viewportHeight: Double = 0
+
+    // sortedIndices() memo (issue #89). The instance persists across renders,
+    // so a plain non-@State cache is safe and invisible to reactivity. A scroll
+    // tick changes neither the sort nor the row count → cache hit → no full
+    // rebuild/re-sort in the surviving subtree.
+    private var _sortCache: [Int]?
+    private var _sortCacheKey: SortCacheKey?
+    private struct SortCacheKey: Equatable { let columnID: String?; let ascending: Bool; let rowCount: Int }
+    #if DEBUG
+    /// Test probe: true when the most recent `sortedIndices()` returned the cache.
+    private(set) var _sortCacheHitForTesting = false
+    #endif
     /// Extra rows rendered above & below the viewport. A buffer that hides the reactive
     /// re-render latency (~3 frames: @State → whole-tree VDOM diff in Wasm → patch → DOM) when
     /// scrolling: without enough buffer a moderate drag outruns the last-rendered window and
@@ -267,18 +279,38 @@ final class DataTableBox {
     // MARK: pipeline
 
     /// Stable sort of row indices by the active column's comparator; identity when unsorted.
+    /// Result is memoized by (columnID, ascending, rowCount) — a scroll tick (which changes
+    /// neither the sort nor the row count) returns the cached array without rebuilding/re-sorting.
     func sortedIndices() -> [Int] {
-        let base = Array(0..<rowCount)
-        guard let order = activeSort(),
-              let col = columns.first(where: { $0.id == order.columnID }),
-              let cmp = col.comparator else { return base }
-        return base.sorted { i, j in
-            switch cmp(i, j) {
-            case .ascending:  return order.ascending
-            case .descending: return !order.ascending
-            case .same:       return i < j   // stable: tie-break on original order
-            }
+        let active = activeSort()
+        let key = SortCacheKey(columnID: active?.columnID, ascending: active?.ascending ?? false, rowCount: rowCount)
+        if let cached = _sortCache, _sortCacheKey == key {
+            #if DEBUG
+            _sortCacheHitForTesting = true
+            #endif
+            return cached
         }
+        #if DEBUG
+        _sortCacheHitForTesting = false
+        #endif
+        let base = Array(0..<rowCount)
+        let result: [Int]
+        if let order = active,
+           let col = columns.first(where: { $0.id == order.columnID }),
+           let cmp = col.comparator {
+            result = base.sorted { i, j in
+                switch cmp(i, j) {
+                case .ascending:  return order.ascending
+                case .descending: return !order.ascending
+                case .same:       return i < j   // stable: tie-break on original order
+                }
+            }
+        } else {
+            result = base
+        }
+        _sortCache = result
+        _sortCacheKey = key
+        return result
     }
 
     func pageCount() -> Int {

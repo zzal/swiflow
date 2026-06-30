@@ -179,6 +179,24 @@ struct DataTableSortTests {
         let root = building { b.body }
         #expect(allTags(root, "button").isEmpty)
     }
+
+    @Test("sortedIndices caches across a scroll-only re-render and recomputes on sort change")
+    func sortedIndicesCache() {
+        let order = Binding<SortOrder?>(get: { SortOrder(columnID: "Age", ascending: true) }, set: { _ in })
+        let b = makeDataTableBox(people, id: \.id, sortable: true, sortOrder: order,
+                                 maxHeight: .custom("100px"),
+                                 virtualization: .fixed(rowHeight: 20)) {
+            Column("Name", value: \.name)
+            Column("Age", value: \.age)
+        }
+        // Prime the cache.
+        let first = b.sortedIndices()
+        // A scroll-only change must not invalidate the cache → same contents + cache hit.
+        b.setViewportMetrics(scrollTop: 40, viewportHeight: 100)
+        let afterScroll = b.sortedIndices()
+        #expect(afterScroll == first)
+        #expect(b._sortCacheHitForTesting == true)
+    }
 }
 
 @Suite("DataTable — selection")
