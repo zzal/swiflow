@@ -147,4 +147,50 @@ struct QueryStateMachineFuzzTests {
         w.assertConverged("scripted")
         #expect(w.model.value(1) == [10])   // 10,20 appended; 99 rolled back; 20 removed
     }
+
+    @Test("randomized op sequences converge to server truth")
+    func randomizedConverges() async {
+        let baseSeed: UInt64 = 0xDEAD_BEEF_CAFE_F00D
+        let sequences = 200
+        let opsPerSequence = 40
+        let listIDs = [1, 2, 3]   // enough for prefix/tag fan-out
+
+        for seq in 0..<sequences {
+            var rng = SplitMix64(seed: baseSeed &+ UInt64(seq))
+            let w = FuzzWorld()
+            var trace: [String] = []
+            // Subscribe all list IDs upfront so every mutation targets a cached
+            // key (OptimisticEdit.update requires a cache entry to transform).
+            for lid in listIDs { w.subscribe(lid); trace.append("subscribe \(lid)") }
+            await w.settle()
+
+            for _ in 0..<opsPerSequence {
+                let id = listIDs.randomElement(using: &rng)!
+                let pick = Int.random(in: 0..<7, using: &rng)
+                switch pick {
+                case 0:
+                    w.subscribe(id); trace.append("subscribe \(id)")
+                case 1:
+                    let v = Int.random(in: 1...999, using: &rng)
+                    w.mutate(AppendMut(id: id, model: w.model), v); trace.append("append \(id) \(v)")
+                case 2:
+                    w.mutate(RemoveLastMut(id: id, model: w.model), 0); trace.append("removeLast \(id)")
+                case 3:
+                    let v = Int.random(in: 1...999, using: &rng)
+                    w.mutate(FailAppendMut(id: id, model: w.model), v); trace.append("failAppend \(id) \(v)")
+                case 4:
+                    let exact = Bool.random(using: &rng)
+                    if exact { w.client.invalidate(ServerModel.key(id), exact: true); trace.append("invalidate.exact \(id)") }
+                    else { w.client.invalidate(["list"], exact: false); trace.append("invalidate.prefix") }
+                case 5:
+                    w.client.invalidate(tag: "lists"); trace.append("invalidate.tag lists")
+                case 6:
+                    w.clock.advance(by: .seconds(6)); w.client.tick(now: w.clock.now()); trace.append("tick +6s")
+                default: break
+                }
+                await w.settle()
+                w.assertConverged("seq=\(seq) seed=\(baseSeed &+ UInt64(seq)) trace=\(trace)")
+            }
+        }
+    }
 }
