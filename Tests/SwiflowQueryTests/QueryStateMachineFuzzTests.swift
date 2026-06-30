@@ -276,6 +276,25 @@ struct QueryStateMachineFuzzTests {
         #expect(client.getQueryDataErased(ServerModel.key(1)) as? [Int] == [1, 2],
                 "a superseded (older-generation) fetch must not clobber the newer committed value")
     }
+
+    @Test("optimistic edit on an unsubscribed query skips silently (no trap, no diagnostic)")
+    func optimisticNoValueSkipsSilently() async {
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        let w = FuzzWorld()
+        // id 7 is never subscribed → its query holds no cached value → .noValue.
+        w.mutate(AppendMut(id: 7, model: w.model), 42)
+        await w.settle()
+
+        // Silent skip: no "no cached value" diagnostic is emitted (before the fix,
+        // this string was passed to swiflowDiagnostic, which traps in DEBUG).
+        #expect(!captured.contains { $0.contains("no cached value") })
+        // The mutation's perform still ran and reconciled the server truth.
+        #expect(w.model.value(7) == [42])
+    }
 }
 
 /// One-shot gate to deterministically park an async fetch until released.
