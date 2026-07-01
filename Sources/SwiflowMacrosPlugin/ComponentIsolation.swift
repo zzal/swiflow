@@ -30,11 +30,13 @@ enum ComponentIsolation {
 
     /// True when the class carries an explicit `@MainActor` (detected by name).
     /// Used to skip auto-injection entirely so existing `@MainActor @Component`
-    /// code expands byte-identically.
+    /// code expands byte-identically. Matches the LAST dot-component so the
+    /// fully-qualified spellings `@_Concurrency.MainActor` / `@Swift.MainActor`
+    /// also count.
     static func hasMainActorAttribute(_ attributes: AttributeListSyntax) -> Bool {
         attributes.contains { element in
             guard case let .attribute(attr) = element else { return false }
-            return attr.attributeName.trimmedDescription == "MainActor"
+            return lastNameComponent(attr.attributeName.trimmedDescription) == "MainActor"
         }
     }
 
@@ -43,9 +45,24 @@ enum ComponentIsolation {
            mods.contains(where: { $0.name.tokenKind == .keyword(.nonisolated) }) {
             return true
         }
+        // Skip a member that already carries ANY global-actor attribute — not
+        // just `@MainActor`. A member written `@SomeGlobalActor func x()` would
+        // otherwise get `@MainActor` stamped on top → "multiple actor isolation
+        // attributes". Heuristic: an attribute whose last name-component is
+        // `MainActor`, or ends in `Actor`, is treated as an actor isolation.
         if let attrs = member.asProtocol(WithAttributesSyntax.self)?.attributes {
-            return hasMainActorAttribute(attrs)
+            return attrs.contains { element in
+                guard case let .attribute(attr) = element else { return false }
+                let last = lastNameComponent(attr.attributeName.trimmedDescription)
+                return last == "MainActor" || last.hasSuffix("Actor")
+            }
         }
         return false
+    }
+
+    /// The last dot-separated component of a (possibly qualified) attribute name
+    /// (`_Concurrency.MainActor` → `MainActor`, `MainActor` → `MainActor`).
+    private static func lastNameComponent(_ name: String) -> String {
+        String(name.split(separator: ".").last ?? Substring(name))
     }
 }

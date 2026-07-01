@@ -16,9 +16,9 @@ struct ReducerStateMacroTests {
             expandedSource: """
             var flow: Checkout
 
-            private let _flow_reducerRuntime = ReducerRuntime<Checkout>()
+            @MainActor private let _flow_reducerRuntime = ReducerRuntime<Checkout>()
 
-            var $flow: ReducerHandle<Checkout> {
+            @MainActor var $flow: ReducerHandle<Checkout> {
                 ReducerHandle(runtime: _flow_reducerRuntime, reducer: flow)
             }
             """,

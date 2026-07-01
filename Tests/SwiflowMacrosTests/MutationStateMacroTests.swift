@@ -15,9 +15,9 @@ struct MutationStateMacroTests {
             expandedSource: """
             var create: CreateTodo
 
-            private let _create_mutationRuntime = MutationRuntime<CreateTodo>()
+            @MainActor private let _create_mutationRuntime = MutationRuntime<CreateTodo>()
 
-            var $create: MutationHandle<CreateTodo> {
+            @MainActor var $create: MutationHandle<CreateTodo> {
                 MutationHandle(runtime: _create_mutationRuntime, mutation: create)
             }
             """,

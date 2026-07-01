@@ -97,8 +97,15 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         let valueType = typeAnno.type.trimmedDescription
         let name = identifier.text
 
+        // `$name` reads/writes the backing `name`, which @Component now isolates
+        // to @MainActor (bare → memberAttribute-injected; explicit @MainActor →
+        // written). A peer macro can't see the enclosing type's attributes, so it
+        // stamps @MainActor unconditionally — always correct, since these three
+        // peer macros only ever apply to @Component members (an always-@MainActor
+        // type). Redundant on an explicit-@MainActor class, exactly like the
+        // @Component-emitted `stateCells`.
         let projected: DeclSyntax = """
-            var $\(raw: name): Binding<\(raw: valueType)> {
+            @MainActor var $\(raw: name): Binding<\(raw: valueType)> {
                 Binding(
                     get: { [unowned self] in
                         self.\(raw: name)
