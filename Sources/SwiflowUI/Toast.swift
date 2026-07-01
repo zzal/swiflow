@@ -69,6 +69,7 @@ public struct ToastItem {
 /// region is `pointer-events: none` so empty space never blocks the page; toasts opt
 /// back in. (Uses a high `z-index`, not the top layer, so a toast can sit under a modal
 /// `<dialog>` — an accepted trade-off for not needing a popover host.)
+@available(*, deprecated, message: "Use ToastStack(queue:) with @ReducerState var toasts: ToastQueue")
 @MainActor
 public func ToastStack(toasts: Binding<[ToastItem]>, placement: ToastPlacement = .bottomTrailing) -> VNode {
     ensureBaseStyles()
