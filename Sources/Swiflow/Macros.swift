@@ -7,6 +7,7 @@
 /// it also synthesizes a zero-arg `init()` that default-constructs each
 /// mutation — so a component whose mutations need no captured dependencies
 /// drops its boilerplate `init() { self.add = AddTodo() }`.
+@attached(memberAttribute)
 @attached(extension, conformances: Component, _ComponentRuntime)
 @attached(member, names:
     named(init),

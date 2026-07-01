@@ -70,6 +70,13 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         // regardless — they're implementation detail, not part of the protocol.
         let access = SynthesizedAccess.keyword(for: classDecl.modifiers)
 
+        // When the type is NOT already @MainActor, the memberAttribute role will
+        // stamp user members — but it never sees these SYNTHESIZED members, so
+        // they must isolate themselves. When the type already has @MainActor, emit
+        // nothing extra (byte-identical to today; `stateCells` keeps its own
+        // @MainActor as it does now).
+        let synthActor = ComponentIsolation.hasMainActorAttribute(classDecl.attributes) ? "" : "@MainActor "
+
         // Scan members for @MacroState or @State. The scanner accepts
         // both during the Phase 15 migration window (Task 4 introduced
         // @MacroState; Task 6 normalized to @State). Both forms produce
@@ -210,21 +217,37 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             "_\(name)_reducerRuntime.wire(owner: owner, scheduler: scheduler)"
         }
         let bindBody = bindStmts.joined(separator: "\n    ")
-        let bindDecl = DeclSyntax(stringLiteral: "\(access)func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
+        let bindDecl = DeclSyntax(stringLiteral: "\(synthActor)\(access)func bind(owner: AnyComponent, scheduler: Scheduler) {\n    \(bindBody)\n}")
 
-        // Synthesize a zero-arg `init()` for default-constructible mutations and
-        // reducers when the class declares none — mirroring Swift's own
-        // memberwise-init suppression (a user-written init opts out entirely).
+        // Synthesize a zero-arg `init()` when the class declares none.
+        //
+        // For bare `@Component` (synthActor != ""), we ALWAYS synthesize a
+        // `@MainActor init()` — even for mutation-free components — because
+        // the synthesized storage (`runtimeOwner`, `runtimeScheduler`) is
+        // `@MainActor`-isolated. Without an explicit `@MainActor init()`,
+        // Swift generates a nonisolated default init which conflicts with those
+        // `@MainActor`-isolated stored properties (Swift 6 strict concurrency).
+        //
+        // When the type already carries explicit `@MainActor` (`synthActor == ""`),
+        // Swift itself infers the correct actor on the implicit default init, so
+        // we revert to the old behaviour: synthesize only when mutations/reducers
+        // require default-construction assignments.
         let hasUserInit = classDecl.memberBlock.members.contains {
             $0.decl.is(InitializerDeclSyntax.self)
         }
         let allInits = mutationInits + reducerInits
         var synthesizedInit: DeclSyntax? = nil
-        if !hasUserInit, !allInits.isEmpty {
-            let assignments = allInits
-                .map { "    self.\($0.name) = \($0.type)()" }
-                .joined(separator: "\n")
-            synthesizedInit = DeclSyntax(stringLiteral: "\(access)init() {\n\(assignments)\n}")
+        if !hasUserInit {
+            if !allInits.isEmpty {
+                let assignments = allInits
+                    .map { "    self.\($0.name) = \($0.type)()" }
+                    .joined(separator: "\n")
+                synthesizedInit = DeclSyntax(stringLiteral: "\(synthActor)\(access)init() {\n\(assignments)\n}")
+            } else if !synthActor.isEmpty {
+                // Bare @Component with no mutations/reducers: emit an empty
+                // @MainActor init() to avoid the nonisolated-default-init conflict.
+                synthesizedInit = DeclSyntax(stringLiteral: "\(synthActor)\(access)init() {}")
+            }
         }
 
         // The init leads the emitted members (constructor first), followed by
@@ -232,8 +255,8 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         var emitted: [DeclSyntax] = []
         if let synthesizedInit { emitted.append(synthesizedInit) }
         emitted.append(contentsOf: [
-            "private weak var runtimeOwner: AnyComponent?",
-            "private var runtimeScheduler: Scheduler?",
+            DeclSyntax(stringLiteral: "\(synthActor)private weak var runtimeOwner: AnyComponent?"),
+            DeclSyntax(stringLiteral: "\(synthActor)private var runtimeScheduler: Scheduler?"),
             stateCellsDecl,
             bindDecl,
         ])
@@ -261,6 +284,24 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             return true
         }
         return false
+    }
+}
+
+extension ComponentMacro: MemberAttributeMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        guard let classDecl = declaration.as(ClassDeclSyntax.self),
+              classDecl.modifiers.contains(where: { $0.name.text == "final" }) else {
+            return []   // non-final / non-class: diagnosed by the other roles
+        }
+        // Whole-type skip: an explicitly-isolated component keeps today's exact
+        // expansion (and avoids a redundant-attribute diagnostic).
+        if ComponentIsolation.hasMainActorAttribute(classDecl.attributes) { return [] }
+        return ComponentIsolation.attributes(for: member)
     }
 }
 

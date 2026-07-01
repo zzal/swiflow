@@ -25,26 +25,27 @@ final class ComponentMacroReducerTests: XCTestCase {
             """,
             expandedSource: """
             final class Flowy {
-                var flow: Checkout
+                @MainActor var flow: Checkout
 
                 private let _flow_reducerRuntime = ReducerRuntime<Checkout>()
 
                 var $flow: ReducerHandle<Checkout> {
                     ReducerHandle(runtime: _flow_reducerRuntime, reducer: flow)
                 }
+                @MainActor
                 var body: VNode { .text("") }
 
-                init() {
+                @MainActor init() {
                     self.flow = Checkout()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _flow_reducerRuntime.wire(owner: owner, scheduler: scheduler)
@@ -59,10 +60,10 @@ final class ComponentMacroReducerTests: XCTestCase {
     }
 
     // Test (b): A reducer-free, mutation-free component must expand
-    // byte-identically to the pre-change golden — proves the additive change
-    // did not alter reducer-free components. The expected source is copied
-    // verbatim from ComponentMacroTests.testHappyPath; @State is NOT registered
-    // in the macros map so it stays unexpanded, matching that golden exactly.
+    // identically to ComponentMacroTests.testHappyPath — proves the additive
+    // change did not alter reducer-free components. The expected source is kept
+    // in sync verbatim with that golden; @State is NOT registered in the macros
+    // map so it stays unexpanded, matching that golden exactly.
     func testNoReducerByteIdentical() {
         assertMacroExpansion(
             """
@@ -74,12 +75,17 @@ final class ComponentMacroReducerTests: XCTestCase {
             """,
             expandedSource: """
             final class Counter {
-                @State var count: Int = 0
+                @State
+                @MainActor var count: Int = 0
+                @MainActor
                 var body: VNode { .text("hello") }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor init() {
+                }
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private weak var runtimeOwner: AnyComponent?
+
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -100,7 +106,7 @@ final class ComponentMacroReducerTests: XCTestCase {
                     ),
                 ]
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                 }
