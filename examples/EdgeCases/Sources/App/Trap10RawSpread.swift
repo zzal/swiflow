@@ -5,7 +5,7 @@ import Swiflow
 /// is flattened, so changing its length shifts the following sibling (the
 /// documented buildExpression([VNode]) footgun). This trap asserts the
 /// framework doesn't crash and a sentinel in a SEPARATE element is unaffected.
-@MainActor @Component
+@Component
 final class Trap10RawSpread {
     @State var n: Int = 1
 

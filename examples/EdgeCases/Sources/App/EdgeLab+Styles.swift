@@ -2,7 +2,7 @@
 import Swiflow
 
 extension EdgeLab {
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         host { display("block"); maxWidth("760px"); margin("1.5rem auto"); padding("0 1rem") }
         rule("section") {
             border("1px solid color-mix(in oklab, CanvasText 15%, transparent)")

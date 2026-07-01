@@ -13,7 +13,7 @@ import SwiflowQuery
 import SwiflowStore
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class QuakesPage {
     @State var magnitude: String = "2.5"
     @State var window: String = "day"

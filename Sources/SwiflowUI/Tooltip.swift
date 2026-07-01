@@ -48,7 +48,7 @@ public func Tooltip(
 
 /// Implementation behind `Tooltip`. A `@Component` so the bubble id is pinned in `init` (stable
 /// across re-renders). No lifecycle/JS — reveal is pure CSS.
-@MainActor @Component
+@Component
 final class TooltipView {
     private let message: String
     private let placement: TooltipPlacement

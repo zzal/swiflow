@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 4: a loop nested inside a conditional, with a <details open> sentinel
 /// AFTER it. Toggling the whole loop on/off must not recreate the details
 /// (its open state must survive), and refilled items appear before it.
-@MainActor @Component
+@Component
 final class Trap4LoopInCond {
     @State var showList: Bool = true
 

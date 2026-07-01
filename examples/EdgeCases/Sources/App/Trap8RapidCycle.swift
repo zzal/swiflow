@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 8: rapid empty→full→empty cycling of a fragment. After N toggles the
 /// sentinel after it must be intact and the child count must match parity (no
 /// duplicated/leaked children).
-@MainActor @Component
+@Component
 final class Trap8RapidCycle {
     @State var show: Bool = false
 

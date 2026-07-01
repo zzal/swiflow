@@ -5,7 +5,7 @@ import JavaScriptKit
 
 /// A child whose mount/unmount bumps shared counters via callbacks, so the test
 /// can assert onAppear/onDisappear fire exactly once per toggle.
-@MainActor @Component
+@Component
 final class LifecycleChild {
     let onUp: () -> Void
     let onDown: () -> Void
@@ -19,7 +19,7 @@ final class LifecycleChild {
 
 /// A sibling component holding its OWN @State counter. If the reconciler
 /// recreates it while the LifecycleChild churns, this counter resets to 0.
-@MainActor @Component
+@Component
 final class Keeper {
     @State var n: Int = 0
     var body: VNode {
@@ -33,7 +33,7 @@ final class Keeper {
 /// Trap 7: a component inside an emptying fragment, beside a stateful sibling
 /// component. Toggling the child off/on must fire onDisappear/onAppear exactly
 /// once each and must NOT reset the sibling Keeper's @State.
-@MainActor @Component
+@Component
 final class Trap7ComponentLifecycle {
     @State var showChild: Bool = false
     @State var appears: Int = 0

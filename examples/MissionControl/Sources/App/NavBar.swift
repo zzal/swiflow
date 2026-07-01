@@ -7,7 +7,7 @@ import SwiflowUI
 /// Tab bar shared by both pages. `Link` renders a fixed-shape `<a>`, so the
 /// styling targets `nav a` from the scoped sheet rather than per-link classes.
 final class NavBar: Component {
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         // `host {}` — the <nav> is the component root, and scoped `rule(...)`
         // selectors only reach descendants.
         host {

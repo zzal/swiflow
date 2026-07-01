@@ -8,7 +8,7 @@ import Swiflow
 /// reconciler must PATCH the live `.value` of the SAME node (the update path, not
 /// the preserve path). A `showFirst` conditional sits before it so the controlled
 /// input also has to survive reconciliation while bound.
-@MainActor @Component
+@Component
 final class Trap12ControlledValuePatch {
     @State var text: String = "alpha"
     @State var showFirst: Bool = false

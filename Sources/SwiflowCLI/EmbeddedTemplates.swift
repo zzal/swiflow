@@ -117,7 +117,7 @@ Then open <http://localhost:3000>.
 import SwiflowDOM
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class {{NAME}} {
     // `state` is a flat status string for demo brevity:
     // "idle" | "loading…" | "loaded user #N".
@@ -252,7 +252,7 @@ import SwiflowDOM
 /// self-contained <section data-testid="trapN"> exercising one nesting/identity
 /// edge case, with a sentinel that only survives if the reconciler reuses nodes
 /// rather than recreating them. See the design spec.
-@MainActor @Component
+@Component
 final class EdgeLab {
     var body: VNode {
         div(.class("lab")) {
@@ -287,7 +287,7 @@ struct App {
 import Swiflow
 
 extension EdgeLab {
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         host { display("block"); maxWidth("760px"); margin("1.5rem auto"); padding("0 1rem") }
         rule("section") {
             border("1px solid color-mix(in oklab, CanvasText 15%, transparent)")
@@ -317,7 +317,7 @@ import Swiflow
 /// is flattened, so changing its length shifts the following sibling (the
 /// documented buildExpression([VNode]) footgun). This trap asserts the
 /// framework doesn't crash and a sentinel in a SEPARATE element is unaffected.
-@MainActor @Component
+@Component
 final class Trap10RawSpread {
     @State var n: Int = 1
 
@@ -349,7 +349,7 @@ import Swiflow
 /// Clear, Swap. Bulk front-insertion stresses insertBefore + LIS; existing rows
 /// must NOT be recreated (their typed values + node identity survive), which
 /// also proves the diff is minimal (not re-placing the whole list).
-@MainActor @Component
+@Component
 final class Trap11DynamicList {
     @State var rows: [Int] = []
     @State var nextId: Int = 0
@@ -397,7 +397,7 @@ import Swiflow
 /// reconciler must PATCH the live `.value` of the SAME node (the update path, not
 /// the preserve path). A `showFirst` conditional sits before it so the controlled
 /// input also has to survive reconciliation while bound.
-@MainActor @Component
+@Component
 final class Trap12ControlledValuePatch {
     @State var text: String = "alpha"
     @State var showFirst: Bool = false
@@ -432,7 +432,7 @@ import Swiflow
 /// Trap 1: a conditional rendered BEFORE a focused sibling input. Toggling the
 /// conditional must not recreate the input (focus + typed value must survive).
 /// This is the generalized form of the dialog/toast bug.
-@MainActor @Component
+@Component
 final class Trap1CondBeforeFocus {
     @State var showFirst: Bool = false
 
@@ -461,7 +461,7 @@ import Swiflow
 
 /// Trap 2: `for` of `if`. Each list item conditionally renders an inner node.
 /// Toggling one item's flag must not recreate a sibling item's input.
-@MainActor @Component
+@Component
 final class Trap2ForOfIf {
     @State var flags: [Bool] = [false, false, false]
 
@@ -488,7 +488,7 @@ import Swiflow
 /// Trap 3: three-level imbrication — outer keyed list, per-item conditional,
 /// inner keyed sub-list. Mutating one item's inner list must leave the other
 /// outer items' inputs untouched.
-@MainActor @Component
+@Component
 final class Trap3ForIfFor {
     @State var counts: [Int] = [1, 1]
 
@@ -521,7 +521,7 @@ import Swiflow
 /// Trap 4: a loop nested inside a conditional, with a <details open> sentinel
 /// AFTER it. Toggling the whole loop on/off must not recreate the details
 /// (its open state must survive), and refilled items appear before it.
-@MainActor @Component
+@Component
 final class Trap4LoopInCond {
     @State var showList: Bool = true
 
@@ -551,7 +551,7 @@ import Swiflow
 /// Trap 5: keyed elements interspersed with fragments. Swapping the keyed
 /// items and toggling the conditional must reuse the keyed inputs (identity
 /// preserved), with the fragments holding their positions.
-@MainActor @Component
+@Component
 final class Trap5KeyedWithFragments {
     @State var order: [String] = ["a", "b"]
     @State var showX: Bool = false
@@ -583,7 +583,7 @@ import Swiflow
 /// Trap 6: two adjacent conditionals before a sentinel input, inside a div that
 /// also has a keyed sibling (forces the keyed path → exercises the structural-
 /// sibling bucketKey fix). The input must survive all four a/b combinations.
-@MainActor @Component
+@Component
 final class Trap6TwoAdjacentConds {
     @State var a: Bool = false
     @State var b: Bool = false
@@ -614,7 +614,7 @@ import JavaScriptKit
 
 /// A child whose mount/unmount bumps shared counters via callbacks, so the test
 /// can assert onAppear/onDisappear fire exactly once per toggle.
-@MainActor @Component
+@Component
 final class LifecycleChild {
     let onUp: () -> Void
     let onDown: () -> Void
@@ -628,7 +628,7 @@ final class LifecycleChild {
 
 /// A sibling component holding its OWN @State counter. If the reconciler
 /// recreates it while the LifecycleChild churns, this counter resets to 0.
-@MainActor @Component
+@Component
 final class Keeper {
     @State var n: Int = 0
     var body: VNode {
@@ -642,7 +642,7 @@ final class Keeper {
 /// Trap 7: a component inside an emptying fragment, beside a stateful sibling
 /// component. Toggling the child off/on must fire onDisappear/onAppear exactly
 /// once each and must NOT reset the sibling Keeper's @State.
-@MainActor @Component
+@Component
 final class Trap7ComponentLifecycle {
     @State var showChild: Bool = false
     @State var appears: Int = 0
@@ -673,7 +673,7 @@ import Swiflow
 /// Trap 8: rapid empty→full→empty cycling of a fragment. After N toggles the
 /// sentinel after it must be intact and the child count must match parity (no
 /// duplicated/leaked children).
-@MainActor @Component
+@Component
 final class Trap8RapidCycle {
     @State var show: Bool = false
 
@@ -699,7 +699,7 @@ import Swiflow
 /// Trap 9: a keyed list whose items each contain their own conditional + input.
 /// Expanding one item and typing in it, then reordering the list, must move the
 /// expanded state + typed value WITH the item (identity preserved, not stranded).
-@MainActor @Component
+@Component
 final class Trap9KeyedItemsInnerState {
     @State var order: [String] = ["x", "y", "z"]
     @State var expanded: [String: Bool] = ["x": false, "y": false, "z": false]
@@ -855,7 +855,7 @@ import Swiflow
 extension AboutPopover {
     // The component root carries .info-card itself, so the rule compounds
     // with the scope class via `&.info-card`.
-    static var scopedStyles: CSSSheet? = #css("""
+    @MainActor static var scopedStyles: CSSSheet? = #css("""
         &.info-card {
           position-anchor: --info-anchor;
           position-area: bottom span-right;
@@ -899,7 +899,7 @@ import Swiflow
 /// The trigger lives in Counter and uses `popovertarget="about-popover"`
 /// — no Swift event handler needed. CSS Anchor Positioning floats this
 /// card next to the trigger (which sets `anchor-name: --info-anchor`).
-@MainActor @Component
+@Component
 final class AboutPopover {
     var body: VNode {
         div(.id("about-popover"),
@@ -939,7 +939,7 @@ import JavaScriptKit
 /// The `ToastStack` is a sibling of `.card`, not a child: `.card` is a
 /// `container-type` query container, which establishes a containing block — a
 /// `position: fixed` toast nested inside would anchor to the card, not the viewport.
-@MainActor @Component
+@Component
 final class Counter {
     @State var count: Int = 0
     @State var greeting: String = "Swiflow"
@@ -1030,7 +1030,7 @@ struct App {
 import Swiflow
 
 extension Counter {
-    static var scopedStyles: CSSSheet? = tokens + layout + theme + animations + responsive
+    @MainActor static var scopedStyles: CSSSheet? = tokens + layout + theme + animations + responsive
 
     // ---- tokens ----
     // @property and :root escape scoping automatically (hoisted/unscoped).
@@ -1226,7 +1226,7 @@ import SwiflowUI
 /// + role=alert error + aria-invalid, with blur→markTouched wired) and `Button` for
 /// the actions, laid out with `VStack`/`HStack`. No hand-rolled field/button chrome
 /// or per-component CSS — it all comes from SwiflowUI's token-driven sheets.
-@MainActor @Component
+@Component
 final class SignIn {
     @State var email: String    = ""
     @State var password: String = ""
@@ -1895,7 +1895,7 @@ import SwiflowUI
 /// Tab bar shared by both pages. `Link` renders a fixed-shape `<a>`, so the
 /// styling targets `nav a` from the scoped sheet rather than per-link classes.
 final class NavBar: Component {
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         // `host {}` — the <nav> is the component root, and scoped `rule(...)`
         // selectors only reach descendants.
         host {
@@ -2009,7 +2009,7 @@ func relativeTime(fromMs: Double, nowMs: Double) -> String {
 import Swiflow
 
 extension QuakesPage {
-    static var scopedStyles: CSSSheet? = #css("""
+    @MainActor static var scopedStyles: CSSSheet? = #css("""
         :host {
           display: block;
           max-width: 860px;
@@ -2074,7 +2074,7 @@ import SwiflowQuery
 import SwiflowStore
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class QuakesPage {
     @State var magnitude: String = "2.5"
     @State var window: String = "day"
@@ -2175,7 +2175,7 @@ import Swiflow
 extension CityCard {
     // The card surface (bg / shadow / radius / padding) now comes from SwiflowUI's
     // `Card`; only the content typography is styled here.
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         rule(".city-name") {
             fontSize("1.05rem")
             margin("0")
@@ -2211,7 +2211,7 @@ import SwiflowUI
 /// One pinned city. Holds no `@State` of its own — the weather lives in the
 /// query cache under (city id, unit), which is what makes unpin → re-pin
 /// inside `staleTime` paint instantly.
-@MainActor @Component
+@Component
 final class CityCard {
     let city: City
     let unit: String
@@ -2328,7 +2328,7 @@ private final class ClosureRetainer {
 import Swiflow
 
 extension WeatherPage {
-    static var scopedStyles: CSSSheet? = layout + theme
+    @MainActor static var scopedStyles: CSSSheet? = layout + theme
 
     static let layout = css {
         host {
@@ -2387,7 +2387,7 @@ import SwiflowQuery
 import SwiflowStore
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class WeatherPage {
     @State var searchText: String = ""
     @State var debouncedText: String = ""
@@ -2810,7 +2810,7 @@ struct FakeAPI: Sendable {
     }
 }
 
-@MainActor @Component
+@Component
 final class {{NAME}} {
     @State var userID: Int = 1
     @State var newName: String = ""
@@ -2986,7 +2986,7 @@ import SwiflowUI
 import JavaScriptKit
 #endif
 
-@MainActor @Component
+@Component
 final class Demo {
     @State var name: String = ""
     @State var email: String = ""
@@ -3400,7 +3400,7 @@ struct SignupWizard: Reducer {
     }
 }
 
-@MainActor @Component
+@Component
 final class SignupWizardView {
     @ReducerState var wiz: SignupWizard
     var body: VNode {
@@ -3716,7 +3716,7 @@ struct Todo: Decodable, Equatable, Sendable {
 
 // MARK: - Component
 
-@MainActor @Component
+@Component
 final class TodoApp {
     @State var draft: String = ""
     // @MutationState mutations carry no captured dependencies, so @Component

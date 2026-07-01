@@ -78,7 +78,7 @@ public func Dropdown(
 /// function would regenerate it every render via `nextSwID`, breaking the
 /// trigger↔menu `popovertarget` pairing and the popover's open/close state. No
 /// lifecycle/JS: open/close/anchor are all native (Popover API + anchor positioning).
-@MainActor @Component
+@Component
 final class DropdownMenu {
     private let label: String
     private let placement: DropdownPlacement

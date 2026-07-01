@@ -11,7 +11,7 @@ enum GameOfLife: RegionGuest {
     static let source = "regions/game-of-life/adapter.js"
 }
 
-@MainActor @Component
+@Component
 final class Demo {
     @State var generation: Int = 0
     @State var failed: Bool = false

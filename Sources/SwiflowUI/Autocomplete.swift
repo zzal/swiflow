@@ -149,7 +149,7 @@ public func Autocomplete(
 /// `hidePopover()`) and scrolling the active option into view — synced in
 /// `onAppear`/`onChange`, exactly like `Alert`'s `syncOpenState`. The JS-interop bits are
 /// `#if`-gated so the structure still builds + unit-tests on host.
-@MainActor @Component
+@Component
 final class AutocompleteBox {
     private let label: String
     private let selection: Binding<String>

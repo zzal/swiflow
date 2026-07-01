@@ -5,7 +5,7 @@ import Swiflow
 /// Clear, Swap. Bulk front-insertion stresses insertBefore + LIS; existing rows
 /// must NOT be recreated (their typed values + node identity survive), which
 /// also proves the diff is minimal (not re-placing the whole list).
-@MainActor @Component
+@Component
 final class Trap11DynamicList {
     @State var rows: [Int] = []
     @State var nextId: Int = 0

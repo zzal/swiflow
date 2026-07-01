@@ -2,7 +2,7 @@
 import Swiflow
 
 extension Counter {
-    static var scopedStyles: CSSSheet? = tokens + layout + theme + animations + responsive
+    @MainActor static var scopedStyles: CSSSheet? = tokens + layout + theme + animations + responsive
 
     // ---- tokens ----
     // @property and :root escape scoping automatically (hoisted/unscoped).

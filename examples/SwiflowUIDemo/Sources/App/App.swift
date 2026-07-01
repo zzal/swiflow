@@ -5,7 +5,7 @@ import SwiflowUI
 import JavaScriptKit
 #endif
 
-@MainActor @Component
+@Component
 final class Demo {
     @State var name: String = ""
     @State var email: String = ""
@@ -419,7 +419,7 @@ struct SignupWizard: Reducer {
     }
 }
 
-@MainActor @Component
+@Component
 final class SignupWizardView {
     @ReducerState var wiz: SignupWizard
     var body: VNode {

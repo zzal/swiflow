@@ -25,9 +25,10 @@ public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "
 /// **Requires:**
 /// - Must be applied to a `var`, not `let`.
 /// - Requires an explicit type annotation (`@State var count: Int = 0`).
-/// - The host class must be `@MainActor @Component final class` — the
-///   `@Component` macro emits the runtime stored properties (`runtimeOwner`,
-///   `runtimeScheduler`) that `@State`'s `didSet` writes through.
+/// - The host class must be a `@Component final class` (`@Component`
+///   auto-injects `@MainActor`) — the `@Component` macro emits the runtime
+///   stored properties (`runtimeOwner`, `runtimeScheduler`) that `@State`'s
+///   `didSet` writes through.
 /// - Cannot declare its own `didSet`. Use a regular `var` and a method
 ///   if you need observation side-effects.
 @attached(accessor, names: named(didSet))

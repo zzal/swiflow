@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 9: a keyed list whose items each contain their own conditional + input.
 /// Expanding one item and typing in it, then reordering the list, must move the
 /// expanded state + typed value WITH the item (identity preserved, not stranded).
-@MainActor @Component
+@Component
 final class Trap9KeyedItemsInnerState {
     @State var order: [String] = ["x", "y", "z"]
     @State var expanded: [String: Bool] = ["x": false, "y": false, "z": false]

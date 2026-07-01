@@ -2,7 +2,7 @@
 import Swiflow
 
 extension WeatherPage {
-    static var scopedStyles: CSSSheet? = layout + theme
+    @MainActor static var scopedStyles: CSSSheet? = layout + theme
 
     static let layout = css {
         host {

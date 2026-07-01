@@ -7,7 +7,7 @@ import SwiflowUI
 /// + role=alert error + aria-invalid, with blur→markTouched wired) and `Button` for
 /// the actions, laid out with `VStack`/`HStack`. No hand-rolled field/button chrome
 /// or per-component CSS — it all comes from SwiflowUI's token-driven sheets.
-@MainActor @Component
+@Component
 final class SignIn {
     @State var email: String    = ""
     @State var password: String = ""

@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 3: three-level imbrication — outer keyed list, per-item conditional,
 /// inner keyed sub-list. Mutating one item's inner list must leave the other
 /// outer items' inputs untouched.
-@MainActor @Component
+@Component
 final class Trap3ForIfFor {
     @State var counts: [Int] = [1, 1]
 
