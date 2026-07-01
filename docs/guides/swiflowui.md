@@ -171,19 +171,32 @@ Prompt("Rename file", isPresented: $showRename, text: $name,
 Built on `<form method="dialog">`, so **Enter submits**. The input is a `TextField`,
 labelled by `message`.
 
-### Toast — an app-owned queue
+### Toast — a managed queue
 
 ```swift
-@State var toasts: [ToastItem] = []
+@ReducerState var toasts: ToastQueue
 
-Button("Save") { toasts.append(ToastItem("Saved!", variant: .success)) }
-ToastStack(toasts: $toasts)        // mount once (e.g. at the app root)
+Button("Save") { self.$toasts.send(.show(ToastItem("Saved!", variant: .success))) }
+ToastStack(queue: $toasts)         // mount once (e.g. at the app root)
 ```
 
-The app owns the array; fire by appending. Each toast auto-dismisses (default 4s) or
-via its ✕ and removes itself. Auto-dismiss pauses on hover/focus (WCAG 2.2.1).
-`ToastVariant`: `.info`/`.success`/`.danger` (danger announces assertively).
-`ToastPlacement` defaults to `.bottomTrailing`.
+`ToastQueue` is a `@ReducerState` reducer that owns the toast state; fire with
+`send(.show(_:))`, clear one with `.dismiss(id)` or all with `.dismissAll`. It shows
+at most `maxVisible` toasts (default 3, via `ToastQueue(maxVisible:)`); extras wait in a
+FIFO queue and are promoted as visible ones dismiss. Duplicate toasts (same message +
+variant) **coalesce** into a single entry with a `×N` recurrence badge instead of stacking.
+
+Each toast auto-dismisses (default 4s) or via its ✕. Auto-dismiss pauses on hover/focus
+(WCAG 2.2.1). `ToastVariant`: `.info`/`.success`/`.warning`/`.danger` (danger announces
+assertively). `ToastPlacement` defaults to `.bottomTrailing`.
+
+> `@ReducerState` is local per-component: mount `ToastStack` and hold the `ToastQueue`
+> at your app root, then thread `$toasts.send` to children as needed — it's not a global
+> presenter.
+
+> The older `ToastStack(toasts: Binding<[ToastItem]>)` (an app-owned `[ToastItem]` you
+> append to) is **deprecated** in favor of the reducer; it still works but has no cap,
+> overflow, or coalescing.
 
 > Toasts use a high `z-index`, not the top layer, so a toast can sit *under* a modal
 > `<dialog>`. If you mount `ToastStack` inside a `container-type` element, place it as
