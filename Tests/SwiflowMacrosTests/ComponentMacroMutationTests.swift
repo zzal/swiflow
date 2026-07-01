@@ -24,16 +24,18 @@ final class ComponentMacroMutationTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @MutationState var create: CreateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
+                @MainActor
                 init() {}
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -48,8 +50,7 @@ final class ComponentMacroMutationTests: XCTestCase {
     }
 
     // Test 2 (negative): A class WITHOUT @MutationState → bind body is
-    // byte-identical to today (no wire(), no _currentRenderQueryClient,
-    // no QueryClient reference).
+    // unchanged (no wire(), no _currentRenderQueryClient, no QueryClient reference).
     func testBindUnchangedWithoutMutation() {
         assertMacroExpansion(
             """
@@ -61,12 +62,14 @@ final class ComponentMacroMutationTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @State var n: Int = 0
+                @State
+                @MainActor var n: Int = 0
+                @MainActor
                 init() {}
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<C>(
@@ -87,7 +90,7 @@ final class ComponentMacroMutationTests: XCTestCase {
                     ),
                 ]
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                 }
@@ -113,17 +116,20 @@ final class ComponentMacroMutationTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @MutationState var create: CreateTodo
-                @MutationState var update: UpdateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
+                @MutationState
+                @MainActor var update: UpdateTodo
+                @MainActor
                 init() {}
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())

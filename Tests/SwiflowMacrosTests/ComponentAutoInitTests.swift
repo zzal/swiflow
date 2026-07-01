@@ -26,19 +26,20 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @MutationState var create: CreateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
 
-                init() {
+                @MainActor init() {
                     self.create = CreateTodo()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -64,21 +65,23 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @MutationState var create: CreateTodo
-                @MutationState var update: UpdateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
+                @MutationState
+                @MainActor var update: UpdateTodo
 
-                init() {
+                @MainActor init() {
                     self.create = CreateTodo()
                     self.update = UpdateTodo()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -94,6 +97,7 @@ final class ComponentAutoInitTests: XCTestCase {
     }
 
     // A user-written init opts out of synthesis entirely — even an empty one.
+    // The memberAttribute role still stamps the user's init() with @MainActor.
     func testUserInitSuppressesSynthesis() {
         assertMacroExpansion(
             """
@@ -105,16 +109,18 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @MutationState var create: CreateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
+                @MainActor
                 init() {}
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -140,19 +146,20 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             public final class C {
-                @MutationState var create: CreateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
 
-                public init() {
+                @MainActor public init() {
                     self.create = CreateTodo()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor public static let stateCells: [any AnyStateCell] = []
 
-                public func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor public func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -179,19 +186,20 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             package final class C {
-                @MutationState var create: CreateTodo
+                @MutationState
+                @MainActor var create: CreateTodo
 
-                package init() {
+                @MainActor package init() {
                     self.create = CreateTodo()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor package static let stateCells: [any AnyStateCell] = []
 
-                package func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor package func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _create_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -218,16 +226,18 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @State var draft: String = ""
-                @MutationState var add: AddTodo
+                @State
+                @MainActor var draft: String = ""
+                @MutationState
+                @MainActor var add: AddTodo
 
-                init() {
+                @MainActor init() {
                     self.add = AddTodo()
                 }
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var runtimeOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<C>(
@@ -248,7 +258,7 @@ final class ComponentAutoInitTests: XCTestCase {
                     ),
                 ]
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                     _add_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())
@@ -262,8 +272,9 @@ final class ComponentAutoInitTests: XCTestCase {
         )
     }
 
-    // No @MutationState → no synthesized init (Swift's own default init or the
-    // user's covers a mutation-free component). Byte-identical to today.
+    // No @MutationState → still synthesizes a @MainActor init() to prevent
+    // Swift from generating a nonisolated default init that would conflict
+    // with the @MainActor-isolated synthesized storage properties.
     func testNoMutationNoSynthesizedInit() {
         assertMacroExpansion(
             """
@@ -274,11 +285,15 @@ final class ComponentAutoInitTests: XCTestCase {
             """,
             expandedSource: """
             final class C {
-                @State var n: Int = 0
+                @State
+                @MainActor var n: Int = 0
 
-                private weak var runtimeOwner: AnyComponent?
+                @MainActor init() {
+                }
 
-                private var runtimeScheduler: Scheduler?
+                @MainActor private weak var runtimeOwner: AnyComponent?
+
+                @MainActor private var runtimeScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<C>(
@@ -299,7 +314,7 @@ final class ComponentAutoInitTests: XCTestCase {
                     ),
                 ]
 
-                func bind(owner: AnyComponent, scheduler: Scheduler) {
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
                     self.runtimeOwner = owner
                     self.runtimeScheduler = scheduler
                 }
