@@ -26,11 +26,17 @@ public struct ReducerStateMacro: PeerMacro {
         let name = identifier.text
         let reducerType = typeAnno.type.trimmedDescription
 
+        // @MainActor unconditionally: @ReducerState only ever applies to a
+        // @Component member, and @Component is now always @MainActor (bare →
+        // injected, explicit → written). The runtime's @MainActor initializer,
+        // the ReducerHandle's @MainActor init, and the projection's read of the
+        // @MainActor backing `name` all require it; a peer macro can't inspect
+        // the enclosing type, so it stamps directly.
         let runtime: DeclSyntax = """
-            private let _\(raw: name)_reducerRuntime = ReducerRuntime<\(raw: reducerType)>()
+            @MainActor private let _\(raw: name)_reducerRuntime = ReducerRuntime<\(raw: reducerType)>()
             """
         let projection: DeclSyntax = """
-            var $\(raw: name): ReducerHandle<\(raw: reducerType)> {
+            @MainActor var $\(raw: name): ReducerHandle<\(raw: reducerType)> {
                 ReducerHandle(runtime: _\(raw: name)_reducerRuntime, reducer: \(raw: name))
             }
             """

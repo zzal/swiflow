@@ -84,6 +84,21 @@ private enum Boom: Error { case nope }
     var body: VNode { div { p("static") } }   // never reads $add
 }
 
+// COMPILE-ONLY GATE for the @MutationState half of the bare-@Component isolation
+// fix (companion to Tests/SwiflowTests/.../BareComponentIsolationTests.swift,
+// which covers @State + @ReducerState). NO explicit @MainActor here: if the
+// @MutationState peer outputs (`_add_mutationRuntime`, `$add`) are not
+// main-actor, this reference to `$add.isPending` from the (now @MainActor)
+// body fails to type-check and this test target fails to BUILD. `init` is
+// user-written, so no init is synthesized; the memberAttribute role stamps it.
+@Component private final class BareMutationComp {
+    @MutationState var add: AddTodo
+    init(outcome: @escaping @MainActor @Sendable (String) async throws -> String) {
+        self.add = AddTodo(gate: nil, outcome: outcome)
+    }
+    var body: VNode { div { p($add.isPending ? "pending" : "idle") } }
+}
+
 // MARK: - Tests
 
 @Suite("Mutation/integration")

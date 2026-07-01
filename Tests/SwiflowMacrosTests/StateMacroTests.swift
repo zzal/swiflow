@@ -31,7 +31,7 @@ final class StateMacroTests: XCTestCase {
                     }
                 }
 
-                var $count: Binding<Int> {
+                @MainActor var $count: Binding<Int> {
                     Binding(
                         get: { [unowned self] in
                             self.count
@@ -69,7 +69,7 @@ final class StateMacroTests: XCTestCase {
                     }
                 }
 
-                var $maybeId: Binding<Int?> {
+                @MainActor var $maybeId: Binding<Int?> {
                     Binding(
                         get: { [unowned self] in
                             self.maybeId

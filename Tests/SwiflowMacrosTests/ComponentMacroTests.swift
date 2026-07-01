@@ -186,7 +186,7 @@ final class ComponentMacroTests: XCTestCase {
                     }
                 }
 
-                var $count: Binding<Int> {
+                @MainActor var $count: Binding<Int> {
                     Binding(
                         get: { [unowned self] in
                             self.count
@@ -208,7 +208,7 @@ final class ComponentMacroTests: XCTestCase {
                     }
                 }
 
-                var $label: Binding<String> {
+                @MainActor var $label: Binding<String> {
                     Binding(
                         get: { [unowned self] in
                             self.label
@@ -338,7 +338,7 @@ final class ComponentMacroTests: XCTestCase {
                     }
                 }
 
-                var $maybeId: Binding<Int?> {
+                @MainActor var $maybeId: Binding<Int?> {
                     Binding(
                         get: { [unowned self] in
                             self.maybeId
@@ -419,7 +419,7 @@ final class ComponentMacroTests: XCTestCase {
                     }
                 }
 
-                var $maybeId: Binding<Optional<Int>> {
+                @MainActor var $maybeId: Binding<Optional<Int>> {
                     Binding(
                         get: { [unowned self] in
                             self.maybeId
@@ -620,7 +620,7 @@ final class ComponentMacroTests: XCTestCase {
                     }
                 }
 
-                var $maybeId: Binding<Swift.Optional<Int>> {
+                @MainActor var $maybeId: Binding<Swift.Optional<Int>> {
                     Binding(
                         get: { [unowned self] in
                             self.maybeId

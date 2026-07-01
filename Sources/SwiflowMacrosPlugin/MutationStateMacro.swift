@@ -26,11 +26,16 @@ public struct MutationStateMacro: PeerMacro {
         let name = identifier.text
         let mutationType = typeAnno.type.trimmedDescription
 
+        // @MainActor unconditionally: @MutationState only ever applies to a
+        // @Component member, and @Component is now always @MainActor (bare →
+        // injected, explicit → written). The runtime's initializer and the
+        // projection's read of the @MainActor backing `name` both require it;
+        // a peer macro can't inspect the enclosing type, so it stamps directly.
         let runtime: DeclSyntax = """
-            private let _\(raw: name)_mutationRuntime = MutationRuntime<\(raw: mutationType)>()
+            @MainActor private let _\(raw: name)_mutationRuntime = MutationRuntime<\(raw: mutationType)>()
             """
         let projection: DeclSyntax = """
-            var $\(raw: name): MutationHandle<\(raw: mutationType)> {
+            @MainActor var $\(raw: name): MutationHandle<\(raw: mutationType)> {
                 MutationHandle(runtime: _\(raw: name)_mutationRuntime, mutation: \(raw: name))
             }
             """
