@@ -25,7 +25,7 @@ final class Counter {
     @State var greeting: String = "Swiflow"
     @State var celebrate: Bool = false
     @State var showSignIn: Bool = false
-    @State var toasts: [ToastItem] = []
+    @ReducerState var toasts: ToastQueue
     let signInDialog = Ref<JSObject>()
 
     var body: VNode {
@@ -47,7 +47,7 @@ final class Counter {
                 div(.class("actions")) {
                     Button("Increment") { self.count += 1 }
                     Button("Show toast", variant: .secondary) {
-                        self.toasts.append(ToastItem("Saved!", variant: .success))
+                        self.$toasts.send(.show(ToastItem("Saved!", variant: .success)))
                     }
                     Button("Sign in…", variant: .secondary) { self.openSignIn() }
                 }
@@ -78,7 +78,7 @@ final class Counter {
 
             // Sibling of .card (see the type doc): the fixed ToastStack anchors to the
             // viewport, not the query-container card.
-            ToastStack(toasts: $toasts)
+            ToastStack(queue: $toasts)
         }
     }
 

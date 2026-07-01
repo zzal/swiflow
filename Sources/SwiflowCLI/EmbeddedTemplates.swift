@@ -945,7 +945,7 @@ final class Counter {
     @State var greeting: String = "Swiflow"
     @State var celebrate: Bool = false
     @State var showSignIn: Bool = false
-    @State var toasts: [ToastItem] = []
+    @ReducerState var toasts: ToastQueue
     let signInDialog = Ref<JSObject>()
 
     var body: VNode {
@@ -967,7 +967,7 @@ final class Counter {
                 div(.class("actions")) {
                     Button("Increment") { self.count += 1 }
                     Button("Show toast", variant: .secondary) {
-                        self.toasts.append(ToastItem("Saved!", variant: .success))
+                        self.$toasts.send(.show(ToastItem("Saved!", variant: .success)))
                     }
                     Button("Sign in…", variant: .secondary) { self.openSignIn() }
                 }
@@ -998,7 +998,7 @@ final class Counter {
 
             // Sibling of .card (see the type doc): the fixed ToastStack anchors to the
             // viewport, not the query-container card.
-            ToastStack(toasts: $toasts)
+            ToastStack(queue: $toasts)
         }
     }
 
@@ -3000,7 +3000,7 @@ final class Demo {
     @State var deleteResult: String = ""
     @State var showRename: Bool = false
     @State var fileName: String = "untitled"
-    @State var toasts: [ToastItem] = []
+    @ReducerState var toasts: ToastQueue
     @State var element: String = ""
     @State var asyncElement: String = ""
     @State var selectedPeople: Set<Int> = []
@@ -3188,20 +3188,21 @@ final class Demo {
                 if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
             }
             HStack(spacing: .md, align: .center) {
-                Button("Toast: success", variant: .ghost) { self.toasts.append(ToastItem("Saved successfully", variant: .success)) }
-                Button("Toast: info", variant: .ghost) { self.toasts.append(ToastItem("Heads up — sync running")) }
-                Button("Toast: warning", variant: .ghost) { self.toasts.append(ToastItem("Low disk space", variant: .warning)) }
-                Button("Toast: error", variant: .ghost) { self.toasts.append(ToastItem("Couldn't reach the server", variant: .danger)) }
+                Button("Toast: success", variant: .ghost) { self.$toasts.send(.show(ToastItem("Saved successfully", variant: .success))) }
+                Button("Toast: info", variant: .ghost) { self.$toasts.send(.show(ToastItem("Heads up — sync running"))) }
+                Button("Toast: warning", variant: .ghost) { self.$toasts.send(.show(ToastItem("Low disk space", variant: .warning))) }
+                Button("Toast: error", variant: .ghost) { self.$toasts.send(.show(ToastItem("Couldn't reach the server", variant: .danger))) }
+                Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
             }
             HStack(spacing: .md, align: .center) {
                 // Dropdown: a Popover-API menu anchored to its trigger; items close it on
                 // select (popovertargetaction=hide) and fire a toast here.
                 Dropdown("Actions") {
-                    DropdownItem("Edit") { self.toasts.append(ToastItem("Edit selected")) }
-                    DropdownItem("Duplicate") { self.toasts.append(ToastItem("Duplicated", variant: .success)) }
+                    DropdownItem("Edit") { self.$toasts.send(.show(ToastItem("Edit selected"))) }
+                    DropdownItem("Duplicate") { self.$toasts.send(.show(ToastItem("Duplicated", variant: .success))) }
                     DropdownItem("Archive", disabled: true) {}
                     DropdownDivider()
-                    DropdownItem("Delete", variant: .danger) { self.toasts.append(ToastItem("Deleted", variant: .danger)) }
+                    DropdownItem("Delete", variant: .danger) { self.$toasts.send(.show(ToastItem("Deleted", variant: .danger))) }
                 }
             }
             p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
@@ -3226,7 +3227,7 @@ final class Demo {
             }
             // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
             // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
-            ToastStack(toasts: $toasts)
+            ToastStack(queue: $toasts)
 
             Divider()
 
@@ -3297,7 +3298,7 @@ final class Demo {
                     Column("Role") { p in Badge(p.role, variant: .accent) }
                     Column("") { p in
                         Button("Edit", variant: .secondary, size: .sm) {
-                            self.toasts.append(ToastItem("Editing \(p.name)", variant: .info))
+                            self.$toasts.send(.show(ToastItem("Editing \(p.name)", variant: .info)))
                         }
                     }
                 }
