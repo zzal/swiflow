@@ -43,6 +43,7 @@ public struct ToastItem {
     public let message: String
     public let variant: ToastVariant
     public let duration: Double   // seconds before auto-dismiss
+    public internal(set) var count: Int = 1   // recurrences; 1 = shown once
 
     public init(_ message: String, variant: ToastVariant = .info, duration: Double = 4) {
         self.id = nextSwID("sw-toast")
@@ -50,6 +51,9 @@ public struct ToastItem {
         self.variant = variant
         self.duration = duration
     }
+
+    /// Two toasts coalesce iff same message + variant.
+    var dedupKey: String { "\(variant.modifierClass)|\(message)" }
 }
 
 /// A positioned region that renders an app-owned queue of toasts. The app owns the
@@ -80,7 +84,7 @@ public func ToastStack(toasts: Binding<[ToastItem]>, placement: ToastPlacement =
         // hence a new instance. `onDismiss` deliberately reads `toasts.get()` live (not a
         // captured snapshot), so it removes against the current array regardless of the freeze.
         embed(item.id) {
-            ToastView(item: item, onDismiss: { removeToast(item.id, from: toasts) })
+            ToastView(item: item, recurrences: { 1 }, onDismiss: { removeToast(item.id, from: toasts) })
         }
     }
     return element("div",
@@ -103,6 +107,7 @@ func removeToast(_ id: String, from toasts: Binding<[ToastItem]>) {
 @Component
 final class ToastView {
     private let item: ToastItem
+    private let recurrences: () -> Int
     private let onDismiss: () -> Void
     // Pause the auto-dismiss while the pointer is over OR focus is within the toast
     // (WCAG 2.2.1 — give users enough time; keyboard users need to reach the ✕).
@@ -112,14 +117,33 @@ final class ToastView {
     private var dismissTimer: TimerHandle?
     #endif
 
-    init(item: ToastItem, onDismiss: @escaping () -> Void) {
+    init(item: ToastItem, recurrences: @escaping () -> Int, onDismiss: @escaping () -> Void) {
         self.item = item
+        self.recurrences = recurrences
         self.onDismiss = onDismiss
     }
 
     var body: VNode {
         ensureBaseStyles()
         installControlSheet(id: "sw-toast", toastStyleSheet)
+        let n = recurrences()
+        var kids: [VNode] = [
+            element("span", attributes: [.class("sw-toast__message")], children: [text(item.message)]),
+        ]
+        if n > 1 {
+            // A real child (not aria-hidden) so the live region re-announces on a bump;
+            // its aria-label makes SR read "3 times" rather than "×3".
+            kids.append(element("span", attributes: [
+                .class("sw-toast__count"),
+                .attr("aria-label", "\(n) times"),
+            ], children: [text("×\(n)")]))
+        }
+        kids.append(element("button", attributes: [
+            .class("sw-toast__close"),
+            .attr("type", "button"),
+            .attr("aria-label", "Dismiss"),
+            .on(.click) { self.onDismiss() },
+        ], children: [text("\u{00D7}")]))   // ×
         return element("div", attributes: [
             .class("sw-toast sw-toast--\(item.variant.modifierClass)"),
             .attr("role", item.variant.isAssertive ? "alert" : "status"),
@@ -130,15 +154,7 @@ final class ToastView {
             .on(.custom("mouseleave")) { self.isHovered = false; self.reschedule() },
             .on(.custom("focusin"))    { self.isFocused = true;  self.reschedule() },
             .on(.custom("focusout"))   { self.isFocused = false; self.reschedule() },
-        ], children: [
-            element("span", attributes: [.class("sw-toast__message")], children: [text(item.message)]),
-            element("button", attributes: [
-                .class("sw-toast__close"),
-                .attr("type", "button"),
-                .attr("aria-label", "Dismiss"),
-                .on(.click) { self.onDismiss() },
-            ], children: [text("\u{00D7}")]),   // ×
-        ])
+        ], children: kids)
     }
 
     func onAppear() { reschedule() }
@@ -210,6 +226,17 @@ let toastStyleSheet: CSSSheet = css {
     .sw-toast--warning { border-inline-start-color: var(--sw-warning); }
 
     .sw-toast__message { flex: 1 1 auto; }
+
+    .sw-toast__count {
+      flex: 0 0 auto;
+      font-size: 0.75em;
+      font-weight: 600;
+      line-height: 1;
+      padding: 0.1em 0.4em;
+      border-radius: 999px;
+      background-color: color-mix(in srgb, currentColor 16%, transparent);
+      color: inherit;
+    }
 
     .sw-toast__close {
       flex: 0 0 auto;

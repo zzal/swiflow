@@ -55,10 +55,10 @@ struct ToastTests {
     }
 
     @Test("danger is assertive (role=alert); info/success are polite (role=status)") func variantPoliteness() {
-        let danger = el(building { ToastView(item: ToastItem("Boom", variant: .danger), onDismiss: {}).body })!
+        let danger = el(building { ToastView(item: ToastItem("Boom", variant: .danger), recurrences: { 1 }, onDismiss: {}).body })!
         #expect(danger.attributes["role"] == "alert")
         #expect(danger.attributes["aria-live"] == "assertive")
-        let info = el(building { ToastView(item: ToastItem("FYI"), onDismiss: {}).body })!
+        let info = el(building { ToastView(item: ToastItem("FYI"), recurrences: { 1 }, onDismiss: {}).body })!
         #expect(info.attributes["role"] == "status")
         #expect(info.attributes["aria-live"] == "polite")
     }
@@ -66,7 +66,7 @@ struct ToastTests {
     // MARK: ToastView structure + dismiss
 
     @Test("ToastView renders a variant card with the message and a labelled ✕ close button") func viewStructure() {
-        let v = el(building { ToastView(item: ToastItem("File uploaded", variant: .success), onDismiss: {}).body })!
+        let v = el(building { ToastView(item: ToastItem("File uploaded", variant: .success), recurrences: { 1 }, onDismiss: {}).body })!
         #expect(v.attributes["class"] == "sw-toast sw-toast--success")
         #expect(allText(firstWithClass(v, "sw-toast__message").map { VNode.element($0) } ?? .text("")) == "File uploaded")
         let close = firstWithClass(v, "sw-toast__close")!
@@ -80,14 +80,14 @@ struct ToastTests {
         HandlerAmbient.current = registry
         defer { HandlerAmbient.current = nil }
         var dismissed = false
-        let v = el(ToastView(item: ToastItem("x"), onDismiss: { dismissed = true }).body)!
+        let v = el(ToastView(item: ToastItem("x"), recurrences: { 1 }, onDismiss: { dismissed = true }).body)!
         let close = firstWithClass(v, "sw-toast__close")!
         registry.dispatch(id: close.handlers["click"]!.id, event: EventInfo(type: "click"))
         #expect(dismissed)
     }
 
     @Test("auto-dismiss pauses on hover + focus (WCAG 2.2.1) — pause/resume handlers wired") func pauseHandlers() {
-        let v = el(building { ToastView(item: ToastItem("x"), onDismiss: {}).body })!
+        let v = el(building { ToastView(item: ToastItem("x"), recurrences: { 1 }, onDismiss: {}).body })!
         #expect(v.handlers["mouseenter"] != nil)   // pause on pointer over
         #expect(v.handlers["mouseleave"] != nil)
         #expect(v.handlers["focusin"] != nil)       // pause while focus is within (keyboard)
@@ -154,18 +154,43 @@ struct ToastTests {
     }
 
     @Test("warning variant lowers to sw-toast--warning and is polite") func warningVariant() {
-        let warn = el(building { ToastView(item: ToastItem("Careful", variant: .warning), onDismiss: {}).body })!
+        let warn = el(building { ToastView(item: ToastItem("Careful", variant: .warning), recurrences: { 1 }, onDismiss: {}).body })!
         #expect(allText(.element(warn)).contains("Careful"))
         #expect(firstWithClass(warn, "sw-toast--warning") != nil)
         #expect(ToastVariant.warning.isAssertive == false)   // warning is polite, only danger is assertive
     }
 
     @Test("stylesheet has explicit info + warning border rules") func infoWarningRules() {
-        _ = building { ToastView(item: ToastItem("x"), onDismiss: {}).body }  // installs the sheet
+        _ = building { ToastView(item: ToastItem("x"), recurrences: { 1 }, onDismiss: {}).body }  // installs the sheet
         let sheet = toastStyleSheet.cssString(scopeClass: "")
         #expect(sheet.contains(".sw-toast--info"))
         #expect(sheet.contains("border-inline-start-color: var(--sw-info)"))
         #expect(sheet.contains(".sw-toast--warning"))
         #expect(sheet.contains("border-inline-start-color: var(--sw-warning)"))
+    }
+}
+
+@Suite("Toast coalesce badge")
+@MainActor
+struct ToastCoalesceBadgeTests {
+    @Test("ToastItem starts at count 1; dedupKey combines variant + message")
+    func itemDefaults() {
+        let a = ToastItem("Saved", variant: .success)
+        #expect(a.count == 1)
+        let b = ToastItem("Saved", variant: .danger)
+        #expect(a.dedupKey != b.dedupKey)
+        let c = ToastItem("Saved", variant: .success)
+        #expect(a.dedupKey == c.dedupKey)
+    }
+
+    @Test("ToastView renders ×N badge only when recurrences > 1")
+    func badgeVisibility() {
+        let one = building { ToastView(item: ToastItem("Hi"), recurrences: { 1 }, onDismiss: {}).body }
+        #expect(firstWithClass(el(one)!, "sw-toast__count") == nil)
+
+        let many = building { ToastView(item: ToastItem("Hi"), recurrences: { 3 }, onDismiss: {}).body }
+        let badge = firstWithClass(el(many)!, "sw-toast__count")
+        #expect(badge != nil)
+        #expect(allText(.element(badge!)).contains("3"))
     }
 }
