@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 5: keyed elements interspersed with fragments. Swapping the keyed
 /// items and toggling the conditional must reuse the keyed inputs (identity
 /// preserved), with the fragments holding their positions.
-@MainActor @Component
+@Component
 final class Trap5KeyedWithFragments {
     @State var order: [String] = ["a", "b"]
     @State var showX: Bool = false

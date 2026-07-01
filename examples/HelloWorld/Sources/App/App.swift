@@ -19,7 +19,7 @@ import JavaScriptKit
 /// The `ToastStack` is a sibling of `.card`, not a child: `.card` is a
 /// `container-type` query container, which establishes a containing block — a
 /// `position: fixed` toast nested inside would anchor to the card, not the viewport.
-@MainActor @Component
+@Component
 final class Counter {
     @State var count: Int = 0
     @State var greeting: String = "Swiflow"

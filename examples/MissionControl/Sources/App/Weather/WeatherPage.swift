@@ -15,7 +15,7 @@ import SwiflowQuery
 import SwiflowStore
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class WeatherPage {
     @State var searchText: String = ""
     @State var debouncedText: String = ""

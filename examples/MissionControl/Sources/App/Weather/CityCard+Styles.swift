@@ -4,7 +4,7 @@ import Swiflow
 extension CityCard {
     // The card surface (bg / shadow / radius / padding) now comes from SwiflowUI's
     // `Card`; only the content typography is styled here.
-    static var scopedStyles: CSSSheet? = css {
+    @MainActor static var scopedStyles: CSSSheet? = css {
         rule(".city-name") {
             fontSize("1.05rem")
             margin("0")

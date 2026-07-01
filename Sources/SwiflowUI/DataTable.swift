@@ -213,7 +213,7 @@ func makeDataTableBox<Row, ID: Hashable>(
 
 /// Concrete (non-generic) `@Component` behind every `DataTable`. Owns transient sort/page
 /// `@State` (overridable by bindings) and renders `sort → window → render` each body.
-@MainActor @Component
+@Component
 final class DataTableBox {
     let rowCount: Int
     let columns: [DataColumn]

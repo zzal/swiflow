@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 1: a conditional rendered BEFORE a focused sibling input. Toggling the
 /// conditional must not recreate the input (focus + typed value must survive).
 /// This is the generalized form of the dialog/toast bug.
-@MainActor @Component
+@Component
 final class Trap1CondBeforeFocus {
     @State var showFirst: Bool = false
 

@@ -7,7 +7,7 @@ import SwiflowUI
 /// One pinned city. Holds no `@State` of its own — the weather lives in the
 /// query cache under (city id, unit), which is what makes unpin → re-pin
 /// inside `staleTime` paint instantly.
-@MainActor @Component
+@Component
 final class CityCard {
     let city: City
     let unit: String

@@ -3,7 +3,7 @@ import Swiflow
 
 /// Trap 2: `for` of `if`. Each list item conditionally renders an inner node.
 /// Toggling one item's flag must not recreate a sibling item's input.
-@MainActor @Component
+@Component
 final class Trap2ForOfIf {
     @State var flags: [Bool] = [false, false, false]
 

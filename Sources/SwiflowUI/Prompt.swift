@@ -49,7 +49,7 @@ public func Prompt(
 
 /// The stateful implementation behind `Prompt`. Mirrors `AlertDialog`'s `<dialog>`
 /// open/close sync; adds the `<form method="dialog">` submit path.
-@MainActor @Component
+@Component
 final class PromptDialog {
     private let title: String
     private let message: String?

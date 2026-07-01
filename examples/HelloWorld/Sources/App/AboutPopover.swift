@@ -6,7 +6,7 @@ import Swiflow
 /// The trigger lives in Counter and uses `popovertarget="about-popover"`
 /// — no Swift event handler needed. CSS Anchor Positioning floats this
 /// card next to the trigger (which sets `anchor-name: --info-anchor`).
-@MainActor @Component
+@Component
 final class AboutPopover {
     var body: VNode {
         div(.id("about-popover"),

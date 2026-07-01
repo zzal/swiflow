@@ -43,7 +43,7 @@ struct FakeAPI: Sendable {
     }
 }
 
-@MainActor @Component
+@Component
 final class QueryDemo {
     @State var userID: Int = 1
     @State var newName: String = ""

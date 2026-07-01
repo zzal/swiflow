@@ -4,7 +4,7 @@ import Swiflow
 /// Trap 6: two adjacent conditionals before a sentinel input, inside a div that
 /// also has a keyed sibling (forces the keyed path → exercises the structural-
 /// sibling bucketKey fix). The input must survive all four a/b combinations.
-@MainActor @Component
+@Component
 final class Trap6TwoAdjacentConds {
     @State var a: Bool = false
     @State var b: Bool = false

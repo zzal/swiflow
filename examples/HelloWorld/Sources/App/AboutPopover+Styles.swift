@@ -4,7 +4,7 @@ import Swiflow
 extension AboutPopover {
     // The component root carries .info-card itself, so the rule compounds
     // with the scope class via `&.info-card`.
-    static var scopedStyles: CSSSheet? = #css("""
+    @MainActor static var scopedStyles: CSSSheet? = #css("""
         &.info-card {
           position-anchor: --info-anchor;
           position-area: bottom span-right;

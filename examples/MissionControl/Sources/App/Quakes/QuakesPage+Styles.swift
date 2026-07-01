@@ -6,7 +6,7 @@
 import Swiflow
 
 extension QuakesPage {
-    static var scopedStyles: CSSSheet? = #css("""
+    @MainActor static var scopedStyles: CSSSheet? = #css("""
         :host {
           display: block;
           max-width: 860px;

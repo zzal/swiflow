@@ -3,7 +3,7 @@
 import SwiflowDOM
 import SwiflowUI
 
-@MainActor @Component
+@Component
 final class AsyncFetch {
     // `state` is a flat status string for demo brevity:
     // "idle" | "loading…" | "loaded user #N".

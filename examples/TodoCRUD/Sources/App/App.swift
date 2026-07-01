@@ -67,7 +67,7 @@ struct Todo: Decodable, Equatable, Sendable {
 
 // MARK: - Component
 
-@MainActor @Component
+@Component
 final class TodoApp {
     @State var draft: String = ""
     // @MutationState mutations carry no captured dependencies, so @Component

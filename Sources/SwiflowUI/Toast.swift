@@ -100,7 +100,7 @@ func removeToast(_ id: String, from toasts: Binding<[ToastItem]>) {
 /// (`onAppear`/`onDisappear`) and the slide-out (`exitAnimation`, which fires here
 /// precisely because the toast *unmounts* when removed — unlike the dialogs, which
 /// stay mounted and only toggle `[open]`).
-@MainActor @Component
+@Component
 final class ToastView {
     private let item: ToastItem
     private let onDismiss: () -> Void

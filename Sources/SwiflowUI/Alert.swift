@@ -51,7 +51,7 @@ public func Alert(
 /// dialog needs the imperative `showModal()` (the `open` attribute alone is
 /// non-modal) — synced to `isPresented` in `onChange`/`onAppear`. The JS-interop
 /// bits are `#if`-gated so the dialog structure still builds + unit-tests on host.
-@MainActor @Component
+@Component
 final class AlertDialog {
     private let title: String
     private let message: String?
