@@ -26,7 +26,7 @@ import Swiflow
 /// own its own `RAFScheduler` (already the case — `RAFScheduler` is not a
 /// global singleton).
 @MainActor
-public final class RAFScheduler: Scheduler {
+final class RAFScheduler: Scheduler {
     /// Tracks component-instance identity of components that have been
     /// marked dirty since the last flush. Deduplicates multiple `markDirty`
     /// calls for the same component within one frame.
@@ -56,13 +56,13 @@ public final class RAFScheduler: Scheduler {
     ///   non-empty after the rAF fires, receiving that frame's dirty-instance
     ///   set. Typically a closure that calls `Renderer.flushDirty(_:)` with a
     ///   weak self capture.
-    public init(onFlushBatch: @escaping @MainActor (Set<ObjectIdentifier>) -> Void) {
+    init(onFlushBatch: @escaping @MainActor (Set<ObjectIdentifier>) -> Void) {
         self.onFlushBatch = onFlushBatch
     }
 
     /// Records `component` as needing re-render and schedules a rAF
     /// callback if one is not already pending.
-    public func markDirty(_ component: AnyComponent) {
+    func markDirty(_ component: AnyComponent) {
         dirty.insert(ObjectIdentifier(component.instance))
         scheduleRAFIfNeeded()
     }
@@ -73,7 +73,7 @@ public final class RAFScheduler: Scheduler {
     ///
     /// This method is called by the rAF callback but can also be called
     /// directly in tests or synchronous contexts.
-    public func flush() {
+    func flush() {
         guard !dirty.isEmpty else { return }
         let batch = dirty
         dirty.removeAll(keepingCapacity: true)
