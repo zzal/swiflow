@@ -14,13 +14,28 @@ import Foundation
 
 enum InitCommandError: Error, Equatable, CustomStringConvertible {
     case parentPathNotFound(URL)
+    case invalidProjectName(String)
 
     var description: String {
         switch self {
         case .parentPathNotFound(let url):
             return "parent path does not exist or is not a directory: \(url.path)"
+        case .invalidProjectName(let name):
+            return #"invalid project name "\#(name)" — project name must be a plain directory name (no "/", and not "." or ".."), e.g. MyApp"#
         }
     }
+}
+
+/// Guards `ProjectWriter.writeProject(name:...)` (which does a bare
+/// `parent.appendingPathComponent(name)`) against names that escape the
+/// chosen `--path` parent. Rejects any path separator (so `a/b`, `../evil`,
+/// and absolute-looking names like `/etc/passwd` are all caught by the same
+/// check) and the two dot-directory names that resolve to the parent itself
+/// or its parent. A small pure function so the validation is unit-testable
+/// without invoking the full command.
+func isValidProjectName(_ name: String) -> Bool {
+    guard !name.isEmpty, name != ".", name != ".." else { return false }
+    return !name.contains("/")
 }
 
 struct InitCommand: AsyncParsableCommand {
@@ -81,6 +96,14 @@ struct InitCommand: AsyncParsableCommand {
     var swiflowVersion: String?
 
     func run() async throws {
+        // Reject names that would let ProjectWriter's bare
+        // `parent.appendingPathComponent(name)` escape --path (e.g.
+        // "../../evil") or silently nest (e.g. "a/b/c"). Checked first,
+        // before any filesystem work, so a bad name never touches disk.
+        guard isValidProjectName(name) else {
+            throw ValidationError(String(describing: InitCommandError.invalidProjectName(name)))
+        }
+
         // Dep resolution precedence (most→least explicit):
         //   1. --swiflow-version <v>                 → versioned URL dep
         //   2. --swiflow-source / $SWIFLOW_SOURCE    → local path dep (dev mode)

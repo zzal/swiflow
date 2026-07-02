@@ -24,7 +24,11 @@ enum HTTPRouter {
 
         // GET / → index.html (with injection)
         router.get("/") { _, context in
-            try await serveFile(at: projectRoot.appendingPathComponent("index.html"), context: context)
+            try await serveFile(
+                at: projectRoot.appendingPathComponent("index.html"),
+                projectRoot: projectRoot,
+                context: context
+            )
         }
 
         // GET /:path — anything else under projectRoot
@@ -38,7 +42,11 @@ enum HTTPRouter {
             guard !rel.split(separator: "/").contains("..") else {
                 throw HTTPError(.forbidden)
             }
-            return try await serveFile(at: projectRoot.appendingPathComponent(rel), context: context)
+            return try await serveFile(
+                at: projectRoot.appendingPathComponent(rel),
+                projectRoot: projectRoot,
+                context: context
+            )
         }
 
         return router
@@ -47,10 +55,30 @@ enum HTTPRouter {
     /// Read `fileURL` from disk and wrap it in a `Response`. HTML files
     /// pass through DevModeInjection so the dev-mode global is set
     /// before the driver IIFE runs.
-    private static func serveFile<Context: RequestContext>(at fileURL: URL, context: Context) async throws -> Response {
+    ///
+    /// `projectRoot` is threaded through so the resolved file's REAL path
+    /// (after following symlinks) can be prefix-checked against the
+    /// project root's real path — defense-in-depth against a symlink
+    /// planted under the project root pointing outside it (the `..`
+    /// segment check in `build(projectRoot:)` only catches traversal
+    /// spelled out in the URL, not a symlink hop). Both sides are
+    /// canonicalized before comparing so a project root that is itself a
+    /// symlink (e.g. macOS `/tmp` → `/private/tmp`) still serves normally.
+    private static func serveFile<Context: RequestContext>(
+        at fileURL: URL,
+        projectRoot: URL,
+        context: Context
+    ) async throws -> Response {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
+            throw HTTPError(.notFound)
+        }
+
+        let realRoot = projectRoot.resolvingSymlinksInPath().path
+        let realFile = fileURL.resolvingSymlinksInPath().path
+        let rootPrefix = realRoot.hasSuffix("/") ? realRoot : realRoot + "/"
+        guard realFile.hasPrefix(rootPrefix) else {
             throw HTTPError(.notFound)
         }
 

@@ -66,6 +66,62 @@ struct HTTPRouterTests {
         }
     }
 
+    @Test("A symlink under projectRoot pointing outside it is refused")
+    func symlinkEscapeRefused() async throws {
+        try await Self.withFixture { root in
+            // Plant a secret file OUTSIDE root, then a symlink INSIDE root
+            // pointing at it. The `..`-segment check in build(projectRoot:)
+            // only catches traversal spelled out in the URL — a symlink hop
+            // needs the canonicalized-prefix check in serveFile.
+            let outside = FileManager.default.temporaryDirectory
+                .appendingPathComponent("swiflow-htr-outside-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: outside) }
+            let secret = outside.appendingPathComponent("secret.txt")
+            try "top secret".write(to: secret, atomically: true, encoding: .utf8)
+
+            let link = root.appendingPathComponent("escape.txt")
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: secret)
+
+            let router = HTTPRouter.build(projectRoot: root)
+            let app = Application(router: router, configuration: .init(address: .hostname("127.0.0.1", port: 0)))
+            try await app.test(.live) { client in
+                let response = try await client.execute(uri: "/escape.txt", method: .get)
+                #expect(response.status != .ok)
+                let body = String(buffer: response.body)
+                #expect(!body.contains("top secret"))
+            }
+        }
+    }
+
+    @Test("A project root that is itself a symlink still serves files")
+    func symlinkedProjectRootStillServes() async throws {
+        // macOS: FileManager.default.temporaryDirectory is under /var, which
+        // is itself a symlink to /private/var — this already exercises the
+        // "root is a symlink" case on macOS, but be explicit with our own
+        // extra symlink layer so the test isn't relying on that incidentally.
+        let real = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiflow-htr-real-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: real) }
+        try "<!doctype html><html><body>hi</body></html>".write(
+            to: real.appendingPathComponent("index.html"), atomically: true, encoding: .utf8
+        )
+
+        let link = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiflow-htr-link-\(UUID().uuidString)")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        defer { try? FileManager.default.removeItem(at: link) }
+
+        let router = HTTPRouter.build(projectRoot: link)
+        let app = Application(router: router, configuration: .init(address: .hostname("127.0.0.1", port: 0)))
+        try await app.test(.live) { client in
+            let response = try await client.execute(uri: "/", method: .get)
+            #expect(response.status == .ok)
+            #expect(String(buffer: response.body).contains("hi"))
+        }
+    }
+
     @Test("GET on a missing path returns 404")
     func missingPath404() async throws {
         try await Self.withFixture { root in

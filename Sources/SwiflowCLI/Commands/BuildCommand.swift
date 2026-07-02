@@ -90,6 +90,25 @@ enum CompileCache {
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".swiflow/module-cache", isDirectory: true)
     }
+
+    /// Resolves the directory (if enabled) and ensures it exists on disk,
+    /// printing a status line either way. Previously the directory-creation
+    /// failure was swallowed with `try?` and the "experimental compile
+    /// cache →" line printed unconditionally — a false success message even
+    /// when the flag ended up inert. On creation failure this instead warns
+    /// and returns `nil`, so the caller skips passing `-module-cache-path`
+    /// for a directory that was never actually created.
+    static func resolveAndPrepare(flagEnabled: Bool, environment: [String: String]) -> URL? {
+        guard let dir = directory(flagEnabled: flagEnabled, environment: environment) else { return nil }
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            print("swiflow: experimental compile cache → \(dir.path)")
+            return dir
+        } catch {
+            print("swiflow: warning: could not create compile cache directory at \(dir.path) (\(error)); continuing without the compile cache.")
+            return nil
+        }
+    }
 }
 
 /// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
@@ -252,55 +271,18 @@ struct BuildCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
         }
 
-        // 1. Find swift on PATH.
-        guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
-            throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
-        }
-
-        // 2. Resolve the WASM SDK ID — either user-supplied or auto-picked.
-        let sdk: String
-        if let userSDK = swiftSDK {
-            sdk = userSDK
-        } else {
-            let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
-            let installed: [String]
-            do {
-                installed = try probe.list()
-            // Case-pattern catch (vs. `catch let error as WasmSDKProbeError`)
-            // because we destructure the payload to translate it into the
-            // BuildCommand-scoped error vocabulary. The `as`-cast form below
-            // (line ~168) is used when we re-wrap the same error type — pick
-            // the case-pattern when payload translation is the point.
-            } catch let WasmSDKProbeError.sdkSubcommandFailed(exitCode, stderr) {
-                throw ValidationError(String(describing: BuildCommandError.wasmSDKListFailed(
-                    exitCode: exitCode,
-                    stderr: stderr
-                )))
-            }
-            guard let firstInstalled = installed.first else {
-                throw ValidationError(String(describing: BuildCommandError.noWasmSDKInstalled))
-            }
-            sdk = firstInstalled
-        }
-
-        // 3. macOS: detect TOOLCHAINS bundle ID if not already set.
-        let toolchainBundleID: String?
-        if ProcessInfo.processInfo.environment["TOOLCHAINS"] != nil {
-            // Respect the user's pin.
-            toolchainBundleID = nil
-        } else {
-            toolchainBundleID = MacToolchainProbe.swiftLatestBundleIdentifier()
-        }
+        // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
+        //      shared with `swiflow dev` (see ToolchainResolution).
+        let resolution = try ToolchainResolution.resolve(swiftSDKOverride: swiftSDK, using: runner)
+        let swift = resolution.swift
+        let sdk = resolution.sdk
+        let toolchainBundleID = resolution.toolchainBundleID
 
         // 3.5 Experimental opt-in: resolve a shared module-cache directory.
-        let compileCacheDir = CompileCache.directory(
+        let compileCacheDir = CompileCache.resolveAndPrepare(
             flagEnabled: experimentalCompileCache,
             environment: ProcessInfo.processInfo.environment
         )
-        if let compileCacheDir {
-            try? FileManager.default.createDirectory(at: compileCacheDir, withIntermediateDirectories: true)
-            print("swiflow: experimental compile cache → \(compileCacheDir.path)")
-        }
 
         // 4. Run the build.
         let invocation = BuildInvocation(

@@ -53,6 +53,15 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
         }
 
+        // 0.1 Fail fast on a port that's already bound (EADDRINUSE is the most
+        //     common first-run failure) instead of letting it surface as a raw
+        //     NIO bind error only after paying for the initial build below.
+        do {
+            try PortAvailability.checkAvailable(port: port)
+        } catch let error as PortAvailability.ProbeError {
+            throw ValidationError(String(describing: error))
+        }
+
         // 0.5 Ensure the embedded JS driver + service worker are on disk before
         //     the server starts serving. Without this, a project that wasn't
         //     `swiflow init`-ed (or whose gitignored driver was never committed)
@@ -65,49 +74,21 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError("swiflow: failed to write the JS driver into \(projectURL.path): \(error)")
         }
 
-        // 1. Locate swift on PATH.
-        guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
-            throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
-        }
-
-        // 2. Resolve the WASM SDK.
-        let sdk: String
-        if let userSDK = swiftSDK {
-            sdk = userSDK
-        } else {
-            let probe = WasmSDKProbe(runner: runner, swiftExecutable: swift)
-            let installed: [String]
-            do {
-                installed = try probe.list()
-            } catch let WasmSDKProbeError.sdkSubcommandFailed(exitCode, stderr) {
-                throw ValidationError(String(describing: BuildCommandError.wasmSDKListFailed(
-                    exitCode: exitCode,
-                    stderr: stderr
-                )))
-            }
-            guard let firstInstalled = installed.first else {
-                throw ValidationError(String(describing: BuildCommandError.noWasmSDKInstalled))
-            }
-            sdk = firstInstalled
-        }
-
-        // 3. Toolchain on macOS.
-        let toolchainBundleID: String? = ProcessInfo.processInfo.environment["TOOLCHAINS"] != nil
-            ? nil
-            : MacToolchainProbe.swiftLatestBundleIdentifier()
+        // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
+        //      shared with `swiflow build` (see ToolchainResolution).
+        let resolution = try ToolchainResolution.resolve(swiftSDKOverride: swiftSDK, using: runner)
+        let swift = resolution.swift
+        let sdk = resolution.sdk
+        let toolchainBundleID = resolution.toolchainBundleID
 
         // 3.5 Experimental opt-in: resolve a shared module-cache directory. Wired
         //     into the initial build + the per-save full-build fallback; the fast
         //     bypass rebuilder replays its own captured commands and is already
         //     near-instant, so it doesn't need it.
-        let compileCacheDir = CompileCache.directory(
+        let compileCacheDir = CompileCache.resolveAndPrepare(
             flagEnabled: experimentalCompileCache,
             environment: ProcessInfo.processInfo.environment
         )
-        if let compileCacheDir {
-            try? FileManager.default.createDirectory(at: compileCacheDir, withIntermediateDirectories: true)
-            print("swiflow: experimental compile cache → \(compileCacheDir.path)")
-        }
 
         // 4. Initial build. Failures here exit non-zero (Phase 2c
         //    decision §6 — nothing to serve if the first build fails).
