@@ -380,5 +380,9 @@ let formControlsSheet: CSSSheet = css {
       opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }
+    /* Size scale: the dot (1.1em) and label scale with the root font-size. */
+    .sw-radio--sm { font-size: 0.875rem; }
+    .sw-radio--md { font-size: 1rem; }
+    .sw-radio--lg { font-size: 1.125rem; }
     """)
 }

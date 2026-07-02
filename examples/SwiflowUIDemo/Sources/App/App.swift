@@ -158,7 +158,7 @@ final class Demo {
                         .filter { $0.lowercased().contains(query.lowercased()) }
                         .map { SelectOption($0) }
                 }, placeholder: "Search the periodic table…")
-                RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
+                RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
                 Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
                 Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
             }
