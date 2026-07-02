@@ -17,16 +17,16 @@ public enum Swiflow {}
 
 /// All live roots, keyed by CSS selector. Package-internal so
 /// DevAPI.swift can read it.
-nonisolated(unsafe) var renderers: [String: Renderer] = [:]
+@MainActor var renderers: [String: Renderer] = [:]
 
 /// Single shared handle allocator used by all production `Renderer` instances.
 /// Guarantees globally unique node handles across all roots so the JS
 /// driver's `nodes` Map never has collisions.
-nonisolated(unsafe) let sharedHandleAllocator = HandleAllocator()
+@MainActor let sharedHandleAllocator = HandleAllocator()
 
 /// Guards `JavaScriptEventLoop.installGlobalExecutor()` so multi-root apps
 /// (multiple `render(into:)` calls) and HMR re-imports install it exactly once.
-nonisolated(unsafe) var _swiflowExecutorInstalled = false
+@MainActor var _swiflowExecutorInstalled = false
 
 public extension Swiflow {
     /// Mounts a Component tree into the DOM node matched by `selector`.
