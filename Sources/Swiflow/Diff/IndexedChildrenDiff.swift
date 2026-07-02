@@ -82,19 +82,10 @@ func diffChildrenIndexed(
             let removed = mounted.children[newCount]
             // animateExit targets a single component body, which is single-rooted
             // by invariant (MountTree.domHandle), so domHandle is correct here.
-            if let comp = removed.component,
-               let anim = type(of: comp.instance).exitAnimation {
-                let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
-                patches.append(.animateExit(
-                    handle: removed.domHandle, parentHandle: domParentHandle,
-                    animation: anim, durationMs: durMs))
-                destroy(removed, into: &patches, handlers: handlers, skipDestroyForHandle: removed.domHandle)
-            } else {
-                for root in collectDOMRoots(removed) {
-                    patches.append(.removeChild(parent: domParentHandle, child: root))
-                }
-                destroy(removed, into: &patches, handlers: handlers)
-            }
+            // Exit-anim vs plain removal now lives in removeAndDestroyChild —
+            // previously copy-pasted x3 with the fragment-body phantom-handle bug.
+            removeAndDestroyChild(removed, parentDOMHandle: domParentHandle,
+                                  handlers: handlers, into: &patches)
             mounted.removeChild(at: newCount)
         }
     }
