@@ -3276,8 +3276,9 @@ final class Demo {
             + "Click a header to cycle ascending → descending → unsorted. The header stays "
             + "pinned inside the 360 px scroll container (maxHeight). The role filter changes "
             + "rows, so a key: encoding the filter remounts the table with fresh data — embedded "
-            + "components freeze rows at first mount. \"Edit\" fires a toast so the in-cell action "
-            + "is visible without mixing onRowClick with in-cell buttons (they share click events)."
+            + "components freeze rows at first mount. Clicking a row \"opens\" it (onRowClick), "
+            + "while the row checkbox and the in-cell \"Edit\" button do NOT trigger the row "
+            + "click — container clicks ignore interactive descendants (fromInteractiveDescendant)."
         return VStack(spacing: .md, align: .stretch) {
             h2("DataTable")
             Select("Filter by role", selection: $roleFilter,
@@ -3291,6 +3292,9 @@ final class Demo {
                           sortable: true,
                           pageSize: 5,
                           page: $peoplePage,
+                          onRowClick: { p in
+                              self.$toasts.send(.show(ToastItem("Opening \(p.name)", variant: .success)))
+                          },
                           maxHeight: .custom("360px"),
                           key: "people-\(roleFilter)-\(shown.count)") {
                     Column("Name", value: \.name)

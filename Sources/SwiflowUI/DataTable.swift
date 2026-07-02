@@ -524,7 +524,14 @@ final class DataTableBox {
         let rowClass = onRowClick != nil ? "sw-table__tr sw-table__tr--clickable" : "sw-table__tr"
         attrs.insert(.class(rowClass), at: 0)
         if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
-        if let onRowClick { attrs.append(.on(.click) { onRowClick(i) }) }
+        if let onRowClick {
+            // Ignore clicks aimed at a control INSIDE the row (the row-select
+            // checkbox, an Actions-column button): selecting must not also
+            // "open" the row. Plain cell clicks still navigate.
+            attrs.append(.on(.click) { info in
+                if !info.fromInteractiveDescendant { onRowClick(i) }
+            })
+        }
         return element("tr", attributes: attrs, children: cells)
     }
 
@@ -617,7 +624,14 @@ final class DataTableBox {
             .attr("aria-rowindex", String(absolute + 1)),
         ]
         if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
-        if let onRowClick { attrs.append(.on(.click) { onRowClick(i) }) }
+        if let onRowClick {
+            // Ignore clicks aimed at a control INSIDE the row (the row-select
+            // checkbox, an Actions-column button): selecting must not also
+            // "open" the row. Plain cell clicks still navigate.
+            attrs.append(.on(.click) { info in
+                if !info.fromInteractiveDescendant { onRowClick(i) }
+            })
+        }
         return element("tr", attributes: attrs, children: cells).memoKey(key)
     }
 

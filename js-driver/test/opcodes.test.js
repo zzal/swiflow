@@ -198,6 +198,42 @@ describe("driver opcodes", () => {
     done();
   });
 
+  test("fromInteractiveDescendant: true for clicks on controls inside the bound element, false otherwise", (t, done) => {
+    const { swiflow, window, document } = setupDriver();
+    const payloads = [];
+    window.__swiflowDispatch = (_id, payload) => { payloads.push(payload); };
+    // <div (handler)> <span>text</span> <button>edit</button> </div>
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createElement", handle: 2, tag: "span" },
+      { op: "createText", handle: 3, text: "cell" },
+      { op: "appendChild", parent: 2, child: 3 },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "createElement", handle: 4, tag: "button" },
+      { op: "appendChild", parent: 1, child: 4 },
+      { op: "addHandler", handle: 1, event: "click", handlerId: 7 },
+    ]);
+    swiflow.mount(1, "#app");
+    document.querySelector("button").click();      // interactive descendant
+    document.querySelector("span").click();        // plain descendant
+    document.querySelector("#app > div").click();  // the element itself
+    assert.equal(payloads.length, 3);
+    assert.equal(payloads[0].fromInteractiveDescendant, true,  "button click");
+    assert.equal(payloads[1].fromInteractiveDescendant, false, "span click");
+    assert.equal(payloads[2].fromInteractiveDescendant, false, "self click");
+    // A handler ON a button: its own clicks are not "from a descendant".
+    swiflow.applyPatches([{ op: "addHandler", handle: 4, event: "click", handlerId: 8 }]);
+    payloads.length = 0;
+    document.querySelector("button").click();
+    const own = payloads.find((p, i) => p && payloads.length >= 1 && i >= 0);
+    // Two handlers fire (button's own + bubbled container). The button's own
+    // payload must be false; the container's must be true.
+    assert.equal(payloads.length, 2);
+    assert.equal(payloads[0].fromInteractiveDescendant, false, "button's own handler");
+    assert.equal(payloads[1].fromInteractiveDescendant, true,  "container handler via bubble");
+    done();
+  });
+
   test("removeHandler detaches the listener so subsequent events don't dispatch", () => {
     const { swiflow, window, document } = setupDriver();
     let callCount = 0;
