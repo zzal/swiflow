@@ -79,13 +79,15 @@ extension EnvironmentValues {
     }
 }
 
+@MainActor
 enum AmbientEnvironment {
-    nonisolated(unsafe) static var current: EnvironmentValues = .init()
+    static var current: EnvironmentValues = .init()
 }
 
 @propertyWrapper
 public struct Environment<Value> {
     let keyPath: KeyPath<EnvironmentValues, Value>
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) { self.keyPath = keyPath }
+    @MainActor
     public var wrappedValue: Value { AmbientEnvironment.current[keyPath: keyPath] }
 }

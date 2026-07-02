@@ -13,12 +13,13 @@ import Swiflow
 ///    key?, shiftKey, ctrlKey, altKey, metaKey }`.
 enum DispatcherBridge {
     /// Strong reference holding the `JSClosure` so it isn't deallocated.
-    nonisolated(unsafe) private static var installed: JSClosure?
+    @MainActor private static var installed: JSClosure?
 
     /// Idempotent: subsequent calls are no-ops. One JSClosure services all
     /// roots — handler IDs are globally unique across all `HandlerRegistry`
     /// instances (Phase 13c), so `HandlerRegistry.dispatchGlobal` routes
     /// correctly regardless of which root registered the handler.
+    @MainActor
     static func install() {
         guard installed == nil else { return }
 

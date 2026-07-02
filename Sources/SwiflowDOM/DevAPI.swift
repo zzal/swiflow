@@ -9,10 +9,10 @@ enum DevAPI {
 #if !SWIFLOW_RELEASE
     // MARK: - Closure retention
 
-    nonisolated(unsafe) private static var treeClosure: JSClosure?
-    nonisolated(unsafe) private static var stateClosure: JSClosure?
-    nonisolated(unsafe) private static var handlersClosure: JSClosure?
-    nonisolated(unsafe) private static var perfClosure: JSClosure?
+    @MainActor private static var treeClosure: JSClosure?
+    @MainActor private static var stateClosure: JSClosure?
+    @MainActor private static var handlersClosure: JSClosure?
+    @MainActor private static var perfClosure: JSClosure?
 
     // MARK: - Install
 

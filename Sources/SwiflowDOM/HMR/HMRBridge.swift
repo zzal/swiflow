@@ -33,7 +33,7 @@ package enum HMRBridge {
     /// JSClosure-with-Swift-callback must outlive every invocation,
     /// and the JS-side reference (under `window.__swiflow.hmrSnapshot`)
     /// is a weak handle that won't keep the Swift closure alive.
-    nonisolated(unsafe) private static var snapshotClosure: JSClosure?
+    @MainActor private static var snapshotClosure: JSClosure?
 
     // MARK: - Snapshot exporter (Swift → JS)
 
@@ -89,8 +89,8 @@ package enum HMRBridge {
     /// Parsed pending-restore index for THIS module instance. A fresh module
     /// after a hot-swap starts with `pendingRead == false`, so the first
     /// `pendingRestoreIndex()` re-parses `window.__swiflowPendingSnapshot`.
-    nonisolated(unsafe) private static var pendingIndex: [SnapshotKey: [String: Any]]?
-    nonisolated(unsafe) private static var pendingRead = false
+    @MainActor private static var pendingIndex: [SnapshotKey: [String: Any]]?
+    @MainActor private static var pendingRead = false
 
     /// The restore index every root's first render consults. Parsed exactly
     /// once per module instance (reading + nil-ing the JS global on the first
