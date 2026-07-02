@@ -12,6 +12,17 @@ public struct MutationStateMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        // Reject multi-binding first, with a dedicated message: the compiler
+        // silently accepts a peer macro on a multi-binding var (expanding once
+        // per binding, each emitting the FIRST name -> duplicate `$name` /
+        // backing decls). This guard is the only safety net.
+        if let varDecl = declaration.as(VariableDeclSyntax.self),
+           varDecl.bindings.count > 1 {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: MutationStateDiagnostic.requiresSingleBinding))
+            return []
+        }
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
               varDecl.bindingSpecifier.tokenKind == .keyword(.var),
               let binding = varDecl.bindings.first,
@@ -45,8 +56,14 @@ public struct MutationStateMacro: PeerMacro {
 
 enum MutationStateDiagnostic: DiagnosticMessage {
     case requiresVarWithType
+    case requiresSingleBinding
     var message: String {
-        "@MutationState requires a `var` with an explicit Mutation type annotation (e.g. `@MutationState var create: CreateTodo`)."
+        switch self {
+        case .requiresVarWithType:
+            return "@MutationState requires a `var` with an explicit Mutation type annotation (e.g. `@MutationState var create: CreateTodo`)."
+        case .requiresSingleBinding:
+            return "@MutationState must be applied to a single property declaration; declare each mutation separately (e.g. `@MutationState var add: AddTodo` on its own line)."
+        }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
     var severity: DiagnosticSeverity { .error }

@@ -143,4 +143,47 @@ final class ComponentMacroMutationTests: XCTestCase {
             macros: mutationTestMacros
         )
     }
+
+    // A multi-binding @MutationState member is skipped by the bind/init scan
+    // (MutationStateMacro rejects it and emits no runtime — a wire line here
+    // would reference a missing `_add_mutationRuntime`). Only @Component is
+    // registered, so the attribute itself stays unexpanded here — the point
+    // is that bind/init contain NO reference to `add`.
+    func testMultiBindingMutationSkippedInBind() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Comp {
+                @MutationState var add: AddTodo = AddTodo(), remove: RemoveTodo = RemoveTodo()
+                var body: VNode { .text("") }
+            }
+            """,
+            expandedSource: """
+            final class Comp {
+                @MutationState
+                @MainActor var add: AddTodo = AddTodo(), remove: RemoveTodo = RemoveTodo()
+                @MainActor
+                var body: VNode { .text("") }
+
+                @MainActor init() {
+                }
+
+                @MainActor private weak var runtimeOwner: AnyComponent?
+
+                @MainActor private var runtimeScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = []
+
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self.runtimeOwner = owner
+                    self.runtimeScheduler = scheduler
+                }
+            }
+
+            extension Comp: Component, _ComponentRuntime {
+            }
+            """,
+            macros: mutationTestMacros
+        )
+    }
 }

@@ -25,6 +25,11 @@ public struct StateMacro: AccessorMacro, PeerMacro {
             return []
         }
 
+        // Reject multi-binding (`@State var a: Int = 0, b: Int = 0`) — the
+        // peer path emits the actionable diagnostic; the accessor bails
+        // silently so no duplicate is reported.
+        guard varDecl.bindings.count == 1 else { return [] }
+
         // Reject user-supplied accessor blocks (didSet/willSet/get/set).
         guard let binding = varDecl.bindings.first,
               binding.accessorBlock == nil else {
@@ -81,6 +86,19 @@ public struct StateMacro: AccessorMacro, PeerMacro {
             return []   // accessor path emitted the diagnostic
         }
 
+        // Reject multi-binding: each `@State` cell needs its own declaration
+        // (the accessor role can't apply to a multi-binding var, and the peer
+        // would otherwise emit a duplicate `$first` per binding). Diagnosed
+        // HERE (not the accessor path) because the compiler skips the accessor
+        // expansion for multi-binding vars but still runs the peer.
+        guard varDecl.bindings.count == 1 else {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: StateMacroDiagnostic.requiresSingleBinding
+            ))
+            return []
+        }
+
         // Reject user-supplied accessor blocks — peer should not emit either.
         guard binding.accessorBlock == nil else {
             return []   // accessor path emitted the diagnostic
@@ -123,6 +141,7 @@ public struct StateMacro: AccessorMacro, PeerMacro {
 enum StateMacroDiagnostic: DiagnosticMessage {
     case requiresVar
     case requiresType
+    case requiresSingleBinding
     case userDidSetRejected
 
     var message: String {
@@ -131,6 +150,8 @@ enum StateMacroDiagnostic: DiagnosticMessage {
             return "@State requires a `var` — state cells must be mutable."
         case .requiresType:
             return "@State requires an explicit type annotation (e.g. `@State var count: Int = 0`)."
+        case .requiresSingleBinding:
+            return "@State must be applied to a single property declaration; declare each state cell separately (e.g. `@State var width: Double = 0` on its own line)."
         case .userDidSetRejected:
             return "@State properties cannot declare their own didSet; move the side effect into a method."
         }

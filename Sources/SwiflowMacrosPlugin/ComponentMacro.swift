@@ -92,6 +92,9 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                 return attrName == "MacroState" || attrName == "State"
             }
             guard isState else { continue }
+            // Multi-binding @State is rejected by StateMacro's own diagnostic;
+            // emit no cell for the invalid declaration.
+            guard varDecl.bindings.count == 1 else { continue }
             guard let binding = varDecl.bindings.first,
                   let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
                   let typeAnno = binding.typeAnnotation else {
@@ -175,6 +178,10 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                 return n == "MutationState"
             }
             guard isMutation,
+                  // Multi-binding is rejected by MutationStateMacro (no runtime
+                  // is emitted) — skip so bind/init don't reference a missing
+                  // `_name_mutationRuntime`.
+                  varDecl.bindings.count == 1,
                   let b = varDecl.bindings.first,
                   let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier else { continue }
             mutationNames.append(id.text)
@@ -197,6 +204,8 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                 return n == "ReducerState"
             }
             guard isReducer,
+                  // Mirror of the @MutationState multi-binding skip above.
+                  varDecl.bindings.count == 1,
                   let b = varDecl.bindings.first,
                   let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier else { continue }
             reducerNames.append(id.text)
