@@ -16,6 +16,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** the CSS builder's 72 property free functions (`color(_:)`, `padding(_:)`, …) are now static members of `CSSDeclaration`, used with leading-dot syntax: `rule(".card") { .padding("1rem") }`. Frees the module's top-level namespace of single-word names that collided with app code.
+
+---
+
 ## [0.3.5] — 2026-06-26
 
 `SwiflowColor` becomes a public library, and `swiflow theme` diagnostics gain a

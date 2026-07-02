@@ -93,15 +93,21 @@ The original result-builder DSL remains fully supported:
 ```swift
 static var scopedStyles: CSSSheet? = css {
     host {
-        display("block")
+        .display("block")
     }
     rule(".quake-row") {
-        display("grid")
-        gap("var(--sw-space-md)")
-        property("grid-template-columns", "5.5rem 1fr max-content")
+        .display("grid")
+        .gap("var(--sw-space-md)")
+        .property("grid-template-columns", "5.5rem 1fr max-content")
     }
 }
 ```
+
+Property declarations (`color`, `padding`, `display`, …) are static members
+of `CSSDeclaration`, consumed via leading-dot (implicit-member) syntax inside
+the builder blocks — `buildExpression` supplies the contextual type, so no
+`CSSDeclaration.` prefix is needed. This keeps the 72 single-word property
+names off the module's top-level namespace.
 
 One scoping difference to know when migrating: for a class-leading selector
 the DSL emits both `.swiflow-X.foo` *and* `.swiflow-X .foo` (root-or-

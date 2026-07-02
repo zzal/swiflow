@@ -9,7 +9,7 @@ struct CSSSheetTests {
     func plainClassScoped() {
         let sheet = css {
             rule(".root") {
-                padding("1rem")
+                .padding("1rem")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Card")
@@ -21,7 +21,7 @@ struct CSSSheetTests {
     func pseudoClassScoped() {
         let sheet = css {
             rule(".title:hover") {
-                color("#fff")
+                .color("#fff")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Btn")
@@ -32,7 +32,7 @@ struct CSSSheetTests {
     func rootNotScoped() {
         let sheet = css {
             rule(":root") {
-                cssVar("--bg", "#fff")
+                .cssVar("--bg", "#fff")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -42,14 +42,14 @@ struct CSSSheetTests {
 
     @Test("html selector is NOT scoped")
     func htmlNotScoped() {
-        let sheet = css { rule("html") { property("box-sizing", "border-box") } }
+        let sheet = css { rule("html") { .property("box-sizing", "border-box") } }
         let result = sheet.cssString(scopeClass: "swiflow-T")
         #expect(result.hasPrefix("html {"))
     }
 
     @Test("body selector is NOT scoped")
     func bodyNotScoped() {
-        let sheet = css { rule("body") { margin("0") } }
+        let sheet = css { rule("body") { .margin("0") } }
         let result = sheet.cssString(scopeClass: "swiflow-T")
         #expect(result.hasPrefix("body {"))
     }
@@ -58,8 +58,8 @@ struct CSSSheetTests {
     func keyframesGlobal() {
         let sheet = css {
             keyframes("slide-in") {
-                from { opacity("0") }
-                to   { opacity("1") }
+                from { .opacity("0") }
+                to   { .opacity("1") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -71,7 +71,7 @@ struct CSSSheetTests {
     func customPropertyDeclaration() {
         let sheet = css {
             rule(":root") {
-                property("--primary", "#4a90e2")
+                .property("--primary", "#4a90e2")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -82,7 +82,7 @@ struct CSSSheetTests {
     func cssVarAliasesProperty() {
         let sheet = css {
             rule(":root") {
-                cssVar("--primary", "#4a90e2")
+                .cssVar("--primary", "#4a90e2")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -93,9 +93,9 @@ struct CSSSheetTests {
     func atPercentStop() {
         let sheet = css {
             keyframes("pulse") {
-                from  { opacity("1") }
-                at(50) { opacity("0.4") }
-                to    { opacity("1") }
+                from  { .opacity("1") }
+                at(50) { .opacity("0.4") }
+                to    { .opacity("1") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -105,8 +105,8 @@ struct CSSSheetTests {
     @Test("multiple rules serialized in order")
     func multipleRulesOrdered() throws {
         let sheet = css {
-            rule(".a") { color("red") }
-            rule(".b") { color("blue") }
+            rule(".a") { .color("red") }
+            rule(".b") { .color("blue") }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
         let aRange = try #require(result.range(of: ".swiflow-T .a {"))
@@ -122,28 +122,28 @@ struct CSSSheetTests {
 
     @Test("class-leading selector emits dual (compound + descendant) selector")
     func classLeadingDualSelector() {
-        let sheet = css { rule(".card") { padding("1rem") } }
+        let sheet = css { rule(".card") { .padding("1rem") } }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
         #expect(result.contains(".swiflow-Counter.card, .swiflow-Counter .card {"))
     }
 
     @Test("class selector with combinator keeps dual emit on the leading class only")
     func classSelectorWithCombinator() {
-        let sheet = css { rule(".card .count") { color("red") } }
+        let sheet = css { rule(".card .count") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
         #expect(result.contains(".swiflow-Counter.card .count, .swiflow-Counter .card .count {"))
     }
 
     @Test("class-pseudo selector preserves dual emit")
     func classPseudoDualSelector() {
-        let sheet = css { rule(".card:hover") { color("red") } }
+        let sheet = css { rule(".card:hover") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
         #expect(result.contains(".swiflow-Counter.card:hover, .swiflow-Counter .card:hover {"))
     }
 
     @Test("comma-separated selector list scopes EVERY part (audit: unscoped-leak fix)")
     func commaListAllPartsScoped() {
-        let sheet = css { rule(".wmo-label, .range") { margin("0") } }
+        let sheet = css { rule(".wmo-label, .range") { .margin("0") } }
         let result = sheet.cssString(scopeClass: "swiflow-C")
         #expect(result.contains(
             ".swiflow-C.wmo-label, .swiflow-C .wmo-label, .swiflow-C.range, .swiflow-C .range {"))
@@ -154,35 +154,35 @@ struct CSSSheetTests {
 
     @Test("comma list mixes class and element parts correctly")
     func commaListMixedParts() {
-        let sheet = css { rule("h2, .title") { color("red") } }
+        let sheet = css { rule("h2, .title") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-C")
         #expect(result.contains(".swiflow-C h2, .swiflow-C.title, .swiflow-C .title {"))
     }
 
     @Test("commas inside :is(...) do not split")
     func functionalPseudoCommaNotSplit() {
-        let sheet = css { rule(":is(.a, .b) span") { color("red") } }
+        let sheet = css { rule(":is(.a, .b) span") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-C")
         #expect(result.contains(".swiflow-C :is(.a, .b) span {"))
     }
 
     @Test("commas inside quoted attribute values do not split")
     func quotedAttrCommaNotSplit() {
-        let sheet = css { rule("[data-x=\"a,b\"]") { color("red") } }
+        let sheet = css { rule("[data-x=\"a,b\"]") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-C")
         #expect(result.contains(".swiflow-C [data-x=\"a,b\"] {"))
     }
 
     @Test("unscopeable parts in a comma list stay verbatim while class parts scope")
     func commaListRootStaysVerbatim() {
-        let sheet = css { rule(":root, .theme") { color("red") } }
+        let sheet = css { rule(":root, .theme") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-C")
         #expect(result.contains(":root, .swiflow-C.theme, .swiflow-C .theme {"))
     }
 
     @Test("non-class leading selector unchanged (descendant only)")
     func nonClassLeadingUnchanged() {
-        let sheet = css { rule("button") { color("red") } }
+        let sheet = css { rule("button") { .color("red") } }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
         #expect(result.contains(".swiflow-Counter button {"))
         #expect(!result.contains(".swiflow-Counterbutton"))
@@ -191,7 +191,7 @@ struct CSSSheetTests {
     @Test("host { } emits scope-class-only selector")
     func hostEntry() {
         let sheet = css {
-            host { padding("1rem"); display("flex") }
+            host { .padding("1rem"); .display("flex") }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Toast")
         #expect(result.contains(".swiflow-Toast {"))
@@ -215,7 +215,7 @@ struct CSSSheetTests {
     func containerScopesNestedRules() {
         let sheet = css {
             container("(max-width: 380px)") {
-                rule(".actions") { flexDirection("column") }
+                rule(".actions") { .flexDirection("column") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
@@ -231,7 +231,7 @@ struct CSSSheetTests {
     func mediaScopesNestedRules() {
         let sheet = css {
             media("(max-width: 600px)") {
-                rule(".card") { padding("1rem") }
+                rule(".card") { .padding("1rem") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
@@ -243,7 +243,7 @@ struct CSSSheetTests {
     func groupIndentsNestedEntries() {
         let sheet = css {
             container("(max-width: 380px)") {
-                rule(".x") { color("red") }
+                rule(".x") { .color("red") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -257,7 +257,7 @@ struct CSSSheetTests {
     func startingStyleScopesNestedRules() {
         let sheet = css {
             startingStyle {
-                rule(".signin-dialog[open]") { opacity("0") }
+                rule(".signin-dialog[open]") { .opacity("0") }
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-Counter")
@@ -270,8 +270,8 @@ struct CSSSheetTests {
     func outlineHelpers() {
         let sheet = css {
             rule("button:focus-visible") {
-                outline("2px solid var(--accent)")
-                outlineOffset("2px")
+                .outline("2px solid var(--accent)");
+                .outlineOffset("2px")
             }
         }
         let result = sheet.cssString(scopeClass: "swiflow-T")
@@ -281,8 +281,8 @@ struct CSSSheetTests {
 
     @Test("CSSSheet + concatenates entries in order")
     func sheetPlusConcatenates() {
-        let a = css { rule(".a") { color("red") } }
-        let b = css { rule(".b") { color("blue") } }
+        let a = css { rule(".a") { .color("red") } }
+        let b = css { rule(".b") { .color("blue") } }
         let combined = a + b
         let result = combined.cssString(scopeClass: "swiflow-T")
         let aIdx = result.range(of: ".a")?.lowerBound
@@ -308,7 +308,7 @@ struct CSSSheetTests {
     @Test("scopedBlock composes with DSL-built sheets via +")
     func scopedBlockComposes() {
         let sheet = CSSSheet(entries: [.scopedBlock(".a { color: red; }")])
-            + css { rule(".b") { margin("0") } }
+            + css { rule(".b") { .margin("0") } }
         let result = sheet.cssString(scopeClass: "swiflow-T")
         #expect(result.contains(".swiflow-T {\n  .a { color: red; }\n}"))
         #expect(result.contains(".swiflow-T .b {"))

@@ -288,23 +288,23 @@ import Swiflow
 
 extension EdgeLab {
     @MainActor static var scopedStyles: CSSSheet? = css {
-        host { display("block"); maxWidth("760px"); margin("1.5rem auto"); padding("0 1rem") }
+        host { .display("block"); .maxWidth("760px"); .margin("1.5rem auto"); .padding("0 1rem") }
         rule("section") {
-            border("1px solid color-mix(in oklab, CanvasText 15%, transparent)")
-            borderRadius("8px"); padding("0.75rem 1rem"); margin("0 0 1rem 0")
+            .border("1px solid color-mix(in oklab, CanvasText 15%, transparent)");
+            .borderRadius("8px"); .padding("0.75rem 1rem"); .margin("0 0 1rem 0")
         }
-        rule("h2") { fontSize("1rem"); margin("0 0 0.5rem 0") }
+        rule("h2") { .fontSize("1rem"); .margin("0 0 0.5rem 0") }
         rule("button") {
-            margin("0 0.35rem 0.35rem 0"); padding("0.3rem 0.7rem")
-            border("1px solid color-mix(in oklab, CanvasText 25%, transparent)")
-            borderRadius("6px"); background("Canvas"); color("CanvasText"); cursor("pointer")
+            .margin("0 0.35rem 0.35rem 0"); .padding("0.3rem 0.7rem");
+            .border("1px solid color-mix(in oklab, CanvasText 25%, transparent)");
+            .borderRadius("6px"); .background("Canvas"); .color("CanvasText"); .cursor("pointer")
         }
         rule("input") {
-            padding("0.25rem 0.5rem"); border("1px solid color-mix(in oklab, CanvasText 25%, transparent)")
-            borderRadius("6px"); background("Canvas"); color("CanvasText")
+            .padding("0.25rem 0.5rem"); .border("1px solid color-mix(in oklab, CanvasText 25%, transparent)");
+            .borderRadius("6px"); .background("Canvas"); .color("CanvasText")
         }
-        rule(".row") { display("flex"); gap("0.4rem"); alignItems("center"); flexWrap("wrap") }
-        rule(".tag") { fontFamily("ui-monospace, monospace"); fontSize("0.8rem"); color("var(--text-dim, GrayText)") }
+        rule(".row") { .display("flex"); .gap("0.4rem"); .alignItems("center"); .flexWrap("wrap") }
+        rule(".tag") { .fontFamily("ui-monospace, monospace"); .fontSize("0.8rem"); .color("var(--text-dim, GrayText)") }
     }
 }
 
@@ -1899,24 +1899,24 @@ final class NavBar: Component {
         // `host {}` — the <nav> is the component root, and scoped `rule(...)`
         // selectors only reach descendants.
         host {
-            display("flex")
-            alignItems("center")
-            gap("var(--sw-space-sm)")
-            padding("var(--sw-space-sm) var(--sw-space-md)")
-            borderBottom("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
+            .display("flex");
+            .alignItems("center");
+            .gap("var(--sw-space-sm)");
+            .padding("var(--sw-space-sm) var(--sw-space-md)");
+            .borderBottom("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)");
         }
         rule("a") {
-            color("var(--sw-text)")
-            textDecoration("none")
-            padding("var(--sw-space-xs) var(--sw-space-md)")
-            borderRadius("var(--sw-radius)")
+            .color("var(--sw-text)");
+            .textDecoration("none");
+            .padding("var(--sw-space-xs) var(--sw-space-md)");
+            .borderRadius("var(--sw-radius)");
         }
         rule("a:hover") {
-            background("color-mix(in srgb, var(--sw-accent) 15%, transparent)")
+            .background("color-mix(in srgb, var(--sw-accent) 15%, transparent)");
         }
         rule(".brand") {
-            fontWeight("700")
-            marginRight("var(--sw-space-md)")
+            .fontWeight("700");
+            .marginRight("var(--sw-space-md)");
         }
     }
 
@@ -2177,25 +2177,25 @@ extension CityCard {
     // `Card`; only the content typography is styled here.
     @MainActor static var scopedStyles: CSSSheet? = css {
         rule(".city-name") {
-            fontSize("1.05rem")
-            margin("0")
+            .fontSize("1.05rem");
+            .margin("0");
         }
         rule(".temp") {
-            fontSize("2.2rem")
-            fontWeight("700")
-            lineHeight("1")
+            .fontSize("2.2rem");
+            .fontWeight("700");
+            .lineHeight("1");
         }
         rule(".wmo") {
-            fontSize("1.6rem")
+            .fontSize("1.6rem");
         }
         rule(".wmo-label, .range") {
-            margin("0")
-            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
-            fontSize("0.85rem")
+            .margin("0");
+            .color("color-mix(in srgb, var(--sw-text) 60%, transparent)");
+            .fontSize("0.85rem");
         }
         rule(".error") {
-            color("light-dark(#b91c1c, #fca5a5)")
-            margin("0")
+            .color("light-dark(#b91c1c, #fca5a5)");
+            .margin("0");
         }
     }
 }
@@ -2332,38 +2332,38 @@ extension WeatherPage {
 
     static let layout = css {
         host {
-            display("block")
-            maxWidth("860px")
-            margin("0 auto")
-            padding("0 var(--sw-space-lg) var(--sw-space-xl)")
+            .display("block");
+            .maxWidth("860px");
+            .margin("0 auto");
+            .padding("0 var(--sw-space-lg) var(--sw-space-xl)");
         }
         rule("h1") {
-            fontSize("1.4rem")
-            margin("0")
+            .fontSize("1.4rem");
+            .margin("0");
         }
         rule(".search-results") {
-            listStyle("none")
-            margin("0")
-            padding("var(--sw-space-xs)")
-            display("flex")
-            flexDirection("column")
-            gap("var(--sw-space-xs)")
+            .listStyle("none");
+            .margin("0");
+            .padding("var(--sw-space-xs)");
+            .display("flex");
+            .flexDirection("column");
+            .gap("var(--sw-space-xs)");
         }
     }
 
     static let theme = css {
         rule(".search-results") {
-            background("var(--sw-surface)")
-            border("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
-            borderRadius("var(--sw-radius)")
+            .background("var(--sw-surface)");
+            .border("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)");
+            .borderRadius("var(--sw-radius)");
         }
         rule(".search-status") {
-            color("color-mix(in srgb, var(--sw-text) 60%, transparent)")
-            margin("0")
+            .color("color-mix(in srgb, var(--sw-text) 60%, transparent)");
+            .margin("0");
         }
         rule(".error") {
-            color("light-dark(#b91c1c, #fca5a5)")
-            margin("0")
+            .color("light-dark(#b91c1c, #fca5a5)");
+            .margin("0");
         }
     }
 }

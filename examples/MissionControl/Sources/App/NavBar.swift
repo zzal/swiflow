@@ -11,24 +11,24 @@ final class NavBar: Component {
         // `host {}` — the <nav> is the component root, and scoped `rule(...)`
         // selectors only reach descendants.
         host {
-            display("flex")
-            alignItems("center")
-            gap("var(--sw-space-sm)")
-            padding("var(--sw-space-sm) var(--sw-space-md)")
-            borderBottom("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)")
+            .display("flex");
+            .alignItems("center");
+            .gap("var(--sw-space-sm)");
+            .padding("var(--sw-space-sm) var(--sw-space-md)");
+            .borderBottom("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)");
         }
         rule("a") {
-            color("var(--sw-text)")
-            textDecoration("none")
-            padding("var(--sw-space-xs) var(--sw-space-md)")
-            borderRadius("var(--sw-radius)")
+            .color("var(--sw-text)");
+            .textDecoration("none");
+            .padding("var(--sw-space-xs) var(--sw-space-md)");
+            .borderRadius("var(--sw-radius)");
         }
         rule("a:hover") {
-            background("color-mix(in srgb, var(--sw-accent) 15%, transparent)")
+            .background("color-mix(in srgb, var(--sw-accent) 15%, transparent)");
         }
         rule(".brand") {
-            fontWeight("700")
-            marginRight("var(--sw-space-md)")
+            .fontWeight("700");
+            .marginRight("var(--sw-space-md)");
         }
     }
 
