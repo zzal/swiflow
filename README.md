@@ -84,9 +84,9 @@ swift sdk install \
   --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
 
 # 2. Install the swiflow CLI (prebuilt: macOS arm64 / Linux x86_64)
-# 0.4.0 is a beta (pre-release), so pin it explicitly — the plain installer
+# 0.4.x is a beta (pre-release), so pin it explicitly — the plain installer
 # resolves the latest *stable* release:
-SWIFLOW_VERSION=0.4.0 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh)"
+SWIFLOW_VERSION=0.4.1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh)"
 
 # 3. Scaffold and run, with state-preserving hot reload on every save
 swiflow init my-app
