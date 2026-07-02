@@ -1,13 +1,21 @@
-import Testing
+// XCTest, NOT swift-testing: `assertMacroExpansion` reports via XCTFail,
+// which swift-testing silently swallows — a @Test golden here passes even
+// with a deliberately wrong expectation (verified 2026-07-02). Keep every
+// assertMacroExpansion golden in an XCTestCase.
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
+import XCTest
 @testable import SwiflowMacrosPlugin
 
-@Suite("Macro/MutationState")
-struct MutationStateMacroTests {
-    private let macros: [String: Macro.Type] = ["MutationState": MutationStateMacro.self]
+private nonisolated(unsafe) let testMacros: [String: Macro.Type] = [
+    "MutationState": MutationStateMacro.self,
+]
 
-    @Test("@MutationState expands to a private runtime plus a $-prefixed MutationHandle projection") func emitsRuntimeAndProjection() {
+final class MutationStateMacroTests: XCTestCase {
+
+    // @MutationState expands to a private runtime plus a $-prefixed
+    // MutationHandle projection.
+    func testEmitsRuntimeAndProjection() {
         assertMacroExpansion(
             """
             @MutationState var create: CreateTodo
@@ -21,7 +29,31 @@ struct MutationStateMacroTests {
                 MutationHandle(runtime: _create_mutationRuntime, mutation: create)
             }
             """,
-            macros: macros
+            macros: testMacros
+        )
+    }
+
+    // Multi-binding. HARNESS/COMPILER DIVERGENCE (see StateMacroTests):
+    // the harness refuses peer-on-multi-binding itself and never invokes our
+    // expansion; the REAL compiler silently runs the peer once per binding —
+    // where our requiresSingleBinding guard fires (host-compile verified;
+    // recorded in the PR since a committed test can't assert a compile failure).
+    func testRejectsMultiBinding() {
+        assertMacroExpansion(
+            """
+            final class Comp {
+                @MutationState var add: AddTodo = AddTodo(), remove: RemoveTodo = RemoveTodo()
+            }
+            """,
+            expandedSource: """
+            final class Comp {
+                var add: AddTodo = AddTodo(), remove: RemoveTodo = RemoveTodo()
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(message: "peer macro can only be applied to a single variable", line: 2, column: 5, severity: .error),
+            ],
+            macros: testMacros
         )
     }
 }

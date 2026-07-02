@@ -12,6 +12,17 @@ public struct ReducerStateMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        // Reject multi-binding first, with a dedicated message: the compiler
+        // silently accepts a peer macro on a multi-binding var (expanding once
+        // per binding, each emitting the FIRST name -> duplicate `$name` /
+        // backing decls). This guard is the only safety net.
+        if let varDecl = declaration.as(VariableDeclSyntax.self),
+           varDecl.bindings.count > 1 {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: ReducerStateDiagnostic.requiresSingleBinding))
+            return []
+        }
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
               varDecl.bindingSpecifier.tokenKind == .keyword(.var),
               let binding = varDecl.bindings.first,
@@ -46,8 +57,14 @@ public struct ReducerStateMacro: PeerMacro {
 
 enum ReducerStateDiagnostic: DiagnosticMessage {
     case requiresVarWithType
+    case requiresSingleBinding
     var message: String {
-        "@ReducerState requires a `var` with an explicit Reducer type annotation (e.g. `@ReducerState var flow: Checkout`)."
+        switch self {
+        case .requiresVarWithType:
+            return "@ReducerState requires a `var` with an explicit Reducer type annotation (e.g. `@ReducerState var flow: Checkout`)."
+        case .requiresSingleBinding:
+            return "@ReducerState must be applied to a single property declaration; declare each reducer separately (e.g. `@ReducerState var flow: Checkout` on its own line)."
+        }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
     var severity: DiagnosticSeverity { .error }

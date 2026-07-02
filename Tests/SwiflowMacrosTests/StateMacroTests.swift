@@ -157,4 +157,32 @@ final class StateMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Multi-binding: `@State var a: Int = 0, b: Int = 0`.
+    // HARNESS/COMPILER DIVERGENCE (see docs + ReducerStateMacroTests): the
+    // assertMacroExpansion harness refuses BOTH roles on a multi-binding var
+    // (its own two diagnostics below) and never invokes our expansion. The
+    // REAL compiler blocks only the accessor but RUNS the peer — where our
+    // StateMacroDiagnostic.requiresSingleBinding fires. The real-compiler
+    // behavior is covered by the host-compile check recorded in the PR (a
+    // committed test can't assert a compile FAILURE).
+    func testRejectsMultiBinding() {
+        assertMacroExpansion(
+            """
+            final class Counter {
+                @State var a: Int = 0, b: Int = 0
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                var a: Int = 0, b: Int = 0
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(message: "accessor macro can only be applied to a single variable", line: 2, column: 5, severity: .error),
+                DiagnosticSpec(message: "peer macro can only be applied to a single variable", line: 2, column: 5, severity: .error),
+            ],
+            macros: testMacros
+        )
+    }
 }
