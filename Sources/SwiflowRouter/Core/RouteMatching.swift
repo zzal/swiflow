@@ -47,10 +47,16 @@ private func splitQuery(_ path: String) -> (clean: String, query: [String: Strin
     var query: [String: String] = [:]
     for pair in queryString.split(separator: "&") {
         let parts = pair.split(separator: "=", maxSplits: 1)
+        // Bare flags (`?debug`, no `=`) map to the empty string rather than
+        // being dropped (WHATWG URLSearchParams behavior: `new
+        // URLSearchParams("debug").get("debug") === ""`).
         if parts.count == 2 {
             let key = percentDecode(String(parts[0])) ?? String(parts[0])
             let value = percentDecode(String(parts[1])) ?? String(parts[1])
             query[key] = value
+        } else if parts.count == 1 {
+            let key = percentDecode(String(parts[0])) ?? String(parts[0])
+            query[key] = ""
         }
     }
     return (clean, query)

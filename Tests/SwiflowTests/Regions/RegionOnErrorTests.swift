@@ -38,4 +38,50 @@ struct RegionOnErrorTests {
         registry.dispatch(id: handler.id, event: EventInfo(type: "sf:error", detail: #"{"code":"load-failed","message":"404"}"#))
         #expect(received == RegionError(code: "load-failed", message: "404"))
     }
+
+    @Test("error is dropped when detail is nil, with a diagnostic")
+    func dropsWhenDetailNil() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        RegionDecoder.current = ErrDecoder(RegionError(code: "load-failed", message: "404"))
+        defer { HandlerAmbient.current = nil; RegionDecoder.current = nil }
+
+        var fired = false
+        let view = region(G.self, key: "k", props: P(x: 1)).onError { _ in fired = true }
+        guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:error"] else {
+            Issue.record("expected an sf:error handler"); return
+        }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        registry.dispatch(id: handler.id, event: EventInfo(type: "sf:error", detail: nil))
+        #expect(fired == false)
+        #expect(captured.contains { $0.contains("no detail payload") })
+    }
+
+    @Test("error is dropped when no decoder is installed, with a diagnostic")
+    func dropsWhenNoDecoder() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        RegionDecoder.current = nil
+        defer { HandlerAmbient.current = nil }
+
+        var fired = false
+        let view = region(G.self, key: "k", props: P(x: 1)).onError { _ in fired = true }
+        guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:error"] else {
+            Issue.record("expected an sf:error handler"); return
+        }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        registry.dispatch(id: handler.id, event: EventInfo(type: "sf:error", detail: #"{"code":"load-failed","message":"404"}"#))
+        #expect(fired == false)
+        #expect(captured.contains { $0.contains("no RegionDecoder is installed") })
+    }
 }

@@ -101,6 +101,44 @@ public enum Attribute {
     // error.
 }
 
+/// Applies a single `Attribute` (recursively flattening `.compound`) onto an
+/// already-built `ElementData`'s bags. Shared by `applyAttributes` below
+/// (initial element construction, folding a whole `[Attribute]` list) and the
+/// VNode postfix modifiers in `VNodeModifiers.swift`/`EventModifiers.swift`
+/// (mutating one bag on an already-mounted-shape element) so the two paths
+/// can't drift on what a given `Attribute` case does.
+func applyAttribute(_ attribute: Attribute, to data: inout ElementData) {
+    switch attribute {
+    case .attribute(let name, let value):
+        // URL-bearing attributes (href, src, action, formaction) route
+        // through URLSanitizer before reaching the bag (case-insensitive
+        // on the name); non-URL attributes pass through. A rejected URL
+        // returns nil and the attribute is dropped — see
+        // URLSanitizer.resolvedAttributeValue.
+        if let resolved = URLSanitizer.resolvedAttributeValue(name: name, value: value) {
+            data.attributes[name] = resolved
+        }
+    case .property(let name, let value):
+        data.properties[name] = value
+    case .style(let name, let value):
+        data.style[name] = value
+    case .handler(let event, let value):
+        data.handlers[event] = value
+    case .key(let value):
+        data.key = value
+    case .skip:
+        return
+    case .compound(let inner):
+        for child in inner { applyAttribute(child, to: &data) }
+    case .refBinding(let binding):
+        // Refs are stashed on ElementData out-of-band — they don't
+        // belong in any of the four bags and never become patches.
+        // Diff.mount/destroy consume them directly via
+        // `data.refBindings`.
+        data.refBindings.append(binding)
+    }
+}
+
 /// Folds a list of `Attribute`s into the four bags + key of an `ElementData`.
 /// Later attributes of the same key override earlier ones — this matches the
 /// "last write wins" intuition of standard DOM property assignment.
@@ -109,60 +147,9 @@ func applyAttributes(
     _ attributes: [Attribute],
     children: [VNode] = []
 ) -> ElementData {
-    var attrs: [String: String] = [:]
-    var props: [String: PropertyValue] = [:]
-    var styles: [String: String] = [:]
-    var handlers: [String: EventHandler] = [:]
-    var key: String? = nil
-    var refBindings: [AnyRefBinding] = []
-
-    // Nested helper so `.compound` can recurse naturally. The closure
-    // captures the local bags by reference (`inout` semantics via the
-    // enclosing-scope vars) and mutates them in place.
-    func process(_ attribute: Attribute) {
-        switch attribute {
-        case .attribute(let name, let value):
-            // URL-bearing attributes (href, src, action, formaction) route
-            // through URLSanitizer before reaching the bag (case-insensitive
-            // on the name); non-URL attributes pass through. A rejected URL
-            // returns nil and the attribute is dropped — see
-            // URLSanitizer.resolvedAttributeValue.
-            if let resolved = URLSanitizer.resolvedAttributeValue(name: name, value: value) {
-                attrs[name] = resolved
-            }
-        case .property(let name, let value):
-            props[name] = value
-        case .style(let name, let value):
-            styles[name] = value
-        case .handler(let event, let value):
-            handlers[event] = value
-        case .key(let value):
-            key = value
-        case .skip:
-            return
-        case .compound(let inner):
-            for child in inner { process(child) }
-        case .refBinding(let binding):
-            // Refs are stashed on ElementData out-of-band — they don't
-            // belong in any of the four bags and never become patches.
-            // Diff.mount/destroy consume them directly via
-            // `data.refBindings`.
-            refBindings.append(binding)
-        }
-    }
-
+    var data = ElementData(tag: tag, children: children)
     for attribute in attributes {
-        process(attribute)
+        applyAttribute(attribute, to: &data)
     }
-
-    return ElementData(
-        tag: tag,
-        key: key,
-        attributes: attrs,
-        properties: props,
-        style: styles,
-        handlers: handlers,
-        children: children,
-        refBindings: refBindings
-    )
+    return data
 }

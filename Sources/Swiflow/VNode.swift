@@ -93,6 +93,14 @@ public struct ElementData: Equatable {
     /// contract: equal key ⇒ equal rendered element + children. Swift-side only —
     /// excluded from `==` (it is metadata, not rendered shape) and never
     /// serialized into a `Patch`. Set via `VNode.memoKey(_:)`.
+    ///
+    /// A memo hit skips ALL reconciliation for the element and its subtree —
+    /// including `Ref` re-binding and `.task(rerunOn:)` effect reconciliation.
+    /// Don't combine `.memoKey` with `.ref` or `.task(rerunOn:)` on the same
+    /// subtree while expecting them to observe live updates on a memo hit:
+    /// the old `Ref` binding and the old task's `rerunOn` value are what
+    /// stay in effect, since the new VNode (and its ref/task bindings) is
+    /// never diffed against the mounted one.
     public var memoKey: AnyHashable? = nil
 
     /// Creates an `ElementData` with the given bags. Every bag defaults to

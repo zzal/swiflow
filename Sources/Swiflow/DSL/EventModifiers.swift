@@ -177,90 +177,46 @@ public extension Attribute {
 }
 
 public extension VNode {
-    /// Postfix variant of `.value(_:Binding<String>)`. Writes both the
-    /// `value` property and the `.input` handler directly into the
-    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
-    /// and pass through unchanged.
+    /// Postfix variant of `.value(_:Binding<String>)`. Delegates to the
+    /// `Attribute` factory (via `applyAttribute`) so the two-way-binding
+    /// wiring lives in exactly one place; writes both the `value` property
+    /// and the `.input` handler into the element's bags. Non-element VNodes
+    /// trigger a DEBUG diagnostic and pass through unchanged.
     @MainActor
     func value(_ binding: Binding<String>) -> VNode {
-        if case .element(var data) = self {
-            data.properties["value"] = .string(binding.get())
-            let handler = _registerAmbientHandler { info in
-                binding.set(info.targetValue ?? "")
-            }
-            data.handlers["input"] = handler
-            return .element(data)
-        }
-        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
-        return self
+        mergeAttribute(self) { applyAttribute(.value(binding), to: &$0) }
     }
 
     /// Postfix variant of `.value(_:Binding<Int>)`. Parse failure on
     /// `.input` events leaves the binding unchanged.
     @MainActor
     func value(_ binding: Binding<Int>) -> VNode {
-        if case .element(var data) = self {
-            data.properties["value"] = .string(String(binding.get()))
-            let handler = _registerAmbientHandler { info in
-                if let parsed = info.targetIntValue { binding.set(parsed) }
-            }
-            data.handlers["input"] = handler
-            return .element(data)
-        }
-        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
-        return self
+        mergeAttribute(self) { applyAttribute(.value(binding), to: &$0) }
     }
 
     /// Postfix variant of `.value(_:Binding<Double>)`. Parse failure on
     /// `.input` events leaves the binding unchanged.
     @MainActor
     func value(_ binding: Binding<Double>) -> VNode {
-        if case .element(var data) = self {
-            data.properties["value"] = .string(String(binding.get()))
-            let handler = _registerAmbientHandler { info in
-                if let parsed = info.targetDoubleValue { binding.set(parsed) }
-            }
-            data.handlers["input"] = handler
-            return .element(data)
-        }
-        swiflowDiagnostic("Postfix .value(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
-        return self
+        mergeAttribute(self) { applyAttribute(.value(binding), to: &$0) }
     }
 
-    /// Postfix variant of `.checked(_:Binding<Bool>)`. Writes both the
-    /// `checked` property and the `.change` handler directly into the
-    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
-    /// and pass through unchanged.
+    /// Postfix variant of `.checked(_:Binding<Bool>)`. Delegates to the
+    /// `Attribute` factory; writes both the `checked` property and the
+    /// `.change` handler into the element's bags. Non-element VNodes
+    /// trigger a DEBUG diagnostic and pass through unchanged.
     @MainActor
     func checked(_ binding: Binding<Bool>) -> VNode {
-        if case .element(var data) = self {
-            data.properties["checked"] = .bool(binding.get())
-            let handler = _registerAmbientHandler { info in
-                if let c = info.targetChecked { binding.set(c) }
-            }
-            data.handlers["change"] = handler
-            return .element(data)
-        }
-        swiflowDiagnostic("Postfix .checked(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
-        return self
+        mergeAttribute(self) { applyAttribute(.checked(binding), to: &$0) }
     }
 
-    /// Postfix variant of `.selection(_:Binding<String>)`. Writes both
-    /// the `value` property and the `.change` handler directly into the
-    /// element's bags. Non-element VNodes trigger a DEBUG diagnostic
-    /// and pass through unchanged.
+    /// Postfix variant of `.selection(_:Binding<String>)`. Delegates to the
+    /// `Attribute` factory; writes both the `value` property and the
+    /// `.change` handler into the element's bags. Non-element VNodes
+    /// trigger a DEBUG diagnostic and pass through unchanged.
     @MainActor
     func selection(_ binding: Binding<String>) -> VNode {
-        if case .element(var data) = self {
-            data.properties["value"] = .string(binding.get())
-            let handler = _registerAmbientHandler { info in
-                binding.set(info.targetValue ?? "")
-            }
-            data.handlers["change"] = handler
-            return .element(data)
-        }
-        swiflowDiagnostic("Postfix .selection(_:) applied to a non-element VNode — this is a programmer error. The modifier is silently ignored.")
-        return self
+        mergeAttribute(self) { applyAttribute(.selection(binding), to: &$0) }
     }
 
     /// Postfix variant of `.ref(_:)`. Appends a `Ref<E>` binding to the

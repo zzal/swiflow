@@ -17,6 +17,18 @@ import Swiflow
 /// groups on the same page would otherwise collide. Caller `Attribute...`/`.class`
 /// land on the `<fieldset>` (the group root).
 ///
+/// > Warning: `RadioGroup` is a stateless free function — it has no ambient
+/// > registry of the other `RadioGroup`s in the current render, so a native
+/// > `name` collision between two same-label groups on one page (e.g. two
+/// > "Role" pickers in different components) is currently UNDETECTED, even
+/// > in DEBUG. Colliding groups silently share roving-focus/selection state
+/// > at the DOM level (checking a radio in one group visually "checks" the
+/// > matching-value radio in the other, and arrow-key roving crosses between
+/// > them). If your app renders more than one `RadioGroup` that could share a
+/// > label — or the same slugged name — pass `name:` explicitly on each to
+/// > guarantee uniqueness; don't rely on the label-slug default outside a
+/// > single-instance-per-label page.
+///
 ///     RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
 ///     RadioGroup("Role", field: roleField, options: [SelectOption("admin", "Administrator"), "Member"])
 @MainActor

@@ -365,6 +365,10 @@ func update(
         // memoKey, the caller declares the element + subtree unchanged. Skip all
         // reconciliation and keep the mounted node as-is. (mounted.vnode stays
         // the prior value, which equals `next` by the caller's contract.)
+        // This also skips `Ref` re-binding and `.task(rerunOn:)` reconciliation
+        // for the whole subtree — the new VNode's ref/task bindings are never
+        // even inspected. Don't pair `.memoKey` with `.ref`/`.task(rerunOn:)`
+        // expecting them to pick up live updates on a memo hit.
         if let oldKey = oldData.memoKey, let newKey = newData.memoKey, oldKey == newKey {
             return mounted
         }

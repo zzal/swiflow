@@ -57,6 +57,15 @@ struct RouteMatchingTests {
         #expect(captured?.query["page"] == "2")
     }
 
+    @Test("bare query flag (no `=`) maps to the empty string")
+    func bareQueryFlagMapsToEmptyString() {
+        var captured: RouterContext? = nil
+        let route = leafCapture("/search", into: &captured)
+        _ = matchRoutes([route], path: "/search?debug&q=swift")
+        #expect(captured?.query["debug"] == "")
+        #expect(captured?.query["q"] == "swift")
+    }
+
     @Test("query string stripped before pattern matching")
     func queryStringDoesNotBreakMatch() {
         let routes = [leaf("/about", result: .text("about"))]

@@ -1,3 +1,22 @@
+/// `Field.init` has a side effect: on the FIRST construction for a given
+/// `key` against a given `FormController`, it writes the field's current
+/// value into `ctrl.initialSnapshots[key]` through the `ctrl` binding — a
+/// write-through-a-binding performed inside an `init`, which is unusual for
+/// this codebase (most types are side-effect-free to construct). Because
+/// `Field`s are typically rebuilt every render (see `SignIn.swift`'s `body`),
+/// this only fires once per key per controller instance: the `nil` guard
+/// means subsequent constructions with the same key are no-ops against
+/// `initialSnapshots`.
+///
+/// This is also why a `FormController` is a ONE-RECORD-AT-A-TIME piece of
+/// state: `initialSnapshots` freezes the first value seen for each key, and
+/// `reset()` (see `FormController`) restores THAT snapshot — not whatever
+/// record is currently bound. If the edited record's identity changes (e.g.
+/// switching from "add" to "edit", or from editing record A to record B),
+/// don't keep reusing the same `FormController` — replace it wholesale
+/// (`self.ctrl = FormController()`) so the next `Field` construction
+/// re-snapshots against the new record. See `examples/HelloWorld/Sources/
+/// App/SignIn.swift`'s "Sign out" handler for the pattern.
 public struct Field<Value: Equatable> {
     public let key: String
     package let binding: Binding<Value>
