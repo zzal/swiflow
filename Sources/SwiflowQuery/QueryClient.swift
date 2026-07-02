@@ -80,19 +80,30 @@ public final class QueryClient {
     func startFetch(for key: QueryKey, entry: QueryEntry) {
         guard entry.inFlight == nil, let boxedFetch = entry.boxedFetch else { return }
         let generation = entry.generation
-        entry.inFlight = Task { [weak self] in
+        // `weak entry`: commitFetch re-checks IDENTITY, not just the generation.
+        // Every fresh entry starts at generation 0, so an evicted-then-recycled
+        // key would otherwise accept a zombie fetch's stale result as current
+        // (audit Wave-1 #5) — cancellation is cooperative and can't stop an
+        // in-flight browser fetch.
+        entry.inFlight = Task { [weak self, weak entry] in
             let result: Result<Any, any Error>
             do { result = .success(try await boxedFetch()) }
             catch { result = .failure(error) }
-            self?.commitFetch(key: key, generation: generation, result: result)
+            self?.commitFetch(key: key, entry: entry, generation: generation, result: result)
         }
         // Reflect isFetching for any current subscribers (background spinner /
         // first-load). Identical-output re-renders are absorbed by the diff.
         notify(key)
     }
 
-    private func commitFetch(key: QueryKey, generation: Int, result: Result<Any, any Error>) {
-        guard let entry = entries[key] else { return }
+    private func commitFetch(
+        key: QueryKey, entry committedEntry: QueryEntry?, generation: Int,
+        result: Result<Any, any Error>
+    ) {
+        // Identity first: the live entry must BE the instance this fetch was
+        // spawned on. A recycled entry (evict + remount) shares the key and the
+        // starting generation but not the identity.
+        guard let entry = entries[key], entry === committedEntry else { return }
         // Guard BEFORE touching `inFlight`. If this fetch was superseded — a
         // newer fetch or an `invalidate` bumped the generation — then
         // `entry.inFlight` now holds the NEWER fetch's handle. Nil-ing it here
@@ -101,6 +112,7 @@ public final class QueryClient {
         // superseded result is simply dropped, leaving the newer fetch intact.
         guard entry.generation == generation else { return }
         entry.inFlight = nil
+        entry.lastSettled = clock.now()
         switch result {
         case .success(let value):
             entry.value = value
@@ -170,8 +182,15 @@ public final class QueryClient {
                 startFetch(for: key, entry: entry)          // retry
                 continue
             }
-            if let interval = entry.refetchInterval,
-               let last = entry.lastFetched, now - last >= interval {
+            // Poll paced by the last ATTEMPT (lastSettled), not the last success:
+            // after retries exhaust, lastFetched freezes and would refire every
+            // tick. A scheduled retry owns the next attempt — no double-dipping
+            // while backoff is pending. After exhaustion each interval gets ONE
+            // attempt (no fresh retry ladder — deliberate, avoids ladder-per-
+            // interval amplification against a down server).
+            if entry.nextRetryDue == nil,
+               let interval = entry.refetchInterval,
+               let last = entry.lastSettled ?? entry.lastFetched, now - last >= interval {
                 startFetch(for: key, entry: entry)          // poll
             }
         }
@@ -196,7 +215,10 @@ public final class QueryClient {
             // Dedup-safe: only refetch if stale AND not already fetching. Do NOT
             // use forceStaleAndRefetch here — it cancels the in-flight fetch, so
             // a double focus (visibilitychange + focus) would cancel-respawn.
-            if entry.inFlight == nil, needsFetch(entry, staleTime: entry.staleTime) {
+            // A scheduled retry owns the next attempt (mirror of tick's poll
+            // gate): a focus event must not jump the backoff queue.
+            if entry.inFlight == nil, entry.nextRetryDue == nil,
+               needsFetch(entry, staleTime: entry.staleTime) {
                 startFetch(for: key, entry: entry)
             }
         }

@@ -11,6 +11,10 @@ final class QueryEntry {
     /// Clock time of the last SUCCESSFUL fetch; `nil` until first success or
     /// after a forced-stale invalidation.
     var lastFetched: Duration?
+    /// Clock time the last fetch SETTLED (success or failure). Paces polling:
+    /// after retries exhaust, `lastFetched` freezes at the last success, and
+    /// gating polls on it alone would refire every tick (audit Wave-1 #6).
+    var lastSettled: Duration?
     /// Bumped on supersede/invalidate; a resolving fetch commits only if the
     /// entry's generation still matches the one it captured at spawn.
     var generation: Int = 0
