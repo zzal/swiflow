@@ -52,6 +52,14 @@ public struct EnvironmentValues {
     }
 }
 
+/// Reflexivity caveat: `x == x` is NOT guaranteed to be `true`. Any key whose
+/// `Value` does not conform to `Equatable` (e.g. `Router`) was written through
+/// the conservative subscript above, which captures `equals: { _ in false }` —
+/// so comparing that key's stored value against itself returns `false`. This
+/// is intentional (a false "changed" is safe: it just triggers an extra
+/// re-merge), but callers relying on `EnvironmentValues` for reflexive
+/// equality checks (e.g. memoization) will see spurious inequality wherever
+/// non-`Equatable` env values are in play.
 extension EnvironmentValues: Equatable {
     public static func == (lhs: EnvironmentValues, rhs: EnvironmentValues) -> Bool {
         guard lhs.storage.count == rhs.storage.count else { return false }

@@ -465,11 +465,18 @@ struct DataTableStateTests {
         let table = allTags(root, "table").first!
         #expect(table.attributes["class"]?.contains("sw-table--virtual") == true)
         #expect(table.attributes["aria-rowcount"] == "1000")
+        // The virtualized `.sw-table--virtual` display:block/grid overrides strip the
+        // browser's implicit table semantics, so this path restores them via ARIA.
+        #expect(table.attributes["role"] == "table")
+        let thead = allTags(root, "thead").first!
+        #expect(thead.attributes["role"] == "rowgroup")
         // grid-template-columns is inline on each row (NOT a `--var` — Swiflow's .style() can't
         // set custom properties on the DOM), so header + body rows must carry it directly.
-        let headTr = allTags(.element(allTags(root, "thead").first!), "tr").first!
+        let headTr = allTags(.element(thead), "tr").first!
         #expect(headTr.style["grid-template-columns"] == "1fr")
+        #expect(headTr.attributes["role"] == "row")
         let tbody = allTags(root, "tbody").first!
+        #expect(tbody.attributes["role"] == "rowgroup")
         let start = 100 - box.overscan                       // window start (firstVisible 100)
         let end = start + (10 + 2 * box.overscan)
         // Scroll offset is now carried by tbody padding, not row transforms.
@@ -480,6 +487,7 @@ struct DataTableStateTests {
         #expect(trs.first!.style["grid-template-columns"] == "1fr")
         #expect(trs.first!.style["transform"] == nil)        // no per-row transform in padding model
         #expect(trs.first!.attributes["aria-rowindex"] == "\(start + 1)")
+        #expect(trs.first!.attributes["role"] == "row")
     }
 
     @Test func nonVirtualizedHasNoVirtualClass() {
@@ -488,6 +496,12 @@ struct DataTableStateTests {
         let root = building { box.body }
         let table = allTags(root, "table").first!
         #expect(table.attributes["class"]?.contains("sw-table--virtual") != true)
+        // Plain `<table>` markup already has correct implicit table semantics —
+        // the explicit ARIA roles are only needed (and only added) in the
+        // virtualized path, where the display overrides strip them.
+        #expect(table.attributes["role"] == nil)
+        #expect(allTags(root, "thead").first!.attributes["role"] == nil)
+        #expect(allTags(root, "tbody").first!.attributes["role"] == nil)
     }
 }
 

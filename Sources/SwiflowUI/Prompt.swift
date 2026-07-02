@@ -25,9 +25,10 @@ import JavaScriptKit
 /// > Note: like `Alert`, `title`/`message`/button titles are captured at first
 /// > presentation (the component is `embed`-reused; the `isPresented`/`text` bindings
 /// > stay live). Pass a `key:` that changes with the content if you need that chrome to update while mounted.
-@MainActor
+///
 /// Set `dismissOnBackdrop: true` to cancel (close without `onSubmit`) on a backdrop
 /// click, in addition to ESC + Cancel. Off by default.
+@MainActor
 public func Prompt(
     _ title: String,
     isPresented: Binding<Bool>,

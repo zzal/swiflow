@@ -5,8 +5,12 @@
 
 /// An error from an `HTTP` request.
 public enum HTTPError: Error, Sendable, CustomStringConvertible, Equatable {
-    /// The server responded with a non-2xx status code.
-    case status(Int)
+    /// The server responded with a non-2xx status code. `body` is a
+    /// best-effort capture of the response text (e.g. a JSON error payload
+    /// or plain-text message) — `nil` if the body couldn't be read (already
+    /// consumed, network hiccup mid-read, etc.), never a thrown error on its
+    /// own.
+    case status(Int, body: String?)
     /// The request never produced a usable response — a network failure, a
     /// rejected `fetch` promise, or a malformed fetch result. The associated
     /// string is a short diagnostic.
@@ -17,7 +21,9 @@ public enum HTTPError: Error, Sendable, CustomStringConvertible, Equatable {
 
     public var description: String {
         switch self {
-        case .status(let code):  return "HTTP \(code)"
+        case .status(let code, let body):
+            guard let body, !body.isEmpty else { return "HTTP \(code)" }
+            return "HTTP \(code): \(body)"
         case .transport(let why): return "Transport error: \(why)"
         case .decoding(let why):  return "Decoding error: \(why)"
         }

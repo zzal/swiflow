@@ -2,8 +2,10 @@
 
 /// Returns a new VNode with a mutation applied to its `ElementData`.
 /// Non-element VNodes (`.text`, `.component`, `.rawHTML`) trigger a diagnostic
-/// in DEBUG and pass through unchanged.
-private func mergeAttribute(_ vnode: VNode, _ apply: (inout ElementData) -> Void) -> VNode {
+/// in DEBUG and pass through unchanged. Internal (not `private`) so
+/// `EventModifiers.swift`'s postfix binding modifiers share the same
+/// non-element guard instead of re-implementing it.
+func mergeAttribute(_ vnode: VNode, _ apply: (inout ElementData) -> Void) -> VNode {
     if case .element(var data) = vnode {
         apply(&data)
         return .element(data)

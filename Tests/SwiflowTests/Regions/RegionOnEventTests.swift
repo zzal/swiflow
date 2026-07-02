@@ -41,7 +41,7 @@ struct RegionOnEventTests {
         #expect(received == SceneEvent(kind: "select", id: 9))
     }
 
-    @Test("event is dropped when detail is nil")
+    @Test("event is dropped when detail is nil, with a diagnostic")
     func dropsWhenDetailNil() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
@@ -54,11 +54,18 @@ struct RegionOnEventTests {
         guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:event"] else {
             Issue.record("expected an sf:event handler"); return
         }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
         registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: nil))
         #expect(fired == false)
+        #expect(captured.contains { $0.contains("no detail payload") })
     }
 
-    @Test("event is dropped when no decoder is installed")
+    @Test("event is dropped when no decoder is installed, with a diagnostic")
     func dropsWhenNoDecoder() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry
@@ -71,7 +78,43 @@ struct RegionOnEventTests {
         guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:event"] else {
             Issue.record("expected an sf:event handler"); return
         }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
         registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: #"{"kind":"select","id":9}"#))
         #expect(fired == false)
+        #expect(captured.contains { $0.contains("no RegionDecoder is installed") })
+    }
+
+    @Test("event is dropped when decode fails, with a diagnostic")
+    func dropsWhenDecodeFails() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        struct ThrowingDecoder: RegionEventDecoding {
+            func decode<E: Decodable>(_ type: E.Type, from json: String) throws -> E {
+                throw RegionError(code: "bad", message: "nope")
+            }
+        }
+        RegionDecoder.current = ThrowingDecoder()
+        defer { HandlerAmbient.current = nil; RegionDecoder.current = nil }
+
+        var fired = false
+        let view = region(Scene.self, key: "hero", props: SceneProps(count: 1))
+            .onEvent { _ in fired = true }
+        guard case .element(let data) = view.asVNode(), let handler = data.handlers["sf:event"] else {
+            Issue.record("expected an sf:event handler"); return
+        }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        registry.dispatch(id: handler.id, event: EventInfo(type: "sf:event", detail: #"{"kind":"select","id":9}"#))
+        #expect(fired == false)
+        #expect(captured.contains { $0.contains("decode failed") })
     }
 }

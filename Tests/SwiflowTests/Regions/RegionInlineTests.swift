@@ -41,4 +41,28 @@ struct RegionInlineTests {
         registry.dispatch(id: h.id, event: EventInfo(type: "sf:event", detail: "{}"))
         #expect(got == ChartEvent(bar: 4))
     }
+
+    @Test("inline .onEvent drops with a diagnostic when detail is nil")
+    func inlineDropsWhenDetailNil() {
+        let registry = HandlerRegistry()
+        HandlerAmbient.current = registry
+        RegionDecoder.current = ChartDecoder()
+        defer { HandlerAmbient.current = nil; RegionDecoder.current = nil }
+
+        var fired = false
+        let v = region(source: "regions/chart.wasm", key: "c", props: ChartProps(bars: 1))
+            .onEvent { (_: ChartEvent) in fired = true }
+        guard case .element(let d) = v.asVNode(), let h = d.handlers["sf:event"] else {
+            Issue.record("expected sf:event handler"); return
+        }
+
+        var captured: [String] = []
+        let prior = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { captured.append($0) }
+        defer { _swiflowDiagnosticOverride = prior }
+
+        registry.dispatch(id: h.id, event: EventInfo(type: "sf:event", detail: nil))
+        #expect(fired == false)
+        #expect(captured.contains { $0.contains("no detail payload") })
+    }
 }

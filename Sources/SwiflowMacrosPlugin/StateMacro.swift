@@ -31,11 +31,13 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         guard varDecl.bindings.count == 1 else { return [] }
 
         // Reject user-supplied accessor blocks (didSet/willSet/get/set).
-        guard let binding = varDecl.bindings.first,
-              binding.accessorBlock == nil else {
+        guard let binding = varDecl.bindings.first else { return [] }
+        if let accessorBlock = binding.accessorBlock {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
-                message: StateMacroDiagnostic.userDidSetRejected
+                message: isComputedProperty(accessorBlock)
+                    ? StateMacroDiagnostic.computedPropertyRejected
+                    : StateMacroDiagnostic.userDidSetRejected
             ))
             return []
         }
@@ -145,11 +147,42 @@ public struct StateMacro: AccessorMacro, PeerMacro {
     }
 }
 
+/// Distinguishes a computed property (a getter, with or without an explicit
+/// `set`) from a stored property with a user-supplied observer
+/// (`didSet`/`willSet`). Both arrive with a non-nil `accessorBlock`, but they
+/// need different diagnostics: a computed property was never a storage cell
+/// to begin with (telling its author to "move the didSet into a method" is
+/// nonsensical — they never wrote one), while an observer IS a storage cell
+/// whose side effect needs relocating.
+private func isComputedProperty(_ accessorBlock: AccessorBlockSyntax) -> Bool {
+    switch accessorBlock.accessors {
+    // Getter-only shorthand: `var x: Int { 5 }` — implicit get, no set.
+    case .getter:
+        return true
+    // Explicit accessor list: computed iff it declares `get`/`set` and
+    // neither `didSet` nor `willSet`.
+    case .accessors(let list):
+        var sawGetOrSet = false
+        for accessor in list {
+            switch accessor.accessorSpecifier.tokenKind {
+            case .keyword(.didSet), .keyword(.willSet):
+                return false
+            case .keyword(.get), .keyword(.set):
+                sawGetOrSet = true
+            default:
+                break
+            }
+        }
+        return sawGetOrSet
+    }
+}
+
 enum StateMacroDiagnostic: DiagnosticMessage {
     case requiresVar
     case requiresType
     case requiresSingleBinding
     case userDidSetRejected
+    case computedPropertyRejected
 
     var message: String {
         switch self {
@@ -161,6 +194,8 @@ enum StateMacroDiagnostic: DiagnosticMessage {
             return "@State must be applied to a single property declaration; declare each state cell separately (e.g. `@State var width: Double = 0` on its own line)."
         case .userDidSetRejected:
             return "@State properties cannot declare their own didSet; move the side effect into a method."
+        case .computedPropertyRejected:
+            return "@State cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @State if this isn't meant to be a state cell."
         }
     }
 

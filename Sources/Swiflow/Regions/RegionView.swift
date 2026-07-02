@@ -43,8 +43,18 @@ public extension RegionView {
     func onEvent(_ action: @escaping @MainActor (G.Event) -> Void) -> RegionView<G> {
         var d = data
         let handler = _registerAmbientHandler { info in
-            guard let detail = info.detail, let decoder = RegionDecoder.current else { return }
-            guard let decoded = try? decoder.decode(G.Event.self, from: detail) else { return }
+            guard let detail = info.detail else {
+                swiflowDiagnostic("Region '\(RegionWire.eventName)' handler fired with no detail payload; dropping event for \(G.Event.self) (guest: \(G.source)).")
+                return
+            }
+            guard let decoder = RegionDecoder.current else {
+                swiflowDiagnostic("Region event received for \(G.Event.self) (guest: \(G.source)) but no RegionDecoder is installed (RegionDecoder.current is nil); dropping event.")
+                return
+            }
+            guard let decoded = try? decoder.decode(G.Event.self, from: detail) else {
+                swiflowDiagnostic("Region event decode failed for \(G.Event.self) (guest: \(G.source)) from payload: \(detail). Dropping event.")
+                return
+            }
             action(decoded)
         }
         d.handlers[RegionWire.eventName] = handler
@@ -57,8 +67,18 @@ public extension RegionView {
     func onError(_ action: @escaping @MainActor (RegionError) -> Void) -> RegionView<G> {
         var d = data
         let handler = _registerAmbientHandler { info in
-            guard let detail = info.detail, let decoder = RegionDecoder.current else { return }
-            guard let decoded = try? decoder.decode(RegionError.self, from: detail) else { return }
+            guard let detail = info.detail else {
+                swiflowDiagnostic("Region '\(RegionWire.errorName)' handler fired with no detail payload (guest: \(G.source)); dropping error.")
+                return
+            }
+            guard let decoder = RegionDecoder.current else {
+                swiflowDiagnostic("Region error received (guest: \(G.source)) but no RegionDecoder is installed (RegionDecoder.current is nil); dropping error.")
+                return
+            }
+            guard let decoded = try? decoder.decode(RegionError.self, from: detail) else {
+                swiflowDiagnostic("Region error decode failed (guest: \(G.source)) from payload: \(detail). Dropping error.")
+                return
+            }
             action(decoded)
         }
         d.handlers[RegionWire.errorName] = handler

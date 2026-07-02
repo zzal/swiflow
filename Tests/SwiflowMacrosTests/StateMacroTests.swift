@@ -112,6 +112,60 @@ final class StateMacroTests: XCTestCase {
         )
     }
 
+    // Test 3b: Computed property (getter-only shorthand) → distinct diagnostic
+    // from the user-didSet case (never wrote a didSet to move).
+    func testComputedPropertyIsRejected() {
+        assertMacroExpansion(
+            """
+            final class Counter {
+                @State var doubled: Int { 5 }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                var doubled: Int { 5 }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@State cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @State if this isn't meant to be a state cell.",
+                    line: 2, column: 5, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    // Test 3c: Computed property with explicit get/set → same diagnostic as
+    // the getter-only shorthand.
+    func testComputedPropertyWithGetSetIsRejected() {
+        assertMacroExpansion(
+            """
+            final class Counter {
+                @State var doubled: Int {
+                    get { 5 }
+                    set { }
+                }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                var doubled: Int {
+                    get { 5 }
+                    set { }
+                }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@State cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @State if this isn't meant to be a state cell.",
+                    line: 2, column: 5, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
     // Test 4: Applied to `let` — diagnostic.
     func testRejectsLet() {
         assertMacroExpansion(
