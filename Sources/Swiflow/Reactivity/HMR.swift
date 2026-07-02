@@ -11,7 +11,7 @@
 ///
 /// On the **decode path** (JS → Swift): produced by `HMRBridge.decodeStateMap`
 /// when a JS `null` arrives for a known Optional field; consumed by
-/// `HMRWalker.applyRestore`, routed to the macro-emitted
+/// `wireStateAndRestore`, routed to the macro-emitted
 /// `StateCell.restoreNil` closure.
 ///
 /// On the **encode path** (Swift → JS): emitted by macro-generated
@@ -29,8 +29,9 @@ public struct HMRNilSentinel: Sendable {
 
 /// One row in an HMR snapshot — captures the identifying triple and
 /// the per-`@State` value map for a single Component in the mount
-/// tree. Snapshot arrays are produced by `HMRWalker.snapshot(from:)`
-/// and consumed by `HMRWalker.applyRestore(...)`.
+/// tree. Snapshot arrays are produced by `HMRWalker.snapshot(from:)`;
+/// the indexed map is consumed by `wireStateAndRestore(...)` via the
+/// `HMRRestoreInstall.stateFor` lookup at the diff's mount site.
 ///
 /// `state[fieldName]` is the raw `Any` value produced by a state
 /// cell's `snapshot(of:)` closure (macro-emitted by `@Component`).
@@ -200,47 +201,5 @@ package enum HMRWalker {
             index[key] = snap.state
         }
         return index
-    }
-
-    /// Look up a matching snapshot and apply it to a freshly-instantiated
-    /// Component. Match is by (path, typeName, key). Per-field type
-    /// mismatches are skipped (the field keeps its declared initial value)
-    /// and reported via `swiflowDiagnostic`.
-    ///
-    /// `path` is the same dot-joined child-index format produced by
-    /// `snapshot(from:)`. `key` is the component's `.key` from its
-    /// `ComponentDescription` (nil for unkeyed components). The caller
-    /// (Diff's mount path) is responsible for supplying both.
-    ///
-    /// State fields whose decoded value is `HMRNilSentinel` are routed to
-    /// the cell's `restoreNil` closure instead of `restore(value:)` — this
-    /// covers the JS-bridge path where `Optional.none` becomes JS `null`
-    /// then back.
-    package static func applyRestore(
-        index: [SnapshotKey: [String: Any]],
-        to component: AnyComponent,
-        at path: String,
-        key: String?
-    ) {
-        let instance = component.instance
-        let typeName = String(reflecting: type(of: instance))
-        let lookupKey = SnapshotKey(path: path, typeName: typeName, key: key)
-        guard let stateMap = index[lookupKey] else { return }
-
-        // Phase 15: dispatch through `_ComponentRuntime.stateCells`. Plain
-        // `Component` conformances (no `@Component` macro) have no cells
-        // to restore — skip silently.
-        guard let runtime = instance as? any _ComponentRuntime else { return }
-        for cell in type(of: runtime).stateCells {
-            guard let newValue = stateMap[cell.name] else { continue }
-            let ok = newValue is HMRNilSentinel
-                ? cell.restoreNil(on: runtime)
-                : cell.restore(on: runtime, value: newValue)
-            if !ok {
-                swiflowDiagnostic(
-                    "HMR restore: type mismatch on \(typeName).\(cell.name) at path '\(path)'. Field reset to its declared initial value."
-                )
-            }
-        }
     }
 }
