@@ -130,3 +130,23 @@ extension TemplateEmbedderTests {
         #expect(!pkg.contains(#".package(path: "../..")"#))
     }
 }
+
+// Regression gate for the my-swiflow scaffold bug: a project name is a
+// DIRECTORY name (hyphens legal), not a Swift identifier — so no embedded
+// template may put {{NAME}} in Swift declaration position. (The embedder and
+// the codegen script both precondition on this; this test is the in-suite
+// witness.) A user hit `final class my-swiflow` via the QueryDemo template.
+@Suite("Embedded templates — {{NAME}} placement")
+struct TemplateNamePlacementTests {
+    @Test("no template uses {{NAME}} as a Swift declaration name")
+    func noDeclarationPositionName() {
+        for template in EmbeddedTemplates.all {
+            for (path, contents) in template.files where path.hasSuffix(".swift") {
+                #expect(contents.range(
+                    of: #"(class|struct|enum|protocol|actor|func|var|let)\s+\{\{NAME\}\}"#,
+                    options: .regularExpression) == nil,
+                    "template \(template.name), file \(path): {{NAME}} in declaration position")
+            }
+        }
+    }
+}

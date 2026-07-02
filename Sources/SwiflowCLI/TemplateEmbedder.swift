@@ -61,6 +61,16 @@ enum TemplateEmbedder {
     ///   form so the substitution can stay a single dumb string replace.)
     static func normalize(_ raw: String, exampleName: String, relativePath: String) -> String {
         var out = raw.replacingOccurrences(of: exampleName, with: "{{NAME}}")
+        // Guard: {{NAME}} must never land in Swift DECLARATION position — the
+        // user's project name is a directory name (hyphens legal), not a Swift
+        // identifier, so `final class {{NAME}}` scaffolds broken code (a real
+        // user hit `final class my-swiflow`). Example root types must use
+        // neutral names (Counter, QueryRoot, FetchRoot, ...).
+        precondition(
+            out.range(of: #"(class|struct|enum|protocol|actor|func|var|let)\s+\{\{NAME\}\}"#,
+                      options: .regularExpression) == nil,
+            "template '\(exampleName)' uses its own name as a Swift declaration — rename the type (see the guard comment)"
+        )
         if relativePath == "Package.swift" {
             out = out.replacingOccurrences(
                 of: #".package(path: "../..")"#,

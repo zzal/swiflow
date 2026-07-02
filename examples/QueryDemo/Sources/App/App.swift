@@ -44,7 +44,7 @@ struct FakeAPI: Sendable {
 }
 
 @Component
-final class QueryDemo {
+final class QueryRoot {
     @State var userID: Int = 1
     @State var newName: String = ""
     @MutationState var rename: RenameUser
@@ -84,6 +84,6 @@ final class QueryDemo {
 struct App {
     @MainActor
     static func main() {
-        Swiflow.render(into: "#app") { QueryDemo() }
+        Swiflow.render(into: "#app") { QueryRoot() }
     }
 }
