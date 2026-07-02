@@ -117,12 +117,14 @@ package enum HMRBridge {
         // re-consume it.
         JSObject.global.__swiflowPendingSnapshot = .null
 
+        // Int(exactly:) — `__swiflowPendingSnapshot` is a global any script can
+        // set; a `{length: NaN}` (or a wasm32-overflowing number) must not trap.
         guard let array = pending.object,
-              let lengthValue = array.length.number else {
+              let lengthValue = array.length.number,
+              let length = Int(exactly: lengthValue),
+              length > 0 else {
             return nil
         }
-        let length = Int(lengthValue)
-        guard length > 0 else { return nil }
 
         var snapshots: [ComponentSnapshot] = []
         for i in 0..<length {
@@ -205,7 +207,9 @@ package enum HMRBridge {
               let lenValue = keys.length.number else {
             return [:]
         }
-        let len = Int(lenValue)
+        // Real `Object.keys` arrays always have a valid uint32 length; guarded
+        // narrow anyway for consistency with the sites above (never trap on JS input).
+        guard let len = Int(exactly: lenValue) else { return [:] }
         for i in 0..<len {
             guard let k = keys[i].string else { continue }
             let v = obj[k]
