@@ -12,7 +12,10 @@ import Swiflow
 /// 2. `eventPayload: Object` — `{ type, targetValue?, targetChecked?, isSelfTarget, fromInteractiveDescendant, detail?,
 ///    key?, shiftKey, ctrlKey, altKey, metaKey }`.
 enum DispatcherBridge {
-    /// Strong reference holding the `JSClosure` so it isn't deallocated.
+    /// Held for ownership clarity / idempotency-checking (see `install()`
+    /// below), not because it's what keeps the closure callable —
+    /// `JSClosure.init` self-registers into JavaScriptKit's static
+    /// `sharedClosures` table independent of this field.
     @MainActor private static var installed: JSClosure?
 
     /// Idempotent: subsequent calls are no-ops. One JSClosure services all

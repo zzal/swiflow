@@ -9,19 +9,29 @@
 //
 //     dismissTimer?.cancel()
 //
-// The TimerHandle retains the JSClosure for the timer's lifetime so the
-// callback isn't deallocated before JS fires it. cancel() clears the
-// timeout and drops the closure. See RAFScheduler.swift for the same
-// "retain JSClosure on self until JS is done with it" pattern.
+// TimerHandle holds the JSClosure for the timer's lifetime for ownership
+// clarity (mirrors RAFScheduler.swift), not because that's what keeps it
+// callable — JSClosure.init self-registers into JavaScriptKit's static
+// sharedClosures table, independent of any Swift-side field. What actually
+// stops the callback from firing is cancel()'s explicit clearTimeout call;
+// dropping the closure reference alone would not prevent JS from invoking it.
+// TimerHandle also cancels itself on deinit, so simply dropping a handle
+// without calling cancel() still clears the underlying setTimeout.
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 
 /// A cancellable scheduled callback. Returned by `after(_:do:)`.
 ///
-/// Retains the underlying `JSClosure` until either `cancel()` is called or
-/// the timer fires; `JSClosure` is reference-counted by JavaScriptKit, so
-/// dropping the field allows deallocation once JS no longer holds it.
+/// Holds the underlying `JSClosure` and setTimeout handle until either
+/// `cancel()` is called or the timer fires; see the file-level comment for
+/// why that field isn't what keeps the callback callable.
+///
+/// `@MainActor`-isolated (all JS access here — `clearTimeout` — must run on
+/// the main thread) with an isolated `deinit`, so dropping a handle without
+/// calling `cancel()` still clears the pending timeout instead of letting it
+/// fire after the owner is gone.
+@MainActor
 public final class TimerHandle {
     private var handle: JSValue?
     private var closure: JSClosure?
@@ -45,6 +55,14 @@ public final class TimerHandle {
     fileprivate func didFire() {
         handle = nil
         closure = nil
+    }
+
+    /// Safety net for handles dropped without an explicit `cancel()` call
+    /// (e.g. a component torn down without running its `onDisappear`):
+    /// clears the pending JS timeout instead of leaving it to fire against
+    /// a gone owner.
+    isolated deinit {
+        cancel()
     }
 }
 

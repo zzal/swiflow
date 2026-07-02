@@ -54,7 +54,7 @@ enum DevAPI {
             for renderer in renderers.values {
                 guard let mountTree = renderer.mountTree else { continue }
                 if let vals = DevAPIFormatter.stateValues(from: mountTree, path: path) {
-                    return encodeStateForDisplay(vals)
+                    return encodeStateMapToJS(vals)
                 }
             }
             return .null
@@ -98,30 +98,6 @@ enum DevAPI {
         perfClosure = perf
     }
 
-    // MARK: - State encoding
-
-    private static func encodeStateForDisplay(_ state: [String: Any]) -> JSValue {
-        let obj = JSObject.global.Object.function!.new()
-        for (k, v) in state {
-            // Phase 15: same shape as HMRBridge.encodeStateMap — snapshot
-            // values are concrete primitives or HMRNilSentinel; raw
-            // Optional<T>.none never reaches us (the @Component macro
-            // normalizes it at the source). Bool before Int because Swift
-            // bridges Bool to NSNumber.
-            if v is HMRNilSentinel {
-                obj[k] = .null
-            } else if let b = v as? Bool {
-                obj[k] = .boolean(b)
-            } else if let s = v as? String {
-                obj[k] = .string(s)
-            } else if let i = v as? Int {
-                obj[k] = .number(Double(i))
-            } else if let d = v as? Double {
-                obj[k] = .number(d)
-            }
-        }
-        return .object(obj)
-    }
 #else
     /// Release builds strip the dev inspection API entirely; this stub keeps
     /// the `DevAPI.installAll()` call sites compiling. The linker dead-strips

@@ -25,10 +25,18 @@ public final class RouterRoot {
     @State private var currentPath: String = "/"
     private let mode: Mode
     private let routes: [RouteDefinition]
-    /// Strong reference so the JS event listener keeps its Swift callback alive
-    /// for the component's lifetime. Matches the `rafClosure` pattern in
-    /// `RAFScheduler`.
+    /// Held for ownership clarity (mirrors `RAFScheduler.rafClosure`), not
+    /// because it's what keeps the listener callable — `JSClosure.init`
+    /// self-registers into JavaScriptKit's static `sharedClosures` table.
+    /// What actually stops it from firing is `onDisappear`'s explicit
+    /// `removeEventListener` call.
     private var listenerClosure: JSClosure?
+    /// The exact `JSValue` registered as the listener in `onAppear`, stored
+    /// so `onDisappear`'s `removeEventListener` passes the SAME reference
+    /// `addEventListener` got (mirrors `BackgroundRevalidation.focusListener`).
+    private var listenerValue: JSValue?
+    /// The event name registered alongside `listenerValue`.
+    private var listenerEvent: String?
 
     public init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
         self.mode = mode
@@ -66,8 +74,23 @@ public final class RouterRoot {
         }
         let event = mode == .hash ? "hashchange" : "popstate"
         let window = JSObject.global.window.object!
-        _ = window.addEventListener!(event.jsValue, JSValue.object(closure))
+        let value = JSValue.object(closure)
+        _ = window.addEventListener!(event.jsValue, value)
         listenerClosure = closure
+        listenerValue = value
+        listenerEvent = event
+    }
+
+    public func onDisappear() {
+        if let event = listenerEvent, let value = listenerValue {
+            let window = JSObject.global.window.object!
+            _ = window.removeEventListener!(event.jsValue, value)
+        }
+        // Nil the closure AFTER removeEventListener, so the JSClosure stays
+        // alive through the remove (mirrors `BackgroundRevalidation.stop()`).
+        listenerClosure = nil
+        listenerValue = nil
+        listenerEvent = nil
     }
 
     // MARK: - Private

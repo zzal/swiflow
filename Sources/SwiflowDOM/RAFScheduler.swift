@@ -16,10 +16,14 @@ import Swiflow
 /// callback per flush — rather than one per component — lets that decision see
 /// the entire frame's dirty set at once.
 ///
-/// **Retain-cycle safety:** `RAFScheduler` is owned by `Renderer`. The
-/// `onFlushBatch` closure typically captures `Renderer` weakly. The rAF
-/// closure (`rafClosure`) is kept alive on `self` until the frame fires;
-/// after `rafFired()` clears it, the JSClosure is eligible for deallocation.
+/// **Closure lifetime:** `RAFScheduler` is owned by `Renderer`. The
+/// `onFlushBatch` closure typically captures `Renderer` weakly. `rafClosure`
+/// is retained on `self` for ownership clarity, not because that's what
+/// keeps the callback callable — `JSClosure.init` self-registers into a
+/// static `sharedClosures` table, so JS can invoke it regardless of this
+/// field. `rafFired()` nils `rafClosure` once the frame it was scheduled
+/// for has fired, since `requestAnimationFrame` only calls a given callback
+/// once; the field never needs an explicit `cancelAnimationFrame`.
 ///
 /// **Single-root assumption:** Phase 3 v1 assumes one ambient `Renderer` per
 /// app. If multi-root support lands in a future phase, each Renderer would
@@ -36,10 +40,12 @@ final class RAFScheduler: Scheduler {
     /// against scheduling more than one rAF callback per frame.
     private var rafScheduled = false
 
-    /// Keeps the rAF closure alive from the time it is scheduled until
-    /// after the frame fires. `JSClosure` is reference-counted by
-    /// `JavaScriptKit`; clearing this field allows deallocation once the
-    /// JS engine no longer holds a reference either.
+    /// Held from scheduling until the frame fires, for ownership clarity
+    /// (so it's obvious exactly one rAF closure is outstanding at a time).
+    /// `JSClosure` self-registers into JavaScriptKit's static
+    /// `sharedClosures` table on init, so it stays callable from JS whether
+    /// or not this field holds it; nil-ing it here does not stop or cancel
+    /// anything — `requestAnimationFrame` already only fires once.
     private var rafClosure: JSClosure?
 
     /// Invoked once per rAF tick when at least one component is dirty, with
