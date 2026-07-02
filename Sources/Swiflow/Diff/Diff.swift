@@ -274,6 +274,15 @@ func mount(
             path: path,
             environment: environment
         )
+        // Diagnostic: a bare-fragment body has no single DOM node — exit
+        // animations can't target it and identity swaps degrade to remove+
+        // append of every root. Wrap multi-root bodies in one element. This
+        // was the diff's only unguarded footgun (every sibling hazard traps).
+        #if DEBUG
+        if bodyIsFragmentRooted(bodyMount) {
+            swiflowDiagnostic("Component \(String(describing: componentType))'s body is a bare fragment (multiple roots / no single DOM node). Wrap the body in a single element (div, VStack, ...): fragment bodies get no exit animation, and body identity swaps degrade to removing and re-appending every root.")
+        }
+        #endif
         return MountNode(
             handle: anchorHandle,
             vnode: vnode,
@@ -424,7 +433,7 @@ func update(
         // route change inside an env-override inside this component) and
         // emit the DOM-level removeChild+appendChild that the recursive
         // default arm leaves to the caller.
-        let oldBodyDOMHandleForComponentArm = oldBody.domHandle
+        let oldBodyRootsForComponentArm = collectDOMRoots(oldBody)
         let bodyUpdateStartForComponentArm = patches.count
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
@@ -468,13 +477,23 @@ func update(
         // ancestor. For a root-level swap (no DOM ancestor in the mount
         // tree), the Renderer detects the root-handle change post-diff
         // and emits a `replaceMount` patch covering the same job.
-        if newBodyMount.domHandle != oldBodyDOMHandleForComponentArm,
+        // Root identity compared as the full collectDOMRoots list, not a single
+        // domHandle: a fragment body has 0..N real roots and NO representable
+        // single handle (the old comparison emitted the fragment's structural
+        // handle — one the driver never saw — aborting the patch batch).
+        // Single-rooted bodies behave byte-identically ([old] vs [new]).
+        let newBodyRoots = collectDOMRoots(newBodyMount)
+        if newBodyRoots != oldBodyRootsForComponentArm,
            let domParentHandle = domAncestorHandle(of: mounted) {
             patches.insert(
-                .removeChild(parent: domParentHandle, child: oldBodyDOMHandleForComponentArm),
+                contentsOf: oldBodyRootsForComponentArm.map {
+                    .removeChild(parent: domParentHandle, child: $0)
+                },
                 at: bodyUpdateStartForComponentArm
             )
-            patches.append(.appendChild(parent: domParentHandle, child: newBodyMount.domHandle))
+            patches.append(contentsOf: newBodyRoots.map {
+                .appendChild(parent: domParentHandle, child: $0)
+            })
         }
         mounted.setComponentBody(newBodyMount)
         // Commit the new vnode description so the next render's left-hand
@@ -494,7 +513,7 @@ func update(
         // override is a structural-only anchor; if its body's DOM identity
         // changes between frames, the surrounding DOM ancestor needs a
         // removeChild + appendChild splice.
-        let oldBodyDOMHandleForEnvArm = oldBody.domHandle
+        let oldBodyRootsForEnvArm = collectDOMRoots(oldBody)
         let bodyUpdateStartForEnvArm = patches.count
         let merged = environment.merging(nextOverrides)
         let updatedBody = update(
@@ -507,13 +526,19 @@ func update(
             path: path,
             environment: merged
         )
-        if updatedBody.domHandle != oldBodyDOMHandleForEnvArm,
+        // Mirror of the component arm: full-roots comparison (fragment-safe).
+        let updatedBodyRoots = collectDOMRoots(updatedBody)
+        if updatedBodyRoots != oldBodyRootsForEnvArm,
            let domParentHandle = domAncestorHandle(of: mounted) {
             patches.insert(
-                .removeChild(parent: domParentHandle, child: oldBodyDOMHandleForEnvArm),
+                contentsOf: oldBodyRootsForEnvArm.map {
+                    .removeChild(parent: domParentHandle, child: $0)
+                },
                 at: bodyUpdateStartForEnvArm
             )
-            patches.append(.appendChild(parent: domParentHandle, child: updatedBody.domHandle))
+            patches.append(contentsOf: updatedBodyRoots.map {
+                .appendChild(parent: domParentHandle, child: $0)
+            })
         }
         mounted.setComponentBody(updatedBody)
         mounted.vnode = next
@@ -637,6 +662,52 @@ func diffHandlers(
     return nextIDs
 }
 
+/// True when this anchor's body chain ends at a `.fragment` — the case
+/// `MountTree.domHandle` cannot represent (a fragment maps to 0..N DOM
+/// nodes, so no single handle exists). Diagnosed at component mount; the
+/// splice/removal paths below route through `collectDOMRoots` so release
+/// builds degrade safely instead of emitting phantom handles.
+@MainActor
+func bodyIsFragmentRooted(_ node: MountNode) -> Bool {
+    if case .fragment = node.vnode { return true }
+    if let body = node.componentBody { return bodyIsFragmentRooted(body) }
+    return false
+}
+
+/// Remove one child subtree from the DOM and destroy it, honoring the
+/// component's exit animation when — and only when — the subtree has exactly
+/// one real DOM root. A fragment-bodied component has 0..N roots: there is no
+/// single node to animate, so it degrades to plain removal of every root (see
+/// FragmentBodyTests). Shared by the keyed differ's two removal paths and the
+/// indexed differ — previously copy-pasted ×3, and all three carried the
+/// phantom-handle bug (`removed.domHandle` on a fragment body).
+@MainActor
+func removeAndDestroyChild(
+    _ removed: MountNode,
+    parentDOMHandle: Int,
+    handlers: HandlerRegistry,
+    into patches: inout [Patch]
+) {
+    let roots = collectDOMRoots(removed)
+    if let comp = removed.component,
+       let anim = type(of: comp.instance).exitAnimation,
+       roots.count == 1, let only = roots.first {
+        let durMs = (type(of: comp.instance).exitDuration ?? 0) * 1000
+        patches.append(.animateExit(
+            handle: only,
+            parentHandle: parentDOMHandle,
+            animation: anim,
+            durationMs: durMs
+        ))
+        destroy(removed, into: &patches, handlers: handlers, skipDestroyForHandle: only)
+    } else {
+        for root in roots {
+            patches.append(.removeChild(parent: parentDOMHandle, child: root))
+        }
+        destroy(removed, into: &patches, handlers: handlers)
+    }
+}
+
 /// Emits `destroyNode` for `node` and recursively for every descendant.
 /// Also drops every handler ID from the registry and fires `onDisappear`
 /// on any Component instance encountered.
@@ -647,7 +718,8 @@ func diffHandlers(
 /// "parent unmount before child unmount" ordering, so the parent can
 /// still read state from children before they are torn down.
 @MainActor
-package func destroy(
+package
+func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
     handlers: HandlerRegistry,
