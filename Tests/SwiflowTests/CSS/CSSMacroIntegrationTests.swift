@@ -23,7 +23,7 @@ struct CSSMacroIntegrationTests {
 
     @Test("#css composes with the builder DSL via +")
     func composesWithDSL() {
-        let sheet = #css(".a { color: red; }") + css { rule(".b") { .margin("0") } }
+        let sheet = #css(".a { color: red; }") + css { rule(".b", .margin("0")) }
         let out = sheet.cssString(scopeClass: "swiflow-T")
         #expect(out.contains(".swiflow-T {\n  .a { color: red; }\n}"))
         #expect(out.contains(".swiflow-T .b {"))
