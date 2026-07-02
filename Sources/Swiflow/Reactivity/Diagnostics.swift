@@ -61,5 +61,8 @@ public func swiflowDiagnostic(_ message: @autoclosure () -> String) {
 /// // ... exercise code that may fire diagnostics ...
 /// #expect(captured.contains { $0.contains("expected substring") })
 /// ```
+// Thread isolation: DEBUG-only test seam — set/reset by @MainActor test
+// bodies around synchronous code under test, read by swiflowDiagnostic on
+// the same (single) thread. Never touched concurrently.
 nonisolated(unsafe) public var _swiflowDiagnosticOverride: ((String) -> Void)?
 #endif

@@ -6,4 +6,8 @@
 // closure that the WASM layer wires up at startup without creating a
 // direct dependency from the pure-Swift module to JavaScriptKit.
 
+// Thread isolation: written once by SwiflowDOM at startup (Swiflow.render,
+// @MainActor) and read only from the @MainActor diff/mount pass; wasm is
+// single-threaded. nonisolated(unsafe) rather than @MainActor because core
+// Swiflow keeps this seam callable from host-side tests without an actor hop.
 public nonisolated(unsafe) var onComponentTypeMount: ((any Component.Type) -> Void)?

@@ -15,6 +15,10 @@
 /// `package` access: visible to `SwiflowDOM` (same package) but not to
 /// application code that imports Swiflow as a library dependency.
 package final class HandlerRegistry: @unchecked Sendable {
+    // Thread isolation: mutated only during @MainActor render passes
+    // (register/closeScope) and read by the @MainActor dispatcher; wasm is
+    // single-threaded. The statics stay nonisolated(unsafe) (not @MainActor)
+    // because the class witnesses non-isolated contexts in host-side tests.
     nonisolated(unsafe) private static var nextID: Int = 0
     nonisolated(unsafe) private static var globalTable: [Int: EventHandler] = [:]
     private var nextScopeID: Int = 0
