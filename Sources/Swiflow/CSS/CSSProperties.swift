@@ -1,8 +1,10 @@
-// Declarations for the css { rule(".x") { ... } } builder, as static members
-// consumed via implicit-member (leading-dot) syntax:
-//     rule(".card") { .padding("1rem"); .color("var(--sw-text)") }
+// Declarations for the css { rule(".x", ...) } builder, as static members
+// consumed via implicit-member (leading-dot) syntax in argument position:
+//     rule(".card", .padding("1rem"), .color("var(--sw-text)"))
 // Static members (not free functions) so 72 single-word names don't pollute
-// the module's top-level namespace and collide with app code.
+// the module's top-level namespace and collide with app code; argument
+// position (not a closure) so leading-dot lines can't be mis-parsed as
+// postfix continuations of the previous statement.
 extension CSSDeclaration {
     public static func backgroundColor(_ value: String) -> CSSDeclaration { .init("background-color", value) }
     public static func color(_ value: String) -> CSSDeclaration { .init("color", value) }
