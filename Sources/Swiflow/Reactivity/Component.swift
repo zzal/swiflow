@@ -138,23 +138,6 @@ public struct ComponentDescription: Equatable {
     }
 }
 
-/// Wires the owner/scheduler refs into every `@State`-bearing
-/// `@Component` so its `didSet` blocks can call
-/// `scheduler.markDirty(owner)`.
-///
-/// Called by the diff at first mount of each component anchor.
-/// No-op when `scheduler` is nil (used by tests and headless diffing).
-///
-/// Phase 15: drives wiring through `_ComponentRuntime.bind(...)`,
-/// which the `@Component` macro emits. Hand-rolled `Component`
-/// conformances that don't adopt `_ComponentRuntime` simply receive
-/// no wiring — the right default, since they have no macro-emitted
-/// `@State` cells to wire.
-@MainActor
-package func wireState(on owner: AnyComponent, scheduler: Scheduler?) {
-    wireStateAndRestore(on: owner, scheduler: scheduler, stateMap: nil)
-}
-
 /// Fused owner-wiring + HMR restore. Iterates the
 /// `_ComponentRuntime.stateCells` array emitted by the `@Component`
 /// macro to wire `(owner, scheduler)` and apply pending snapshot

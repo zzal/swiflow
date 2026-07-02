@@ -34,7 +34,7 @@ struct HMRTypeDriftTests {
         let index = HMRWalker.indexSnapshots([snap])
 
         let fresh = HMRTD_NowString()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.n == "initial")  // declared initial, not "7"
         // The applier should have reported the type mismatch.

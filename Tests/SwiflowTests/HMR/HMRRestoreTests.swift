@@ -12,7 +12,7 @@ private final class HMRR_Counter {
 @Suite("HMR restore applier")
 struct HMRRestoreTests {
 
-    @Test("applyRestore overwrites matching @State fields")
+    @Test("restore overwrites matching @State fields")
     func restoreOverwritesMatchingFields() {
         let snap = ComponentSnapshot(
             path: "",
@@ -24,13 +24,13 @@ struct HMRRestoreTests {
 
         let fresh = HMRR_Counter()
         let anyC = AnyComponent(fresh)
-        HMRWalker.applyRestore(index: index, to: anyC, at: "", key: nil)
+        applyHMRRestore(index: index, to: anyC, at: "", key: nil)
 
         #expect(fresh.count == 42)
         #expect(fresh.label == "restored")
     }
 
-    @Test("applyRestore is a no-op when no matching snapshot exists")
+    @Test("restore is a no-op when no matching snapshot exists")
     func restoreNoMatch() {
         let snap = ComponentSnapshot(
             path: "1.0",
@@ -42,13 +42,13 @@ struct HMRRestoreTests {
 
         let fresh = HMRR_Counter()
         let anyC = AnyComponent(fresh)
-        HMRWalker.applyRestore(index: index, to: anyC, at: "", key: nil)
+        applyHMRRestore(index: index, to: anyC, at: "", key: nil)
 
         #expect(fresh.count == 0)
         #expect(fresh.label == "initial")
     }
 
-    @Test("applyRestore matches keyed components by key, ignores unkeyed snapshot at same path")
+    @Test("restore matches keyed components by key, ignores unkeyed snapshot at same path")
     func restoreKeyedComponent() {
         // Two components at the same path but different keys. Without the
         // key in the lookup, both would resolve against the same nil-key
@@ -68,24 +68,24 @@ struct HMRRestoreTests {
         let index = HMRWalker.indexSnapshots([snapA, snapB])
 
         let freshA = HMRR_Counter()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(freshA), at: "0", key: "a")
+        applyHMRRestore(index: index, to: AnyComponent(freshA), at: "0", key: "a")
         #expect(freshA.count == 1)
         #expect(freshA.label == "alice")
 
         let freshB = HMRR_Counter()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(freshB), at: "0", key: "b")
+        applyHMRRestore(index: index, to: AnyComponent(freshB), at: "0", key: "b")
         #expect(freshB.count == 2)
         #expect(freshB.label == "bob")
 
         // An unkeyed lookup at the same path finds nothing — no bucket
         // for key: nil exists when all snapshots at that path carry keys.
         let freshUnkeyed = HMRR_Counter()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(freshUnkeyed), at: "0", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(freshUnkeyed), at: "0", key: nil)
         #expect(freshUnkeyed.count == 0)
         #expect(freshUnkeyed.label == "initial")
     }
 
-    @Test("applyRestore skips fields missing from the snapshot")
+    @Test("restore skips fields missing from the snapshot")
     func restorePartialFieldSet() {
         let snap = ComponentSnapshot(
             path: "",
@@ -96,7 +96,7 @@ struct HMRRestoreTests {
         let index = HMRWalker.indexSnapshots([snap])
 
         let fresh = HMRR_Counter()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.count == 7)
         #expect(fresh.label == "initial")  // unchanged

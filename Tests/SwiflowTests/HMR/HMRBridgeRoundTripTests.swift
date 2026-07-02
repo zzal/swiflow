@@ -3,7 +3,8 @@
 // Simulates the JS-bridge encode→decode round-trip for every supported
 // primitive type. Tests construct state maps that match what
 // `HMRBridge.decodeStateMap` would produce for each JS value, then
-// verify that `applyRestore` correctly restores them.
+// verify that the production restore path (`wireStateAndRestore`, via the
+// `applyHMRRestore` test helper) correctly restores them.
 //
 // WHY THIS FILE EXISTS:
 // The JS bridge (`encodeStateMap`/`decodeStateMap`) requires JavaScriptKit
@@ -82,7 +83,7 @@ struct HMRBridgeRoundTripTests {
     func boolTrue() {
         let fresh = HMRB_BoolHolder()
         let idx = index(typeName: String(reflecting: HMRB_BoolHolder.self), state: ["flag": true])
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.flag == true)
     }
 
@@ -91,7 +92,7 @@ struct HMRBridgeRoundTripTests {
         let fresh = HMRB_BoolHolder()
         fresh.flag = true
         let idx = index(typeName: String(reflecting: HMRB_BoolHolder.self), state: ["flag": false])
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.flag == false)
     }
 
@@ -100,7 +101,7 @@ struct HMRBridgeRoundTripTests {
         let fresh = HMRB_IntHolder()
         // decodeStateMap produces Int for integral JS numbers
         let idx = index(typeName: String(reflecting: HMRB_IntHolder.self), state: ["count": Int(99)])
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.count == 99)
     }
 
@@ -114,7 +115,7 @@ struct HMRBridgeRoundTripTests {
             typeName: String(reflecting: HMRB_DoubleHolder.self),
             state: ["price": Int(42), "fraction": Double(3.14)]
         )
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.price == 42.0)
         #expect(fresh.fraction == 3.14)
     }
@@ -123,7 +124,7 @@ struct HMRBridgeRoundTripTests {
     func stringRoundTrip() {
         let fresh = HMRB_StringHolder()
         let idx = index(typeName: String(reflecting: HMRB_StringHolder.self), state: ["label": "hello"])
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.label == "hello")
     }
 
@@ -131,7 +132,7 @@ struct HMRBridgeRoundTripTests {
     func nullSentinelRestoresNil() {
         // encodeStateMap: Optional.none → .null
         // decodeStateMap: .null → HMRNilSentinel (was Blocker 3 when missed)
-        // applyRestore: routes HMRNilSentinel to _hmrRestoreNil()
+        // wireStateAndRestore: routes HMRNilSentinel to _hmrRestoreNil()
         let fresh = HMRB_OptionalHolder()
         fresh.name = "before"
         fresh.score = 7
@@ -139,7 +140,7 @@ struct HMRBridgeRoundTripTests {
             typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["name": HMRNilSentinel(), "score": HMRNilSentinel()]
         )
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.name == nil)
         #expect(fresh.score == nil)
     }
@@ -154,7 +155,7 @@ struct HMRBridgeRoundTripTests {
             typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["name": "restored"]
         )
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.name == "restored")
     }
 
@@ -168,7 +169,7 @@ struct HMRBridgeRoundTripTests {
             typeName: String(reflecting: HMRB_OptionalHolder.self),
             state: ["score": Int(5)]
         )
-        HMRWalker.applyRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: idx, to: AnyComponent(fresh), at: "", key: nil)
         #expect(fresh.score == 5)
     }
 }

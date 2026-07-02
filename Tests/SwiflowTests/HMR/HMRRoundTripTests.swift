@@ -29,7 +29,7 @@ private final class HMRRT_Nullable {
 @Suite("HMR round-trip")
 struct HMRRoundTripTests {
 
-    @Test("snapshot → index → applyRestore preserves all supported primitives")
+    @Test("snapshot → index → restore preserves all supported primitives")
     func roundTripAllPrimitives() {
         let original = HMRRT_Demo()
         original.s = "hello"
@@ -47,7 +47,7 @@ struct HMRRoundTripTests {
         let index = HMRWalker.indexSnapshots(snaps)
 
         let fresh = HMRRT_Demo()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.s == "hello")
         #expect(fresh.i == 42)
@@ -73,13 +73,13 @@ struct HMRRoundTripTests {
         )
         let index = HMRWalker.indexSnapshots([snap])
         let fresh = HMRRT_Prices()
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.price == 42.0)
         #expect(fresh.optPrice == 7.0)
     }
 
-    @Test("applyRestore restores nil Optional via HMRNilSentinel (JS bridge path)")
+    @Test("restore restores nil Optional via HMRNilSentinel (JS bridge path)")
     func nilSentinelRestoresOptionalToNone() {
         // Simulates the JS bridge path: decodeStateMap decodes JS `null` as
         // HMRNilSentinel. Without the Blocker 3 fix, the sentinel is routed
@@ -97,7 +97,7 @@ struct HMRRoundTripTests {
         let index = HMRWalker.indexSnapshots([snap])
         let fresh = HMRRT_Nullable()
         fresh.label = "before-restore"
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.label == nil)      // sentinel correctly restored to .none
         #expect(fresh.name == "restored")
@@ -119,7 +119,7 @@ struct HMRRoundTripTests {
 
         let fresh = HMRRT_Demo()
         fresh.os = "before-restore"
-        HMRWalker.applyRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
+        applyHMRRestore(index: index, to: AnyComponent(fresh), at: "", key: nil)
 
         #expect(fresh.s == "x")
         #expect(fresh.os == nil)
