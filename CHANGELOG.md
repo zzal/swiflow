@@ -20,6 +20,23 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.1] — 2026-07-03
+
+**Beta.** Patch release for a first-contact scaffolding bug found within hours
+of 0.4.0 — thanks to the first bug reporter.
+
+### Fixed
+
+- **`swiflow init <name> --template QueryDemo` (or `AsyncFetch`) produced
+  invalid Swift when the project name wasn't a valid identifier** (e.g.
+  `my-swiflow` → `final class my-swiflow`). Those templates' root classes are
+  renamed (`QueryRoot` / `FetchRoot`), and template codegen now fails loudly
+  if any example ever places the project-name token in Swift declaration
+  position again (guard in the embedder + the codegen script + an in-suite
+  regression test). Project names remain directory-style — hyphens welcome.
+
+---
+
 ## [0.4.0] — 2026-07-02
 
 **Beta.** The largest release to date: local reducers, a managed toast queue,

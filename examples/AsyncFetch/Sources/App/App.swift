@@ -4,7 +4,7 @@ import SwiflowDOM
 import SwiflowUI
 
 @Component
-final class AsyncFetch {
+final class FetchRoot {
     // `state` is a flat status string for demo brevity:
     // "idle" | "loading…" | "loaded user #N".
     @State var userID: Int = 1
@@ -35,6 +35,6 @@ final class AsyncFetch {
 struct App {
     @MainActor
     static func main() {
-        Swiflow.render(into: "#app") { AsyncFetch() }
+        Swiflow.render(into: "#app") { FetchRoot() }
     }
 }

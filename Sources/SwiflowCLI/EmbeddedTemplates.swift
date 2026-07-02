@@ -118,7 +118,7 @@ import SwiflowDOM
 import SwiflowUI
 
 @Component
-final class {{NAME}} {
+final class FetchRoot {
     // `state` is a flat status string for demo brevity:
     // "idle" | "loading…" | "loaded user #N".
     @State var userID: Int = 1
@@ -149,7 +149,7 @@ final class {{NAME}} {
 struct App {
     @MainActor
     static func main() {
-        Swiflow.render(into: "#app") { {{NAME}}() }
+        Swiflow.render(into: "#app") { FetchRoot() }
     }
 }
 
@@ -2791,7 +2791,7 @@ struct FakeAPI: Sendable {
 }
 
 @Component
-final class {{NAME}} {
+final class QueryRoot {
     @State var userID: Int = 1
     @State var newName: String = ""
     @MutationState var rename: RenameUser
@@ -2831,7 +2831,7 @@ final class {{NAME}} {
 struct App {
     @MainActor
     static func main() {
-        Swiflow.render(into: "#app") { {{NAME}}() }
+        Swiflow.render(into: "#app") { QueryRoot() }
     }
 }
 

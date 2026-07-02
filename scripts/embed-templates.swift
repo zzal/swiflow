@@ -36,6 +36,16 @@ let blacklist: Set<String> = [
 
 func normalize(_ raw: String, exampleName: String, relativePath: String) -> String {
     var out = raw.replacingOccurrences(of: exampleName, with: "{{NAME}}")
+    // Guard: {{NAME}} must never land in Swift DECLARATION position — the
+    // user's project name is a directory name (hyphens legal), not a Swift
+    // identifier, so `final class {{NAME}}` scaffolds broken code (a real
+    // user hit `final class my-swiflow`). Example root types must use
+    // neutral names (Counter, QueryRoot, FetchRoot, ...).
+    if out.range(of: #"(class|struct|enum|protocol|actor|func|var|let)\s+\{\{NAME\}\}"#,
+                 options: .regularExpression) != nil {
+        FileHandle.standardError.write(Data("error: template '\(exampleName)' uses its own name as a Swift declaration — rename the type.\n".utf8))
+        exit(1)
+    }
     if relativePath == "Package.swift" {
         out = out.replacingOccurrences(
             of: #".package(path: "../..")"#,
