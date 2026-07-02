@@ -309,6 +309,62 @@ struct InitCommandRunTests {
         #expect(desc.contains("/does/not/exist"))
     }
 
+    @Test("A path-escaping name surfaces a ValidationError and creates nothing")
+    func refusesEscapingName() async throws {
+        let tmp = try InitCommandTests.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let cmd = try InitCommand.parse([
+            "../../evil",
+            "--path", tmp.path,
+            "--swiflow-source", "/abs/path/to/swiflow",
+        ])
+        await #expect(throws: ValidationError.self) {
+            try await cmd.run()
+        }
+        // Nothing should exist outside tmp — and tmp itself must stay empty.
+        let contents = try FileManager.default.contentsOfDirectory(atPath: tmp.path)
+        #expect(contents.isEmpty)
+    }
+
+    @Test("A nested-path name surfaces a ValidationError")
+    func refusesNestedName() async throws {
+        let tmp = try InitCommandTests.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let cmd = try InitCommand.parse([
+            "a/b/c",
+            "--path", tmp.path,
+            "--swiflow-source", "/abs/path/to/swiflow",
+        ])
+        await #expect(throws: ValidationError.self) {
+            try await cmd.run()
+        }
+    }
+
+    @Test("isValidProjectName accepts plain directory names")
+    func validProjectNamesAccepted() {
+        #expect(isValidProjectName("MyApp"))
+        #expect(isValidProjectName("my-app_2"))
+        #expect(isValidProjectName("demo"))
+    }
+
+    @Test("isValidProjectName rejects path separators, empty, and dot-directories")
+    func invalidProjectNamesRejected() {
+        #expect(!isValidProjectName("../../evil"))
+        #expect(!isValidProjectName("a/b/c"))
+        #expect(!isValidProjectName("/etc/passwd"))
+        #expect(!isValidProjectName(""))
+        #expect(!isValidProjectName("."))
+        #expect(!isValidProjectName(".."))
+    }
+
+    @Test("InitCommandError.invalidProjectName has an actionable description")
+    func invalidProjectNameDescription() {
+        let error = InitCommandError.invalidProjectName("../../evil")
+        let desc = String(describing: error)
+        #expect(desc.contains("../../evil"))
+        #expect(desc.contains("MyApp"))
+    }
+
     @Test("Unknown --template surfaces a ValidationError listing available templates")
     func unknownTemplateValidates() async throws {
         let tmp = try InitCommandTests.makeTempDir()
