@@ -35,7 +35,14 @@ enum PortAvailability {
     /// failures are ignored here — those will surface naturally when the
     /// real server starts, and this probe's only job is the common case.
     static func checkAvailable(port: Int) throws {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        // Glibc's SOCK_STREAM is a __socket_type enum, Darwin's is Int32 —
+        // the classic cross-platform socket portability seam.
+        #if canImport(Glibc)
+        let streamType = Int32(SOCK_STREAM.rawValue)
+        #else
+        let streamType = SOCK_STREAM
+        #endif
+        let fd = socket(AF_INET, streamType, 0)
         guard fd >= 0 else { return }
         defer { close(fd) }
 
