@@ -124,7 +124,7 @@ final class Renderer {
             ComponentDescription(typeID: root.typeID, key: nil, factory: { root })
         )
 
-        let renderStartMs = JSObject.global.performance.object?.now?().number ?? 0
+        let renderStartMs = nowMs()
         // Capture the previously-mounted root's DOM handle before the diff
         // mutates `mountTree.componentBody` in place. If a re-render swaps
         // the root component's body to a different element type, the diff
@@ -163,7 +163,7 @@ final class Renderer {
                 newHandle: result.newMountTree.domHandle
             ))
         }
-        lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - renderStartMs
+        lastRenderMs = nowMs() - renderStartMs
         shipPatches(outgoingPatches)
 
         let isFirstMount = (mountTree == nil)
@@ -212,7 +212,7 @@ final class Renderer {
                 SwiflowTaskRuntime.currentScope = nil
                 RenderObserverBox.current = nil
             }
-            let startMs = JSObject.global.performance.object?.now?().number ?? 0
+            let startMs = nowMs()
             let scoped = scopedRerender(
                 anchor: anchor,
                 handles: handles,
@@ -221,7 +221,7 @@ final class Renderer {
             )
             // Measure render compute BEFORE shipping, matching renderOnce() so
             // lastRenderMs is comparable across the two paths.
-            lastRenderMs = (JSObject.global.performance.object?.now?().number ?? 0) - startMs
+            lastRenderMs = nowMs() - startMs
             shipPatches(scoped.patches)
             // Fire lifecycle AFTER patches reach the driver (matching
             // renderOnce()'s ship-then-fire order) so onAppear/onChange observe
@@ -273,6 +273,14 @@ final class Renderer {
         // closure means it becomes a no-op once the RAFScheduler is released.
         _schedulerBox.value = nil
         mountTree = nil
+    }
+
+    // MARK: - Private
+
+    /// `performance.now()`, or `0` if the global isn't available (e.g. a
+    /// non-browser JS host). Used to time render passes for `lastRenderMs`.
+    private func nowMs() -> Double {
+        JSObject.global.performance.object?.now?().number ?? 0
     }
 }
 

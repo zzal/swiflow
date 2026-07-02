@@ -65,5 +65,17 @@ public final class Link: Component {
         if let el = linkRef.wrappedValue { _ = el.addEventListener!("click", closure) }
         clickClosure = closure
     }
+
+    public func onDisappear() {
+        // Held for ownership clarity, not because it's what keeps `closure`
+        // callable — `JSClosure.init` self-registers into JavaScriptKit's
+        // static `sharedClosures` table. What actually stops it from firing
+        // is this explicit `removeEventListener` call (mirrors Toast's
+        // stopTimer-on-onDisappear discipline).
+        if let el = linkRef.wrappedValue, let closure = clickClosure {
+            _ = el.removeEventListener!("click", closure)
+        }
+        clickClosure = nil
+    }
 }
 #endif

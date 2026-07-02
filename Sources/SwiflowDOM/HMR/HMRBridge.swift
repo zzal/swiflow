@@ -28,11 +28,11 @@ package enum HMRBridge {
 
     // MARK: - Closure retention
 
-    /// Strong reference holding the snapshot exporter `JSClosure` so
-    /// it isn't deallocated. Mirrors `DispatcherBridge.installed` —
-    /// JSClosure-with-Swift-callback must outlive every invocation,
-    /// and the JS-side reference (under `window.__swiflow.hmrSnapshot`)
-    /// is a weak handle that won't keep the Swift closure alive.
+    /// Held for ownership clarity / idempotency-checking (see
+    /// `installSnapshotExporter` below), mirroring `DispatcherBridge.installed`
+    /// — not because it's what keeps the closure callable. `JSClosure.init`
+    /// self-registers into JavaScriptKit's static `sharedClosures` table, so
+    /// `window.__swiflow.hmrSnapshot` stays invocable regardless of this field.
     @MainActor private static var snapshotClosure: JSClosure?
 
     // MARK: - Snapshot exporter (Swift → JS)
@@ -79,8 +79,9 @@ package enum HMRBridge {
         }
         ns.hmrSnapshot = .object(snapshotFn)
 
-        // Strong reference so the JSClosure outlives every invocation (the
-        // JS-side handle under `window.__swiflow.hmrSnapshot` is weak).
+        // Held for ownership clarity / the idempotency guard above — the
+        // JSClosure itself is already kept invocable by JavaScriptKit's
+        // internal registration, independent of this field.
         snapshotClosure = snapshotFn
     }
 
@@ -149,6 +150,7 @@ package enum HMRBridge {
 
     // MARK: - JS encode / decode
 
+    @MainActor
     private static func encodeToJS(_ snapshots: [ComponentSnapshot]) -> JSValue {
         let array = JSObject.global.Array.function!.new()
         for (i, snap) in snapshots.enumerated() {
@@ -156,40 +158,10 @@ package enum HMRBridge {
             obj.path = .string(snap.path)
             obj.typeName = .string(snap.typeName)
             obj.key = snap.key.map { JSValue.string($0) } ?? .null
-            obj.state = encodeStateMap(snap.state)
+            obj.state = encodeStateMapToJS(snap.state)
             array[i] = .object(obj)
         }
         return .object(array)
-    }
-
-    private static func encodeStateMap(_ state: [String: Any]) -> JSValue {
-        let obj = JSObject.global.Object.function!.new()
-        for (k, v) in state {
-            // Phase 15: HMR snapshot values are either
-            //   - a concrete primitive (Bool/Int/Double/String) — from a
-            //     non-Optional @State or an Optional .some(payload) the
-            //     macro unwrapped at the source via `.map { $0 as Any }`,
-            //   - or an `HMRNilSentinel` — for Optional .none, which the
-            //     `@Component` macro normalizes at the source because
-            //     Optional<T>.none stored in `Any` is type-erased and
-            //     cannot be distinguished by exhaustive `as?` checks here.
-            // We never see a raw `Optional<T>.none` — the macro guarantees
-            // it. Bool is checked before Int because Swift bridges Bool to
-            // NSNumber and `v as? Int` succeeds for Bool values.
-            if v is HMRNilSentinel {
-                obj[k] = .null
-            } else if let b = v as? Bool {
-                obj[k] = .boolean(b)
-            } else if let s = v as? String {
-                obj[k] = .string(s)
-            } else if let i = v as? Int {
-                obj[k] = .number(Double(i))
-            } else if let d = v as? Double {
-                obj[k] = .number(d)
-            }
-            // Other unsupported types — skip (v1 limitation).
-        }
-        return .object(obj)
     }
 
     private static func decodeStateMap(_ js: JSValue) -> [String: Any] {

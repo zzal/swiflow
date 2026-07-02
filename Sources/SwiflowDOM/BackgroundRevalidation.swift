@@ -7,8 +7,12 @@ import SwiflowQuery
 /// a ~1s `setInterval` driving `queryClient.tick(now:)`, and a `visibilitychange`
 /// + window `focus` listener driving `queryClient.focusChanged(visible:)`.
 ///
-/// Retains its `JSClosure`s for their lifetime (JavaScriptKit ref-counts them);
-/// `stop()` releases them and tears down the JS handles, mirroring `RAFScheduler`.
+/// Holds its `JSClosure`s for ownership clarity, mirroring `RAFScheduler` —
+/// not because that's what keeps them callable (`JSClosure.init`
+/// self-registers into JavaScriptKit's static `sharedClosures` table). What
+/// actually stops them from firing is `stop()`'s explicit `clearInterval` /
+/// `removeEventListener` calls, which is why it nils the fields only AFTER
+/// those calls run (see comment below).
 @MainActor
 final class BackgroundRevalidation {
     private weak var client: QueryClient?
