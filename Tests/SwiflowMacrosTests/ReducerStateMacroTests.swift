@@ -54,4 +54,23 @@ final class ReducerStateMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Access propagation (audit Wave-2): mirror of the @MutationState test.
+    func testPackageReducerStateEmitsPackageProjection() {
+        assertMacroExpansion(
+            """
+            @ReducerState package var flow: Checkout
+            """,
+            expandedSource: """
+            package var flow: Checkout
+
+            @MainActor private let _flow_reducerRuntime = ReducerRuntime<Checkout>()
+
+            @MainActor package var $flow: ReducerHandle<Checkout> {
+                ReducerHandle(runtime: _flow_reducerRuntime, reducer: flow)
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }

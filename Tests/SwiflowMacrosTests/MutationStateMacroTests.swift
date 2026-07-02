@@ -56,4 +56,24 @@ final class MutationStateMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Access propagation (audit Wave-2): $create copies the property's access;
+    // the backing runtime stays private (implementation detail).
+    func testPublicMutationStateEmitsPublicProjection() {
+        assertMacroExpansion(
+            """
+            @MutationState public var create: CreateTodo
+            """,
+            expandedSource: """
+            public var create: CreateTodo
+
+            @MainActor private let _create_mutationRuntime = MutationRuntime<CreateTodo>()
+
+            @MainActor public var $create: MutationHandle<CreateTodo> {
+                MutationHandle(runtime: _create_mutationRuntime, mutation: create)
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }
