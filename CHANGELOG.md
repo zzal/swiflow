@@ -18,10 +18,106 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-07-02
+
+**Beta.** The largest release to date: local reducers, a managed toast queue,
+`@Component` without `@MainActor` boilerplate, a scoped re-render engine — and
+a full-framework pre-launch audit whose findings are all remediated in this
+release (the report ships in-tree:
+[`docs/reviews/2026-07-01-pre-launch-audit.md`](docs/reviews/2026-07-01-pre-launch-audit.md)).
+
+**Stability: Beta — stable for pre-1.0 usage.** The public surface was
+deliberately reviewed and reshaped for this release; breaking changes below
+are the result. Expect the API to hold from here barring audit-grade findings.
+
+### Added
+
+- **`@ReducerState` / `Reducer`** — a local, per-component reducer cell for
+  app-level client state (wizards, queues, multi-step flows): pure synchronous
+  `reduce(into:_:)`, dispatch via `$flow.send(.action)`, effects stay at the
+  call site. Modeled 1:1 on `@MutationState`.
+- **`ToastQueue` + `ToastStack(queue:)`** — a managed toast queue built on
+  `@ReducerState`: at most `maxVisible` toasts (default 3), FIFO overflow
+  promotion, and duplicate coalescing into a single toast with a live `×N`
+  recurrence badge. The `Binding`-based `ToastStack(toasts:)` is deprecated.
+- **`@Component` auto-injects `@MainActor`** — a bare `@Component final class`
+  is now isolation-complete; the `@MainActor @Component` boilerplate is gone.
+  `nonisolated` on a member opts out. (Members in extensions still annotate
+  explicitly.)
+- **Scoped re-render + row recycling** — a single-`@State` change re-renders
+  only the owning component's subtree; `DataTable`'s virtualized rows are
+  memoized and recycled (`.memoKey(_:)` ships as a general diff-bail
+  primitive). Moderate drags on a 2,000-row virtualized table now render in
+  ≤1 frame. `onChange()` now fires only for components whose subtree actually
+  re-rendered.
+- **`EventInfo.fromInteractiveDescendant`** — true when a click originated
+  inside a link/button/form control between the target and the bound element,
+  so container-level click handlers (row/card navigation) can ignore clicks
+  aimed at controls inside them. `DataTable.onRowClick` uses it.
+- **`RadioGroup` gains `size:`** — matching every sibling form control.
+- **Virtualized `DataTable` declares explicit ARIA table roles** — the
+  CSS-display overrides can no longer strip implicit table semantics.
+- **CLI hardening** — `swiflow init` validates project names (no more
+  path-escaping scaffolds); a taken dev-server port prints
+  `port 3000 is already in use — pass --port <n>` instead of a raw error;
+  served files are symlink-canonicalized against the project root.
+- **Region decode diagnostics** — a host/guest schema mismatch now diagnoses
+  in DEBUG instead of a handler silently never firing.
+
 ### Changed
 
-- **Breaking:** `HTTPError.status(Int)` is now `HTTPError.status(Int, body: String?)` — non-2xx responses now carry a best-effort capture of the response text (`nil` if the body couldn't be read), instead of discarding it.
-- **Breaking:** the CSS builder's 72 property free functions (`color(_:)`, `padding(_:)`, …) are now static members of `CSSDeclaration`, and `rule`/`host`/`from`/`to`/`at` take them as variadic arguments with leading-dot syntax: `rule(".card", .padding("1rem"), .color("var(--sw-text)"))`. Frees the module's top-level namespace of single-word names that collided with app code; argument position (not a closure) keeps leading-dot lines from parsing as postfix continuations of the previous statement. The outer `css { }` / `keyframes` / `container` / `media` / `startingStyle` builders are unchanged.
+- **Breaking:** the CSS builder's 72 property free functions (`color(_:)`,
+  `padding(_:)`, …) are now static members of `CSSDeclaration`, and
+  `rule`/`host`/`from`/`to`/`at` take them as variadic arguments with
+  leading-dot syntax: `rule(".card", .padding("1rem"), .color("var(--sw-text)"))`.
+  Frees the module's top-level namespace of single-word names that collided
+  with app code; argument position (not a closure) keeps leading-dot lines
+  from parsing as postfix continuations of the previous statement. The outer
+  `css { }` / `keyframes` / `container` / `media` / `startingStyle` builders
+  are unchanged.
+- **Breaking:** `HTTPError.status(Int)` is now `HTTPError.status(Int, body:
+  String?)` — non-2xx responses carry a best-effort capture of the response
+  text instead of discarding it.
+- **Breaking:** the `Scheduler` protocol is `@MainActor` (custom schedulers
+  must isolate). `RAFScheduler` is no longer public (driver-internal).
+- `$`-projections (`$count`, `$flow`, …) now copy the property's declared
+  access level, so a `public` component's `@State public var` is bindable
+  cross-module.
+- `Mutation` handles: `reset()` detaches an in-flight mutation (its late
+  completion can no longer resurrect the handle's state; cache effects —
+  rollback, invalidations — still run); a mutation that applied optimistic
+  edits but declares no invalidations now diagnoses in DEBUG.
+- Polling queries are paced by the last **attempt**: after retries exhaust,
+  polling resumes one interval after the last failure (previously it refired
+  every tick — a retry storm against a down server); a never-succeeded
+  polling query now recovers at the interval instead of never.
+
+### Fixed
+
+- Comma-separated selectors in scoped `rule()` lists are now fully scoped —
+  everything after the first comma previously leaked as global CSS.
+- `DataTable` row clicks no longer fire when the row-select checkbox or an
+  in-cell control was the real target.
+- Idiomatic multi-binding declarations (`@State var a: Int = 0, b: Int = 0`)
+  are rejected with an actionable diagnostic instead of opaque compiler
+  errors (also `@MutationState`/`@ReducerState`).
+- A user-written `@MainActor func fetch()` on `@Query`/`@Mutation` no longer
+  double-stamps ("multiple global actor attributes").
+- The wasm event dispatcher and HMR bridge guard all JS-number narrows with
+  `Int(exactly:)` — a malformed call from any page script (NaN, a
+  timestamp-sized number) can no longer trap the whole app (wasm32 `Int` is
+  32-bit).
+- A query evicted mid-fetch and recycled can no longer have stale data
+  committed over fresh (entry-identity commit guard).
+- Fragment-bodied components degrade safely (no phantom DOM handles; DEBUG
+  diagnostic recommends wrapping multi-root bodies in one element).
+- Per-column `.width` is honored in virtualized `DataTable` grids.
+- An optimistic update against a not-yet-loaded query skips silently instead
+  of trapping in DEBUG.
+- Bare query flags (`?debug`) surface in `RouterContext.query` as empty
+  strings instead of being dropped.
 
 ---
 
