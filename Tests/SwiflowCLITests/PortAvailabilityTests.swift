@@ -3,6 +3,14 @@ import Foundation
 import Testing
 @testable import SwiflowCLI
 
+// Glibc's SOCK_STREAM is a __socket_type enum, Darwin's is Int32 (mirrors
+// PortAvailability's own seam).
+#if canImport(Glibc)
+private let swiflowSockStream = Int32(SOCK_STREAM.rawValue)
+#else
+private let swiflowSockStream = SOCK_STREAM
+#endif
+
 #if canImport(Glibc)
 import Glibc
 #else
@@ -16,7 +24,7 @@ struct PortAvailabilityTests {
     /// one), returning the chosen port and the still-open fd so the caller
     /// can hold the port for the duration of the test.
     private static func occupyEphemeralPort() -> (port: Int, fd: Int32)? {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = socket(AF_INET, swiflowSockStream, 0)
         guard fd >= 0 else { return nil }
 
         var addr = sockaddr_in()
