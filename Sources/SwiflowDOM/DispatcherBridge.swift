@@ -25,7 +25,11 @@ enum DispatcherBridge {
         let closure = JSClosure { args -> JSValue in
             guard
                 args.count >= 2,
-                let handlerId = args[0].number.map({ Int($0) }),
+                // Int(exactly:) — never the trapping Int(Double): this global is
+                // reachable by ANY page script, and on wasm32 Int is 32-bit, so a
+                // NaN/Infinity/±2^31-exceeding number (a timestamp!) would otherwise
+                // kill the whole app. Malformed calls fall through to .undefined.
+                let handlerId = args[0].number.flatMap({ Int(exactly: $0) }),
                 let payload = args[1].object
             else {
                 return .undefined
