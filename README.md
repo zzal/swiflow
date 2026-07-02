@@ -84,7 +84,9 @@ swift sdk install \
   --checksum a61f0584c93283589f8b2f42db05c1f9a182b506c2957271402992655591dd7c
 
 # 2. Install the swiflow CLI (prebuilt: macOS arm64 / Linux x86_64)
-curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh | sh
+# 0.4.0 is a beta (pre-release), so pin it explicitly — the plain installer
+# resolves the latest *stable* release:
+SWIFLOW_VERSION=0.4.0 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh)"
 
 # 3. Scaffold and run, with state-preserving hot reload on every save
 swiflow init my-app
@@ -92,9 +94,10 @@ cd my-app && swiflow dev      # → http://localhost:3000
 ```
 
 The installer detects your platform, verifies the download's checksum, and drops
-the binary in `/usr/local/bin` (override with `SWIFLOW_INSTALL_DIR`, or pin a
-version with `SWIFLOW_VERSION`). Prefer to build from source — or on an unlisted
-host like an Intel Mac? Skip step 2 and run `swift build -c release --product
+the binary in `/usr/local/bin` (override with `SWIFLOW_INSTALL_DIR`). Without
+`SWIFLOW_VERSION` it installs the latest **stable** release — GitHub's
+`releases/latest` excludes pre-releases, which is why the beta above is pinned.
+Prefer to build from source — or on an unlisted host like an Intel Mac? Skip step 2 and run `swift build -c release --product
 swiflow`, then invoke the CLI from `./.build/release/swiflow`. Either way the
 binary isn't fully standalone: it shells out to your Swift 6.3.2 toolchain and the
 WASM SDK from step 1 to build your app.
