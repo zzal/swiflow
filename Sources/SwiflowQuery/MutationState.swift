@@ -38,7 +38,16 @@ public final class MutationRuntime<M: Mutation> {
         if let owner, let scheduler { scheduler.markDirty(owner) }
     }
 
+    /// Bumped by `reset()`: an in-flight `finish` compares the epoch it was
+    /// spawned under and, when superseded, skips the LOCAL state writes — the
+    /// handle stays `.idle` — while its CACHE effects (success invalidations,
+    /// failure rollback) still run: cache correctness is independent of
+    /// whether anyone is still watching this handle. Mirrors the query
+    /// cache's generation guard.
+    private(set) var epoch = 0
+
     func reset() {
+        epoch += 1
         status = .idle; data = nil; error = nil
         markDirty()
     }
@@ -96,16 +105,34 @@ public final class MutationRuntime<M: Mutation> {
     /// returns a `Result` so `.error` is set in exactly one place and
     /// `mutateAsync` rethrows the same stored error.
     func finish(_ input: M.Input, _ mutation: M,
-                _ rollback: [(key: QueryKey, prior: Any?, gen: Int?)]) async -> Result<M.Output, any Error> {
+                _ rollback: [(key: QueryKey, prior: Any?, gen: Int?)],
+                epoch startEpoch: Int) async -> Result<M.Output, any Error> {
         let result: Result<M.Output, any Error>
         do { result = .success(try await mutation.perform(input)) }
         catch { result = .failure(error) }
 
+        // `reset()` during the await detaches this mutation from the handle:
+        // local state stays wherever reset put it. Cache effects below run
+        // regardless — a detached failure must still roll back its optimistic
+        // edit, and a detached success must still invalidate.
+        let detached = startEpoch != epoch
+
         switch result {
         case .success(let out):
-            status = .success; data = out
+            if !detached { status = .success; data = out }
             if let client {
-                for inv in mutation.invalidations(input: input, output: out) { dispatch(inv, client) }
+                let invalidations = mutation.invalidations(input: input, output: out)
+                #if DEBUG
+                if invalidations.isEmpty && !rollback.isEmpty {
+                    swiflowDiagnostic("""
+                    \(M.self) applied optimistic edits but declares no invalidations: \
+                    the cache keeps the optimistic guess and never reconciles with the \
+                    server value. Override invalidations(input:output:) to refetch the \
+                    keys touched by optimistic(_:).
+                    """)
+                }
+                #endif
+                for inv in invalidations { dispatch(inv, client) }
             }
         case .failure(let err):
             if let client {
@@ -119,9 +146,9 @@ public final class MutationRuntime<M: Mutation> {
                     }
                 }
             }
-            status = .error; error = err
+            if !detached { status = .error; error = err }
         }
-        markDirty()
+        if !detached { markDirty() }
         return result
     }
 
@@ -167,7 +194,8 @@ public struct MutationHandle<M: Mutation> {
     public func mutate(_ input: M.Input) {
         let rt = runtime, m = mutation
         let rollback = rt.beginOptimistic(input, m)        // synchronous: optimism + pending
-        rt.register { _ = await rt.finish(input, m, rollback) }
+        let epoch = rt.epoch
+        rt.register { _ = await rt.finish(input, m, rollback, epoch: epoch) }
     }
 
     /// Awaitable — for sequencing side effects at the call site. Optimism +
@@ -175,7 +203,8 @@ public struct MutationHandle<M: Mutation> {
     public func mutateAsync(_ input: M.Input) async throws -> M.Output {
         let rt = runtime, m = mutation
         let rollback = rt.beginOptimistic(input, m)        // synchronous: optimism + pending
-        let task = Task { await rt.finish(input, m, rollback) }   // typed result
+        let epoch = rt.epoch
+        let task = Task { await rt.finish(input, m, rollback, epoch: epoch) }   // typed result
         rt.register { _ = await task.value }                       // Void wrapper for settle()
         switch await task.value {
         case .success(let out): return out

@@ -81,7 +81,7 @@ struct MutationRollbackGuardTests {
 
         // A.finish fails — without the generation guard it would clobber VB
         // back to V0.
-        _ = await h.runtime.finish("x", m, rollback)
+        _ = await h.runtime.finish("x", m, rollback, epoch: h.runtime.epoch)
 
         // The newer value VB must survive; V0 must NOT be restored.
         #expect(client.getQueryData(key, as: String.self) == vb,
@@ -102,7 +102,7 @@ struct MutationRollbackGuardTests {
         let h = wired(m, client)
         let rollback = h.runtime.beginOptimistic("x", m)
         // No concurrent write between beginOptimistic and finish.
-        _ = await h.runtime.finish("x", m, rollback)
+        _ = await h.runtime.finish("x", m, rollback, epoch: h.runtime.epoch)
 
         #expect(client.getQueryData(key, as: String.self) == v0,
             "rollback must restore the prior when the key was not superseded")

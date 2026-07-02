@@ -279,6 +279,8 @@ struct QueryStateMachineFuzzTests {
 
     @Test("optimistic edit on an unsubscribed query skips silently (no trap, no diagnostic)")
     func optimisticNoValueSkipsSilently() async {
+        await DiagnosticOverrideLock.shared.acquire()
+        defer { DiagnosticOverrideLock.shared.release() }
         var captured: [String] = []
         let prior = _swiflowDiagnosticOverride
         _swiflowDiagnosticOverride = { captured.append($0) }
