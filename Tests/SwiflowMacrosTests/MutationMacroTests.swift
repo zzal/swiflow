@@ -169,4 +169,31 @@ final class MutationMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Audit Wave-2: a witness the author already isolated is NOT stamped again
+    // (a second global-actor attribute is a compile error); nonisolated members
+    // are respected too. Shares ComponentIsolation.memberHasIsolation.
+    func testAlreadyIsolatedWitnessNotDoubleStamped() {
+        assertMacroExpansion(
+            """
+            @Mutation struct Pinned {
+                let id: Int
+                @MainActor func perform(_ x: Int) async throws -> Int { id + x }
+                nonisolated func helper() -> Int { 7 }
+            }
+            """,
+            expandedSource: """
+            struct Pinned {
+                let id: Int
+                @MainActor func perform(_ x: Int) async throws -> Int { id + x }
+                nonisolated func helper() -> Int { 7 }
+
+                init(id: Int) {
+                    self.id = id
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }

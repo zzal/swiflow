@@ -40,7 +40,11 @@ enum ComponentIsolation {
         }
     }
 
-    private static func memberHasIsolation(_ member: some DeclSyntaxProtocol) -> Bool {
+    /// Shared with `MainActorWitnessIsolation` (@Query/@Mutation) — one source
+    /// of truth for "does this member already carry an isolation?" (the audit's
+    /// sibling-consistency rule: this guard existed here but not there, and a
+    /// user's redundant `@MainActor func fetch()` double-stamped).
+    static func memberHasIsolation(_ member: some DeclSyntaxProtocol) -> Bool {
         if let mods = member.asProtocol(WithModifiersSyntax.self)?.modifiers,
            mods.contains(where: { $0.name.tokenKind == .keyword(.nonisolated) }) {
             return true
