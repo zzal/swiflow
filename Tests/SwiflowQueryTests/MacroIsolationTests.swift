@@ -35,3 +35,16 @@ struct MacroIsolationTests {
         #expect(IsoMut(id: 2).optimistic(0).count == 1)
     }
 }
+
+// Audit Wave-2 regression gate: a witness the author ALREADY isolated must not
+// get a second @MainActor stamped (was: "declaration can not have multiple
+// global actor attributes"). Redundant-but-legal explicit isolation compiles.
+@Query struct IsoQueryExplicit {
+    @Key var id: Int
+    @MainActor func fetch() async throws -> Int { id }
+}
+@Mutation struct IsoMutNonisolatedHelper {
+    func perform(_ x: Int) async throws -> Int { x }
+    // A nonisolated member must never be stamped either.
+    nonisolated func helperConstant() -> Int { 7 }
+}

@@ -29,6 +29,10 @@ enum MainActorWitnessIsolation {
     ]
 
     static func attributes(for member: some DeclSyntaxProtocol) -> [AttributeSyntax] {
+        // Never stamp a member the author already isolated (explicit @MainActor,
+        // another global actor, or nonisolated) — a second global-actor attribute
+        // is a compile error. Shares ComponentIsolation's guard (one source of truth).
+        if ComponentIsolation.memberHasIsolation(member) { return [] }
         if let fn = member.as(FunctionDeclSyntax.self), witnessNames.contains(fn.name.text) {
             return ["@MainActor"]
         }
