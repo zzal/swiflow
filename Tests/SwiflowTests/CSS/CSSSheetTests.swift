@@ -141,6 +141,45 @@ struct CSSSheetTests {
         #expect(result.contains(".swiflow-Counter.card:hover, .swiflow-Counter .card:hover {"))
     }
 
+    @Test("comma-separated selector list scopes EVERY part (audit: unscoped-leak fix)")
+    func commaListAllPartsScoped() {
+        let sheet = css { rule(".wmo-label, .range") { margin("0") } }
+        let result = sheet.cssString(scopeClass: "swiflow-C")
+        #expect(result.contains(
+            ".swiflow-C.wmo-label, .swiflow-C .wmo-label, .swiflow-C.range, .swiflow-C .range {"))
+        // The leak: no part may appear unscoped.
+        #expect(!result.contains("\n.range"))
+        #expect(!result.contains(", .range,"))
+    }
+
+    @Test("comma list mixes class and element parts correctly")
+    func commaListMixedParts() {
+        let sheet = css { rule("h2, .title") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-C")
+        #expect(result.contains(".swiflow-C h2, .swiflow-C.title, .swiflow-C .title {"))
+    }
+
+    @Test("commas inside :is(...) do not split")
+    func functionalPseudoCommaNotSplit() {
+        let sheet = css { rule(":is(.a, .b) span") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-C")
+        #expect(result.contains(".swiflow-C :is(.a, .b) span {"))
+    }
+
+    @Test("commas inside quoted attribute values do not split")
+    func quotedAttrCommaNotSplit() {
+        let sheet = css { rule("[data-x=\"a,b\"]") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-C")
+        #expect(result.contains(".swiflow-C [data-x=\"a,b\"] {"))
+    }
+
+    @Test("unscopeable parts in a comma list stay verbatim while class parts scope")
+    func commaListRootStaysVerbatim() {
+        let sheet = css { rule(":root, .theme") { color("red") } }
+        let result = sheet.cssString(scopeClass: "swiflow-C")
+        #expect(result.contains(":root, .swiflow-C.theme, .swiflow-C .theme {"))
+    }
+
     @Test("non-class leading selector unchanged (descendant only)")
     func nonClassLeadingUnchanged() {
         let sheet = css { rule("button") { color("red") } }

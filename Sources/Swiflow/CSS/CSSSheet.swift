@@ -33,22 +33,13 @@ public enum CSSEntry: Sendable {
     package func cssString(scopeClass: String) -> String {
         switch self {
         case .rule(let selector, let declarations):
-            let effectiveSelector: String
-            if !shouldScope(selector) {
-                effectiveSelector = selector
-        // TODO: Comma-separated selector lists (e.g. ".a, .b") are not split here;
-        // only the first selector token gets the dual treatment, the rest are
-        // emitted as-is and end up unscoped. Add a list-splitter when this surfaces.
-            } else if selector.hasPrefix(".") {
-                // Class-leading selector: emit both the compound form (matches the
-                // scope-class root element when it carries this class) and the
-                // descendant form (matches nested elements).
-                let compound = ".\(scopeClass)\(selector)"
-                let descendant = ".\(scopeClass) \(selector)"
-                effectiveSelector = "\(compound), \(descendant)"
-            } else {
-                effectiveSelector = ".\(scopeClass) \(selector)"
-            }
+            // A selector LIST scopes per part — `.a, .b` must scope BOTH `.a`
+            // and `.b`, or everything after the first comma leaks as a global
+            // rule and silently defeats per-component isolation. Commas inside
+            // `:is(...)`/`[attr="a,b"]` don't split (see splitTopLevelCommas).
+            let effectiveSelector = Self.splitTopLevelCommas(selector)
+                .map { scopedSelector($0, scopeClass: scopeClass) }
+                .joined(separator: ", ")
             let decls = declarations.map { "  \($0.name): \($0.value);" }.joined(separator: "\n")
             return "\(effectiveSelector) {\n\(decls)\n}"
         case .keyframes(let name, let stops):
@@ -83,6 +74,65 @@ public enum CSSEntry: Sendable {
     private func shouldScope(_ selector: String) -> Bool {
         let lower = selector.lowercased()
         return !(lower.hasPrefix(":root") || lower.hasPrefix("html") || lower.hasPrefix("body"))
+    }
+
+    /// One (already comma-split) selector's scoped form:
+    /// - unscopeable (`:root`/`html`/`body`) → verbatim;
+    /// - class-leading → the compound form (matches the scope-class root
+    ///   element when it carries this class) PLUS the descendant form
+    ///   (matches nested elements);
+    /// - anything else → descendant form only.
+    private func scopedSelector(_ selector: String, scopeClass: String) -> String {
+        guard shouldScope(selector) else { return selector }
+        if selector.hasPrefix(".") {
+            return ".\(scopeClass)\(selector), .\(scopeClass) \(selector)"
+        }
+        return ".\(scopeClass) \(selector)"
+    }
+
+    /// Split a selector list on top-level commas. Commas inside parentheses
+    /// (`:is(.a, .b)`), brackets, or quoted strings (`[data-x="a,b"]`) do NOT
+    /// split. Parts are whitespace-trimmed; empty parts are dropped. Escaped
+    /// characters in identifiers (`\,`) are not handled — vanishingly rare in
+    /// class names and unsupported by the structural `#css` parser anyway.
+    static func splitTopLevelCommas(_ selector: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        var depth = 0
+        var quote: Character? = nil
+        for ch in selector {
+            if let q = quote {
+                current.append(ch)
+                if ch == q { quote = nil }
+                continue
+            }
+            switch ch {
+            case "\"", "'":
+                quote = ch
+                current.append(ch)
+            case "(", "[":
+                depth += 1
+                current.append(ch)
+            case ")", "]":
+                depth -= 1
+                current.append(ch)
+            case "," where depth == 0:
+                parts.append(Self.trimmed(current))
+                current = ""
+            default:
+                current.append(ch)
+            }
+        }
+        parts.append(Self.trimmed(current))
+        return parts.filter { !$0.isEmpty }
+    }
+
+    /// Foundation-free whitespace trim (core Swiflow avoids Foundation).
+    private static func trimmed(_ s: String) -> String {
+        var sub = Substring(s)
+        while sub.first?.isWhitespace == true { sub.removeFirst() }
+        while sub.last?.isWhitespace == true { sub.removeLast() }
+        return String(sub)
     }
 }
 
