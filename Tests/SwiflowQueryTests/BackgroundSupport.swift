@@ -47,3 +47,24 @@ import Swiflow
     func focus() async { client.focusChanged(visible: true); await settle() }
     var entry: QueryEntry { client.entries[["k"]]! }
 }
+
+/// Serializes tests that install `_swiflowDiagnosticOverride` across an await.
+/// The override is a process global; the repo convention is that override
+/// users stay synchronous (no interleaving on the main actor) — but a test
+/// whose diagnostic fires inside an async path (`finish`, a parked fetch)
+/// must hold the override across a suspension, where a parallel suite's
+/// install/restore would clobber it. Acquire around the whole install→assert
+/// span; release in a defer.
+@MainActor final class DiagnosticOverrideLock {
+    static let shared = DiagnosticOverrideLock()
+    private var busy = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func acquire() async {
+        while busy { await withCheckedContinuation { waiters.append($0) } }
+        busy = true
+    }
+    func release() {
+        busy = false
+        if !waiters.isEmpty { waiters.removeFirst().resume() }
+    }
+}
