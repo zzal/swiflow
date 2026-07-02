@@ -20,6 +20,7 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Changed
 
+- **Breaking:** `HTTPError.status(Int)` is now `HTTPError.status(Int, body: String?)` — non-2xx responses now carry a best-effort capture of the response text (`nil` if the body couldn't be read), instead of discarding it.
 - **Breaking:** the CSS builder's 72 property free functions (`color(_:)`, `padding(_:)`, …) are now static members of `CSSDeclaration`, and `rule`/`host`/`from`/`to`/`at` take them as variadic arguments with leading-dot syntax: `rule(".card", .padding("1rem"), .color("var(--sw-text)"))`. Frees the module's top-level namespace of single-word names that collided with app code; argument position (not a closure) keeps leading-dot lines from parsing as postfix continuations of the previous statement. The outer `css { }` / `keyframes` / `container` / `media` / `startingStyle` builders are unchanged.
 
 ---

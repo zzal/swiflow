@@ -443,13 +443,24 @@ final class DataTableBox {
     /// header row — NOT via a CSS custom property: Swiflow's `.style()` can't set `--vars` on the
     /// DOM (the driver assigns `element.style[name]`, which silently no-ops for custom properties),
     /// so a `var(--…)` template would resolve empty and collapse the grid to one column.
-    private func headerRow(gridColumns: String? = nil) -> VNode {
+    /// `roles`: `true` only in the VIRTUALIZED path. The `display:block`/`grid`
+    /// overrides `.sw-table--virtual` applies (see the stylesheet below) strip
+    /// the implicit table semantics the browser derives from `<table>`/
+    /// `<thead>`/`<tbody>`/`<tr>` layout boxes, so virtualized rendering
+    /// restores them explicitly via ARIA (`role="rowgroup"` here,
+    /// `role="table"`/`role="row"` at the other call sites). The
+    /// non-virtualized path renders plain `<table>` markup, which already has
+    /// correct implicit semantics — no ARIA needed there.
+    private func headerRow(gridColumns: String? = nil, roles: Bool = false) -> VNode {
         var cells: [VNode] = []
         if selection != nil { cells.append(selectAllCell()) }
         cells.append(contentsOf: columns.map(headerCell))
         var trAttrs: [Attribute] = [.class("sw-table__tr sw-table__tr--head")]
         if let gridColumns { trAttrs.append(.style("grid-template-columns", gridColumns)) }
-        return element("thead", children: [element("tr", attributes: trAttrs, children: cells)])
+        if roles { trAttrs.append(.attr("role", "row")) }
+        var theadAttrs: [Attribute] = []
+        if roles { theadAttrs.append(.attr("role", "rowgroup")) }
+        return element("thead", attributes: theadAttrs, children: [element("tr", attributes: trAttrs, children: cells)])
     }
 
     private func alignWidth(_ col: DataColumn) -> [Attribute] {
@@ -508,8 +519,10 @@ final class DataTableBox {
         return window.map(rowVNode)
     }
 
-    private func fullWidthRow(_ colspan: Int, _ cls: String, _ children: [VNode]) -> VNode {
-        element("tr", children: [
+    private func fullWidthRow(_ colspan: Int, _ cls: String, _ children: [VNode], roles: Bool = false) -> VNode {
+        var trAttrs: [Attribute] = []
+        if roles { trAttrs.append(.attr("role", "row")) }
+        return element("tr", attributes: trAttrs, children: [
             element("td", attributes: [.class(cls), .attr("colspan", colspan)], children: children),
         ])
     }
@@ -556,6 +569,7 @@ final class DataTableBox {
         let tableAttrs: [Attribute] = [
             .class("sw-table sw-table--virtual"),
             .attr("aria-rowcount", String(rowCount)),
+            .attr("role", "table"),
         ]
         let total = rowCount
         let end = first + window.count
@@ -563,9 +577,10 @@ final class DataTableBox {
                             attributes: [
                                 .style("padding-top", "\(first * rowHeight)px"),
                                 .style("padding-bottom", "\(max(0, total - end) * rowHeight)px"),
+                                .attr("role", "rowgroup"),
                             ],
                             children: virtualBodyRows(window, first: first, rowHeight: rowHeight, gridColumns: cols))
-        let table = element("table", attributes: tableAttrs, children: [headerRow(gridColumns: cols), tbody])
+        let table = element("table", attributes: tableAttrs, children: [headerRow(gridColumns: cols, roles: true), tbody])
         var scrollAttrs: [Attribute] = [.class("sw-table__scroll")]
         if let maxHeight { scrollAttrs.append(.style("max-height", maxHeight)) }
         scrollAttrs.append(.on(.custom("scroll")) { self.onScroll() })
@@ -579,11 +594,11 @@ final class DataTableBox {
         let colspan = columns.count + (selection != nil ? 1 : 0)
         if loading {
             _rowCache.removeAll(keepingCapacity: true)
-            return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")])]
+            return [fullWidthRow(colspan, "sw-table__loading", [Spinner(label: "Loading")], roles: true)]
         }
         if rowCount == 0 {
             _rowCache.removeAll(keepingCapacity: true)
-            return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)])]
+            return [fullWidthRow(colspan, "sw-table__empty", [text(emptyText)], roles: true)]
         }
         #if DEBUG
         _rowRebuildsForTesting = 0
@@ -622,6 +637,7 @@ final class DataTableBox {
             .style("grid-template-columns", gridColumns),   // inline, not a CSS var — see headerRow note
             .style("height", "\(rowHeight)px"),
             .attr("aria-rowindex", String(absolute + 1)),
+            .attr("role", "row"),
         ]
         if let sel = selection { attrs.append(.attr("aria-selected", sel.isSelected(i) ? "true" : "false")) }
         if let onRowClick {

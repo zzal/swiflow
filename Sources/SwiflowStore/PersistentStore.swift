@@ -34,6 +34,14 @@ public final class PersistentStore {
     private let storeName: String
     /// The opened `IDBDatabase`, cached after the first `database()` call.
     private var database: JSObject?
+    /// The in-flight open, memoized so concurrent first callers all await the
+    /// SAME `open` request instead of each issuing their own `indexedDB.open`
+    /// (which would leak every loser's connection — IndexedDB has no
+    /// "cancel", so an abandoned open just sits there holding a connection
+    /// open). Cleared once the open settles (success or failure) so a failed
+    /// open can be retried by the next caller rather than replaying the
+    /// same rejection forever.
+    private var openTask: Task<DatabaseBox, Error>?
 
     /// - Parameters:
     ///   - database: IndexedDB database name. When omitted it defaults to the
@@ -112,21 +120,35 @@ public final class PersistentStore {
     // MARK: - IndexedDB plumbing
 
     /// Opens (and caches) the database, creating the object store on first use.
+    ///
+    /// Single-flight: if an open is already in progress (e.g. two concurrent
+    /// first calls to `load`/`save`/`remove`), the second caller awaits the
+    /// SAME `Task` rather than starting its own `indexedDB.open` — avoiding a
+    /// leaked, never-closed second connection from the loser of the race.
     private func openedDatabase() async throws -> JSObject {
         if let database { return database }
-        guard let factory = JSObject.global.indexedDB.object,
-              let request = factory.open!(databaseName, 1).object else {
-            throw StoreError.unavailable
+        if let openTask { return try await openTask.value.value }
+
+        let task = Task<DatabaseBox, Error> { [databaseName, storeName] in
+            guard let factory = JSObject.global.indexedDB.object,
+                  let request = factory.open!(databaseName, 1).object else {
+                throw StoreError.unavailable
+            }
+            try await self.awaitRequest(request, onUpgradeNeeded: {
+                // `onupgradeneeded` fires before `onsuccess` when the DB is
+                // created or its version bumps — the only place an object
+                // store may be made.
+                guard let db = request.result.object else { return }
+                let exists = db.objectStoreNames.object?.contains!(storeName).boolean ?? false
+                if !exists { _ = db.createObjectStore!(storeName) }
+            })
+            guard let opened = request.result.object else { throw StoreError.unavailable }
+            return DatabaseBox(opened)
         }
-        let storeName = self.storeName
-        try await awaitRequest(request, onUpgradeNeeded: {
-            // `onupgradeneeded` fires before `onsuccess` when the DB is created
-            // or its version bumps — the only place an object store may be made.
-            guard let db = request.result.object else { return }
-            let exists = db.objectStoreNames.object?.contains!(storeName).boolean ?? false
-            if !exists { _ = db.createObjectStore!(storeName) }
-        })
-        guard let opened = request.result.object else { throw StoreError.unavailable }
+        openTask = task
+        defer { openTask = nil }
+
+        let opened = try await task.value.value
         database = opened
         return opened
     }
@@ -177,6 +199,17 @@ public final class PersistentStore {
 /// See `awaitRequest` for the retain-cycle lifetime trick.
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
+}
+
+/// Wraps a `JSObject` so it can be the `Success` type of an unstructured
+/// `Task` — `Task.value` requires `Success: Sendable`, and `JSObject` isn't
+/// (it's a JS-heap reference). `@unchecked Sendable` is safe here for the
+/// same reason it is throughout this file: Swiflow is single-threaded wasm,
+/// and every access (task body + all `openedDatabase()` callers) happens on
+/// `@MainActor`.
+private struct DatabaseBox: @unchecked Sendable {
+    let value: JSObject
+    init(_ value: JSObject) { self.value = value }
 }
 
 #else

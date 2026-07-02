@@ -114,9 +114,23 @@ public struct HTTPClient: Sendable {
         catch { throw HTTPError.transport(String(describing: error)) }
 
         guard response.ok.boolean == true else {
-            throw HTTPError.status(Int(response.status.number ?? 0))
+            let status = Int(response.status.number ?? 0)
+            throw HTTPError.status(status, body: await Self.readBody(response))
         }
         return response
+    }
+
+    /// Best-effort capture of a non-2xx response's text body, for
+    /// `HTTPError.status`'s `body`. Swallows any read failure (already
+    /// consumed body, malformed `text()` result, rejected promise) and
+    /// returns `nil` rather than letting a body-read problem mask the
+    /// original status error.
+    private static func readBody(_ response: JSValue) async -> String? {
+        guard let textValue = response.text().object, let textPromise = JSPromise(textValue) else {
+            return nil
+        }
+        guard let text = try? await textPromise.value else { return nil }
+        return text.string
     }
 
     /// Awaits and decodes a `Response`'s JSON body into `T`.
