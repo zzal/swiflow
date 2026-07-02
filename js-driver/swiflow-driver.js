@@ -63,6 +63,29 @@
   }
 
   /**
+   * True when the event originated inside an interactive descendant of the
+   * bound element — a link/button/form control between `target` and
+   * `currentTarget` (exclusive at both ends). Lets a container-level click
+   * handler (row/card navigation) ignore clicks that were "really" aimed at
+   * a control inside it, without needing target identity to cross the wasm
+   * boundary. `label` counts: clicking a label toggles its control.
+   */
+  function fromInteractiveDescendant(event) {
+    const t = event.target;
+    const el = t instanceof Element ? t : (t && t.parentElement) || null;
+    if (!el || !el.closest || !event.currentTarget) return false;
+    const hit = el.closest(
+      "a[href],button,input,select,textarea,summary,label,[contenteditable]:not([contenteditable='false'])"
+    );
+    return !!(
+      hit &&
+      hit !== event.currentTarget &&
+      event.currentTarget.contains &&
+      event.currentTarget.contains(hit)
+    );
+  }
+
+  /**
    * Serialize a DOM event into the shape Swift expects.
    * EventInfo carries: type, optional targetValue (for value-bearing
    * inputs), optional targetChecked (for checkbox/radio inputs),
@@ -84,6 +107,7 @@
       targetValue: targetValue,
       targetChecked: targetChecked,
       isSelfTarget: target === event.currentTarget,
+      fromInteractiveDescendant: fromInteractiveDescendant(event),
       key: key,
       shiftKey: Boolean(event.shiftKey),
       ctrlKey: Boolean(event.ctrlKey),

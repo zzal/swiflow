@@ -9,7 +9,7 @@ import Swiflow
 ///
 /// The registered closure expects two arguments from JS:
 /// 1. `handlerId: Number` — the integer ID stored in `HandlerRegistry`.
-/// 2. `eventPayload: Object` — `{ type, targetValue?, targetChecked?, isSelfTarget,
+/// 2. `eventPayload: Object` — `{ type, targetValue?, targetChecked?, isSelfTarget, fromInteractiveDescendant, detail?,
 ///    key?, shiftKey, ctrlKey, altKey, metaKey }`.
 enum DispatcherBridge {
     /// Strong reference holding the `JSClosure` so it isn't deallocated.
@@ -35,6 +35,7 @@ enum DispatcherBridge {
             let targetValue = payload.targetValue.string
             let targetChecked = payload.targetChecked.boolean
             let isSelfTarget = payload.isSelfTarget.boolean ?? false
+            let fromInteractiveDescendant = payload.fromInteractiveDescendant.boolean ?? false
             let key = payload.key.string
             let shiftKey = payload.shiftKey.boolean ?? false
             let ctrlKey = payload.ctrlKey.boolean ?? false
@@ -50,6 +51,7 @@ enum DispatcherBridge {
                         targetValue: targetValue,
                         targetChecked: targetChecked,
                         isSelfTarget: isSelfTarget,
+                        fromInteractiveDescendant: fromInteractiveDescendant,
                         key: key,
                         shiftKey: shiftKey,
                         ctrlKey: ctrlKey,

@@ -588,6 +588,26 @@ struct DataTableRowClickTests {
         #expect(clicked == [1])
     }
 
+    @Test("onRowClick ignores clicks from interactive descendants (checkbox / action buttons)")
+    func rowClickIgnoresInteractiveDescendants() {
+        var clicked: [Int] = []
+        let b = makeDataTableBox(people, id: \.id, onRowClick: { clicked.append($0.id) }) {
+            Column("Name", value: \.name)
+        }
+        let reg = HandlerRegistry()
+        HandlerAmbient.current = reg
+        let node = b.body
+        let tr0 = allTags(.element(allTags(node, "tbody").first!), "tr")[0]
+        let handler = reg.handler(forID: tr0.handlers["click"]!.id)!
+        // A click that bubbled from a control inside the row (row-select
+        // checkbox, an Actions-column Button) must NOT fire row navigation.
+        handler.invoke(EventInfo(type: "click", fromInteractiveDescendant: true))
+        #expect(clicked.isEmpty)
+        // A plain cell click still navigates.
+        handler.invoke(EventInfo(type: "click"))
+        #expect(clicked == [1])
+    }
+
     @Test("no onRowClick ⇒ no click handler and no clickable class") func noRowClick() {
         let b = makeDataTableBox(people, id: \.id) { Column("Name", value: \.name) }
         let root = building { b.body }

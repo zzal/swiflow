@@ -190,6 +190,22 @@ public struct EventInfo: Equatable, Sendable {
     /// the dialog; a click on its content targets a child).
     public let isSelfTarget: Bool
 
+    /// True when the event originated inside an **interactive** descendant of
+    /// the bound element — a link, button, form control, `summary`, `label`,
+    /// or `contenteditable` region strictly between the target and the bound
+    /// element. Lets a container-level click handler (row/card navigation)
+    /// ignore clicks that were really aimed at a control inside it:
+    ///
+    ///     .on(.click) { info in
+    ///         if !info.fromInteractiveDescendant { openDetail() }
+    ///     }
+    ///
+    /// `false` when the handler is bound to the control itself (its own
+    /// clicks are not "from a descendant"). Computed in the JS driver via
+    /// `target.closest(...)`, so target identity never crosses the wasm
+    /// boundary.
+    public let fromInteractiveDescendant: Bool
+
     /// For keyboard events (`keydown`/`keyup`/`keypress`), `event.key` — the value of
     /// the key pressed (e.g. `"ArrowDown"`, `"Enter"`, `"Escape"`, `"Tab"`, `"a"`); `nil`
     /// for non-keyboard events. Enables keyboard navigation (combobox/menu roving,
@@ -215,6 +231,7 @@ public struct EventInfo: Equatable, Sendable {
         targetValue: String? = nil,
         targetChecked: Bool? = nil,
         isSelfTarget: Bool = false,
+        fromInteractiveDescendant: Bool = false,
         key: String? = nil,
         shiftKey: Bool = false,
         ctrlKey: Bool = false,
@@ -226,6 +243,7 @@ public struct EventInfo: Equatable, Sendable {
         self.targetValue = targetValue
         self.targetChecked = targetChecked
         self.isSelfTarget = isSelfTarget
+        self.fromInteractiveDescendant = fromInteractiveDescendant
         self.key = key
         self.shiftKey = shiftKey
         self.ctrlKey = ctrlKey
