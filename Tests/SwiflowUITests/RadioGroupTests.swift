@@ -52,7 +52,7 @@ struct RadioGroupTests {
         let node = building { RadioGroup("Plan", selection: unused, options: ["Free", "Pro", "Team"]) }
         let root = el(node)!
         #expect(root.tag == "fieldset")
-        #expect(root.attributes["class"] == "sw-radio")
+        #expect(root.attributes["class"] == "sw-radio sw-radio--md")
         #expect(allText(.element(legendOf(node)!)) == "Plan")
         let rs = radios(node)
         #expect(rs.count == 3)
@@ -100,7 +100,7 @@ struct RadioGroupTests {
 
     @Test("caller attributes and class land on the fieldset") func callerAttributesOnFieldset() {
         let root = el(building { RadioGroup("X", selection: unused, options: ["A"], .class("mine"), .data("test", "rg")) })!
-        #expect(root.attributes["class"] == "sw-radio mine")   // merged, not clobbered
+        #expect(root.attributes["class"] == "sw-radio sw-radio--md mine")   // merged, not clobbered
         #expect(root.attributes["data-test"] == "rg")
     }
 
@@ -133,6 +133,35 @@ struct RadioGroupTests {
         #expect(css.contains("input[type=\"radio\"]"))
         #expect(css.contains("accent-color: var(--sw-accent)"))
         #expect(css.contains(".sw-radio[aria-invalid=\"true\"]"))
+        #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
+    }
+
+    @Test("default size is md, matching the sibling controls' modifier-class convention") func defaultSizeIsMd() {
+        let root = el(building { RadioGroup("Plan", selection: unused, options: ["Free"]) })!
+        #expect(root.attributes["class"] == "sw-radio sw-radio--md")
+    }
+
+    @Test("size: .sm / .lg add the matching modifier class") func explicitSizes() {
+        let sm = el(building { RadioGroup("Plan", selection: unused, options: ["Free"], size: .sm) })!
+        #expect(sm.attributes["class"] == "sw-radio sw-radio--sm")
+        let lg = el(building { RadioGroup("Plan", selection: unused, options: ["Free"], size: .lg) })!
+        #expect(lg.attributes["class"] == "sw-radio sw-radio--lg")
+    }
+
+    @Test("Field-integrated overload also threads size") func fieldOverloadSize() {
+        var ctrl = FormController()
+        let vb = Binding<String>(get: { "" }, set: { _ in })
+        let cb = Binding<FormController>(get: { ctrl }, set: { ctrl = $0 })
+        let field = Field("plan", vb, cb, .required())
+        let root = el(building { RadioGroup("Plan", field: field, options: ["Free"], size: .sm) })!
+        #expect(root.attributes["class"] == "sw-radio sw-radio--sm")
+    }
+
+    @Test("stylesheet has sw-radio--sm/lg size rules, mirroring sw-check--sm/lg") func sizeStylesheet() {
+        let css = formControlsSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-radio--sm"))
+        #expect(css.contains(".sw-radio--md"))
+        #expect(css.contains(".sw-radio--lg"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }

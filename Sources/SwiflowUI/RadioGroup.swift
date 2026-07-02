@@ -26,12 +26,13 @@ public func RadioGroup(
     options: [SelectOption],
     name: String? = nil,
     error: String? = nil,
+    size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...
 ) -> VNode {
     radioGroupControl(label: label, selection: selection, options: options,
-                      name: name ?? radioGroupName(label), error: error, required: required,
+                      name: name ?? radioGroupName(label), error: error, size: size, required: required,
                       disabled: disabled, attributes: attributes, onSelect: nil)
 }
 
@@ -44,12 +45,13 @@ public func RadioGroup(
     field: Field<String>,
     options: [SelectOption],
     name: String? = nil,
+    size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
     _ attributes: Attribute...
 ) -> VNode {
     radioGroupControl(label: label, selection: field.binding, options: options,
-                      name: name ?? radioGroupName(label), error: field.error, required: required,
+                      name: name ?? radioGroupName(label), error: field.error, size: size, required: required,
                       disabled: disabled, attributes: attributes,
                       onSelect: { _ in field.markTouched() })
 }
@@ -70,6 +72,7 @@ private func radioGroupControl(
     options: [SelectOption],
     name: String,
     error: String?,
+    size: ControlSize,
     required: Bool,
     disabled: Bool,
     attributes: [Attribute],
@@ -100,7 +103,7 @@ private func radioGroupControl(
     }
     if let errorNode = fieldErrorNode(error) { children.append(errorNode) }
 
-    let groupAttrs = fieldGroupAttributes(["sw-radio"], error: error, required: required,
+    let groupAttrs = fieldGroupAttributes(["sw-radio", "sw-radio--\(size.modifierClass)"], error: error, required: required,
                                           disabled: disabled, caller: attributes)
     return element("fieldset", attributes: groupAttrs, children: children)
 }
