@@ -31,13 +31,21 @@ struct BackgroundPollingTests {
         await bg.advance(.seconds(9999))
         #expect(bg.probe.calls == 1)
     }
-    @Test("A query that never succeeded does not poll — the deadline measures from last success") func neverSucceededDoesNotPoll() async {
+    @Test("A never-succeeded polling query retries at the interval — one attempt per poll")
+    func neverSucceededPollsAtInterval() async {
+        // Semantics changed with the retry-storm fix (audit Wave-1 #6): polls
+        // are paced by the last ATTEMPT (lastSettled), so a polling query whose
+        // first fetch failed recovers at the interval instead of never polling
+        // again (the old "measures from last success" rule stranded it forever).
         let bg = BG(refetchInterval: .seconds(5))
-        bg.probe.failuresRemaining = 1           // initial fetch fails → lastFetched stays nil
+        bg.probe.failuresRemaining = 1           // initial fetch fails at t=0
         await bg.settle()
         #expect(bg.probe.calls == 1)
-        await bg.advance(.seconds(5))            // poll branch requires lastFetched != nil
-        #expect(bg.probe.calls == 1)             // retry is .none here, so no retry either
+        await bg.advance(.seconds(4))            // within the interval: no attempt
+        #expect(bg.probe.calls == 1)
+        await bg.advance(.seconds(1))            // t=5: one attempt (succeeds)
+        #expect(bg.probe.calls == 2)
+        #expect(bg.entry.error == nil)
     }
 }
 
@@ -133,8 +141,8 @@ struct BackgroundSupersedeTests {
 @MainActor
 struct BackgroundPollRetryTests {
     /// A polling query whose poll fails enters the retry cycle; once retries are
-    /// exhausted it resumes polling (failures never update `lastFetched`, so the
-    /// poll deadline still measures from the last success).
+    /// exhausted it resumes polling a full interval after the last ATTEMPT
+    /// (paced by `lastSettled` — the retry-storm fix, audit Wave-1 #6).
     @Test("A failed poll enters the retry cycle, then polling resumes once retries exhaust") func failedPollRetriesThenResumesPolling() async {
         let bg = BG(refetchInterval: .seconds(5),
                     retry: RetryPolicy(maxRetries: 1, baseDelay: .seconds(1), maxDelay: .seconds(30)))
@@ -149,7 +157,12 @@ struct BackgroundPollRetryTests {
         #expect(bg.probe.calls == 3)
         #expect(bg.entry.nextRetryDue == nil)     // retries exhausted, not stuck
 
-        await bg.advance(.seconds(1))             // t=7: poll resumes (7-0 >= 5) → fetch #4 succeeds
+        // Retry-storm fix (audit Wave-1 #6): the next poll is a full interval
+        // after the last ATTEMPT (t=6), not measured from the last success —
+        // the old rule made the poll refire immediately after exhaustion.
+        await bg.advance(.seconds(1))             // t=7: within interval of t=6 → nothing
+        #expect(bg.probe.calls == 3)
+        await bg.advance(.seconds(4))             // t=11: 11-6 >= 5 → fetch #4 succeeds
         #expect(bg.probe.calls == 4)
         #expect(bg.entry.nextRetryDue == nil)
     }
