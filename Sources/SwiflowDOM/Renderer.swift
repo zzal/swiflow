@@ -251,7 +251,7 @@ final class Renderer {
     /// Destroys the mounted tree, emits remove patches to the JS driver,
     /// and cancels the RAF scheduler. Called by `Swiflow.unmount(into:)`.
     /// Safe to call on an already-torn-down renderer (no-op if mountTree is nil).
-    package func teardown() {
+    func teardown() {
         guard let tree = mountTree else { return }
 
         var patches: [Patch] = []
