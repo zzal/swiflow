@@ -185,4 +185,44 @@ final class StateMacroTests: XCTestCase {
             macros: testMacros
         )
     }
+
+    // Access propagation: the $ projection copies the property's declared
+    // access so a public component's public @State is bindable cross-module
+    // (SynthesizedAccess rule — audit Wave-2).
+    func testPublicStateEmitsPublicProjection() {
+        assertMacroExpansion(
+            """
+            final class Counter {
+                @State public var count: Int = 0
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                public var count: Int = 0 {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            count = oldValue
+                            return
+                        }
+                        if let s = runtimeScheduler, let o = runtimeOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                @MainActor public var $count: Binding<Int> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.count
+                        },
+                        set: { [unowned self] in
+                            self.count = $0
+                        }
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }

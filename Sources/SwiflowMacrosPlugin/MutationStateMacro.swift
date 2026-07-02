@@ -45,8 +45,11 @@ public struct MutationStateMacro: PeerMacro {
         let runtime: DeclSyntax = """
             @MainActor private let _\(raw: name)_mutationRuntime = MutationRuntime<\(raw: mutationType)>()
             """
+        // Projection copies the property's declared access (SynthesizedAccess
+        // rule); the backing runtime above stays private — implementation detail.
+        let access = SynthesizedAccess.keyword(for: varDecl.modifiers)
         let projection: DeclSyntax = """
-            @MainActor var $\(raw: name): MutationHandle<\(raw: mutationType)> {
+            @MainActor \(raw: access)var $\(raw: name): MutationHandle<\(raw: mutationType)> {
                 MutationHandle(runtime: _\(raw: name)_mutationRuntime, mutation: \(raw: name))
             }
             """

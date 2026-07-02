@@ -46,8 +46,11 @@ public struct ReducerStateMacro: PeerMacro {
         let runtime: DeclSyntax = """
             @MainActor private let _\(raw: name)_reducerRuntime = ReducerRuntime<\(raw: reducerType)>()
             """
+        // Projection copies the property's declared access (SynthesizedAccess
+        // rule); the backing runtime above stays private — implementation detail.
+        let access = SynthesizedAccess.keyword(for: varDecl.modifiers)
         let projection: DeclSyntax = """
-            @MainActor var $\(raw: name): ReducerHandle<\(raw: reducerType)> {
+            @MainActor \(raw: access)var $\(raw: name): ReducerHandle<\(raw: reducerType)> {
                 ReducerHandle(runtime: _\(raw: name)_reducerRuntime, reducer: \(raw: name))
             }
             """

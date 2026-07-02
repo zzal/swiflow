@@ -114,6 +114,13 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         }
         let valueType = typeAnno.type.trimmedDescription
         let name = identifier.text
+        // The $ projection copies the property's own declared access (the
+        // effective-access rule: an unannotated var is internal even on a
+        // public class), so a public component's public @State is bindable
+        // cross-module. NB: on a `private(set)` var the projection still
+        // exposes writes at the getter's access — @State + private(set) is
+        // a contradiction (bindings exist to write); avoid combining them.
+        let access = SynthesizedAccess.keyword(for: varDecl.modifiers)
 
         // `$name` reads/writes the backing `name`, which @Component now isolates
         // to @MainActor (bare → memberAttribute-injected; explicit @MainActor →
@@ -123,7 +130,7 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         // type). Redundant on an explicit-@MainActor class, exactly like the
         // @Component-emitted `stateCells`.
         let projected: DeclSyntax = """
-            @MainActor var $\(raw: name): Binding<\(raw: valueType)> {
+            @MainActor \(raw: access)var $\(raw: name): Binding<\(raw: valueType)> {
                 Binding(
                     get: { [unowned self] in
                         self.\(raw: name)
