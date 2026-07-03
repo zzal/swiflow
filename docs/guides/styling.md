@@ -77,8 +77,8 @@ values through CSS custom properties, which also update without re-injecting
 the sheet:
 
 ```swift
-// set on the node:
-div(.class("badge")).style("--badge-color", magColor)
+// set on the node (.cssVar is an intent-revealing alias for .style):
+div(.class("badge")).cssVar("--badge-color", magColor)
 ```
 
 ```css

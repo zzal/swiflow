@@ -440,9 +440,9 @@ final class DataTableBox {
     // MARK: header
 
     /// `gridColumns` (virtualized mode only) is applied INLINE as `grid-template-columns` on the
-    /// header row — NOT via a CSS custom property: Swiflow's `.style()` can't set `--vars` on the
-    /// DOM (the driver assigns `element.style[name]`, which silently no-ops for custom properties),
-    /// so a `var(--…)` template would resolve empty and collapse the grid to one column.
+    /// header row rather than via a CSS custom property. (Historically the driver couldn't set
+    /// `--vars` at all; it can now, but the direct property stays — one indirection fewer and no
+    /// `var(--…)` resolution in the hot virtualized path.)
     /// `roles`: `true` only in the VIRTUALIZED path. The `display:block`/`grid`
     /// overrides `.sw-table--virtual` applies (see the stylesheet below) strip
     /// the implicit table semantics the browser derives from `<table>`/

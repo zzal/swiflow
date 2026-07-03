@@ -8,9 +8,9 @@ import JavaScriptKit
 /// alert opens/closes to match. Built on a native `<dialog>` driven by
 /// `showModal()`/`close()` (so it's a true modal — top layer, backdrop, focus trap,
 /// ESC-to-close, all native), with token-driven styling and `@starting-style` entry
-/// animation. Dismissal is ESC + the action buttons you provide (click-outside isn't
-/// wired — `EventInfo` has no target identity yet, roadmap #4); the native `close`
-/// event (incl. ESC) writes `isPresented` back to `false`.
+/// animation. Dismissal is ESC + the action buttons you provide, plus an opt-in
+/// backdrop click (`dismissOnBackdrop:`, via `EventInfo.isSelfTarget`); the native
+/// `close` event (incl. ESC) writes `isPresented` back to `false`.
 ///
 /// Returns an embedded component, so it can sit directly in a parent's `body`:
 ///

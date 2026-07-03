@@ -29,11 +29,18 @@ A `Query` is a small `@MainActor` value type describing one fetch:
 public protocol Query {
     associatedtype Value: Equatable & Sendable
     var queryKey: QueryKey { get }
-    var tags: Set<QueryTag> { get }          // default []
-    var staleTime: Duration { get }          // default .zero
+    var tags: Set<QueryTag> { get }              // default []
+    var staleTime: Duration { get }              // default .zero
+    var refetchInterval: Duration? { get }       // default nil (no polling)
+    var refetchOnFocus: Bool { get }             // default true
+    var retry: RetryPolicy { get }               // default .default (3 retries, exp backoff)
+    var gcTime: Duration { get }                 // default .seconds(300)
     func fetch() async throws -> Value
 }
 ```
+
+Only `queryKey` and `fetch()` are required — everything else has a
+protocol-extension default, so a minimal query is just those two.
 
 The canonical demo query:
 
@@ -265,20 +272,22 @@ no-latency stub and `settle()` returns in one round.
 The full runnable demo is `examples/QueryDemo/`; run it with `swiflow dev`
 from that directory.
 
-## Deferred to later phases
+## Beyond the read path
 
-Query Core is deliberately the *read* half of the data layer. Not yet shipped,
-and explicitly out of scope for Phase 21:
+This guide covers the *read* half of the data layer. The rest has shipped and
+builds on the same `QueryClient` cache and `Query` protocol:
 
-- **Mutations** — a `useMutation`-style write path with optimistic updates and
-  automatic invalidation on success.
-- **Background refetch triggers** — refetch on window focus, on a polling
-  interval, or on reconnect.
-- **Garbage collection** — eviction of cache entries with no subscribers after
-  a `cacheTime` window.
-- **`select`** — derive a transformed/narrowed view of a query's data without
-  re-fetching, with structural-sharing equality.
-- **Auto-retry** — exponential-backoff retry of failed fetches.
+- **Mutations** — `@MutationType` + `@MutationState`: a write path with
+  optimistic updates (generation-guarded rollback via `OptimisticEdit`) and
+  tag-based invalidation on success. `examples/TodoCRUD/` is the worked
+  example.
+- **Background refetch** — refetch on window focus (`refetchOnFocus`, on by
+  default) and on a polling interval (`refetchInterval`). Both defer to the
+  retry backoff after failures rather than hammering a failing endpoint.
+- **Garbage collection** — cache entries with no subscribers are evicted
+  after `gcTime` (default 5 minutes).
+- **Auto-retry** — `retry: RetryPolicy`, default 3 attempts with exponential
+  backoff.
 
-These build on the same `QueryClient` cache and `Query` protocol; the surface
-above is stable enough to use now.
+Still deferred: **`select`** (a transformed/narrowed view of a query's data
+without re-fetching) and refetch-on-reconnect.

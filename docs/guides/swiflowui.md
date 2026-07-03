@@ -130,15 +130,15 @@ Spinner()                                   // role=status; pauses under reduced
 ProgressView(value: 0.6)                     // native <progress>, value clamped 0…1
 Card { h3("Title"); p("Body") }              // elevated surface (shadow)
 Card(variant: .outlined) { … }               // bordered
-Badge("New", variant: .accent)               // pill; .neutral/.accent/.danger/.success
+Badge("New", variant: .accent)               // pill; .neutral/.accent/.info/.success/.warning/.danger
 ```
 
 ## Overlays
 
 All three are accessible, token-driven, and animate via `@starting-style` /
 `exitAnimation` (collapsing to instant under reduced motion). Dismissal is ESC +
-explicit controls (click-outside isn't wired — the framework can't yet expose the
-event target).
+explicit controls; `Alert` can additionally close on a backdrop click — opt in
+with `dismissOnBackdrop: true` (detected via `EventInfo.isSelfTarget`).
 
 ### Alert — a modal `<dialog>`
 

@@ -8,10 +8,11 @@ Phase 7 ships the primitives a controlled-input form needs:
 - `Ref<JSObject>` + `.ref(_:)` — direct DOM access for `focus()`, scroll, etc.
 - `.on(.input)` / `.on(.change)` / `.on(.blur)` / `.on(.submit)` — event hooks.
 
-This guide is a recipe collection, not a framework. A higher-level
-`Field` / `Form` layer with reusable validators arrives in Phase 12 — for
-now, controlled inputs plus a few `@State` fields and a handler is the
-recommended path.
+This guide is a recipe collection built on those primitives. A higher-level
+`Form` / `Field` / `FormController` layer with reusable validators has since
+shipped (see [the last section](#the-formfield-layer)) — but the recipes
+below remain the foundation, and for small forms controlled inputs plus a few
+`@State` fields and a handler is still a perfectly good path.
 
 > **HMR preserves form state.** When you save a Swift source file while `swiflow dev` is running, the runtime captures the current `@State` values (including everything bound to a `.value($text)` or `.checked($flag)`) before re-importing the new module, then restores them into the freshly-mounted tree. Typing in a form, saving a render tweak, and watching the field's value survive is the centerpiece demo of Phase 8.
 
@@ -119,9 +120,9 @@ final class Picker: Component {
 }
 ```
 
-Multi-select (`<select multiple>` → `Binding<[String]>`) lands in
-Phase 12 with the rest of the form framework. For now, render a list
-of `input(type: "checkbox")` rows backed by a `@State var selected: Set<String>`.
+Multi-select (`<select multiple>` → `Binding<[String]>`) is not supported
+yet. Render a list of `input(type: "checkbox")` rows backed by a
+`@State var selected: Set<String>` instead.
 
 ## Refs — direct DOM access
 
@@ -258,12 +259,28 @@ Two things to notice:
   passing `false` removes the attribute entirely, matching HTML's
   boolean-attribute semantics.
 
-## What's next
+## The Form/Field layer
 
-Phase 12 ships a higher-level `Field` / `Form` framework with reusable
-validators, async submit, server-error reconciliation, and field-level
-focus tracking. Until then, the pattern above — controlled inputs,
-`@State` per field, plain Swift validators, `.on(.blur)` for
-non-noisy feedback — is the recommended path. It's a small enough
-amount of code that "graduate to the framework later" is a real
-option, not a rewrite.
+The higher-level framework this guide used to promise has shipped:
+
+- **`FormController`** — one `@State var ctrl = FormController()` per form
+  holds touched-state and the initial-value snapshots that power `isDirty`
+  and `reset()`.
+- **`Field("email", $email, $ctrl, [.required(), .email])`** — pairs a
+  binding with reusable `Validator`s (`.required()`, `.minLength(_:)`,
+  `.maxLength(_:)`, `.email`, `.regex(_:message:)`, `.custom(_:_:)`);
+  exposes `isValid` / `isDirty`.
+- **`Form($ctrl) { field1; field2 }`** — aggregates fields:
+  `form.isValid`, `form.isDirty`, `form.touchAll()` (before submit),
+  `form.reset()`.
+
+One sharp edge: a `FormController` snapshots each field's **first** value
+per key, so it is a one-record-at-a-time object. When the edited record's
+identity changes (add → edit, record A → record B), replace the controller
+wholesale (`self.ctrl = FormController()`) rather than reusing it —
+`examples/HelloWorld/`'s `SignIn` shows the pattern, and SwiflowUI's
+`TextField` renders a `Field` with label/error chrome.
+
+The recipes above remain the right mental model: the framework is the same
+controlled-input plumbing with the bookkeeping factored out, so graduating
+a hand-rolled form to `Form`/`Field` is a refactor, not a rewrite.
