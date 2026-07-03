@@ -20,6 +20,31 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.3] — 2026-07-03
+
+**Beta.**
+
+### Fixed
+
+- **`.style("--custom-prop", value)` / `.cssVar(...)` silently did nothing.**
+  The driver applied inline styles with bracket assignment, which browsers
+  ignore for CSS custom properties; `--`-prefixed names now go through
+  `style.setProperty(...)` (the remove path already did). This un-breaks the
+  dynamic-value pattern the styling and theming guides recommend
+  (`.cssVar("--x", value)` + `var(--x)` in the sheet), including scoping
+  `--sw-*` token overrides to a subtree.
+
+### Docs
+
+- Guides refreshed against the shipped surface: `@Component` needs no
+  explicit `@MainActor` (testing), mutations / focus & interval refetch /
+  GC / auto-retry have shipped (query), the `Form`/`Field`/`FormController`
+  layer has shipped (forms), `Alert(dismissOnBackdrop:)` exists (SwiflowUI),
+  DevTools console API return shapes, and compile-breaking samples in the
+  environment and router guides.
+
+---
+
 ## [0.4.2] — 2026-07-03
 
 **Beta.** Curates the scaffolding surface ahead of the 0.4 announcement.
