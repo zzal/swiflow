@@ -71,5 +71,4 @@ Open the printed URL.
   a JSON body trigger.
 - **Config:** change the `HTTPClient(baseURL:)` in `Sources/App/App.swift` to target a different host/port.
 
-See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagram in
-`docs/diagrams/swiflow-update-lifecycle.html`.
+See [`docs/guides/query.md`](../../docs/guides/query.md) for the SwiflowQuery guide.

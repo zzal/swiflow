@@ -2545,10 +2545,6 @@ Open `index.html` and uncomment the `:root` override inside `<style>`:
 
 Reload — every `HStack(spacing: .md)` gap widens instantly, with no Swift recompile needed.
 
-## Spec
-
-See [`docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md`](../../docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md) for the full design rationale.
-
 """##,
                 "Sources/App/App.swift": ##"""
 import Swiflow
@@ -3219,8 +3215,7 @@ Open the printed URL.
   a JSON body trigger.
 - **Config:** change the `HTTPClient(baseURL:)` in `Sources/App/App.swift` to target a different host/port.
 
-See the SwiflowQuery design in `docs/superpowers/specs/` and the lifecycle diagram in
-`docs/diagrams/swiflow-update-lifecycle.html`.
+See [`docs/guides/query.md`](../../docs/guides/query.md) for the SwiflowQuery guide.
 
 """##,
                 "Sources/App/App.swift": ##"""

@@ -106,8 +106,7 @@ jobs:
                Sources/SwiflowQuery \
                Sources/SwiflowFetcher \
                Sources/SwiflowUI; then
-            echo "::error::Runtime modules must not import Foundation."
-            echo "::error::See docs/superpowers/specs/2026-05-27-phase16-foundation-free-runtime-design.md"
+            echo "::error::Runtime modules must not import Foundation (wasm binary size: the runtime is deliberately Foundation-free)."
             exit 1
           fi
           echo "Runtime modules are Foundation-free."
