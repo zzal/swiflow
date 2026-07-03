@@ -4,7 +4,7 @@ import Testing
 
 private enum Loadable: Equatable { case idle, loading, loaded(String), failed }
 
-@MainActor @Component
+@Component
 private final class Profile {
     @State var userID: Int
     let fetch: @Sendable (Int) async -> String
@@ -83,7 +83,7 @@ struct AsyncTaskTests {
     }
 }
 
-@MainActor @Component
+@Component
 private final class Runaway {
     @State var n: Int = 0
     var body: VNode {

@@ -28,7 +28,7 @@ enum Loadable<T>: Equatable where T: Equatable {
     case idle, loading, success(T), failure(String)
 }
 
-@MainActor @Component
+@Component
 final class ProfileCard {
     @State var userID: Int
     @State var user: Loadable<String> = .idle
@@ -222,7 +222,7 @@ import Testing
 import Swiflow
 import SwiflowTesting
 
-@MainActor @Component
+@Component
 private final class Profile {
     @State var userID: Int
     let fetch: @Sendable (Int) async -> String

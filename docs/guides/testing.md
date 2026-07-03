@@ -38,7 +38,7 @@ struct CounterTests {
 > components either way:
 >
 > - `@MainActor final class Foo: Component { ... }` (direct conformance)
-> - `@MainActor @Component final class Foo { ... }` (macro)
+> - `@Component final class Foo { ... }` (macro)
 >
 > The `@Component` macro removes the `: Component` text but **still requires
 > an explicit `@MainActor` on the class** — Swift 6 doesn't propagate actor

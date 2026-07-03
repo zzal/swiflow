@@ -25,7 +25,7 @@ import Testing
 
 // MARK: - Bool (must be checked before Int — Swift bridges Bool to NSNumber)
 
-@MainActor @Component
+@Component
 private final class HMRB_BoolHolder {
     @State var flag: Bool = false
     var body: VNode { .text("") }
@@ -33,7 +33,7 @@ private final class HMRB_BoolHolder {
 
 // MARK: - Int (decodeStateMap stores integral JS numbers as Int)
 
-@MainActor @Component
+@Component
 private final class HMRB_IntHolder {
     @State var count: Int = 0
     var body: VNode { .text("") }
@@ -42,7 +42,7 @@ private final class HMRB_IntHolder {
 // MARK: - Double (decodeStateMap converts non-integral JS numbers to Double,
 //         but integral JS numbers become Int — requiring coercion on restore)
 
-@MainActor @Component
+@Component
 private final class HMRB_DoubleHolder {
     @State var price: Double = 0.0
     @State var fraction: Double = 0.0
@@ -51,7 +51,7 @@ private final class HMRB_DoubleHolder {
 
 // MARK: - String
 
-@MainActor @Component
+@Component
 private final class HMRB_StringHolder {
     @State var label: String = ""
     var body: VNode { .text("") }
@@ -59,7 +59,7 @@ private final class HMRB_StringHolder {
 
 // MARK: - Optional (nil → JS null → HMRNilSentinel)
 
-@MainActor @Component
+@Component
 private final class HMRB_OptionalHolder {
     @State var name: String? = nil
     @State var score: Int? = nil

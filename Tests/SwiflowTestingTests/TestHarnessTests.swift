@@ -5,7 +5,7 @@ import Swiflow
 
 // Minimal inline component used by Task 2–4 tests.
 // Expanded to full Counter + SignIn in Task 5.
-@MainActor @Component
+@Component
 private final class MinimalCounter {
     @State var count: Int = 0
     @State var label: String = "Swiflow"
@@ -21,7 +21,7 @@ private final class MinimalCounter {
     }
 }
 
-@MainActor @Component
+@Component
 private final class Counter {
     @State var count: Int = 0
     @State var name: String = "Swiflow"
@@ -40,7 +40,7 @@ private final class Counter {
     }
 }
 
-@MainActor @Component
+@Component
 private final class SignIn {
     @State var email: String = ""
     @State var password: String = ""
@@ -91,7 +91,7 @@ private final class SignIn {
     }
 }
 
-@MainActor @Component
+@Component
 private final class PropHost {
     @State var text: String = "hello"
     var body: VNode {
@@ -99,7 +99,7 @@ private final class PropHost {
     }
 }
 
-@MainActor @Component
+@Component
 private final class SelectHost {
     @State var selection: String = "opt1"
 

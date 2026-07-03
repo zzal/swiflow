@@ -56,7 +56,7 @@ things a browser runtime can't:
   up — and you find that out at your desk, not from a user.
 
 ```swift
-@MainActor @Component
+@Component
 final class Counter {
     @State var count = 0
 

@@ -125,7 +125,7 @@ struct OnDisappearTests {
 
 // MARK: - Scheduler coalescing contract
 
-@MainActor @Component
+@Component
 private final class RC_Counter {
     @State var n: Int = 0
     var body: VNode { .text("n=\(n)") }

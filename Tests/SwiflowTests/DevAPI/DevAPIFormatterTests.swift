@@ -4,17 +4,17 @@ import Testing
 
 // MARK: - Shared test components
 
-@MainActor @Component
+@Component
 private final class Leaf {
     var body: VNode { .text("x") }
 }
 
-@MainActor @Component
+@Component
 private final class Outer {
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class Counted {
     @State var count: Int = 0
     var body: VNode { .text("") }

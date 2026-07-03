@@ -3,7 +3,7 @@ import Testing
 import Swiflow
 import SwiflowTesting
 
-@MainActor @Component
+@Component
 private final class LifecycleProbe {
     @State var n: Int = 0
     var log: [String] = []

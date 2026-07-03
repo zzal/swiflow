@@ -3,7 +3,7 @@ import Testing
 import Swiflow
 import SwiflowTesting
 
-@MainActor @Component
+@Component
 private final class CheckboxForm {
     @State var agreed: Bool = false
     var body: VNode {
@@ -14,7 +14,7 @@ private final class CheckboxForm {
     }
 }
 
-@MainActor @Component
+@Component
 private final class BlurValidator {
     @State var name: String = "ada"
     @State var lastBlurValue: String = "<none>"

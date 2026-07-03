@@ -14,7 +14,7 @@ private struct UserByID: Query {
     func fetch() async throws -> User { User(id: id, name: load(id)) }
 }
 
-@MainActor @Component
+@Component
 private final class Profile {
     @State var userID: Int
     let load: @MainActor @Sendable (Int) -> String
@@ -36,7 +36,7 @@ private final class FetchCounter {
     func bump() { value += 1 }
 }
 
-@MainActor @Component
+@Component
 private final class Pair {
     let load: @MainActor @Sendable (Int) -> String
     init(load: @escaping @MainActor @Sendable (Int) -> String) { self.load = load }
@@ -50,7 +50,7 @@ private final class Pair {
     }
 }
 
-@MainActor @Component
+@Component
 private final class Child {
     @State var n: Int
     let load: @MainActor @Sendable (Int) -> String
@@ -61,7 +61,7 @@ private final class Child {
     }
 }
 
-@MainActor @Component
+@Component
 private final class Parent {
     let child: Child
     init(child: Child) { self.child = child }
@@ -82,7 +82,7 @@ private enum DemoError: Error { case boom }
     }
 }
 
-@MainActor @Component private final class ErrLoader {
+@Component private final class ErrLoader {
     let box: FailBox
     init(box: FailBox) { self.box = box }
     var body: VNode {

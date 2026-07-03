@@ -18,6 +18,11 @@ import Swiflow
 ///     }
 /// }
 /// ```
+// Explicit @MainActor kept DELIBERATELY (not an oversight from the bare-
+// @Component migration): the [weak self] captures in the @Sendable navigate/
+// replace closures need the implicit Sendable that class-level @MainActor
+// confers — @Component's memberAttribute injection isolates members but does
+// not make the class Sendable.
 @MainActor @Component
 public final class RouterRoot {
     public typealias Mode = RouterMode

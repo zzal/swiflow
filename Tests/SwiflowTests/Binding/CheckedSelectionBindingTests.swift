@@ -14,18 +14,18 @@
 //      shape the closure inside SwiflowDOM.
 //
 // Phase 15: `@State` is now a macro, so the test fixtures use
-// `@MainActor @Component`-decorated host classes for state cells.
+// `@Component`-decorated host classes for state cells.
 // `Binding<T>` itself is unchanged.
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class BoolHost {
     @State var flag: Bool = false
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class StringHost {
     @State var value: String = "A"
     var body: VNode { .text("") }
