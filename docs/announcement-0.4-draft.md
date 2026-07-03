@@ -6,7 +6,7 @@
 
 The honest question first: **does the web need a Swift frontend stack?** The JavaScript ecosystem is excellent — you can ship a superb SPA today without leaving it, and "but it's Swift" is not, by itself, a reason for this project to exist.
 
-Here's where I've landed after building with it: it works — for me. **Swiflow** is not a UI library; it's a batteries-included frontend stack for single-page apps, written in Swift 6 and compiled to WebAssembly. The bet it tests: WebAssembly moves the work from runtime to compile time, and that buys ergonomics that are structurally hard to get in JS. ([The longer argument →](https://github.com/zzal/swiflow/blob/main/WHY.md)) The bet has paid off in my own apps; what I don't know is whether it generalizes to *your* toolbox. Today I'm releasing **0.4.1** — the first version I'm comfortable asking other people to try. If your reaction is "this shouldn't exist, and here's why," I want that review — it just carries more weight after the code sample than before it.
+Here's where I've landed after building with it: it works — for me. **Swiflow** is not a UI library; it's a batteries-included frontend stack for single-page apps, written in Swift 6 and compiled to WebAssembly. The bet it tests: WebAssembly moves the work from runtime to compile time, and that buys ergonomics that are structurally hard to get in JS. ([The longer argument →](https://github.com/zzal/swiflow/blob/main/WHY.md)) The bet has paid off in my own apps; what I don't know is whether it generalizes to *your* toolbox. Today I'm releasing **0.4.2** — the first version I'm comfortable asking other people to try. If your reaction is "this shouldn't exist, and here's why," I want that review — it just carries more weight after the code sample than before it.
 
 ```swift
 @Component
@@ -63,12 +63,12 @@ Requires Swift 6.3.2 + the WebAssembly SDK (two commands, [see the README](https
 
 ```sh
 # 0.4.x is a beta (pre-release), so pin it explicitly:
-SWIFLOW_VERSION=0.4.1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh)"
+SWIFLOW_VERSION=0.4.2 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zzal/swiflow/main/install.sh)"
 
 swiflow init my-app
 cd my-app && swiflow dev      # → http://localhost:3000
 ```
 
-- Repo: https://github.com/zzal/swiflow (Apache 2.0) · [Release notes](https://github.com/zzal/swiflow/releases/tag/v0.4.1) · [Guides](https://github.com/zzal/swiflow/tree/main/docs/guides) · [The audit report](https://github.com/zzal/swiflow/blob/main/docs/reviews/2026-07-01-pre-launch-audit.md)
+- Repo: https://github.com/zzal/swiflow (Apache 2.0) · [Release notes](https://github.com/zzal/swiflow/releases/tag/v0.4.2) · [Guides](https://github.com/zzal/swiflow/tree/main/docs/guides) · [The audit report](https://github.com/zzal/swiflow/blob/main/docs/reviews/2026-07-01-pre-launch-audit.md)
 
 Issues, API pushback, "this broke on my machine," and reasoned "this niche is already served" cases are all welcome — the point of a beta with an audit trail is to have those arguments *before* 1.0 freezes the surface. Thanks for reading.

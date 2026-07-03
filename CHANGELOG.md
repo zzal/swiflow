@@ -20,6 +20,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.2] — 2026-07-03
+
+**Beta.** Curates the scaffolding surface ahead of the 0.4 announcement.
+
+### Changed
+
+- **`swiflow init` templates curated to six**: EdgeCases, HelloWorld,
+  MissionControl, QueryDemo, SwiflowUIDemo, TodoCRUD. AsyncFetch and
+  MiniRouter join RegionDemo as read-only teaching examples — TodoCRUD and
+  MissionControl already showcase those concepts in fuller apps.
+  `swiflow init --help` and the README now state the curation explicitly,
+  and the CLI binary sheds the de-listed embedded templates.
+
+---
+
 ## [0.4.1] — 2026-07-03
 
 **Beta.** Patch release for a first-contact scaffolding bug found within hours
