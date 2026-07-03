@@ -155,6 +155,21 @@ describe("driver opcodes", () => {
     assert.equal(div.style.color, "");
   });
 
+  test("setStyle sets CSS custom properties via setProperty", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "setStyle", handle: 1, name: "--badge-color", value: "#e33" },
+    ]);
+    swiflow.mount(1, "#app");
+    const div = document.querySelector("#app > div");
+    // Bracket assignment (`style["--badge-color"] = …`) would leave a dead
+    // JS expando invisible to getPropertyValue — the regression this guards.
+    assert.equal(div.style.getPropertyValue("--badge-color"), "#e33");
+    swiflow.applyPatches([{ op: "removeStyle", handle: 1, name: "--badge-color" }]);
+    assert.equal(div.style.getPropertyValue("--badge-color"), "");
+  });
+
   test("setText updates a text node's data", () => {
     const { swiflow, document } = setupDriver();
     swiflow.applyPatches([

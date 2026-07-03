@@ -13,7 +13,8 @@
 `@Environment` reads from the in-tree environment during `body`. Access it like any stored property:
 
 ```swift
-final class LocaleLabel: Component {
+@Component
+final class LocaleLabel {
     @Environment(\.locale) var locale
     var body: VNode { p("Locale: \(locale)") }
 }
@@ -22,7 +23,8 @@ final class LocaleLabel: Component {
 **Important:** `@Environment` is only valid during `body`. If you need the value in `onAppear` or `onChange`, capture it into a stored property:
 
 ```swift
-final class LocaleLabel: Component {
+@Component
+final class LocaleLabel {
     @Environment(\.locale) var locale
     private var currentLocale = ""
 
@@ -31,7 +33,7 @@ final class LocaleLabel: Component {
         return p(currentLocale)
     }
 
-    override func onAppear() {
+    func onAppear() {
         print("Locale at mount: \(currentLocale)")
     }
 }
@@ -91,7 +93,8 @@ extension EnvironmentValues {
 }
 
 // 3. Read in a component
-final class ThemedCard: Component {
+@Component
+final class ThemedCard {
     @Environment(\.theme) var theme
     var body: VNode { div(.attr("class", theme.cardClass)) }
 }
@@ -106,17 +109,18 @@ withEnvironment(\.theme, Theme.dark) {
 
 ## `onChange(of:)` — deps-aware lifecycle hook
 
-Call from your `onChange()` override to react only when a specific value changes:
+Call from your `onChange()` hook to react only when a specific value changes:
 
 ```swift
-final class Counter: Component {
+@Component
+final class Counter {
     @State var count = 0
 
     var body: VNode {
-        button(.on("click") { self.count += 1 }) { text("\(count)") }
+        button(.on(.click) { self.count += 1 }) { text("\(count)") }
     }
 
-    override func onChange() {
+    func onChange() {
         onChange(of: count, key: "count") { newCount in
             print("Count changed to \(newCount)")
         }
@@ -127,7 +131,7 @@ final class Counter: Component {
 **Multiple watched values** require explicit `key:` strings:
 
 ```swift
-override func onChange() {
+func onChange() {
     onChange(of: count, key: "count") { ... }
     onChange(of: label, key: "label") { ... }
 }
@@ -149,7 +153,8 @@ for the key, not the in-tree override.
 To use an environment value in a lifecycle hook, capture it during `body`:
 
 ```swift
-final class Greeter: Component {
+@Component
+final class Greeter {
     @Environment(\.locale) var locale
     private var capturedLocale = ""
 

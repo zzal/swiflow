@@ -11,8 +11,8 @@ import Testing
 import Swiflow
 import SwiflowTesting
 
-@MainActor
-private final class Counter: Component {
+@Component
+private final class Counter {
     @State var count = 0
     var body: VNode {
         div {
@@ -37,15 +37,13 @@ struct CounterTests {
 > **Note on `@Component` vs direct conformance.** You can declare test
 > components either way:
 >
+> - `@Component final class Foo { ... }` (macro — preferred)
 > - `@MainActor final class Foo: Component { ... }` (direct conformance)
-> - `@Component final class Foo { ... }` (macro)
 >
-> The `@Component` macro removes the `: Component` text but **still requires
-> an explicit `@MainActor` on the class** — Swift 6 doesn't propagate actor
-> isolation retroactively through a macro-emitted conformance extension.
-> Without `@MainActor`, calls to `@MainActor`-isolated DSL methods like
-> `.on(.click)` will fail under WASM cross-compile (the host build is more
-> lenient and can mask this).
+> A bare `@Component` is isolation-complete: the macro injects `@MainActor`
+> onto the class's members itself, so no explicit annotation is needed.
+> Only direct conformance (no macro) still requires you to write
+> `@MainActor` yourself.
 >
 > Either pattern requires the class to live at **file scope** — Swift does
 > not allow extension declarations inside function or struct bodies, and the
@@ -186,6 +184,24 @@ The event's `targetValue` is set to the provided `value` string. No-op if
 out-of-bounds or the element has no `change` handler. For `<input>` elements
 that use `.on(.input)`, use `input(...)` instead.
 
+### `check(_ tag: at: checked:)`
+
+Simulates toggling a checkbox/radio: fires a `change` event whose
+`targetChecked` is `checked` (mirroring the browser driver's payload) on the
+element at `index` among all elements matching `tag` (default `"input"`) and
+flushes.
+
+```swift
+h.check(at: 0, checked: true)     // tick the first checkbox
+h.check(at: 0, checked: false)    // untick it
+```
+
+### `unmount()`
+
+Unmounts the rendered tree, firing `onDisappear` parent-first — mirrors
+`Swiflow.unmount(into:)` in the browser. Queries after unmount read the
+last-rendered tree and are unspecified; calling `unmount()` again is a no-op.
+
 ## Recipes
 
 ### Click interaction
@@ -261,8 +277,8 @@ your component's `body` to inject test values. The harness reads ambient
 environment values during `body` evaluation:
 
 ```swift
-@MainActor
-private final class LocaleHost: Component {
+@Component
+private final class LocaleHost {
     var body: VNode {
         withEnvironment(\.locale, "fr") {
             embed { Greeting() }
@@ -290,8 +306,11 @@ private final class LocaleHost: Component {
 
 ## Limitations
 
-- **No async/await support.** `task {}` lifecycle hooks (pre-1.0 feature) are
-  not exercised by `TestHarness`. An `AsyncTestRenderer` is planned.
-- **No keyboard or mouse-position events.** Only `click`, `input`, `blur`, and
-  `change` are supported. Other DOM events would need direct dispatch through
-  the underlying `HandlerRegistry`.
+- **`TestHarness` is synchronous-only.** Components using `.task` effects or
+  SwiflowQuery need `AsyncTestHarness` instead — same query/interaction
+  surface plus deterministic async control: `settle()`, `flush()`,
+  `advance(by:)`, and `focus()`. See the
+  [async tasks guide](async-tasks.md) and the [query guide](query.md).
+- **No keyboard or mouse-position events.** Only `click`, `input`, `blur`,
+  `change`, and `check` are supported. Other DOM events would need direct
+  dispatch through the underlying `HandlerRegistry`.

@@ -228,7 +228,16 @@
         delete nodes.get(p.handle)[p.name];
         return;
       case "setStyle":
-        nodes.get(p.handle).style[p.name] = p.value;
+        // Custom properties (`--foo`) need setProperty — bracket assignment
+        // creates a dead JS expando that never reaches CSS (mirror of
+        // removeStyle below). Regular properties keep bracket assignment:
+        // names arrive in both camelCase and kebab-case, which CSSOM named
+        // access accepts but setProperty (kebab-only) would not.
+        if (p.name.startsWith("--")) {
+          nodes.get(p.handle).style.setProperty(p.name, p.value);
+        } else {
+          nodes.get(p.handle).style[p.name] = p.value;
+        }
         return;
       case "removeStyle":
         // Use removeProperty (not `style[name] = ""`) so CSS custom properties

@@ -108,7 +108,7 @@ are merged — a parent `:org` param is available alongside the child's `:repo`.
 embed { Link("/about", "About Us") }
 
 // Children variant (icon, styled text, etc.)
-embed { Link("/about") { span("About Us") } }
+embed { Link("/about") { span { text("About Us") } } }
 ```
 
 `Link` renders an `<a>` element and intercepts the click to call
