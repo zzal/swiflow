@@ -57,8 +57,7 @@ of 0.4.0 — thanks to the first bug reporter.
 **Beta.** The largest release to date: local reducers, a managed toast queue,
 `@Component` without `@MainActor` boilerplate, a scoped re-render engine — and
 a full-framework pre-launch audit whose findings are all remediated in this
-release (the report ships in-tree:
-[`docs/reviews/2026-07-01-pre-launch-audit.md`](docs/reviews/2026-07-01-pre-launch-audit.md)).
+release.
 
 **Stability: Beta — stable for pre-1.0 usage.** The public surface was
 deliberately reviewed and reshaped for this release; breaking changes below

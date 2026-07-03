@@ -12,3 +12,7 @@ current-bundle.json
 .claude/
 .superpowers/
 devtools/.chrome/
+
+# Internal working documents — local only, not published (docs/guides stays tracked)
+docs/*
+!docs/guides

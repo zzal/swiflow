@@ -25,7 +25,3 @@ Open `index.html` and uncomment the `:root` override inside `<style>`:
 ```
 
 Reload — every `HStack(spacing: .md)` gap widens instantly, with no Swift recompile needed.
-
-## Spec
-
-See [`docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md`](../../docs/superpowers/specs/2026-06-03-swiflowui-foundation-design.md) for the full design rationale.
