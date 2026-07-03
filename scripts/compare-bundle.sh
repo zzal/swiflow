@@ -1,5 +1,5 @@
 #!/bin/sh
-# Compare current-bundle.json against docs/perf/bundle-baseline.json.
+# Compare current-bundle.json against scripts/bundle-baseline.json.
 # Exit 0 if total gzip growth <= 5%, else exit 1 — unless PR_LABELS
 # contains "bundle-size-skip" AND growth <= 20%.
 #
@@ -8,7 +8,7 @@
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASELINE="$REPO_ROOT/docs/perf/bundle-baseline.json"
+BASELINE="$REPO_ROOT/scripts/bundle-baseline.json"
 CURRENT="$REPO_ROOT/current-bundle.json"
 
 if [ ! -f "$BASELINE" ]; then
@@ -53,7 +53,7 @@ elif delta_pct > 5:
         status = "⚠️  Growth exceeds 5% budget but `bundle-size-skip` label is set — passing."
         exit_code = 0
     else:
-        status = "❌ Growth exceeds 5% budget. Apply the `bundle-size-skip` label and bump `docs/perf/bundle-baseline.json` if intentional."
+        status = "❌ Growth exceeds 5% budget. Apply the `bundle-size-skip` label and bump `scripts/bundle-baseline.json` if intentional."
         exit_code = 1
 else:
     status = "✅ Within budget (≤5% growth allowed)."
