@@ -15,7 +15,7 @@ private struct Wizard: Reducer {
     }
 }
 
-@MainActor @Component
+@Component
 private final class WizardComp {
     @ReducerState var flow: Wizard
     var body: VNode { .text("step \($flow.state.step)") }

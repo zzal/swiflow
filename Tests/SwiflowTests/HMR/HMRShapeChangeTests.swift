@@ -1,25 +1,25 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRSC_Foo {
     @State var x: Int = 0
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRSC_Bar {
     @State var x: Int = 0
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRSC_Outer {
     @State var n: Int = 0
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRSC_Inner {
     @State var m: Int = 0
     var body: VNode { .text("") }

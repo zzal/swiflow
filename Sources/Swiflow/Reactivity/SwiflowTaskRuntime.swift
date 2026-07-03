@@ -88,7 +88,7 @@ public enum SwiflowTaskRuntime {
     ///
     /// `nonisolated(unsafe)`: all mutations happen on @MainActor; the dict is
     /// read by `shouldDropWrite()` from the @State didSet which also runs on
-    /// @MainActor (via `@MainActor @Component`), but the compiler cannot prove
+    /// @MainActor (via `@Component`, which injects it), but the compiler cannot prove
     /// this statically across macro expansion boundaries.
     nonisolated(unsafe) static var liveGenerations: [Int: Int] = [:]
 
@@ -136,7 +136,7 @@ public enum SwiflowTaskRuntime {
     /// by a rerun) or whose slot was torn down (component unmounted).
     ///
     /// `nonisolated`: the `@State` didSet expands into a synchronous observer
-    /// on a `@MainActor @Component` class; the compiler cannot prove @MainActor
+    /// on a `@Component` class (always @MainActor); the compiler cannot prove @MainActor
     /// isolation across macro expansion boundaries, so the call must be
     /// `nonisolated`. Safety is preserved because `liveGenerations` is
     /// `nonisolated(unsafe)` and all mutations occur on @MainActor, while all

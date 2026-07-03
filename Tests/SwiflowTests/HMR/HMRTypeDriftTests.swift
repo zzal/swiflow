@@ -1,7 +1,7 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRTD_NowString {
     @State var n: String = "initial"
     var body: VNode { .text("") }

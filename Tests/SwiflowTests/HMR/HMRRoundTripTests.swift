@@ -1,7 +1,7 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRRT_Demo {
     @State var s: String = ""
     @State var i: Int = 0
@@ -11,14 +11,14 @@ private final class HMRRT_Demo {
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRRT_Prices {
     @State var price: Double = 0.0
     @State var optPrice: Double? = nil
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRRT_Nullable {
     @State var label: String? = nil
     @State var name: String = "keep"

@@ -2,7 +2,7 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class SW_Counter {
     @State var n: Int = 0
     @State var label: String = "hi"

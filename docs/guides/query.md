@@ -120,7 +120,7 @@ public struct QueryState<Value> {
 The canonical component (`examples/QueryDemo`):
 
 ```swift
-@MainActor @Component
+@Component
 final class QueryDemo {
     @State var userID: Int = 1
 

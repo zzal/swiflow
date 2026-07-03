@@ -7,7 +7,7 @@ private final class SharedLabel {
     var value = "before"
 }
 
-@MainActor @Component
+@Component
 private final class LabelMutatingChild {
     let model: SharedLabel
     @State var tick: Int = 0
@@ -20,7 +20,7 @@ private final class LabelMutatingChild {
     }
 }
 
-@MainActor @Component
+@Component
 private final class SharedLabelParent {
     let model = SharedLabel()
     var body: VNode {

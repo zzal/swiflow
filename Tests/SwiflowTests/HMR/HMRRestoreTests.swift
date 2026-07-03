@@ -1,7 +1,7 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRR_Counter {
     @State var count: Int = 0
     @State var label: String = "initial"

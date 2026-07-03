@@ -87,7 +87,7 @@ struct TaskRuntimeTests {
     }
 }
 
-@MainActor @Component
+@Component
 private final class GuardProbe {
     @State var value: Int = 0
     var body: VNode { div { p("\(value)") } }

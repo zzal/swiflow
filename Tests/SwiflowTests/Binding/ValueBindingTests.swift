@@ -18,24 +18,24 @@
 // covering them independently is enough confidence.
 //
 // Phase 15: bindings now come from `@State`'s `$`-prefix projection on
-// a `@MainActor @Component` host class, not from `State<T>(wrappedValue:)`
+// a `@Component` host class, not from `State<T>(wrappedValue:)`
 // directly (the class no longer exists).
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class VB_StringHost {
     @State var value: String = "initial"
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class VB_IntHost {
     @State var value: Int = 0
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class VB_DoubleHost {
     @State var value: Double = 0.0
     var body: VNode { .text("") }

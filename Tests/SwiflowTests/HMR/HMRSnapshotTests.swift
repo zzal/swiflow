@@ -2,14 +2,14 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRSnap_Counter {
     @State var count: Int = 0
     @State var label: String = ""
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRSnap_Toggle {
     @State var on: Bool = false
     var body: VNode { .text("") }

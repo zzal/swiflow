@@ -2,13 +2,13 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class HMRMulti_Counter {
     @State var count: Int = 0
     var body: VNode { .text("") }
 }
 
-@MainActor @Component
+@Component
 private final class HMRMulti_Toggle {
     @State var on: Bool = false
     var body: VNode { .text("") }

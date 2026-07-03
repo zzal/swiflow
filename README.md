@@ -41,7 +41,7 @@ see the [changelog](CHANGELOG.md) for where things stand.
 import Swiflow
 import SwiflowDOM
 
-@MainActor @Component
+@Component
 final class Counter {
     @State var count = 0
 

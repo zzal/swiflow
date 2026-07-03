@@ -53,7 +53,7 @@ private enum Boom: Error { case nope }
 // MARK: - Components
 
 // A component that DOES reference $add in body — the normal pattern.
-@MainActor @Component private final class Board {
+@Component private final class Board {
     let load: @MainActor @Sendable () -> [String]
     @MutationState var add: AddTodo
     init(
@@ -76,7 +76,7 @@ private enum Boom: Error { case nope }
 }
 
 // A component that NEVER references $add in body — the B1 regression case.
-@MainActor @Component private final class FireOnly {
+@Component private final class FireOnly {
     @MutationState var add: AddTodo
     init(outcome: @escaping @MainActor @Sendable (String) async throws -> String) {
         self.add = AddTodo(gate: nil, outcome: outcome)

@@ -2,7 +2,7 @@
 import Testing
 @testable import Swiflow
 
-@MainActor @Component
+@Component
 private final class OnChange_Holder {
     @State var count: Int = 0
     @State var label: String = ""
