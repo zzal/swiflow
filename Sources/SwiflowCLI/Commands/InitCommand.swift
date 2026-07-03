@@ -59,7 +59,8 @@ struct InitCommand: AsyncParsableCommand {
             "Which embedded template to scaffold. Defaults to HelloWorld.",
             discussion: """
                 Available: \(EmbeddedTemplates.availableNames.joined(separator: ", ")).
-                Each name maps to a directory under examples/ in the Swiflow repo.
+                A curated subset of the repo's examples/ directory — some examples
+                (RegionDemo, AsyncFetch, MiniRouter) exist for reading, not scaffolding.
                 """
         )
     )
