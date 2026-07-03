@@ -122,17 +122,16 @@ instead of a published release.
 
 ## Examples
 
-Browse [`examples/`](examples/):
+Browse [`examples/`](examples/). These double as `swiflow init --template` starters:
 
 - **HelloWorld** — the starter: a counter, SwiflowUI controls, a native `<dialog>`, a popover, and toasts.
 - **SwiflowUIDemo** — a gallery of the SwiflowUI components and theming.
 - **TodoCRUD** — list CRUD with bindings and forms.
 - **QueryDemo** — `SwiflowQuery` fetching and caching.
-- **MiniRouter** — `SwiflowRouter` routes and links.
-- **MissionControl** — a larger app: geolocated data with `SwiflowStore` persistence.
-- **AsyncFetch** — `.task` async effects.
+- **MissionControl** — a larger app: routing, and geolocated data with `SwiflowStore` persistence.
+- **EdgeCases** — a runtime/diff stress harness.
 
-(Plus **EdgeCases**, a runtime/diff stress harness.) Serve one with `swiflow dev` from its directory.
+A few more exist for reading, not scaffolding: **MiniRouter** (`SwiflowRouter` in isolation), **AsyncFetch** (`.task` async effects in isolation), and **RegionDemo** (embedding foreign wasm). Serve any example with `swiflow dev` from its directory.
 
 ## Docs
 
