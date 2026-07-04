@@ -2,8 +2,9 @@
 import Swiflow
 
 extension WeatherPage {
-    @MainActor static var scopedStyles: CSSSheet? = layout + theme
+    @MainActor static var scopedStyles: CSSSheet? = layout + overrides + theme
 
+    // Example of CSSSheetBuilder
     static let layout = css {
         host(.display("block"),
              .maxWidth("860px"),
@@ -13,6 +14,17 @@ extension WeatherPage {
              .fontSize("1.4rem"),
              .margin("0"))
     }
+
+    // Example of CSSMacro:
+    static let overrides = #css("""
+    .add-a-city-wrapper {
+        flex: 1;
+         .swiflow-AutocompleteBox {
+            flex: 1;
+            width: auto;
+        }
+    }
+    """)
 
     static let theme = css {
         rule(".search-status",

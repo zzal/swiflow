@@ -33,7 +33,7 @@ final class QuakesPage {
             embed { NavBar() }
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
-                h1("🌐 Live seismic feed")
+                h1("Live seismic feed", .class("page-title"))
                 // Background-poll indicator: SwiflowUI Spinner (role=status, token-driven,
                 // pauses under reduced-motion). The list stays put (stale-while-revalidate).
                 if feed.isFetching {
