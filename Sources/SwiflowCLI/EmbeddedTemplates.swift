@@ -1917,25 +1917,11 @@ extension WeatherPage {
         rule("h1",
              .fontSize("1.4rem"),
              .margin("0"))
-        rule(".search-results",
-             .listStyle("none"),
-             .margin("0"),
-             .padding("var(--sw-space-xs)"),
-             .display("flex"),
-             .flexDirection("column"),
-             .gap("var(--sw-space-xs)"))
     }
 
     static let theme = css {
-        rule(".search-results",
-             .background("var(--sw-surface)"),
-             .border("1px solid color-mix(in srgb, var(--sw-text) 15%, transparent)"),
-             .borderRadius("var(--sw-radius)"))
         rule(".search-status",
              .color("color-mix(in srgb, var(--sw-text) 60%, transparent)"),
-             .margin("0"))
-        rule(".error",
-             .color("light-dark(#b91c1c, #fca5a5)"),
              .margin("0"))
     }
 }
@@ -1945,11 +1931,11 @@ extension WeatherPage {
 // Sources/App/Weather/WeatherPage.swift
 //
 // Pinned-city weather over Open-Meteo. Demonstrates:
-// - `.task(rerunOn:)` as a debouncer — 300 ms after the last keystroke the
-//   raw input text is committed to `debouncedText`; superseded sleeps are
-//   cancelled and their writes dropped by the runtime,
-// - a conditional, text-keyed geocoding query (one request per settled
-//   prefix, cached for an hour),
+// - SwiflowUI's async `Autocomplete(loader:)` as the city search — it owns
+//   the debounce, keystroke cancellation, and Searching / error / empty
+//   panel states that this page used to hand-roll,
+// - a consume-and-clear `Binding`: committing a suggestion pins the city
+//   and resets the field instead of holding a selection,
 // - per-card weather queries keyed on (city, unit) — toggling °C → °F
 //   refetches, toggling back paints instantly from cache,
 // - SwiflowUI stacks + tokens for the whole layout.
@@ -1961,10 +1947,13 @@ import SwiflowUI
 
 @Component
 final class WeatherPage {
-    @State var searchText: String = ""
-    @State var debouncedText: String = ""
     @State var pinned: [City] = City.seeds
     @State var unit: String = "celsius"
+
+    /// The cities behind the latest Autocomplete suggestions, keyed by option
+    /// value (the stringified geocoding id), so a committed selection resolves
+    /// back to the full record. Plain var — nothing renders from it.
+    private var searchHits: [String: City] = [:]
 
     /// Pins and the unit toggle outlive this page: the router destroys
     /// `WeatherPage` on every navigation, so they're persisted to IndexedDB and
@@ -1974,10 +1963,7 @@ final class WeatherPage {
     private static let unitKey = "weather-unit"
 
     var body: VNode {
-        let results: QueryState<GeoSearchResponse>? =
-            debouncedText.count >= 2 ? query(CitySearchQuery(name: debouncedText)) : nil
-
-        return VStack(spacing: .md, .class("page")) {
+        VStack(spacing: .md, .class("page")) {
             embed { NavBar() }
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
@@ -1988,29 +1974,18 @@ final class WeatherPage {
                 ])
             }
 
-            VStack(spacing: .xs, .class("search-box")) {
-                TextField("Search cities", text: $searchText, type: .search,
-                          placeholder: "Search a city to pin…")
-                if let results {
-                    if let cities = results.data?.results, !cities.isEmpty {
-                        ul(.class("search-results")) {
-                            for city in cities {
-                                li(.key("hit-\(city.id)")) {
-                                    Button(city.fullName, variant: .ghost, size: .sm,
-                                           .style("width", "100%"),
-                                           .style("justify-content", "flex-start")) { self.pin(city) }
-                                }
-                            }
-                        }
-                    } else if results.isLoading {
-                        p("Searching…", .class("search-status"))
-                    } else if results.error != nil {
-                        p("Search unavailable — check your connection.", .class("error"))
-                    } else {
-                        p("No matches for “\(debouncedText)”.", .class("search-status"))
-                    }
-                }
-            }
+            // Strict select-from-list combobox over the geocoder. The binding
+            // never holds a value: a commit pins the city and the empty `get`
+            // hands the field back cleared, ready for the next search.
+            Autocomplete("Search cities",
+                         selection: Binding(
+                             get: { "" },
+                             set: { id in
+                                 if let city = self.searchHits[id] { self.pin(city) }
+                             }),
+                         loader: { q in try await self.searchCities(q) },
+                         placeholder: "Search a city to pin…",
+                         minChars: 2)
 
             HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
                 for city in pinned {
@@ -2031,23 +2006,27 @@ final class WeatherPage {
                 p("Nothing pinned — search above to add a city.", .class("search-status"))
             }
         }
-        // Debounce: each keystroke re-keys this task; the previous sleep is
-        // cancelled and only a 300 ms-settled value reaches `debouncedText`.
-        .task(rerunOn: searchText) {
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            self.debouncedText = self.searchText
-        }
         // Runs once per mount (i.e. on every return to this page): rehydrate the
         // saved pins, then refresh the geolocated first card.
         .task { await self.bootstrap() }
+    }
+
+    /// Autocomplete loader: geocode the (already debounced) query and remember
+    /// the `City` behind each option so a commit can pin the full record, not
+    /// just its id. Place names don't move, so no cache layer is needed here —
+    /// Autocomplete's cancellation already collapses rapid keystrokes.
+    private func searchCities(_ q: String) async throws -> [SelectOption] {
+        let response: GeoSearchResponse =
+            try await API.geocoding.get("/v1/search?name=\(urlEncoded(q))&count=5")
+        let cities = response.results ?? []
+        for city in cities { searchHits[String(city.id)] = city }
+        return cities.map { SelectOption(String($0.id), $0.fullName) }
     }
 
     func pin(_ city: City) {
         if !pinned.contains(where: { $0.id == city.id }) {
             pinned.append(city)
         }
-        searchText = ""
-        debouncedText = ""
         persist()
     }
 
@@ -2112,25 +2091,6 @@ func urlEncoded(_ s: String) -> String {
     #else
     return s
     #endif
-}
-
-/// Geocode a (debounced) city-name fragment. The caller gates on
-/// `name.count >= 2`; `query()` is render-scoped, so a query simply not
-/// observed this render drops its subscription — conditional calls are fine.
-@Query struct CitySearchQuery {
-    let name: String
-
-    // Transformed cache key (case-insensitive) — kept by hand; @Key derives keys
-    // mechanically, so a `.lowercased()` key opts out of @Key marking. @Query
-    // still synthesizes the `Query` conformance + `init(name:)`.
-    var queryKey: QueryKey { ["geocode", .string(name.lowercased())] }
-    /// Place names don't move; retyping the same prefix within the hour is a
-    /// pure cache hit.
-    var staleTime: Duration { .seconds(3600) }
-
-    func fetch() async throws -> GeoSearchResponse {
-        try await API.geocoding.get("/v1/search?name=\(urlEncoded(name))&count=5")
-    }
 }
 
 /// Current conditions + today's range for one pinned city. Keyed on
