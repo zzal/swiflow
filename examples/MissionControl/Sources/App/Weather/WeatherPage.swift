@@ -37,11 +37,16 @@ final class WeatherPage {
             embed { NavBar() }
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
-                h1("🌍 Weather")
-                Select("Units", selection: $unit, options: [
-                    SelectOption("celsius", "°C"),
-                    SelectOption("fahrenheit", "°F"),
-                ])
+                HStack(spacing: .none, align: .baseline, justify: .between) {
+                    h1("🌍 Weather")
+                    HStack(spacing: .md, align: .baseline, justify: .end) {
+                        p("Units")
+                        Select("Units", selection: $unit, options: [
+                            SelectOption("celsius", "°C"),
+                            SelectOption("fahrenheit", "°F"),
+                        ])
+                    }
+                }
             }
 
             // Strict select-from-list combobox over the geocoder. The binding
