@@ -1449,6 +1449,26 @@ struct Quake: Decodable, Equatable, Sendable {
 }
 
 """##,
+                "Sources/App/App+Styles.swift": ##"""
+// Sources/App/App+Styles.swift
+//
+// App-wide styles, owned by the root `Shell` component. `scopedStyles` is a
+// `@Component` hook — the runtime injects it (scoped to `.swiflow-Shell`) when
+// the type first mounts, so rules here reach every routed page as descendant
+// selectors. (A plain struct like the `@main` entry can't host scopedStyles:
+// nothing ever mounts it, so the sheet would silently never be installed.)
+import Swiflow
+
+extension Shell {
+    @MainActor static var scopedStyles: CSSSheet? = #css("""
+        .page-title {
+            font-weight: 100;
+            font-size: 3rem;
+        }
+    """)
+}
+
+"""##,
                 "Sources/App/App.swift": ##"""
 // Sources/App/App.swift
 //
@@ -1460,16 +1480,26 @@ import Swiflow
 import SwiflowDOM
 import SwiflowRouter
 
-@main
-struct App {
-    @MainActor
-    static func main() {
-        Swiflow.render(into: "#app") {
+/// Root shell around the router. A `@Component` (unlike the `@main` entry
+/// struct) so it can own app-wide `scopedStyles` — every routed page renders
+/// inside it, so its descendant rules (see `App+Styles.swift`) reach them.
+@Component
+final class Shell {
+    var body: VNode {
+        embed {
             RouterRoot {
                 Route("/") { WeatherPage() }
                 Route("/quakes") { QuakesPage() }
             }
         }
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { Shell() }
     }
 }
 
@@ -1678,7 +1708,7 @@ final class QuakesPage {
             embed { NavBar() }
 
             HStack(spacing: .sm, align: .center, .class("toolbar")) {
-                h1("🌐 Live seismic feed")
+                h1("Live seismic feed", .class("page-title"))
                 // Background-poll indicator: SwiflowUI Spinner (role=status, token-driven,
                 // pauses under reduced-motion). The list stays put (stale-while-revalidate).
                 if feed.isFetching {
@@ -1907,8 +1937,9 @@ private final class ClosureRetainer {
 import Swiflow
 
 extension WeatherPage {
-    @MainActor static var scopedStyles: CSSSheet? = layout + theme
+    @MainActor static var scopedStyles: CSSSheet? = layout + overrides + theme
 
+    // Example of CSSSheetBuilder
     static let layout = css {
         host(.display("block"),
              .maxWidth("860px"),
@@ -1918,6 +1949,17 @@ extension WeatherPage {
              .fontSize("1.4rem"),
              .margin("0"))
     }
+
+    // Example of CSSMacro:
+    static let overrides = #css("""
+    .add-a-city-wrapper {
+        flex: 1;
+         .swiflow-AutocompleteBox {
+            flex: 1;
+            width: auto;
+        }
+    }
+    """)
 
     static let theme = css {
         rule(".search-status",
@@ -1966,31 +2008,30 @@ final class WeatherPage {
         VStack(spacing: .md, .class("page")) {
             embed { NavBar() }
 
-            HStack(spacing: .sm, align: .center, .class("toolbar")) {
-                HStack(spacing: .none, align: .baseline, justify: .between) {
-                    h1("🌍 Weather")
-                    HStack(spacing: .md, align: .baseline, justify: .end) {
-                        p("Units")
-                        Select("Units", selection: $unit, options: [
-                            SelectOption("celsius", "°C"),
-                            SelectOption("fahrenheit", "°F"),
-                        ])
-                    }
-                }
-            }
+            h1("Weather", .class("page-title"))
 
-            // Strict select-from-list combobox over the geocoder. The binding
-            // never holds a value: a commit pins the city and the empty `get`
-            // hands the field back cleared, ready for the next search.
-            Autocomplete("Search cities",
-                         selection: Binding(
-                             get: { "" },
-                             set: { id in
-                                 if let city = self.searchHits[id] { self.pin(city) }
-                             }),
-                         loader: { q in try await self.searchCities(q) },
-                         placeholder: "Search a city to pin…",
-                         minChars: 2)
+            HStack(spacing: .md, align: .center, justify: .between, .style("width", "100%")) {
+                div(.class("add-a-city-wrapper")) {
+                    // Strict select-from-list combobox over the geocoder. The binding
+                    // never holds a value: a commit pins the city and the empty `get`
+                    // hands the field back cleared, ready for the next search.
+                    Autocomplete("Add a City",
+                        selection: Binding(
+                            get: { "" },
+                            set: { id in
+                                if let city = self.searchHits[id] { self.pin(city) }
+                            }),
+                        loader: { q in try await self.searchCities(q) },
+                        placeholder: "Search a city to pin…",
+                        minChars: 2
+                    )
+                }
+
+                Select("Units", selection: $unit, options: [
+                    SelectOption("celsius", "°C"),
+                    SelectOption("fahrenheit", "°F"),
+                ])
+            }
 
             HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
                 for city in pinned {
