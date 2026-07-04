@@ -20,6 +20,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.6] — 2026-07-04
+
+**Beta.**
+
+### Examples
+
+- **MissionControl template refreshed.** A root `Shell` component now owns
+  app-wide `scopedStyles` (dogfooding 0.4.5's scoped-styles carrier — its body
+  is a bare `embed { RouterRoot { … } }`), with a shared `.page-title`
+  treatment and reworked Weather/Quakes page layout. Scaffolded via
+  `swiflow init my-app --template MissionControl`.
+
+---
+
 ## [0.4.5] — 2026-07-04
 
 **Beta.**
