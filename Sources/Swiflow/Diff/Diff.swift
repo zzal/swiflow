@@ -73,16 +73,32 @@ func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
 // MARK: - CSS scope-class helpers
 
 /// Prepends `scopeClass` to the `class` attribute of a VNode's root element.
-/// If the VNode is not an `.element`, it is returned unchanged.
+///
+/// A non-element root (an embedded component, fragment, or text) has no
+/// attribute to carry the class. That only matters when the component
+/// declares `scopedStyles` — its injected sheet is scoped under
+/// `.swiflow-<Type>`, so a missing carrier makes every rule silently
+/// unmatchable. `hasScopedStyles` opts such roots into a layout-neutral
+/// `display: contents` carrier element instead (the `ThemeScope` wrapper
+/// technique). Components without scopedStyles keep their exact DOM shape:
+/// non-element roots pass through unchanged, as before.
 @MainActor
-func addScopeClass(_ vnode: VNode, scopeClass: String) -> VNode {
-    guard case .element(var data) = vnode else { return vnode }
-    if let existing = data.attributes["class"], !existing.isEmpty {
-        data.attributes["class"] = "\(scopeClass) \(existing)"
-    } else {
-        data.attributes["class"] = scopeClass
+func addScopeClass(_ vnode: VNode, scopeClass: String, hasScopedStyles: Bool) -> VNode {
+    if case .element(var data) = vnode {
+        if let existing = data.attributes["class"], !existing.isEmpty {
+            data.attributes["class"] = "\(scopeClass) \(existing)"
+        } else {
+            data.attributes["class"] = scopeClass
+        }
+        return .element(data)
     }
-    return .element(data)
+    guard hasScopedStyles else { return vnode }
+    return .element(ElementData(
+        tag: "div",
+        attributes: ["class": scopeClass],
+        style: ["display": "contents"],
+        children: [vnode]
+    ))
 }
 
 // MARK: - Mount helpers (first render only — Task 9 scope)
@@ -265,7 +281,8 @@ func mount(
         onComponentTypeMount?(componentType)
         let scopeClass = "swiflow-\(String(describing: componentType))"
         let bodyMount = mount(
-            addScopeClass(bodyVNode, scopeClass: scopeClass),
+            addScopeClass(bodyVNode, scopeClass: scopeClass,
+                          hasScopedStyles: componentType.scopedStyles != nil),
             into: &patches,
             handles: handles,
             handlers: handlers,
@@ -468,7 +485,8 @@ func update(
         // itself was replaced wholesale). Either way it becomes the new body.
         let newBodyMount = update(
             mounted: oldBody,
-            next: addScopeClass(newBodyVNode, scopeClass: scopeClass),
+            next: addScopeClass(newBodyVNode, scopeClass: scopeClass,
+                                hasScopedStyles: componentType.scopedStyles != nil),
             into: &patches,
             handles: handles,
             handlers: handlers,
