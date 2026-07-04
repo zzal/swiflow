@@ -797,6 +797,12 @@ Reload the page to recover.
 //     "wasm":    { "url": "...", "sha256": "..." },
 //     "runtime": [{ "url": "...", "sha256": "..." }, ...]
 //   }
+//
+// The manifest is written ONLY by `swiflow build`. When it's absent (404)
+// this worker runs in "no manifest" mode: install precaches nothing and
+// activate deletes every swiflow-* cache. That's what keeps `swiflow dev`
+// honest after a `swiflow build` in the same project — a leftover build
+// cache would otherwise be served cache-first over every dev rebuild.
 
 const MANIFEST_URL = new URL("swiflow-manifest.json", self.location.href).href;
 
@@ -832,8 +838,16 @@ function runtimeCacheNameFor(manifest) {
   return `swiflow-runtime-v${shortHash(joined)}`;
 }
 
+// Resolves to the parsed manifest, or `null` when the site has no manifest
+// at all (404/410) — a dev server or a host that was never `swiflow build`-t.
+// That's a legitimate state, not a fault: the caller precaches nothing and
+// activate drops any swiflow-* caches a previous *built* visit left behind.
+// Transient failures (5xx, network) still throw: failing install keeps the
+// previous worker and its verified caches serving, which is the right call
+// for a temporarily broken deploy.
 async function loadManifest() {
   const res = await fetch(MANIFEST_URL, { cache: "no-store" });
+  if (res.status === 404 || res.status === 410) return null;
   if (!res.ok) throw new Error(`swiflow-sw: manifest fetch failed (${res.status})`);
   return res.json();
 }
@@ -904,7 +918,7 @@ self.addEventListener("install", (event) => {
     self.__swiflowBuildTag = BUILD_TAG; // exposed for debugging/tests
     const manifest = await loadManifest();
     self.__swiflowManifest = manifest;
-    await precache(manifest);
+    if (manifest) await precache(manifest);
     // Activate this build immediately instead of waiting for every tab on the
     // old worker to close — so a rebuild wins on the next reload, not
     // "eventually". Safe because caches are content-hash-keyed: this worker
@@ -921,9 +935,12 @@ self.addEventListener("activate", (event) => {
     // (browsers can evict idle SWs between lifecycle phases).
     const manifest = self.__swiflowManifest ?? await loadManifest();
     self.__swiflowManifest = manifest;
-    const wasmCacheName = cacheNameFor("swiflow-wasm", manifest.wasm.sha256);
-    const runtimeCacheName = runtimeCacheNameFor(manifest);
-    await cleanupStale([wasmCacheName, runtimeCacheName]);
+    // No manifest → no cache is legitimate: wipe every swiflow-* cache so a
+    // leftover `swiflow build` cache can't shadow dev-server responses.
+    const currentNames = manifest
+      ? [cacheNameFor("swiflow-wasm", manifest.wasm.sha256), runtimeCacheNameFor(manifest)]
+      : [];
+    await cleanupStale(currentNames);
     await self.clients.claim();
   })());
 });
@@ -947,7 +964,7 @@ self.addEventListener("message", (event) => {
 """#
 
     static let serviceWorkerSourceMinified: String = #"""
-const MANIFEST_URL=new URL("swiflow-manifest.json",self.location.href).href,BUILD_TAG="__SWIFLOW_BUILD_TAG__";function cacheNameFor(e,t){return`${e}-v${t.slice(0,8)}`}function shortHash(e){let t=2166136261;for(let a=0;a<e.length;a++)t^=e.charCodeAt(a),t=Math.imul(t,16777619);return(t>>>0).toString(16).padStart(8,"0")}function runtimeCacheNameFor(e){const t=e.runtime.map(a=>a.sha256).join(":");return`swiflow-runtime-v${shortHash(t)}`}async function loadManifest(){const e=await fetch(MANIFEST_URL,{cache:"no-store"});if(!e.ok)throw new Error(`swiflow-sw: manifest fetch failed (${e.status})`);return e.json()}async function sha256HexOf(e){const t=await crypto.subtle.digest("SHA-256",e);let a="";for(const s of new Uint8Array(t))a+=s.toString(16).padStart(2,"0");return a}async function fetchVerifiedInto(e,t,a){const s=await fetch(t,{cache:"no-store"});if(!s.ok){console.error(`swiflow-sw: precache fetch failed for ${t} (${s.status}); will serve from network.`);return}const n=await sha256HexOf(await s.clone().arrayBuffer());if(n!==a){console.error(`swiflow-sw: sha256 mismatch for ${t} \u2014 manifest says ${a.slice(0,8)}\u2026, fetched bytes hash to ${n.slice(0,8)}\u2026. Build outputs and swiflow-manifest.json are out of sync (did a \`swiflow dev\` build overwrite \`swiflow build\` outputs?). Re-run \`swiflow build\`. Not cached; this URL will be served from the network.`);return}await e.put(t,s)}async function precache(e){const t=cacheNameFor("swiflow-wasm",e.wasm.sha256),a=runtimeCacheNameFor(e),s=await caches.open(t),n=await caches.open(a),o=new URL(e.wasm.url,self.location.href).href;await fetchVerifiedInto(s,o,e.wasm.sha256);for(const i of e.runtime){const c=new URL(i.url,self.location.href).href;await fetchVerifiedInto(n,c,i.sha256)}return{wasmCacheName:t,runtimeCacheName:a}}async function cleanupStale(e){const t=await caches.keys();await Promise.all(t.filter(a=>a.startsWith("swiflow-")&&!e.includes(a)).map(a=>caches.delete(a)))}self.addEventListener("install",e=>{e.waitUntil((async()=>{self.__swiflowBuildTag=BUILD_TAG;const t=await loadManifest();self.__swiflowManifest=t,await precache(t),await self.skipWaiting()})())}),self.addEventListener("activate",e=>{e.waitUntil((async()=>{const t=self.__swiflowManifest??await loadManifest();self.__swiflowManifest=t;const a=cacheNameFor("swiflow-wasm",t.wasm.sha256),s=runtimeCacheNameFor(t);await cleanupStale([a,s]),await self.clients.claim()})())}),self.addEventListener("fetch",e=>{e.request.method==="GET"&&e.respondWith((async()=>await caches.match(e.request)??fetch(e.request))())}),self.addEventListener("message",e=>{});
+const MANIFEST_URL=new URL("swiflow-manifest.json",self.location.href).href,BUILD_TAG="__SWIFLOW_BUILD_TAG__";function cacheNameFor(t,e){return`${t}-v${e.slice(0,8)}`}function shortHash(t){let e=2166136261;for(let s=0;s<t.length;s++)e^=t.charCodeAt(s),e=Math.imul(e,16777619);return(e>>>0).toString(16).padStart(8,"0")}function runtimeCacheNameFor(t){const e=t.runtime.map(s=>s.sha256).join(":");return`swiflow-runtime-v${shortHash(e)}`}async function loadManifest(){const t=await fetch(MANIFEST_URL,{cache:"no-store"});if(t.status===404||t.status===410)return null;if(!t.ok)throw new Error(`swiflow-sw: manifest fetch failed (${t.status})`);return t.json()}async function sha256HexOf(t){const e=await crypto.subtle.digest("SHA-256",t);let s="";for(const a of new Uint8Array(e))s+=a.toString(16).padStart(2,"0");return s}async function fetchVerifiedInto(t,e,s){const a=await fetch(e,{cache:"no-store"});if(!a.ok){console.error(`swiflow-sw: precache fetch failed for ${e} (${a.status}); will serve from network.`);return}const n=await sha256HexOf(await a.clone().arrayBuffer());if(n!==s){console.error(`swiflow-sw: sha256 mismatch for ${e} \u2014 manifest says ${s.slice(0,8)}\u2026, fetched bytes hash to ${n.slice(0,8)}\u2026. Build outputs and swiflow-manifest.json are out of sync (did a \`swiflow dev\` build overwrite \`swiflow build\` outputs?). Re-run \`swiflow build\`. Not cached; this URL will be served from the network.`);return}await t.put(e,a)}async function precache(t){const e=cacheNameFor("swiflow-wasm",t.wasm.sha256),s=runtimeCacheNameFor(t),a=await caches.open(e),n=await caches.open(s),o=new URL(t.wasm.url,self.location.href).href;await fetchVerifiedInto(a,o,t.wasm.sha256);for(const i of t.runtime){const c=new URL(i.url,self.location.href).href;await fetchVerifiedInto(n,c,i.sha256)}return{wasmCacheName:e,runtimeCacheName:s}}async function cleanupStale(t){const e=await caches.keys();await Promise.all(e.filter(s=>s.startsWith("swiflow-")&&!t.includes(s)).map(s=>caches.delete(s)))}self.addEventListener("install",t=>{t.waitUntil((async()=>{self.__swiflowBuildTag=BUILD_TAG;const e=await loadManifest();self.__swiflowManifest=e,e&&await precache(e),await self.skipWaiting()})())}),self.addEventListener("activate",t=>{t.waitUntil((async()=>{const e=self.__swiflowManifest??await loadManifest();self.__swiflowManifest=e;const s=e?[cacheNameFor("swiflow-wasm",e.wasm.sha256),runtimeCacheNameFor(e)]:[];await cleanupStale(s),await self.clients.claim()})())}),self.addEventListener("fetch",t=>{t.request.method==="GET"&&t.respondWith((async()=>await caches.match(t.request)??fetch(t.request))())}),self.addEventListener("message",t=>{});
 
 """#
 

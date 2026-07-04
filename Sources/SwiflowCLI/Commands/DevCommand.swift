@@ -74,6 +74,16 @@ struct DevCommand: AsyncParsableCommand {
             throw ValidationError("swiflow: failed to write the JS driver into \(projectURL.path): \(error)")
         }
 
+        // 0.6 Remove a leftover `swiflow build` manifest. The manifest is a
+        //     build-only artifact; if the service worker finds one here it
+        //     precaches the *build* outputs and serves them cache-first,
+        //     shadowing every dev rebuild (stale page that survives server
+        //     restarts). HTTPRouter also refuses to serve the path, which
+        //     covers a manifest recreated mid-session by a concurrent
+        //     `swiflow build`.
+        try? FileManager.default.removeItem(
+            at: projectURL.appendingPathComponent("swiflow-manifest.json"))
+
         // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
         //      shared with `swiflow build` (see ToolchainResolution).
         let resolution = try ToolchainResolution.resolve(swiftSDKOverride: swiftSDK, using: runner)

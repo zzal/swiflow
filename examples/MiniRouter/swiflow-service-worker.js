@@ -15,6 +15,12 @@
 //     "wasm":    { "url": "...", "sha256": "..." },
 //     "runtime": [{ "url": "...", "sha256": "..." }, ...]
 //   }
+//
+// The manifest is written ONLY by `swiflow build`. When it's absent (404)
+// this worker runs in "no manifest" mode: install precaches nothing and
+// activate deletes every swiflow-* cache. That's what keeps `swiflow dev`
+// honest after a `swiflow build` in the same project — a leftover build
+// cache would otherwise be served cache-first over every dev rebuild.
 
 const MANIFEST_URL = new URL("swiflow-manifest.json", self.location.href).href;
 
@@ -50,8 +56,16 @@ function runtimeCacheNameFor(manifest) {
   return `swiflow-runtime-v${shortHash(joined)}`;
 }
 
+// Resolves to the parsed manifest, or `null` when the site has no manifest
+// at all (404/410) — a dev server or a host that was never `swiflow build`-t.
+// That's a legitimate state, not a fault: the caller precaches nothing and
+// activate drops any swiflow-* caches a previous *built* visit left behind.
+// Transient failures (5xx, network) still throw: failing install keeps the
+// previous worker and its verified caches serving, which is the right call
+// for a temporarily broken deploy.
 async function loadManifest() {
   const res = await fetch(MANIFEST_URL, { cache: "no-store" });
+  if (res.status === 404 || res.status === 410) return null;
   if (!res.ok) throw new Error(`swiflow-sw: manifest fetch failed (${res.status})`);
   return res.json();
 }
@@ -122,7 +136,7 @@ self.addEventListener("install", (event) => {
     self.__swiflowBuildTag = BUILD_TAG; // exposed for debugging/tests
     const manifest = await loadManifest();
     self.__swiflowManifest = manifest;
-    await precache(manifest);
+    if (manifest) await precache(manifest);
     // Activate this build immediately instead of waiting for every tab on the
     // old worker to close — so a rebuild wins on the next reload, not
     // "eventually". Safe because caches are content-hash-keyed: this worker
@@ -139,9 +153,12 @@ self.addEventListener("activate", (event) => {
     // (browsers can evict idle SWs between lifecycle phases).
     const manifest = self.__swiflowManifest ?? await loadManifest();
     self.__swiflowManifest = manifest;
-    const wasmCacheName = cacheNameFor("swiflow-wasm", manifest.wasm.sha256);
-    const runtimeCacheName = runtimeCacheNameFor(manifest);
-    await cleanupStale([wasmCacheName, runtimeCacheName]);
+    // No manifest → no cache is legitimate: wipe every swiflow-* cache so a
+    // leftover `swiflow build` cache can't shadow dev-server responses.
+    const currentNames = manifest
+      ? [cacheNameFor("swiflow-wasm", manifest.wasm.sha256), runtimeCacheNameFor(manifest)]
+      : [];
+    await cleanupStale(currentNames);
     await self.clients.claim();
   })());
 });

@@ -42,6 +42,17 @@ enum HTTPRouter {
             guard !rel.split(separator: "/").contains("..") else {
                 throw HTTPError(.forbidden)
             }
+            // The build manifest must never be served in dev: the service
+            // worker treats its presence as "this is a built site" and
+            // precaches the listed (build) outputs cache-first, shadowing
+            // every dev rebuild. DevCommand deletes a leftover copy at
+            // startup; this guard covers one recreated mid-session by a
+            // concurrent `swiflow build`. A 404 here is what switches the
+            // SW into its no-manifest mode (precache nothing, drop stale
+            // swiflow-* caches).
+            guard rel != "swiflow-manifest.json" else {
+                throw HTTPError(.notFound)
+            }
             return try await serveFile(
                 at: projectRoot.appendingPathComponent(rel),
                 projectRoot: projectRoot,

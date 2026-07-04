@@ -122,6 +122,25 @@ struct HTTPRouterTests {
         }
     }
 
+    @Test("A leftover build manifest is 404'd even when present on disk")
+    func buildManifestNeverServed() async throws {
+        try await Self.withFixture { root in
+            // What `swiflow build` leaves behind. If dev ever serves it, the
+            // service worker precaches the build outputs and shadows every
+            // dev rebuild — the 404 is what flips the SW into no-manifest mode.
+            try #"{"version":"1","wasm":{"url":"x","sha256":"y"},"runtime":[]}"#.write(
+                to: root.appendingPathComponent("swiflow-manifest.json"),
+                atomically: true, encoding: .utf8
+            )
+            let router = HTTPRouter.build(projectRoot: root)
+            let app = Application(router: router, configuration: .init(address: .hostname("127.0.0.1", port: 0)))
+            try await app.test(.live) { client in
+                let response = try await client.execute(uri: "/swiflow-manifest.json", method: .get)
+                #expect(response.status == .notFound)
+            }
+        }
+    }
+
     @Test("GET on a missing path returns 404")
     func missingPath404() async throws {
         try await Self.withFixture { root in
