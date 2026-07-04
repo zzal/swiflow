@@ -36,31 +36,30 @@ final class WeatherPage {
         VStack(spacing: .md, .class("page")) {
             embed { NavBar() }
 
-            HStack(spacing: .sm, align: .center, .class("toolbar")) {
-                HStack(spacing: .none, align: .baseline, justify: .between) {
-                    h1("🌍 Weather")
-                    HStack(spacing: .md, align: .baseline, justify: .end) {
-                        p("Units")
-                        Select("Units", selection: $unit, options: [
-                            SelectOption("celsius", "°C"),
-                            SelectOption("fahrenheit", "°F"),
-                        ])
-                    }
-                }
-            }
+            h1("Weather", .class("page-title"))
 
-            // Strict select-from-list combobox over the geocoder. The binding
-            // never holds a value: a commit pins the city and the empty `get`
-            // hands the field back cleared, ready for the next search.
-            Autocomplete("Search cities",
-                         selection: Binding(
-                             get: { "" },
-                             set: { id in
-                                 if let city = self.searchHits[id] { self.pin(city) }
-                             }),
-                         loader: { q in try await self.searchCities(q) },
-                         placeholder: "Search a city to pin…",
-                         minChars: 2)
+            HStack(spacing: .md, align: .center, justify: .between, .style("width", "100%")) {
+                div(.class("add-a-city-wrapper")) {
+                    // Strict select-from-list combobox over the geocoder. The binding
+                    // never holds a value: a commit pins the city and the empty `get`
+                    // hands the field back cleared, ready for the next search.
+                    Autocomplete("Add a City",
+                        selection: Binding(
+                            get: { "" },
+                            set: { id in
+                                if let city = self.searchHits[id] { self.pin(city) }
+                            }),
+                        loader: { q in try await self.searchCities(q) },
+                        placeholder: "Search a city to pin…",
+                        minChars: 2
+                    )
+                }
+
+                Select("Units", selection: $unit, options: [
+                    SelectOption("celsius", "°C"),
+                    SelectOption("fahrenheit", "°F"),
+                ])
+            }
 
             HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
                 for city in pinned {
