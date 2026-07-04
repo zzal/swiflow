@@ -17,25 +17,6 @@ func urlEncoded(_ s: String) -> String {
     #endif
 }
 
-/// Geocode a (debounced) city-name fragment. The caller gates on
-/// `name.count >= 2`; `query()` is render-scoped, so a query simply not
-/// observed this render drops its subscription — conditional calls are fine.
-@Query struct CitySearchQuery {
-    let name: String
-
-    // Transformed cache key (case-insensitive) — kept by hand; @Key derives keys
-    // mechanically, so a `.lowercased()` key opts out of @Key marking. @Query
-    // still synthesizes the `Query` conformance + `init(name:)`.
-    var queryKey: QueryKey { ["geocode", .string(name.lowercased())] }
-    /// Place names don't move; retyping the same prefix within the hour is a
-    /// pure cache hit.
-    var staleTime: Duration { .seconds(3600) }
-
-    func fetch() async throws -> GeoSearchResponse {
-        try await API.geocoding.get("/v1/search?name=\(urlEncoded(name))&count=5")
-    }
-}
-
 /// Current conditions + today's range for one pinned city. Keyed on
 /// (city id, unit) — `latitude`/`longitude` ride along as captured
 /// dependencies, excluded from the key per the `Query` contract.
