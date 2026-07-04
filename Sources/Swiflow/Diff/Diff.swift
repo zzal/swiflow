@@ -494,18 +494,26 @@ func update(
             path: path,
             environment: environment
         )
-        // If the body's DOM-level identity changed (type or tag swap),
-        // splice removeChild+appendChild patches into the parent's DOM
-        // ancestor. For a root-level swap (no DOM ancestor in the mount
-        // tree), the Renderer detects the root-handle change post-diff
-        // and emits a `replaceMount` patch covering the same job.
-        // Root identity compared as the full collectDOMRoots list, not a single
-        // domHandle: a fragment body has 0..N real roots and NO representable
-        // single handle (the old comparison emitted the fragment's structural
-        // handle — one the driver never saw — aborting the patch batch).
-        // Single-rooted bodies behave byte-identically ([old] vs [new]).
+        // If the body was replaced WHOLESALE (update returned a fresh
+        // MountNode — type or tag swap at the body root), splice
+        // removeChild+appendChild patches into the parent's DOM ancestor.
+        // For a root-level swap (no DOM ancestor in the mount tree), the
+        // Renderer detects the root-handle change post-diff and emits a
+        // `replaceMount` patch covering the same job.
+        //
+        // The gate is REFERENCE identity, not a roots comparison: a
+        // same-reference return means any DOM-root change happened deeper
+        // inside a nested structural arm (component/environmentOverride)
+        // that already spliced at this same ancestor — re-splicing here
+        // issued a second removeChild for an already-detached node, which
+        // aborts the driver's whole patch batch (NotFoundError). Latent
+        // while routers sat at the render root; exposed the first time a
+        // router gained a DOM ancestor (#137's scope-class carrier).
+        // Roots are still collected as the full collectDOMRoots list, not a
+        // single domHandle: a fragment body has 0..N real roots and NO
+        // representable single handle.
         let newBodyRoots = collectDOMRoots(newBodyMount)
-        if newBodyRoots != oldBodyRootsForComponentArm,
+        if newBodyMount !== oldBody,
            let domParentHandle = domAncestorHandle(of: mounted) {
             patches.insert(
                 contentsOf: oldBodyRootsForComponentArm.map {
@@ -548,9 +556,12 @@ func update(
             path: path,
             environment: merged
         )
-        // Mirror of the component arm: full-roots comparison (fragment-safe).
+        // Mirror of the component arm: splice only on a WHOLESALE body
+        // replacement (fresh MountNode). Same-reference means a deeper
+        // structural arm already reconciled placement — see the component
+        // arm's comment for the double-splice failure this gates against.
         let updatedBodyRoots = collectDOMRoots(updatedBody)
-        if updatedBodyRoots != oldBodyRootsForEnvArm,
+        if updatedBody !== oldBody,
            let domParentHandle = domAncestorHandle(of: mounted) {
             patches.insert(
                 contentsOf: oldBodyRootsForEnvArm.map {
