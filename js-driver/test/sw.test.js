@@ -89,6 +89,41 @@ describe("service worker", () => {
     assert.ok(names.includes(currentWasmCache), "current wasm cache must survive");
   });
 
+  // ── No-manifest mode ──────────────────────────────────────────────────────
+  //
+  // The manifest exists only on `swiflow build` output. On a dev server (or
+  // any never-built host) it 404s — a legitimate state: install must still
+  // succeed (precaching nothing) and activate must delete every swiflow-*
+  // cache, so a leftover `swiflow build` cache can't shadow dev responses
+  // (the build → dev cache-poisoning trap).
+
+  const missing404 = async (urlOrReq) => {
+    const url = typeof urlOrReq === "string" ? urlOrReq : urlOrReq.url;
+    if (url.endsWith("swiflow-manifest.json")) {
+      return { ok: false, status: 404 };
+    }
+    return { ok: true, status: 200, body: `net:${url}`, json: async () => ({}) };
+  };
+
+  test("missing manifest (404): install succeeds and precaches nothing", async () => {
+    const { fire, caches } = loadServiceWorker({ fetchHandler: missing404 });
+    await fire("install", {});
+    assert.deepEqual(await caches.keys(), [], "no caches may be created without a manifest");
+  });
+
+  test("missing manifest (404): activate wipes leftover swiflow-* caches (build → dev self-heal)", async () => {
+    const { fire, caches } = loadServiceWorker({ fetchHandler: missing404 });
+    // What a prior `swiflow build` visit leaves behind: content-hash-named
+    // caches that a manifest-driven activate would deliberately preserve.
+    await caches.open("swiflow-wasm-vdeadbeef");
+    await caches.open("swiflow-runtime-vdeadbeef");
+    await fire("install", {});
+    await fire("activate", {});
+    const names = await caches.keys();
+    assert.ok(!names.some(n => n.startsWith("swiflow-")),
+      "all swiflow-* caches must be dropped when the site has no manifest");
+  });
+
   test("manifest fetch failure causes install to reject", async () => {
     const { fire } = loadServiceWorker({
       manifest: DEFAULT_MANIFEST,
