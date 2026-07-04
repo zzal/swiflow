@@ -20,6 +20,33 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.4] — 2026-07-04
+
+**Beta.**
+
+### Fixed
+
+- **A `swiflow build` in a project directory no longer poisons later
+  `swiflow dev` sessions.** The build's leftover `swiflow-manifest.json` made
+  the service worker precache the *build* outputs and serve them cache-first,
+  shadowing every dev rebuild — a stale page that survived server restarts.
+  Three layers: the service worker treats a missing manifest (404) as "not a
+  built site" — install precaches nothing and activate drops every
+  `swiflow-*` cache, so **already-poisoned browsers self-heal on their next
+  dev visit**; `swiflow dev` deletes a leftover manifest at startup; and the
+  dev server refuses to serve the manifest path. Transient manifest failures
+  (5xx/network) still keep the previous worker's verified caches serving.
+
+### Examples
+
+- MissionControl's city search now uses SwiflowUI's async
+  `Autocomplete(loader:)` — debounce, keystroke cancellation, and
+  Searching/error/empty panel states come from the component instead of the
+  hand-rolled TextField + results list; committing a suggestion pins the city
+  and clears the field in one gesture. Weather toolbar layout polished.
+
+---
+
 ## [0.4.3] — 2026-07-03
 
 **Beta.**
