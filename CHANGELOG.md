@@ -20,6 +20,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.5] — 2026-07-04
+
+**Beta.**
+
+### Fixed
+
+- **`scopedStyles` on a component whose body root is a non-element now works.**
+  A `@Component` with `scopedStyles` but a bare `embed { … }` (or fragment)
+  body root had its sheet injected yet silently unmatchable — the
+  `.swiflow-<Type>` scope class had no element to land on. Such roots are now
+  auto-wrapped in a layout-neutral `display: contents` carrier bearing the
+  scope class, so app-wide styles owned by a root shell component just work.
+  Components without `scopedStyles` keep their exact DOM shape.
+- **Navigating routes no longer crashes when the router has a DOM ancestor.**
+  A latent double-splice in the diff (both the component and
+  `environmentOverride` update arms issued `removeChild`+`appendChild` for
+  the same routed-page swap) aborted the patch batch with `NotFoundError`.
+  Exposed by the carrier above — any `RouterRoot` nested inside a plain
+  element was affected. The splice is now gated on wholesale body-root
+  replacement, so exactly one remove/append pair is emitted.
+
+---
+
 ## [0.4.4] — 2026-07-04
 
 **Beta.**
