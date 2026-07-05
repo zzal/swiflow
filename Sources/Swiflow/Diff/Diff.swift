@@ -476,7 +476,7 @@ func update(
         // subtree — shared with the environmentOverride arm below (both
         // anchor a single body slot the same way; see the shared function's
         // doc for the double-splice invariant this protects).
-        _ = reconcileStructuralBody(
+        reconcileStructuralBody(
             anchor: mounted,
             oldBody: oldBody,
             bodyNext: addScopeClass(newBodyVNode, scopeClass: scopeClass,
@@ -504,7 +504,7 @@ func update(
         // The env override is a structural-only anchor with exactly the
         // same single-body-slot shape as the component reuse arm above —
         // share its reconcile-and-splice logic rather than re-copying it.
-        _ = reconcileStructuralBody(
+        reconcileStructuralBody(
             anchor: mounted,
             oldBody: oldBody,
             bodyNext: nextChild,
@@ -553,6 +553,12 @@ func update(
 /// wrapped child for an environment override. `bodyEnvironment` is whatever
 /// environment the recursive `update` should see (unchanged for a
 /// component; merged with the override's for an environmentOverride).
+///
+/// Assumes the body renders in place, directly under the anchor's nearest
+/// real DOM ancestor (`domAncestorHandle(of: anchor)`) — true for both
+/// current callers, which are DOM-transparent. A structural anchor that
+/// relocates its body elsewhere (e.g. a future portal) cannot reuse this
+/// helper as-is: it would splice at the wrong parent.
 @MainActor
 func reconcileStructuralBody(
     anchor: MountNode,
@@ -564,7 +570,7 @@ func reconcileStructuralBody(
     scheduler: Scheduler?,
     path: String,
     bodyEnvironment: EnvironmentValues
-) -> MountNode {
+) {
     // Snapshot the body's DOM identity before the recursive update so we
     // can detect a same-anchor / different-body-element swap (e.g. a route
     // change inside a nested structural anchor) and emit the DOM-level
@@ -593,13 +599,17 @@ func reconcileStructuralBody(
     // same-reference return means any DOM-root change happened deeper
     // inside a nested structural arm (component/environmentOverride) that
     // already spliced at this same ancestor — re-splicing here would issue
-    // a second removeChild for an already-detached node. That throws
-    // NotFoundError in the driver; the driver's per-patch try/catch logs
-    // and skips it rather than aborting the whole batch, but the skip still
-    // leaves that node undetached in the DOM while Swiflow's mount tree
-    // believes it's gone. Latent while routers sat at the render root;
-    // exposed the first time a router gained a DOM ancestor (#137's
-    // scope-class carrier).
+    // a second removeChild for a node the first splice already detached.
+    // That throws NotFoundError in the driver; the driver's per-patch
+    // try/catch logs and skips it rather than aborting the whole batch, so
+    // the redundant removal itself is harmless. The paired duplicate
+    // appendChild is the real residual risk: unlike removeChild it does
+    // NOT throw on an already-attached node — DOM `appendChild` just
+    // relocates it to the end of its parent's children — so a parent with
+    // other children after that position would see them silently
+    // reordered. Latent while routers sat at the render root; exposed the
+    // first time a router gained a DOM ancestor (#137's scope-class
+    // carrier).
     // Roots are still collected as the full collectDOMRoots list, not a
     // single domHandle: a fragment body has 0..N real roots and NO
     // representable single handle.
@@ -617,7 +627,6 @@ func reconcileStructuralBody(
         })
     }
     anchor.setComponentBody(newBody)
-    return newBody
 }
 
 /// Emits `setAttribute` / `removeAttribute` patches for the symmetric
