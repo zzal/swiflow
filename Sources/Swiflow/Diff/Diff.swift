@@ -449,13 +449,6 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
-        // Snapshot the body's DOM identity before the recursive update so we
-        // can detect a same-anchor / different-body-element swap (e.g. a
-        // route change inside an env-override inside this component) and
-        // emit the DOM-level removeChild+appendChild that the recursive
-        // default arm leaves to the caller.
-        let oldBodyRootsForComponentArm = collectDOMRoots(oldBody)
-        let bodyUpdateStartForComponentArm = patches.count
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
@@ -480,52 +473,21 @@ func update(
         let componentType = type(of: instance.instance)
         let scopeClass = "swiflow-\(String(describing: componentType))"
         // Reconcile the new body VNode against the previously-mounted body
-        // subtree. The returned MountNode may be the same reference (if the
-        // body root type/tag matched) or a fresh one (if the body root
-        // itself was replaced wholesale). Either way it becomes the new body.
-        let newBodyMount = update(
-            mounted: oldBody,
-            next: addScopeClass(newBodyVNode, scopeClass: scopeClass,
-                                hasScopedStyles: componentType.scopedStyles != nil),
+        // subtree — shared with the environmentOverride arm below (both
+        // anchor a single body slot the same way; see the shared function's
+        // doc for the double-splice invariant this protects).
+        _ = reconcileStructuralBody(
+            anchor: mounted,
+            oldBody: oldBody,
+            bodyNext: addScopeClass(newBodyVNode, scopeClass: scopeClass,
+                                    hasScopedStyles: componentType.scopedStyles != nil),
             into: &patches,
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
             path: path,
-            environment: environment
+            bodyEnvironment: environment
         )
-        // If the body was replaced WHOLESALE (update returned a fresh
-        // MountNode — type or tag swap at the body root), splice
-        // removeChild+appendChild patches into the parent's DOM ancestor.
-        // For a root-level swap (no DOM ancestor in the mount tree), the
-        // Renderer detects the root-handle change post-diff and emits a
-        // `replaceMount` patch covering the same job.
-        //
-        // The gate is REFERENCE identity, not a roots comparison: a
-        // same-reference return means any DOM-root change happened deeper
-        // inside a nested structural arm (component/environmentOverride)
-        // that already spliced at this same ancestor — re-splicing here
-        // issued a second removeChild for an already-detached node, which
-        // aborts the driver's whole patch batch (NotFoundError). Latent
-        // while routers sat at the render root; exposed the first time a
-        // router gained a DOM ancestor (#137's scope-class carrier).
-        // Roots are still collected as the full collectDOMRoots list, not a
-        // single domHandle: a fragment body has 0..N real roots and NO
-        // representable single handle.
-        let newBodyRoots = collectDOMRoots(newBodyMount)
-        if newBodyMount !== oldBody,
-           let domParentHandle = domAncestorHandle(of: mounted) {
-            patches.insert(
-                contentsOf: oldBodyRootsForComponentArm.map {
-                    .removeChild(parent: domParentHandle, child: $0)
-                },
-                at: bodyUpdateStartForComponentArm
-            )
-            patches.append(contentsOf: newBodyRoots.map {
-                .appendChild(parent: domParentHandle, child: $0)
-            })
-        }
-        mounted.setComponentBody(newBodyMount)
         // Commit the new vnode description so the next render's left-hand
         // side reflects the description that was actually diffed.
         mounted.vnode = next
@@ -539,41 +501,20 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
-        // Snapshot — mirror of the Component reuse arm above. The env
-        // override is a structural-only anchor; if its body's DOM identity
-        // changes between frames, the surrounding DOM ancestor needs a
-        // removeChild + appendChild splice.
-        let oldBodyRootsForEnvArm = collectDOMRoots(oldBody)
-        let bodyUpdateStartForEnvArm = patches.count
-        let merged = environment.merging(nextOverrides)
-        let updatedBody = update(
-            mounted: oldBody,
-            next: nextChild,
+        // The env override is a structural-only anchor with exactly the
+        // same single-body-slot shape as the component reuse arm above —
+        // share its reconcile-and-splice logic rather than re-copying it.
+        _ = reconcileStructuralBody(
+            anchor: mounted,
+            oldBody: oldBody,
+            bodyNext: nextChild,
             into: &patches,
             handles: handles,
             handlers: handlers,
             scheduler: scheduler,
             path: path,
-            environment: merged
+            bodyEnvironment: environment.merging(nextOverrides)
         )
-        // Mirror of the component arm: splice only on a WHOLESALE body
-        // replacement (fresh MountNode). Same-reference means a deeper
-        // structural arm already reconciled placement — see the component
-        // arm's comment for the double-splice failure this gates against.
-        let updatedBodyRoots = collectDOMRoots(updatedBody)
-        if updatedBody !== oldBody,
-           let domParentHandle = domAncestorHandle(of: mounted) {
-            patches.insert(
-                contentsOf: oldBodyRootsForEnvArm.map {
-                    .removeChild(parent: domParentHandle, child: $0)
-                },
-                at: bodyUpdateStartForEnvArm
-            )
-            patches.append(contentsOf: updatedBodyRoots.map {
-                .appendChild(parent: domParentHandle, child: $0)
-            })
-        }
-        mounted.setComponentBody(updatedBody)
         mounted.vnode = next
         return mounted
 
@@ -599,6 +540,84 @@ func update(
         destroy(mounted, into: &patches, handlers: handlers)
         return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
     }
+}
+
+/// Reconciles a structural anchor's single body slot against `bodyNext`,
+/// splicing a DOM-level remove+append if the body root was replaced
+/// wholesale. Shared by the `.component` reuse arm and the
+/// `.environmentOverride` arm — both anchor exactly one body subtree the
+/// same way, and previously hand-copied this dance (extracted after the two
+/// copies were found to have drifted; see the audit's sibling-inconsistency
+/// note). `bodyNext` is the VNode to diff the anchor's existing body
+/// against — the re-rendered, scope-classed body for a component; the
+/// wrapped child for an environment override. `bodyEnvironment` is whatever
+/// environment the recursive `update` should see (unchanged for a
+/// component; merged with the override's for an environmentOverride).
+@MainActor
+func reconcileStructuralBody(
+    anchor: MountNode,
+    oldBody: MountNode,
+    bodyNext: VNode,
+    into patches: inout [Patch],
+    handles: HandleAllocator,
+    handlers: HandlerRegistry,
+    scheduler: Scheduler?,
+    path: String,
+    bodyEnvironment: EnvironmentValues
+) -> MountNode {
+    // Snapshot the body's DOM identity before the recursive update so we
+    // can detect a same-anchor / different-body-element swap (e.g. a route
+    // change inside a nested structural anchor) and emit the DOM-level
+    // removeChild+appendChild that the recursive default arm leaves to the
+    // caller.
+    let oldBodyRoots = collectDOMRoots(oldBody)
+    let bodyUpdateStart = patches.count
+    let newBody = update(
+        mounted: oldBody,
+        next: bodyNext,
+        into: &patches,
+        handles: handles,
+        handlers: handlers,
+        scheduler: scheduler,
+        path: path,
+        environment: bodyEnvironment
+    )
+    // If the body was replaced WHOLESALE (update returned a fresh MountNode
+    // — type or tag swap at the body root), splice removeChild+appendChild
+    // patches into the anchor's DOM ancestor. For a root-level swap (no DOM
+    // ancestor in the mount tree), the Renderer detects the root-handle
+    // change post-diff and emits a `replaceMount` patch covering the same
+    // job.
+    //
+    // The gate is REFERENCE identity, not a roots comparison: a
+    // same-reference return means any DOM-root change happened deeper
+    // inside a nested structural arm (component/environmentOverride) that
+    // already spliced at this same ancestor — re-splicing here would issue
+    // a second removeChild for an already-detached node. That throws
+    // NotFoundError in the driver; the driver's per-patch try/catch logs
+    // and skips it rather than aborting the whole batch, but the skip still
+    // leaves that node undetached in the DOM while Swiflow's mount tree
+    // believes it's gone. Latent while routers sat at the render root;
+    // exposed the first time a router gained a DOM ancestor (#137's
+    // scope-class carrier).
+    // Roots are still collected as the full collectDOMRoots list, not a
+    // single domHandle: a fragment body has 0..N real roots and NO
+    // representable single handle.
+    let newBodyRoots = collectDOMRoots(newBody)
+    if newBody !== oldBody,
+       let domParentHandle = domAncestorHandle(of: anchor) {
+        patches.insert(
+            contentsOf: oldBodyRoots.map {
+                .removeChild(parent: domParentHandle, child: $0)
+            },
+            at: bodyUpdateStart
+        )
+        patches.append(contentsOf: newBodyRoots.map {
+            .appendChild(parent: domParentHandle, child: $0)
+        })
+    }
+    anchor.setComponentBody(newBody)
+    return newBody
 }
 
 /// Emits `setAttribute` / `removeAttribute` patches for the symmetric
