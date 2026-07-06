@@ -60,10 +60,12 @@ public extension Swiflow {
         let renderer = Renderer(rootComponent: AnyComponent(root), selector: selector)
         DispatcherBridge.install()
         RegionDecoder.current = SwiflowRegionDecoder()
+        // Route Ref resolution through the same driver seam the Renderer uses,
+        // so `window.swiflow` is unwrapped (and its absence diagnosed) in one
+        // place. Returns nil for an unknown handle; traps with a named cause
+        // only if the driver itself is missing (see JSDriver).
         RefResolverInstall.resolver = { handle in
-            guard let swiflowGlobal = JSObject.global.swiflow.object else { return nil }
-            let result = swiflowGlobal.nodeForHandle!(JSValue.number(Double(handle)))
-            return result.object
+            JSDriver().nodeForHandle(handle)
         }
         renderers[selector] = renderer
 
