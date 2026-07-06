@@ -9,16 +9,20 @@
 //     # or directly:
 //     npx playwright test --config=playwright.router.config.ts
 //
-// The MiniRouter demo is scaffolded via `swiflow init demo --template
-// MiniRouter` (dogfoods --template) and persisted under .e2e-cache/router/demo
-// across runs. SWIFLOW_E2E_CLEAN=1 forces a fresh cold build.
+// The MiniRouter demo is served in place from `examples/MiniRouter` — it's a
+// read-only feature demo, not a scaffoldable `--template` (InitCommand excludes
+// MiniRouter/RegionDemo/AsyncFetch), so `swiflow dev` builds it against the
+// repo's Swiflow via its own `../..` path dependency.
 //
 // CI continues to use the default playwright.config.ts, which runs ALL
 // servers and ALL specs.
 import { defineConfig } from "@playwright/test";
-import { SWIFLOW, prepareDemo } from "./harness";
+import { join } from "node:path";
+import { SWIFLOW, REPO_ROOT, ensureCli } from "./harness";
 
-const ROUTER_DEMO_PROJECT = prepareDemo({ key: "router", template: "MiniRouter" });
+const ROUTER_DIR = join(REPO_ROOT, "examples", "MiniRouter");
+
+ensureCli();
 
 export default defineConfig({
   testDir: ".",
@@ -31,8 +35,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `'${SWIFLOW}' dev --port 3001`,
-      cwd: ROUTER_DEMO_PROJECT,
+      command: `'${SWIFLOW}' dev --path '${ROUTER_DIR}' --port 3001`,
       url: "http://127.0.0.1:3001",
       reuseExistingServer: false,
       timeout: 300_000,

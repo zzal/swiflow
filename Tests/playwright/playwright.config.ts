@@ -14,7 +14,11 @@ import { join } from "node:path";
 import { SWIFLOW, REPO_ROOT, prepareDemo } from "./harness";
 
 const DEMO_PROJECT = prepareDemo({ key: "counter" });
-const ROUTER_DEMO_PROJECT = prepareDemo({ key: "router", template: "MiniRouter" });
+// MiniRouter is built IN-PLACE from examples/MiniRouter (like EdgeCases below) —
+// it's a read-only feature demo, intentionally NOT a scaffoldable --template, so
+// it can't go through prepareDemo's `swiflow init`. The counter prepareDemo call
+// above already ran the shared CLI guard.
+const ROUTER_DIR = join(REPO_ROOT, "examples", "MiniRouter");
 // Service workers only register in release builds (dev mode skips registration
 // to avoid fighting HMR), so the SW demo is built with `swiflow build`. The
 // build writes swiflow-manifest.json to the project root, where the SW resolves it.
@@ -41,8 +45,8 @@ export default defineConfig({
       timeout: 300_000,  // cold WASM build can take ~3 min
     },
     {
-      command: `'${SWIFLOW}' dev --port 3001`,
-      cwd: ROUTER_DEMO_PROJECT,
+      // MiniRouter built in-place via `swiflow dev --path` (no scaffold).
+      command: `'${SWIFLOW}' dev --path '${ROUTER_DIR}' --port 3001`,
       url: "http://127.0.0.1:3001",
       reuseExistingServer: false,
       timeout: 300_000,
