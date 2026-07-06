@@ -33,15 +33,12 @@ struct FakeAPI: Sendable {
         try await api.renameUser(id, name: newName)
     }
 
+    // No invalidations override: the default derives the refetch from the
+    // UserByID key that optimistic() declares — one source of truth for
+    // "what this mutation touches."
     func optimistic(_ newName: String) -> [OptimisticEdit] {
         let id = self.id
         return [.update(UserByID(id: id)) { _ in User(id: id, name: newName) }]
-    }
-
-    func invalidations(input: String, output: User) -> [Invalidation] {
-        // Type-referenced: UserByID owns its key (`@Query(prefix:)` + `@Key`),
-        // so a renamed prefix can't silently orphan this invalidation.
-        [.exact(UserByID(id: id))]
     }
 }
 

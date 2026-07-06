@@ -2,8 +2,10 @@
 // Pre-launch audit Wave-2 regression gates: reset() must detach the handle's
 // LOCAL state from an in-flight mutation without skipping the CACHE effects
 // (a detached failure still rolls back its optimistic edit; a detached success
-// still dispatches invalidations); and optimistic-without-invalidations is a
-// diagnosed footgun (the cache would keep the guess forever).
+// still dispatches invalidations). The optimistic-without-invalidations
+// diagnostic that used to live here was retired when the default
+// `invalidations` began deriving from `optimistic(_:)`'s declared keys — the
+// footgun it warned about is now inexpressible (see DefaultInvalidationsTests).
 import Testing
 import Swiflow
 @testable import SwiflowQuery
@@ -101,56 +103,3 @@ struct MutationResetTests {
     }
 }
 
-private struct NoInvalidationMut: Mutation {
-    func perform(_ x: Int) async throws -> Int { x }
-    func optimistic(_ x: Int) -> [OptimisticEdit] {
-        [.update(MKey()) { (old: Int?) in (old ?? 0) + 1 }]
-    }
-    // invalidations: default [] — the footgun under test.
-}
-
-/// Child-process body for the exit test below: seeds the cache via a real
-/// observation, then mutates with optimistic edits + empty invalidations.
-/// With no _swiflowDiagnosticOverride installed, the diagnostic in finish's
-/// success path TRAPS — the child's failure exit is the assertion.
-@MainActor private func runOptimisticWithoutInvalidations() async {
-    let client = QueryClient(clock: ManualClock())
-    let rt = MutationRuntime<NoInvalidationMut>()
-    let owner = AnyComponent(ResetDummy())
-    rt.wire(owner: owner, scheduler: SyncScheduler { _ in }, client: client)
-    client.reconcile(owner: owner, scheduler: SyncScheduler { _ in }, observations: [
-        QueryClient.QueryObservation(
-            key: ["m"], tags: [], staleTime: .seconds(9999),
-            refetchInterval: nil, refetchOnFocus: false, retry: .none,
-            boxedFetch: { 10 })
-    ])
-    for t in client.inFlightTasks() { await t.value }
-    MutationHandle(runtime: rt, mutation: NoInvalidationMut()).mutate(5)
-    for t in client.inFlightTasks() { await t.value }   // finish → diagnostic traps
-}
-
-@Suite("Mutation optimistic-without-invalidations diagnostic")
-struct MutationWritebackDiagnosticTests {
-    private static let isDebugBuild: Bool = {
-        #if DEBUG
-        true
-        #else
-        false
-        #endif
-    }()
-
-    // Exit test (child process) rather than an _swiflowDiagnosticOverride
-    // capture: the override is a process global, and a parallel suite that
-    // installs its own override across an await window hijacks the message
-    // (observed as a full-suite-only flake). The child has no override, so
-    // the diagnostic traps — fully isolated from suite parallelism.
-    @Test(
-        "optimistic edits with empty invalidations diagnose (cache would keep the guess)",
-        .disabled(if: !isDebugBuild)
-    )
-    func diagnoses() async {
-        await #expect(processExitsWith: .failure) {
-            await runOptimisticWithoutInvalidations()
-        }
-    }
-}
