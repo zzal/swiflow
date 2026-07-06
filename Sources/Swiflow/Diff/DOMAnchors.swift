@@ -34,6 +34,32 @@ func collectDOMRoots(_ node: MountNode) -> [Int] {
     }
 }
 
+extension MountNode {
+    /// The single DOM handle for a node that must attach as exactly one root —
+    /// the ROOT mount tree, whose handle feeds the driver's `mount` /
+    /// `replaceMount` (each of which attaches ONE node at the mount selector).
+    ///
+    /// Unlike `domHandle`, this descends through fragments (via `collectDOMRoots`)
+    /// and **traps in all builds** if the node resolves to anything other than a
+    /// single DOM root. A fragment / multi-root ROOT body therefore fails loudly
+    /// with actionable guidance, instead of feeding the bogus structural handle
+    /// `domHandle` returns for a fragment to the driver in RELEASE — where the
+    /// DEBUG bare-fragment-body diagnostic (`Diff.swift`) is compiled out and the
+    /// mount would silently attach a node the DOM never renders.
+    @MainActor
+    package var singleRootDOMHandle: Int {
+        let roots = collectDOMRoots(self)
+        precondition(
+            roots.count == 1,
+            "Swiflow: the root component's body must resolve to exactly one DOM "
+            + "node to attach at the mount point, but it produced \(roots.count) "
+            + "(a bare fragment / multiple top-level roots). Wrap the body in a "
+            + "single element — div, VStack, … — so there is one node to mount."
+        )
+        return roots[0]
+    }
+}
+
 /// First real DOM-node handle of a subtree, or nil if it contributes none
 /// (e.g. an empty fragment). Short-circuits without building the full list —
 /// semantically `collectDOMRoots(node).first`, kept separate to avoid the
