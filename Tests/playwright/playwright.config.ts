@@ -30,6 +30,19 @@ const EDGECASES_DIR = join(REPO_ROOT, "examples", "EdgeCases");
 
 export default defineConfig({
   testDir: ".",
+  // This config only starts the counter (:3000) + router (:3001) + sw (:3002) +
+  // edgecases (:3003) servers, so it runs ONLY the specs those serve. The specs
+  // below need servers this config deliberately does NOT start — they collide on
+  // ports (RegionDemo and SwiflowUIDemo both want :3004) or need the real Bun
+  // backend — so they run via their own configs (npm run test:regions /
+  // test:swiflowui, and the run-e2e-backend job for todocrud). Without this
+  // ignore they'd run against :3000 (counter) and fail "element not found".
+  testIgnore: [
+    "region.spec.ts",     // RegionDemo — npm run test:regions (:3004)
+    "datatable.spec.ts",  // SwiflowUIDemo — npm run test:swiflowui
+    "dropdown.spec.ts",   // SwiflowUIDemo — npm run test:swiflowui
+    "todocrud.spec.ts",   // real Bun+SQLite backend — run-e2e-backend job
+  ],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
   use: {
