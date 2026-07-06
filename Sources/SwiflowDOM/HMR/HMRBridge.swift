@@ -184,37 +184,19 @@ package enum HMRBridge {
         guard let len = Int(exactly: lenValue) else { return [:] }
         for i in 0..<len {
             guard let k = keys[i].string else { continue }
-            let v = obj[k]
-            if let b = v.boolean {
-                out[k] = b
-            } else if let s = v.string {
-                out[k] = s
-            } else if let n = v.number {
-                // JS numbers are doubles; preserve Int when integral so
-                // the macro-emitted restore closure for `@State var count: Int`
-                // accepts the value. The restore-side `as? Int` cast won't
-                // match a Double, so we synthesize.
-                // Note: `_hmrCoerce` adds a Double↔Int coercion layer for
-                // `@State var price: Double = 0` whose current value happens
-                // to be integral (arrives here as Int). The two layers are
-                // complementary — this side biases toward Int for the
-                // common counter case; restore-side corrects for Double
-                // fields.
-                if n.truncatingRemainder(dividingBy: 1) == 0 && n.isFinite
-                    && n >= Double(Int.min) && n <= Double(Int.max) {
-                    out[k] = Int(n)
-                } else {
-                    out[k] = n
-                }
-            } else if case .null = v {
-                // JS null → sentinel. The macro-emitted `restoreNil`
-                // closure on the target @State field will write
-                // `Optional.none` if `Value` is Optional; non-Optional
-                // fields return false and emit a diagnostic (shouldn't
-                // happen unless the snapshot is from a mismatched build).
-                out[k] = HMRNilSentinel()
+            // Classification lives in `JSScalar(jsValue:)`: booleans/strings map
+            // directly; a JS number becomes Int when integral (so `@State var
+            // count: Int` round-trips) else Double; JS null → `HMRNilSentinel`
+            // (which the macro-emitted `restoreNil` closure turns into
+            // `Optional.none` for Optional fields). Unsupported JS values
+            // (objects/functions/undefined) classify as nil and are skipped.
+            //
+            // `_hmrCoerce` adds a COMPLEMENTARY restore-side Double↔Int layer:
+            // a `@State var price: Double` whose current value is integral
+            // arrives here biased to Int, and the restore closure corrects it.
+            if let scalar = JSScalar(jsValue: obj[k]) {
+                out[k] = scalar.stateValue
             }
-            // Other JS values (objects, functions, undefined) — skip.
         }
         return out
     }

@@ -14,31 +14,20 @@ import Swiflow
 
 /// Encodes a component's `[String: Any]` state snapshot into a JS object.
 ///
-/// Values are either a concrete primitive (Bool/Int/Double/String) — from a
-/// non-Optional `@State` or an Optional `.some(payload)` the `@Component`
-/// macro unwrapped at the source via `.map { $0 as Any }` — or an
-/// `HMRNilSentinel` for Optional `.none`, which the macro normalizes at the
-/// source because `Optional<T>.none` stored in `Any` is type-erased and
-/// cannot be distinguished by exhaustive `as?` checks here. We never see a
-/// raw `Optional<T>.none` — the macro guarantees it. Bool is checked before
-/// Int because Swift bridges Bool to NSNumber and `v as? Int` succeeds for
-/// Bool values.
+/// Each value is either a concrete primitive (Bool/Int/Double/String) — from a
+/// non-Optional `@State` or an Optional `.some(payload)` the `@Component` macro
+/// unwrapped at the source — or an `HMRNilSentinel` for Optional `.none`, which
+/// the macro normalizes at the source (a raw `Optional<T>.none` in `Any` is
+/// type-erased and can't be distinguished by `as?`). Classification, including
+/// the Bool-before-Int ordering, lives in `JSScalar(stateValue:)`; unsupported
+/// types classify as nil and are skipped (v1 limitation).
 @MainActor
 func encodeStateMapToJS(_ state: [String: Any]) -> JSValue {
     let obj = JSObject.global.Object.function!.new()
     for (k, v) in state {
-        if v is HMRNilSentinel {
-            obj[k] = .null
-        } else if let b = v as? Bool {
-            obj[k] = .boolean(b)
-        } else if let s = v as? String {
-            obj[k] = .string(s)
-        } else if let i = v as? Int {
-            obj[k] = .number(Double(i))
-        } else if let d = v as? Double {
-            obj[k] = .number(d)
+        if let scalar = JSScalar(stateValue: v) {
+            obj[k] = scalar.jsValue
         }
-        // Other unsupported types — skip (v1 limitation).
     }
     return .object(obj)
 }
