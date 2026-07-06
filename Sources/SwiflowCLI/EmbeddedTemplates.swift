@@ -2391,7 +2391,9 @@ struct FakeAPI: Sendable {
     }
 
     func invalidations(input: String, output: User) -> [Invalidation] {
-        [.exact(["users", .int(id)])]
+        // Type-referenced: UserByID owns its key (`@Query(prefix:)` + `@Key`),
+        // so a renamed prefix can't silently orphan this invalidation.
+        [.exact(UserByID(id: id))]
     }
 }
 
@@ -3273,7 +3275,7 @@ struct Todo: Decodable, Equatable, Sendable {
         let tmp = AddTodo.tempSeq; AddTodo.tempSeq -= 1
         return [.update(TodoList()) { $0 + [Todo(id: tmp, title: title, done: false)] }]
     }
-    func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
+    func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 @Mutation struct ToggleTodo {
@@ -3286,7 +3288,7 @@ struct Todo: Decodable, Equatable, Sendable {
             todos.map { $0.id == i.id ? Todo(id: $0.id, title: $0.title, done: i.done) : $0 }
         }]
     }
-    func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(["todos"])] }
+    func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 @Mutation struct DeleteTodo {
@@ -3296,7 +3298,7 @@ struct Todo: Decodable, Equatable, Sendable {
     func optimistic(_ id: Int) -> [OptimisticEdit] {
         [.update(TodoList()) { $0.filter { $0.id != id } }]
     }
-    func invalidations(input: Int, output: Void) -> [Invalidation] { [.exact(["todos"])] }
+    func invalidations(input: Int, output: Void) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 // MARK: - Component
