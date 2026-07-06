@@ -112,17 +112,30 @@ public struct ComponentDescription: Equatable {
     public let key: String?
     let factory: () -> AnyComponent
 
-    package init(typeID: ObjectIdentifier, key: String?, factory: @escaping () -> AnyComponent) {
+    /// Optional prop-push applied to the REUSED instance on every re-render —
+    /// never at first mount, where the factory already carries current props.
+    /// This is how a parent flows changed data into a long-lived child without
+    /// the remount that re-keying forces (which would reset the child's
+    /// `@State`). Stored type-erased; the generic init wraps the caller's
+    /// `(C) -> Void` with a downcast that is safe because the diff invokes this
+    /// ONLY in the component-reuse arm, where the matching typeID guarantees the
+    /// instance is a `C`. Not part of equality (a fresh closure every render,
+    /// exactly like `factory`).
+    let refresh: ((AnyComponent) -> Void)?
+
+    package init(typeID: ObjectIdentifier, key: String?, factory: @escaping () -> AnyComponent, refresh: ((AnyComponent) -> Void)? = nil) {
         self.typeID = typeID
         self.key = key
         self.factory = factory
+        self.refresh = refresh
     }
 
     /// Convenience init for the common case: a concrete Component factory.
-    public init<C: Component>(_ type: C.Type, key: String? = nil, factory: @escaping () -> C) {
+    public init<C: Component>(_ type: C.Type, key: String? = nil, factory: @escaping () -> C, refresh: ((C) -> Void)? = nil) {
         self.typeID = ObjectIdentifier(type)
         self.key = key
         self.factory = { AnyComponent(factory()) }
+        self.refresh = refresh.map { push in { any in push(any.instance as! C) } }
     }
 
     /// Invokes the factory and returns a fresh `AnyComponent`. Each call

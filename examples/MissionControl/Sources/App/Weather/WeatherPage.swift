@@ -64,14 +64,18 @@ final class WeatherPage {
             HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
                 for city in pinned {
                     // Embedded instances are reused at a (type, key) position —
-                    // the factory runs on first mount only, so a changed prop
-                    // never reaches a live instance. Encoding `unit` in the
-                    // embed key remounts the card on toggle; the cache (keyed
-                    // on city + unit) makes the swap back instant.
+                    // the factory runs on first mount only. The `unit` toggle is
+                    // pushed into the LIVE card via `refresh:` (a stable key), so
+                    // °C↔°F changes it in place instead of remounting the card and
+                    // churning its query subscription. The card re-renders, its
+                    // (city, unit) query key changes, and the cache paints the
+                    // toggle-back instantly.
                     div(.key("city-\(city.id)")) {
-                        embed("card-\(city.id)-\(unit)") {
+                        embed("card-\(city.id)") {
                             CityCard(city: city, unit: self.unit,
                                      onUnpin: { self.unpin(city) })
+                        } refresh: { card in
+                            card.unit = self.unit
                         }
                     }
                 }

@@ -449,6 +449,16 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
+        // Push refreshed props into the reused instance BEFORE re-evaluating its
+        // body, so the body reflects the parent's current data (see
+        // `embed(_:refresh:)`). The closure comes from THIS render's description
+        // (`newDesc`), so it carries the parent's latest values; the factory in
+        // `newDesc` is deliberately NOT called (that would remount and reset
+        // `@State`). Runs only on reuse — first mount already has current props
+        // from the factory. Contract: the closure targets plain stored props,
+        // never `@State` (assigning `@State` here re-enters the scheduler every
+        // render → a render loop).
+        newDesc.refresh?(instance)
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.
