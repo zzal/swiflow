@@ -27,6 +27,11 @@ final class Renderer {
     /// Stores event-handler closures by ID; wired into the JS dispatcher.
     let handlers: HandlerRegistry
 
+    /// The typed `window.swiflow` driver seam — every Swift → driver call
+    /// (`mount`, `applyPatches`) routes through here. Defaults to `JSDriver`
+    /// (the live global); injectable so a BridgeJS/mock driver can swap in.
+    let driver: any SwiflowDriver
+
     /// The committed mount tree from the last `renderOnce()`, or `nil` before
     /// the first render.
     var mountTree: MountNode?
@@ -77,11 +82,12 @@ final class Renderer {
     ///
     /// The `RAFScheduler` captures `self` weakly to avoid a retain cycle:
     /// Renderer → _schedulerBox → RAFScheduler → closure → Renderer.
-    init(rootComponent: AnyComponent, selector: String, handles: HandleAllocator = sharedHandleAllocator) {
+    init(rootComponent: AnyComponent, selector: String, handles: HandleAllocator = sharedHandleAllocator, driver: any SwiflowDriver = JSDriver()) {
         self.rootComponent = rootComponent
         self.selector = selector
         self.handles = handles
         self.handlers = HandlerRegistry()
+        self.driver = driver
         self.mountTree = nil
         // _schedulerBox is default-initialised to nil above (let constant
         // with a default value). At this point all stored properties are
@@ -175,11 +181,7 @@ final class Renderer {
             // structural-only; `domHandle` is the body's real DOM handle,
             // which is what the driver attaches at `selector`.
             let mountHandle = result.newMountTree.domHandle
-            let swiflowGlobal = JSObject.global.swiflow.object!
-            _ = swiflowGlobal.mount!(
-                JSValue.number(Double(mountHandle)),
-                JSValue.string(selector)
-            )
+            driver.mount(rootHandle: mountHandle, selector: selector)
         }
 
         // Lifecycle: walk the post-diff tree children-first. On first mount
@@ -254,13 +256,7 @@ final class Renderer {
     private func shipPatches(_ patches: [Patch]) -> Bool {
         lastPatchCount = patches.count
         renderCount += 1
-        let jsArray = JSObject.global.Array.function!.new()
-        for (index, patch) in patches.enumerated() {
-            let payload = PatchSerializer.encode(patch)
-            jsArray[index] = JSAdapter.toJSValue(payload)
-        }
-        let swiflowGlobal = JSObject.global.swiflow.object!
-        return swiflowGlobal.applyPatches!(jsArray).boolean ?? true
+        return driver.applyPatches(patches)
     }
 
     /// Discards the current mount tree and does a full, from-scratch mount —
@@ -335,14 +331,7 @@ final class Renderer {
 
         var patches: [Patch] = []
         destroy(tree, into: &patches, handlers: handlers)
-
-        let jsArray = JSObject.global.Array.function!.new()
-        for (index, patch) in patches.enumerated() {
-            let payload = PatchSerializer.encode(patch)
-            jsArray[index] = JSAdapter.toJSValue(payload)
-        }
-        let swiflowGlobal = JSObject.global.swiflow.object!
-        _ = swiflowGlobal.applyPatches!(jsArray)
+        driver.applyPatches(patches)
 
         // Stop background revalidation triggers before releasing the scheduler.
         backgroundRevalidation?.stop()
