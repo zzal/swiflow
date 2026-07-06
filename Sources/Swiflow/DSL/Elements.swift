@@ -92,9 +92,9 @@ public func button(_ text: String, _ attributes: Attribute...) -> VNode {
     .element(applyAttributes(tag: "button", attributes, children: [.text(text)]))
 }
 
-/// HTML `<a>` anchor with attributes and a children block. Use
-/// `.attr("href", "…")` to set the target. Named `link` to avoid the
-/// one-letter free function `a` in the public namespace.
+/// HTML `<a>` anchor with attributes and a children block. Use `.href(_:)` to
+/// set the target (and `.newTab()` for a safe external link). Named `link` to
+/// avoid the one-letter free function `a` in the public namespace.
 public func link(
     _ attributes: Attribute...,
     @ChildrenBuilder children: () -> [VNode] = { [] }
