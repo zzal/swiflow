@@ -73,6 +73,89 @@ public enum Attribute {
         .attribute(name: "id", value: value)
     }
 
+    // MARK: - Typed attribute helpers
+    //
+    // Named factories for the handful of attributes every app reaches for,
+    // where the stringly `.attr("href", …)` form makes a typo a silent no-op.
+    // Additive: `.attr(_:_:)` remains the long-tail escape hatch for anything
+    // not covered here.
+
+    /// Sets `href` (anchors, `<link>`). Pair with `.newTab()` for external links.
+    public static func href(_ value: String) -> Attribute {
+        .attribute(name: "href", value: value)
+    }
+
+    /// Sets `target` (e.g. `"_blank"`, `"_self"`). For external links prefer
+    /// `.newTab()`, which also sets the `rel` guard.
+    public static func target(_ value: String) -> Attribute {
+        .attribute(name: "target", value: value)
+    }
+
+    /// Sets `rel` (e.g. `"noopener noreferrer"`, `"stylesheet"`).
+    public static func rel(_ value: String) -> Attribute {
+        .attribute(name: "rel", value: value)
+    }
+
+    /// Opens the link in a new tab **safely**: emits `target="_blank"` together
+    /// with `rel="noopener noreferrer"`, so the opened page can't reach back
+    /// through `window.opener` (reverse tabnabbing) or read the referrer. Use
+    /// this instead of a bare `.target("_blank")` for any external link.
+    public static func newTab() -> Attribute {
+        .compound([
+            .attribute(name: "target", value: "_blank"),
+            .attribute(name: "rel", value: "noopener noreferrer"),
+        ])
+    }
+
+    /// Sets `src` (`<img>`, `<script>`, `<source>`, …).
+    public static func src(_ value: String) -> Attribute {
+        .attribute(name: "src", value: value)
+    }
+
+    /// Sets `alt` — the text alternative for an `<img>`. Pass `""` for a purely
+    /// decorative image (which correctly hides it from assistive tech).
+    public static func alt(_ value: String) -> Attribute {
+        .attribute(name: "alt", value: value)
+    }
+
+    /// Sets the intrinsic `width` **attribute** (in CSS pixels) — e.g. on
+    /// `<img>`/`<canvas>`. Reserves layout space to avoid content shift; this is
+    /// the HTML attribute, not a CSS `width` (use `.style("width", …)` for CSS).
+    public static func width(_ value: Int) -> Attribute {
+        .attribute(name: "width", value: String(value))
+    }
+
+    /// Sets the intrinsic `height` **attribute** (in CSS pixels). See `.width(_:)`.
+    public static func height(_ value: Int) -> Attribute {
+        .attribute(name: "height", value: String(value))
+    }
+
+    /// Sets `placeholder` (`<input>`, `<textarea>`).
+    public static func placeholder(_ value: String) -> Attribute {
+        .attribute(name: "placeholder", value: value)
+    }
+
+    /// Sets the `<input>` `type` from the typed `InputType`, e.g. `.type(.email)`.
+    public static func type(_ value: InputType) -> Attribute {
+        .attribute(name: "type", value: value.htmlValue)
+    }
+
+    /// Sets the `name` attribute (form controls; radio-group membership).
+    public static func name(_ value: String) -> Attribute {
+        .attribute(name: "name", value: value)
+    }
+
+    /// Sets a `<label>`'s `for` attribute, associating it with the control whose
+    /// `id` matches. Backticked because `for` is a Swift keyword.
+    public static func `for`(_ value: String) -> Attribute {
+        .attribute(name: "for", value: value)
+    }
+
+    /// Sets the `title` attribute (native tooltip / accessible name of last resort).
+    public static func title(_ value: String) -> Attribute {
+        .attribute(name: "title", value: value)
+    }
+
     /// Shorthand for `.property(name:value:)`.
     public static func prop(_ name: String, _ value: PropertyValue) -> Attribute {
         .property(name: name, value: value)
