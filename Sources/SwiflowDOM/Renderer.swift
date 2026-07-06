@@ -103,14 +103,8 @@ final class Renderer {
     /// to attach the root node at `selector`. Also fires lifecycle hooks on
     /// the root component when applicable.
     func renderOnce() {
-        HandlerAmbient.current = handlers
-        SwiflowTaskRuntime.currentScope = taskScope
-        RenderObserverBox.current = queryClient
-        defer {
-            HandlerAmbient.current = nil
-            SwiflowTaskRuntime.currentScope = nil
-            RenderObserverBox.current = nil
-        }
+        installRenderContext(handlers: handlers, taskScope: taskScope, observer: queryClient)
+        defer { uninstallRenderContext() }
 
         // Wrap the live component instance in a VNode.component description
         // whose factory returns THE SAME instance rather than constructing a
@@ -204,14 +198,8 @@ final class Renderer {
             // Establish the same ambient context renderOnce() sets, because
             // scopedRerender re-evaluates `body`: handlers must register into
             // this root's scope, and `.task` / `query()` must reach this root.
-            HandlerAmbient.current = handlers
-            SwiflowTaskRuntime.currentScope = taskScope
-            RenderObserverBox.current = queryClient
-            defer {
-                HandlerAmbient.current = nil
-                SwiflowTaskRuntime.currentScope = nil
-                RenderObserverBox.current = nil
-            }
+            installRenderContext(handlers: handlers, taskScope: taskScope, observer: queryClient)
+            defer { uninstallRenderContext() }
             let startMs = nowMs()
             let scoped = scopedRerender(
                 anchor: anchor,

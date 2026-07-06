@@ -45,16 +45,11 @@ final class TestRenderer {
             MainActor.assumeIsolated { relay.owner?.rerender(component) }
         }
 
-        HandlerAmbient.current = self.handlers
-        // Set the scope directly (not via the `withScope` closure) so we don't
-        // capture `self` in a closure before all members are initialized.
-        SwiflowTaskRuntime.currentScope = taskScope
-        RenderObserverBox.current = queryClient
-        defer {
-            HandlerAmbient.current = nil
-            SwiflowTaskRuntime.currentScope = nil
-            RenderObserverBox.current = nil
-        }
+        // Plain calls, not a closure-based bracket: self.mountTree isn't
+        // assigned yet, and Swift forbids capturing self in a closure before
+        // every stored property is set (see RenderContext.swift's doc).
+        installRenderContext(handlers: self.handlers, taskScope: taskScope, observer: queryClient)
+        defer { uninstallRenderContext() }
         // The diff's component-mount path does the rest — wireStateAndRestore,
         // handler scope, environment + observer bracketing, body evaluation —
         // the same code the browser renderer runs.
@@ -75,14 +70,8 @@ final class TestRenderer {
     /// marked itself dirty. The diff decides which bodies to re-evaluate.
     func rerender(_ component: AnyComponent) {
         _ = component
-        HandlerAmbient.current = self.handlers
-        SwiflowTaskRuntime.currentScope = taskScope
-        RenderObserverBox.current = queryClient
-        defer {
-            HandlerAmbient.current = nil
-            SwiflowTaskRuntime.currentScope = nil
-            RenderObserverBox.current = nil
-        }
+        installRenderContext(handlers: self.handlers, taskScope: taskScope, observer: queryClient)
+        defer { uninstallRenderContext() }
         let preExistingIDs = collectComponentIDs(mountTree)
         let result = diff(
             mounted: mountTree,
