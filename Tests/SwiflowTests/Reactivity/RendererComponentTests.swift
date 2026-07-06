@@ -880,6 +880,151 @@ struct FirstMountInvariantTests {
     }
 }
 
+// MARK: - Resync lifecycle contract (destroy preserveInstance:)
+
+/// Pins the resync contract that `Renderer.resyncFullRemount` relies on when a
+/// shipped patch batch fails: the whole tree is destroyed and rebuilt from
+/// scratch, but the ROOT component instance is reused by the fresh diff. These
+/// tests exercise the exact primitive sequence resyncFullRemount performs —
+/// `collectComponentIDs` → `destroy(preserveInstance:)` → fresh `diff(mounted:
+/// nil)` reusing the root → `firePostRenderLifecycle` — at the host-testable
+/// Diff layer (the Renderer itself is JavaScriptKit-only). The invariant: a
+/// resync must be lifecycle- and state-transparent for the surviving root
+/// (onChange, never onDisappear/onAppear), exactly like a normal re-render,
+/// while every descendant is genuinely torn down and freshly remounted.
+@Suite("Resync preserves the reused root's lifecycle + state; descendants fully remount")
+@MainActor
+struct ResyncPreserveRootTests {
+
+    /// Fresh per body-evaluation (the root re-embeds a NEW one each render).
+    final class ResyncChild: Component {
+        var appearCount = 0
+        var changeCount = 0
+        var disappearCount = 0
+        var body: VNode { .text("child") }
+        func onAppear() { appearCount += 1 }
+        func onChange() { changeCount += 1 }
+        func onDisappear() { disappearCount += 1 }
+    }
+
+    /// The reused root: embeds a fresh `ResyncChild` each render and carries
+    /// state that must survive the resync.
+    final class ResyncRoot: Component {
+        var count = 0
+        var appearCount = 0
+        var changeCount = 0
+        var disappearCount = 0
+        var body: VNode { embed { ResyncChild() } }
+        func onAppear() { appearCount += 1 }
+        func onChange() { changeCount += 1 }
+        func onDisappear() { disappearCount += 1 }
+    }
+
+    @Test("resync fires onChange (not onDisappear/onAppear) on the reused root, remounts the child, and preserves root state")
+    func resyncIsLifecycleTransparentForRoot() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let root = ResyncRoot()
+
+        // --- Initial mount (as renderOnce does on first render) ---
+        let v1 = VNode.component(.init(ResyncRoot.self) { root })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+
+        let oldChild = first.newMountTree.componentBody?.component?.instance as? ResyncChild
+        #expect(oldChild != nil, "root's body should be a ResyncChild anchor")
+        #expect(root.appearCount == 1 && root.changeCount == 0 && root.disappearCount == 0)
+        #expect(oldChild?.appearCount == 1 && oldChild?.disappearCount == 0)
+
+        // Mutate root state — it must survive the resync (same instance reused).
+        root.count = 5
+
+        // --- Resync: the exact sequence resyncFullRemount performs ---
+        let preExistingIDs = collectComponentIDs(first.newMountTree)
+        var patches: [Patch] = []
+        destroy(first.newMountTree, into: &patches, handlers: handlers,
+                preserveInstance: ObjectIdentifier(root))
+
+        // The teardown half: the reused root must NOT see onDisappear; the
+        // genuinely-unmounted child MUST.
+        #expect(root.disappearCount == 0, "reused root must NOT fire onDisappear during a resync")
+        #expect(oldChild?.disappearCount == 1, "the old child is genuinely unmounted — it fires onDisappear")
+
+        // Fresh diff reusing the SAME root instance (factory { root }), then
+        // fire lifecycle with the pre-resync ID snapshot.
+        let v2 = VNode.component(.init(ResyncRoot.self) { root })
+        let fresh = diff(mounted: nil, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(fresh.newMountTree, preExistingIDs: preExistingIDs)
+
+        let newChild = fresh.newMountTree.componentBody?.component?.instance as? ResyncChild
+        #expect(newChild != nil)
+
+        // Root: appear once (first mount), change once (the resync), NEVER
+        // disappear or a second appear — indistinguishable from a normal render.
+        #expect(root.appearCount == 1, "root must not re-fire onAppear on a resync")
+        #expect(root.changeCount == 1, "root fires onChange on the resync (it is in preExistingIDs)")
+        #expect(root.disappearCount == 0, "root never fires onDisappear across the whole resync")
+        #expect(root.count == 5, "root @State survives the resync (the same instance is reused)")
+
+        // Child is a genuinely fresh instance: distinct object, fresh onAppear,
+        // no leaked onChange from the reused-root path.
+        #expect(newChild !== oldChild, "the resync remounts a brand-new child instance")
+        #expect(newChild?.appearCount == 1 && newChild?.changeCount == 0 && newChild?.disappearCount == 0)
+        #expect(oldChild?.appearCount == 1 && oldChild?.changeCount == 0,
+                "the old child is not touched again after its onDisappear")
+        // Reaching here without a reused-instance diagnostic also confirms the
+        // preserved root was still unregistered from MountedInstances during
+        // destroy, so the fresh diff's re-register does not false-positive.
+    }
+
+    /// The reused root's `onChange(of:)` baselines must survive the resync's
+    /// teardown — otherwise the first onChange after a resync silently re-seeds
+    /// and misses the value transition that coincided with the patch failure.
+    final class ResyncProbeRoot: Component {
+        var probe = 0
+        var performed: [Int] = []
+        var body: VNode { .text("probe=\(probe)") }
+        func onChange() {
+            onChange(of: probe) { self.performed.append($0) }
+        }
+    }
+
+    @Test("resync preserves the reused root's onChange(of:) baseline, so a value change spanning the resync still fires")
+    func resyncPreservesOnChangeBaseline() {
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let root = ResyncProbeRoot()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(root)) }
+
+        // First mount: onAppear only, so onChange(of:) never runs — no baseline yet.
+        let v1 = VNode.component(.init(ResyncProbeRoot.self) { root })
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(first.newMountTree, preExistingIDs: [])
+        #expect(root.performed == [], "first mount fires onAppear, not onChange")
+
+        // Normal re-render: onChange fires, onChange(of: 0) seeds baseline 0.
+        let preIDs1 = collectComponentIDs(first.newMountTree)
+        let v2 = VNode.component(.init(ResyncProbeRoot.self) { root })
+        let second = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(second.newMountTree, preExistingIDs: preIDs1)
+        #expect(root.performed == [], "baseline seeded at 0; perform suppressed on first observation")
+
+        // Change the value, THEN resync. The transition (0 → 1) straddles the
+        // teardown; the baseline must survive it so onChange(of:) still fires.
+        root.probe = 1
+        let preIDs2 = collectComponentIDs(second.newMountTree)
+        var patches: [Patch] = []
+        destroy(second.newMountTree, into: &patches, handlers: handlers,
+                preserveInstance: ObjectIdentifier(root))
+        let v3 = VNode.component(.init(ResyncProbeRoot.self) { root })
+        let third = diff(mounted: nil, next: v3, handles: handles, handlers: handlers)
+        firePostRenderLifecycle(third.newMountTree, preExistingIDs: preIDs2)
+
+        #expect(root.performed == [1],
+                "the 0 → 1 change spanning the resync fires exactly once — proving the baseline was not wiped")
+    }
+}
+
 // MARK: - List growth (walker's .children branch + stress test)
 
 @Suite("List growth: new items fire onAppear, existing items fire onChange (exercises walker's .children branch)")

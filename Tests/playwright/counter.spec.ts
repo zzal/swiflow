@@ -1,5 +1,49 @@
 // tests/playwright/counter.spec.ts
-import { test, expect, type ConsoleMessage } from "@playwright/test";
+import { test, expect, type ConsoleMessage, type Page } from "@playwright/test";
+
+// Wrap window.swiflow.applyPatches so the NEXT batch has its first
+// throw-on-bad-handle patch corrupted to reference a handle that was never
+// created. The driver's own nodes.get(...) then returns undefined and the real
+// DOM op throws — a genuine failure, caught by the driver's per-patch try/catch
+// entirely within Swiflow's pipeline (applyPatches returns false, which is what
+// makes Swift resync). Self-disarms after one batch so the resync's own patches
+// apply normally. This is a test-only wrapper in the page context; production
+// ships no failure-injection hook.
+//
+// `removeHandler` is deliberately EXCLUDED: its applyOne handler looks the
+// listener up by a `handle:event` key and no-ops when the (corrupted) key is
+// absent — it would NOT throw, so the injection would silently fail to trigger
+// any resync (a real bug this suite previously masked). Every other listed op
+// unconditionally dereferences nodes.get(handle), guaranteeing the throw.
+async function armNextPatchFailure(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const HANDLE_FIELD: Record<string, string> = {
+      appendChild: "parent", insertBefore: "parent", removeChild: "parent",
+      setAttribute: "handle", removeAttribute: "handle",
+      setProperty: "handle", removeProperty: "handle",
+      setStyle: "handle", removeStyle: "handle", setText: "handle",
+      addHandler: "handle",
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sw = (window as any).swiflow;
+    const orig = sw.applyPatches;
+    let armed = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sw.applyPatches = function (patches: any[]) {
+      if (armed) {
+        const idx = patches.findIndex((p) => p && HANDLE_FIELD[p.op]);
+        if (idx !== -1) {
+          armed = false;
+          const field = HANDLE_FIELD[patches[idx].op];
+          const corrupted = patches.slice();
+          corrupted[idx] = { ...corrupted[idx], [field]: 999999999 };
+          return orig.call(sw, corrupted);
+        }
+      }
+      return orig.call(sw, patches);
+    };
+  });
+}
 
 test.describe("Counter demo", () => {
   test("No console errors on page load", async ({ page }) => {
@@ -133,7 +177,7 @@ test.describe("Counter demo", () => {
     await expect(detailsEl).not.toHaveAttribute("open", "");
   });
 
-  test("a failed DOM patch triggers a full resync instead of a silently stuck UI", async ({ page }) => {
+  test("a failed patch during a full render triggers a resync instead of a silently stuck UI", async ({ page }) => {
     const errors: ConsoleMessage[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg);
@@ -142,52 +186,15 @@ test.describe("Counter demo", () => {
     await page.goto("/");
     await expect(page.getByText("Count: 0")).toBeVisible();
 
-    // Wrap window.swiflow.applyPatches (not a browser-global DOM prototype —
-    // that consumed its one shot on an unrelated appendChild elsewhere on
-    // the page and escaped uncaught) so exactly the NEXT batch has its
-    // first "requires an existing handle" patch corrupted to reference a
-    // handle that was never created. The driver's OWN nodes.get(...)
-    // lookup then returns undefined and the real DOM op throws — a
-    // genuine failure, caught by the driver's own per-patch try/catch,
-    // entirely within Swiflow's patch pipeline. Self-disarms after one
-    // batch so the RESYNC's own patches apply normally. This is a
-    // test-only wrapper in the page context; production ships no
-    // failure-injection hook.
-    await page.evaluate(() => {
-      const HANDLE_FIELD: Record<string, string> = {
-        appendChild: "parent", insertBefore: "parent", removeChild: "parent",
-        setAttribute: "handle", removeAttribute: "handle",
-        setProperty: "handle", removeProperty: "handle",
-        setStyle: "handle", removeStyle: "handle", setText: "handle",
-        addHandler: "handle", removeHandler: "handle",
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sw = (window as any).swiflow;
-      const orig = sw.applyPatches;
-      let armed = true;
-      sw.applyPatches = function (patches: any[]) {
-        if (armed) {
-          const idx = patches.findIndex((p) => p && HANDLE_FIELD[p.op]);
-          if (idx !== -1) {
-            armed = false;
-            const field = HANDLE_FIELD[patches[idx].op];
-            const corrupted = patches.slice();
-            corrupted[idx] = { ...corrupted[idx], [field]: 999999999 };
-            return orig.call(sw, corrupted);
-          }
-        }
-        return orig.call(sw, patches);
-      };
-    });
+    await armNextPatchFailure(page);
 
-    // "Show toast" creates a new DOM node (the toast) — this is what
-    // calls the monkey-patched appendChild and injects the failure.
+    // "Show toast" mutates the ROOT Counter (@ReducerState var toasts) → a full
+    // render whose batch the wrapper corrupts.
     await page.getByRole("button", { name: "Show toast" }).click();
 
-    // Despite the injected failure, the app must self-heal. The toast's
-    // data lives on Counter (@ReducerState var toasts), the persistent
-    // ROOT component — resyncFullRemount's fresh diff reuses that same
-    // instance, so the toast survives the resync and still appears.
+    // Despite the injected failure, the app self-heals. The toast data lives on
+    // Counter (the persistent ROOT), so resyncFullRemount's fresh diff — which
+    // reuses that same root instance — rebuilds the toast and it still appears.
     const toast = page.getByRole("status");
     await expect(toast).toBeVisible();
     await expect(toast).toContainText("Saved!");
@@ -197,12 +204,68 @@ test.describe("Counter demo", () => {
     await page.getByRole("button", { name: "Increment" }).click();
     await expect(page.getByText("Count: 1")).toBeVisible();
 
-    // The injected failure necessarily logs (the driver reports every
-    // patch failure loudly, in all builds, by design) — filter that one
-    // expected message out and assert there are no OTHER errors.
-    const unexpected = errors
-      .map((e) => e.text())
-      .filter((t) => !t.includes("injected failure for e2e test") && !t.includes("patch failed"));
-    expect(unexpected, "no unexpected console errors beyond the injected failure").toHaveLength(0);
+    const texts = errors.map((e) => e.text());
+    // A patch MUST have actually failed — otherwise the injection silently
+    // no-oped and never exercised the resync at all (the failure mode this
+    // suite previously had when it corrupted a removeHandler patch).
+    expect(texts.some((t) => t.includes("patch failed")),
+      "the injection must cause a real, caught patch failure").toBe(true);
+    // …and nothing worse: a recoverable patch failure must NOT surface the
+    // fatal "WASM execution stopped — reload" overlay error (it did, before we
+    // stopped routing caught failures to the dev overlay).
+    const unexpected = texts.filter((t) => !t.includes("patch failed"));
+    expect(unexpected, "no console errors beyond the expected patch-failed log").toHaveLength(0);
+  });
+
+  test("a failed patch during a SCOPED (non-root) re-render also resyncs the whole tree", async ({ page }) => {
+    const errors: ConsoleMessage[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg);
+    });
+
+    await page.goto("/");
+    await expect(page.getByText("Count: 0")).toBeVisible();
+
+    // Open the modal. SignIn is an EMBEDDED, non-root @Component that owns its
+    // own @State (email/password/ctrl) — so mutating one of its fields marks
+    // ONLY SignIn dirty and drives flushDirty's SCOPED arm (planRerender
+    // excludes the root), a different resync call site than the full-render arm
+    // above. The dialog is opened imperatively via showModal(), so it carries
+    // the `open` attribute + native top-layer state — the lever this test uses
+    // to prove a full-tree resync actually ran.
+    await page.getByRole("button", { name: "Sign in…" }).click();
+    const dialog = page.locator("dialog.signin-dialog");
+    await expect(dialog).toHaveAttribute("open", "");
+    const email = page.getByLabel("Email");
+    await expect(email).toBeVisible();
+
+    // Arm AFTER the dialog settles, so the next batch is the keystroke's SCOPED
+    // SignIn re-render (its corrupted op is the setProperty writing the field's
+    // value).
+    await armNextPatchFailure(page);
+
+    // Type one character — SignIn's controlled Email field writes to SignIn's
+    // own @State, triggering the SCOPED re-render whose patch batch we corrupt.
+    await email.pressSequentially("a", { delay: 0 });
+
+    // The proof the resync ran on the SCOPED path: resyncFullRemount rebuilds
+    // the ENTIRE tree from the root, which recreates the <dialog> element — and
+    // a freshly-created native <dialog> loses the top-layer/`open` state that
+    // only showModal() sets. A NORMAL scoped re-render would leave the dialog
+    // untouched (open intact); a STUCK UI would leave it open AND frozen. Only
+    // a genuine full-tree resync drops `open` here.
+    await expect(dialog).not.toHaveAttribute("open", "");
+
+    // …and the rebuilt tree is fully interactive: the root Counter still counts.
+    // (SignIn's own field state is sacrificed by the coarse resync — by design;
+    // the root's @State survives because the fresh diff reuses its instance.)
+    await page.getByRole("button", { name: "Increment" }).click();
+    await expect(page.getByText("Count: 1")).toBeVisible();
+
+    const texts = errors.map((e) => e.text());
+    expect(texts.some((t) => t.includes("patch failed")),
+      "the injection must cause a real, caught patch failure").toBe(true);
+    const unexpected = texts.filter((t) => !t.includes("patch failed"));
+    expect(unexpected, "no console errors beyond the expected patch-failed log").toHaveLength(0);
   });
 });

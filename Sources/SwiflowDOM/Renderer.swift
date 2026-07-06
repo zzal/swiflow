@@ -295,7 +295,14 @@ final class Renderer {
         var patches: [Patch] = []
         let preExistingIDs = collectComponentIDs(mountTree)
         if let oldTree = mountTree {
-            destroy(oldTree, into: &patches, handlers: handlers)
+            // Preserve the root instance across the teardown: the fresh diff
+            // below reuses `rootComponent` (factory { root }), so — like a
+            // normal re-render — it must not observe onDisappear(), lose its
+            // onChange(of:) baselines, or drop its query subscriptions. See
+            // destroy(preserveInstance:); it re-fires onChange() (not onAppear)
+            // via firePostRenderLifecycle since the root is in preExistingIDs.
+            destroy(oldTree, into: &patches, handlers: handlers,
+                    preserveInstance: ObjectIdentifier(rootComponent.instance))
         }
 
         let root = rootComponent
