@@ -293,9 +293,10 @@ describe("driver opcodes", () => {
   test("replaceMount with a missing selector is caught per-patch and logged as an error", () => {
     // Prior to per-patch isolation this test used assert.throws, which relied on
     // applyPatches propagating the error out. With per-patch try/catch the error
-    // is swallowed at the patch level (preventing half-applied batches), logged
-    // via console.error, and passed to the dev overlay if present. We now verify
-    // the error is logged rather than thrown.
+    // is swallowed at the patch level (preventing half-applied batches) and
+    // logged via console.error. We now verify the error is logged rather than
+    // thrown. (A caught patch failure is recoverable via Swift's resync, so it
+    // is NOT routed to the fatal dev overlay — see the dedicated test below.)
     const { swiflow, window } = setupDriver();
     swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
     const errors = [];
@@ -358,6 +359,32 @@ describe("driver opcodes", () => {
       window.console.error = origError;
     }
     assert.equal(result, false);
+  });
+
+  test("a caught patch failure is NOT routed to the fatal dev overlay (it is recoverable via resync)", () => {
+    // A single failed patch is recoverable: applyPatches returns false and
+    // Swift responds with a full resync remount that heals the UI. So the
+    // driver must NOT invoke the fatal "WASM execution stopped — reload"
+    // overlay hook (window.__swiflowDevError) for a caught patch failure —
+    // that hook is reserved for genuine WASM traps caught by the RAF shim.
+    // Raising it here would block the very UI the resync just rebuilt.
+    const { swiflow, window } = setupDriver();
+    let devErrorCalls = 0;
+    window.__swiflowDevError = () => { devErrorCalls += 1; };
+    const origError = window.console.error;
+    window.console.error = () => {};
+    try {
+      const result = swiflow.applyPatches([
+        { op: "createElement", handle: 1, tag: "div" },
+        // Bad: parent handle 999 was never created — a genuine, caught failure.
+        { op: "appendChild", parent: 999, child: 1 },
+      ]);
+      assert.equal(result, false, "the failure must still be reported via the return value");
+    } finally {
+      window.console.error = origError;
+      delete window.__swiflowDevError;
+    }
+    assert.equal(devErrorCalls, 0, "a recoverable patch failure must not raise the fatal dev overlay");
   });
 
   test("a resync-shaped batch (destroy old + create new + replaceMount) lands the swap correctly even if an unrelated patch in the middle fails", () => {

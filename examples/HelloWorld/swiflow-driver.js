@@ -396,8 +396,7 @@
      *  Each patch is applied in its own try/catch: one bad handle must not
      *  abort the rest of the frame (a half-applied batch is strictly worse
      *  than a batch with one skipped op). Failures are console.error'd in
-     *  ALL builds — production included — and additionally routed to the
-     *  dev overlay when the dev server installed it.
+     *  ALL builds — production included.
      *
      *  Returns true if every patch in this batch applied without error,
      *  false if any failed. A failure means the DOM and Swift's mount tree
@@ -411,14 +410,20 @@
           applyOne(patches[i]);
         } catch (e) {
           allSucceeded = false;
+          // A single failed patch is RECOVERABLE, not fatal: returning false
+          // makes Swift discard the possibly-diverged tree and do a full
+          // resync remount (see Renderer.resyncFullRemount), after which the
+          // UI is healed. So we log loudly in ALL builds — but deliberately do
+          // NOT raise the fatal "WASM execution stopped — reload to recover"
+          // dev overlay (window.__swiflowDevError) here. That overlay is for
+          // genuine WASM traps caught by the RAF shim, where execution really
+          // has halted and only a reload recovers; raising it for a recoverable
+          // patch failure would block the very UI the resync just rebuilt.
           console.error(
             "swiflow-driver: patch failed (op " +
               (patches[i] && patches[i].op) + ", index " + i + " of " +
               patches.length + ")", patches[i], e
           );
-          if (typeof window.__swiflowDevError === "function") {
-            window.__swiflowDevError(e);
-          }
         }
       }
       return allSucceeded;

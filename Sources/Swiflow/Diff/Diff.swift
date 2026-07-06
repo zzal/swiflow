@@ -784,24 +784,50 @@ func destroy(
     _ node: MountNode,
     into patches: inout [Patch],
     handlers: HandlerRegistry,
-    skipDestroyForHandle: Int? = nil
+    skipDestroyForHandle: Int? = nil,
+    preserveInstance: ObjectIdentifier? = nil
 ) {
     // Fire onDisappear on the component instance at this anchor, if any.
     // This is done BEFORE recursing so the parent component's onDisappear
     // runs before any child component's onDisappear — parent-first ordering.
     if let any = node.component {
-        any.instance.onDisappear()
+        // A resync (Renderer.resyncFullRemount) tears down the whole tree
+        // but REUSES the root component instance in the fresh diff that
+        // immediately follows — exactly as a normal re-render reuses it. For
+        // that one surviving instance we must NOT run the "this instance is
+        // going away" teardown: firing onDisappear() with no paired onAppear()
+        // would silently drop root-managed resources (listeners, timers, query
+        // subscriptions) — the very silent-divergence class the resync exists
+        // to fix — and wiping its onChange(of:) baselines / dropping its query
+        // subscriptions would make the resync observably diverge from a normal
+        // render. The fresh diff re-fires onChange() (not onAppear, since the
+        // instance is in preExistingIDs) and reconciles its queries in place,
+        // so skipping these leaves the root exactly where a normal render
+        // would. `preserveInstance` only ever matches this top-level anchor —
+        // descendants are genuinely unmounted and must tear down fully — so
+        // the flag is deliberately NOT threaded into the recursive calls below.
+        let isPreservedRoot = preserveInstance == ObjectIdentifier(any.instance)
+        if !isPreservedRoot {
+            any.instance.onDisappear()
+        }
         // Close the handler scope that was opened when this component mounted.
         // Uses the stable frame ID (not stack position) so sibling components
         // can be destroyed in any order without cross-contaminating each other's
-        // handler registrations.
+        // handler registrations. This runs for the preserved root too: the
+        // fresh diff opens a BRAND-NEW handler scope (new handler IDs), so the
+        // old scope must close or its handler closures leak.
         if let scopeID = node.scopeID {
             handlers.closeScope(scopeID)
         }
-        OnChangeStorage.remove(for: ObjectIdentifier(any.instance))
-        RenderObserverBox.current?.componentDidUnmount(any)
+        if !isPreservedRoot {
+            OnChangeStorage.remove(for: ObjectIdentifier(any.instance))
+            RenderObserverBox.current?.componentDidUnmount(any)
+        }
         // Symmetric with the register call in mount(): drop this instance
-        // from the reused-instance diagnostic tracker.
+        // from the reused-instance diagnostic tracker. This runs for the
+        // preserved root too — the fresh diff re-registers it, and skipping
+        // the unregister here would make that re-register trip the
+        // already-mounted diagnostic on every resync.
         #if DEBUG
         MountedInstances.unregister(any.instance)
         #endif
