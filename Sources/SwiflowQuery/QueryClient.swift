@@ -118,8 +118,7 @@ public final class QueryClient {
             entry.value = value
             entry.error = nil
             entry.lastFetched = clock.now()
-            entry.failureCount = 0               // reset the retry cycle
-            entry.nextRetryDue = nil
+            entry.resetRetryCycle()
         case .failure(let err):
             entry.error = err
             // Leave `lastFetched` unchanged: a failed fetch stays stale so the
@@ -243,12 +242,10 @@ public final class QueryClient {
     }
 
     private func forceStaleAndRefetch(_ key: QueryKey, _ entry: QueryEntry) {
-        entry.lastFetched = nil          // force stale
-        entry.generation += 1            // supersede any in-flight result
-        entry.inFlight?.cancel()
-        entry.inFlight = nil
-        entry.nextRetryDue = nil         // a newer fetch supersedes the retry cycle
-        entry.failureCount = 0
+        // clearError: false — an invalidate has no new truth yet; keep the
+        // last-known error visible (like the stale data) until the refetch
+        // settles. See `QueryEntry.supersede`.
+        entry.supersede(clearError: false)
         if hasLiveSubscribers(key) {
             startFetch(for: key, entry: entry)
         }

@@ -49,6 +49,41 @@ final class QueryEntry {
     }
 }
 
+// MARK: - Supersede (the reset contract)
+
+extension QueryEntry {
+    /// Invalidate this entry's in-flight world: any resolving fetch is dropped
+    /// (`commitFetch`'s generation guard) and cancelled, the retry ladder is
+    /// void, and the entry is forced stale so the next trigger refetches.
+    ///
+    /// This is THE reset contract — `forceStaleAndRefetch` and `setQueryData`
+    /// both route through here so the transition can't drift apart again (it
+    /// had, hand-written: one cleared `error`, the other didn't). The one
+    /// DELIBERATE difference between the callers is `clearError`:
+    /// - `false` (invalidate): no new truth yet — keep the last-known error
+    ///   visible alongside the last-known data (SWR) until the refetch
+    ///   settles and overwrites both. The error persists until proven
+    ///   otherwise.
+    /// - `true` (optimistic write): the written value IS the new truth; a
+    ///   lingering error would contradict it.
+    func supersede(clearError: Bool) {
+        lastFetched = nil            // force stale
+        generation += 1              // a resolving fetch commits only on match
+        inFlight?.cancel()
+        inFlight = nil
+        resetRetryCycle()            // the supersede owns the next attempt
+        if clearError { error = nil }
+    }
+
+    /// Void the retry ladder. Shared by `supersede` and `commitFetch`'s
+    /// success path — which resets retries WITHOUT superseding: it IS the
+    /// committing fetch, so there is nothing to bump or cancel.
+    func resetRetryCycle() {
+        failureCount = 0
+        nextRetryDue = nil
+    }
+}
+
 /// Project an entry into a typed snapshot. `nil` entry → optimistic loading.
 @MainActor
 func makeSnapshot<V>(from entry: QueryEntry?, as _: V.Type) -> QueryState<V> {

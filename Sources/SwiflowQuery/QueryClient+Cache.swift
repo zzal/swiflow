@@ -26,19 +26,15 @@ extension QueryClient {
     /// notify observers. No-op when no entry exists. Leaves the entry stale so a
     /// later `invalidate` still refetches (the optimistic value is provisional).
     ///
-    /// The generation bump + cancel mirror `forceStaleAndRefetch`: a concurrent
+    /// Shares `QueryEntry.supersede` with `forceStaleAndRefetch`: a concurrent
     /// fetch that resolves afterward is dropped by `commitFetch`'s generation
     /// guard, so it can't clobber the optimistic value (spec §11, B3).
     package func setQueryData(_ key: QueryKey, _ value: Any?) {
         guard let entry = entries[key] else { return }
-        entry.generation += 1
-        entry.inFlight?.cancel()
-        entry.inFlight = nil
+        // clearError: true — the optimistic write IS the new truth; a
+        // lingering error would contradict it. See `QueryEntry.supersede`.
+        entry.supersede(clearError: true)
         entry.value = value
-        entry.error = nil
-        entry.lastFetched = nil
-        entry.nextRetryDue = nil         // optimistic value supersedes the retry cycle
-        entry.failureCount = 0
         notify(key)
     }
 }
