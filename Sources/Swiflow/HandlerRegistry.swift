@@ -35,6 +35,42 @@ package final class HandlerRegistry: @unchecked Sendable {
 
     package init() {}
 
+    // MARK: - Two-map bookkeeping (single mutation funnel)
+    //
+    // A handler lives in BOTH maps, which serve genuinely different consumers
+    // and so cannot be collapsed into one:
+    //   • `handlers` (this instance) backs `dispatch(id:)`, used by
+    //     `TestRenderer` — per-instance so parallel host tests don't
+    //     cross-contaminate through a shared static.
+    //   • `globalTable` (static, all instances) backs `dispatchGlobal(id:)`,
+    //     used by the single `window.__swiflowDispatch` JS callback, which
+    //     receives only an integer ID and can't know which registry owns it.
+    // Every add/remove funnels through this one insert/evict pair (plus the
+    // scope attribution), so the two maps can never drift — previously a missed
+    // hand-sync in one of four methods would leak a `globalTable` entry (a
+    // handler that outlives its component) or corrupt scope diagnostics.
+
+    /// Adds `handler` to both maps and attributes it to `scope`, if any.
+    private func insert(_ handler: EventHandler, scope: ScopeID?) {
+        let id = handler.id
+        handlers[id] = handler
+        Self.globalTable[id] = handler
+        if let scope {
+            scopes[scope]?.ids.append(id)
+            handlerToScope[id] = scope
+        }
+    }
+
+    /// Removes handler `id` from both maps and from its owning scope's id list.
+    /// Idempotent — evicting an unknown id is a no-op.
+    private func evict(_ id: Int) {
+        handlers.removeValue(forKey: id)
+        Self.globalTable.removeValue(forKey: id)
+        if let scopeID = handlerToScope.removeValue(forKey: id) {
+            scopes[scopeID]?.ids.removeAll { $0 == id }
+        }
+    }
+
     // MARK: - Scope management
 
     /// Opens a new scope and returns its stable `ScopeID`. The ID must be
@@ -55,11 +91,9 @@ package final class HandlerRegistry: @unchecked Sendable {
     package func closeScope(_ scope: ScopeID) {
         guard let s = scopes.removeValue(forKey: scope) else { return }
         openScopes.removeAll { $0 == scope }
-        for hid in s.ids {
-            handlers.removeValue(forKey: hid)
-            Self.globalTable.removeValue(forKey: hid)
-            handlerToScope.removeValue(forKey: hid)
-        }
+        // The scope entry is already gone (above), so `evict`'s scope-list
+        // cleanup no-ops; it still drops each id from both maps + handlerToScope.
+        for hid in s.ids { evict(hid) }
     }
 
     /// Runs `body` with `scope` as the active scope. Handlers registered
@@ -101,12 +135,8 @@ package final class HandlerRegistry: @unchecked Sendable {
     package func register(_ invoke: @escaping (EventInfo) -> Void) -> EventHandler {
         let id = Self.nextID; Self.nextID += 1
         let h = EventHandler(id: id, invoke: invoke)
-        handlers[id] = h
-        Self.globalTable[id] = h
-        if let scope = activeScopeID {
-            scopes[scope]?.ids.append(id)
-            handlerToScope[id] = scope
-        } else if !openScopes.isEmpty {
+        insert(h, scope: activeScopeID)
+        if activeScopeID == nil && !openScopes.isEmpty {
             swiflowDiagnostic(
                 "Handler registered outside withScope(_:_:) while \(openScopes.count) scope(s) are open. " +
                 "The handler is permanent and will not be evicted when the scope(s) close — this is almost " +
@@ -123,19 +153,16 @@ package final class HandlerRegistry: @unchecked Sendable {
     /// out by `diffHandlers` are pruned immediately, not left as stale entries
     /// that accumulate until the component unmounts).
     package func remove(id: Int) {
-        handlers.removeValue(forKey: id)
-        Self.globalTable.removeValue(forKey: id)
-        if let scopeID = handlerToScope.removeValue(forKey: id) {
-            scopes[scopeID]?.ids.removeAll { $0 == id }
-        }
+        evict(id)
     }
 
     package func dispatch(id: Int, event: EventInfo) { handlers[id]?.invoke(event) }
 
     deinit {
-        for id in handlers.keys {
-            Self.globalTable.removeValue(forKey: id)
-        }
+        // Drop this instance's handlers from the shared global table so a
+        // released registry doesn't leak dispatch entries. Snapshot the keys
+        // (`evict` mutates `handlers`) and funnel through the same eviction path.
+        for id in Array(handlers.keys) { evict(id) }
     }
 
     package static func dispatchGlobal(id: Int, event: EventInfo) {
