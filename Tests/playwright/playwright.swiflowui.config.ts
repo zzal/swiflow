@@ -1,6 +1,6 @@
 // Tests/playwright/playwright.swiflowui.config.ts
 //
-// Builds examples/SwiflowUIDemo IN-PLACE (swiflow dev --path …) on :3004 — no
+// Builds examples/SwiflowUIDemo IN-PLACE (swiflow dev --path …) on :3005 — no
 // `swiflow init` scaffold, so the e2e tests the real demo source directly and
 // never touches the .e2e-cache/sw scaffold cache (the SourceKit-LSP race).
 import { defineConfig } from "@playwright/test";
@@ -16,11 +16,11 @@ export default defineConfig({
   testMatch: ["dropdown.spec.ts", "datatable.spec.ts"],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://127.0.0.1:3004", trace: "on-first-retry" },
+  use: { baseURL: "http://127.0.0.1:3005", trace: "on-first-retry" },
   webServer: [
     {
-      command: `'${SWIFLOW}' dev --path '${EXAMPLE_DIR}' --port 3004`,
-      url: "http://127.0.0.1:3004",
+      command: `'${SWIFLOW}' dev --path '${EXAMPLE_DIR}' --port 3005`,
+      url: "http://127.0.0.1:3005",
       reuseExistingServer: false,
       timeout: 300_000,
     },
