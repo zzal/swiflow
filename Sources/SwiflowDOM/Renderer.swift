@@ -158,7 +158,14 @@ final class Renderer {
             ))
         }
         lastRenderMs = nowMs() - renderStartMs
-        shipPatches(outgoingPatches)
+        guard shipPatches(outgoingPatches) else {
+            // One or more patches failed to apply — the DOM and the tree
+            // we just computed may have silently diverged. Don't commit a
+            // known-divergent tree for the next diff to build on; discard
+            // it and do a full resync instead (see resyncFullRemount's doc).
+            resyncFullRemount()
+            return
+        }
 
         let isFirstMount = (mountTree == nil)
         mountTree = result.newMountTree
@@ -210,7 +217,16 @@ final class Renderer {
             // Measure render compute BEFORE shipping, matching renderOnce() so
             // lastRenderMs is comparable across the two paths.
             lastRenderMs = nowMs() - startMs
-            shipPatches(scoped.patches)
+            guard shipPatches(scoped.patches) else {
+                // The scoped diff already mutated the anchor's subtree in
+                // place (the reuse arm) — unlike renderOnce()'s
+                // not-yet-committed result, there is no "don't commit"
+                // option here: the mutation already happened. A failed
+                // patch means the DOM may not reflect it. Fall back to the
+                // same full resync renderOnce() uses.
+                resyncFullRemount()
+                return
+            }
             // Fire lifecycle AFTER patches reach the driver (matching
             // renderOnce()'s ship-then-fire order) so onAppear/onChange observe
             // the applied DOM — e.g. Ref.wrappedValue resolves for refs mounted
@@ -224,7 +240,18 @@ final class Renderer {
     /// Encodes `patches` to a JSArray, ships them via `window.swiflow.applyPatches`,
     /// and records `lastPatchCount` + `renderCount`. Shared by `renderOnce()`
     /// (full render) and `flushDirty(_:)` (scoped render).
-    private func shipPatches(_ patches: [Patch]) {
+    ///
+    /// Returns whether every patch in the batch applied without error (the
+    /// driver's own per-patch try/catch is what makes this a meaningful
+    /// question rather than an all-or-nothing outcome — see its doc on
+    /// `applyPatches`). `false` means the DOM and this renderer's mount
+    /// tree may have silently diverged; callers should not commit the
+    /// result they just computed as the next diff's baseline — see
+    /// `resyncFullRemount()`. Defaults to `true` if the driver's return
+    /// value isn't a proper boolean (an unexpected JS-interop shape),
+    /// rather than triggering a resync on ambiguous data.
+    @discardableResult
+    private func shipPatches(_ patches: [Patch]) -> Bool {
         lastPatchCount = patches.count
         renderCount += 1
         let jsArray = JSObject.global.Array.function!.new()
@@ -233,7 +260,64 @@ final class Renderer {
             jsArray[index] = JSAdapter.toJSValue(payload)
         }
         let swiflowGlobal = JSObject.global.swiflow.object!
-        _ = swiflowGlobal.applyPatches!(jsArray)
+        return swiflowGlobal.applyPatches!(jsArray).boolean ?? true
+    }
+
+    /// Discards the current mount tree and does a full, from-scratch mount —
+    /// the coarse fallback when `shipPatches` reports a failure. Ships
+    /// destroyNode patches for whatever Swift currently believes is mounted
+    /// (best-effort cleanup — the driver's per-patch try/catch means even a
+    /// still-inconsistent old tree gets cleaned up on whatever handles
+    /// still resolve), builds a completely fresh tree via
+    /// `diff(mounted: nil, ...)`, and atomically swaps the DOM via
+    /// `replaceMount` — which detaches whatever the driver's `mountedRoots`
+    /// map currently tracks at this selector, regardless of what Swift's
+    /// own records say. That decoupling (see the driver's own comment on
+    /// `mountedRoots`) is the resilience property this resync depends on:
+    /// it doesn't need to know exactly what went wrong to recover from it.
+    ///
+    /// Sacrifices `@State` on every nested/embedded component in the tree —
+    /// their factory closures re-run as fresh first-mounts, since `diff`
+    /// has no prior tree to reconcile against. The root component's OWN
+    /// instance survives (the fresh diff's factory closure returns the
+    /// same persistent `rootComponent`, exactly like every normal render),
+    /// so it fires `onChange()` rather than `onAppear()` — but every
+    /// descendant is reset. This is the accepted tradeoff for guaranteeing
+    /// DOM/tree consistency over a silent, compounding divergence.
+    ///
+    /// Never recurses on its own patch failures: if THIS batch also fails
+    /// to apply cleanly, the fresh tree is still committed as the new
+    /// baseline rather than trying again — bounded to one resync attempt
+    /// per triggering failure, so a persistently broken environment
+    /// degrades to "imperfect once" rather than looping forever.
+    private func resyncFullRemount() {
+        let renderStartMs = nowMs()
+        var patches: [Patch] = []
+        let preExistingIDs = collectComponentIDs(mountTree)
+        if let oldTree = mountTree {
+            destroy(oldTree, into: &patches, handlers: handlers)
+        }
+
+        let root = rootComponent
+        let nextVNode: VNode = .component(
+            ComponentDescription(typeID: root.typeID, key: nil, factory: { root })
+        )
+        let result = diff(
+            mounted: nil,
+            next: nextVNode,
+            handles: handles,
+            handlers: handlers,
+            scheduler: scheduler,
+            environment: .init()
+        )
+        patches.append(contentsOf: result.patches)
+        patches.append(.replaceMount(selector: selector, newHandle: result.newMountTree.domHandle))
+        lastRenderMs = nowMs() - renderStartMs
+
+        shipPatches(patches)
+
+        mountTree = result.newMountTree
+        firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
     }
 
     /// Destroys the mounted tree, emits remove patches to the JS driver,
