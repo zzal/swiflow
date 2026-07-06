@@ -152,15 +152,20 @@ final class Renderer {
             scheduler: _schedulerBox.value,
             environment: .init()
         )
+        // The root's single DOM handle — GUARDED: `singleRootDOMHandle` traps in
+        // all builds if the root body is a bare fragment / multi-root (which
+        // `domHandle` would silently resolve to a bogus structural handle the
+        // DOM never renders). Computed once per render and reused below.
+        let newRootHandle = result.newMountTree.singleRootDOMHandle
         var outgoingPatches = result.patches
         if let preDOMHandle = preDiffRootDOMHandle,
-           preDOMHandle != result.newMountTree.domHandle {
+           preDOMHandle != newRootHandle {
             // Root DOM identity changed across renders — emit a swap. Placed
             // at the END of the patch list so all preceding createElement
             // patches for the new root have populated `nodes[newHandle]`.
             outgoingPatches.append(.replaceMount(
                 selector: selector,
-                newHandle: result.newMountTree.domHandle
+                newHandle: newRootHandle
             ))
         }
         lastRenderMs = nowMs() - renderStartMs
@@ -177,11 +182,8 @@ final class Renderer {
         mountTree = result.newMountTree
 
         if isFirstMount {
-            // The mount tree root is the component anchor whose `handle` is
-            // structural-only; `domHandle` is the body's real DOM handle,
-            // which is what the driver attaches at `selector`.
-            let mountHandle = result.newMountTree.domHandle
-            driver.mount(rootHandle: mountHandle, selector: selector)
+            // Attach the root's single DOM node (guarded above) at `selector`.
+            driver.mount(rootHandle: newRootHandle, selector: selector)
         }
 
         // Lifecycle: walk the post-diff tree children-first. On first mount
@@ -314,7 +316,9 @@ final class Renderer {
             environment: .init()
         )
         patches.append(contentsOf: result.patches)
-        patches.append(.replaceMount(selector: selector, newHandle: result.newMountTree.domHandle))
+        // Same single-root guard as renderOnce — a fragment root would resync to
+        // a bogus handle just as silently.
+        patches.append(.replaceMount(selector: selector, newHandle: result.newMountTree.singleRootDOMHandle))
         lastRenderMs = nowMs() - renderStartMs
 
         shipPatches(patches)
