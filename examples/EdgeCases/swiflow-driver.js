@@ -7,7 +7,11 @@
 // `window.swiflow` global:
 //
 //   - applyPatches(patches): a JSArray of patch objects; the driver iterates
-//                            and executes each in arrival order.
+//                            and executes each in arrival order. Returns
+//                            true if every patch applied without error,
+//                            false if any failed — Swift uses this to
+//                            detect a possibly-diverged mount tree and
+//                            trigger a full resync instead of trusting it.
 //   - mount(rootHandle, selector): attach a previously-created node into
 //                                  the DOM under querySelector(selector).
 //   - nodeForHandle(handle): return the DOM node for a Swift handle (used
@@ -393,12 +397,20 @@
      *  abort the rest of the frame (a half-applied batch is strictly worse
      *  than a batch with one skipped op). Failures are console.error'd in
      *  ALL builds — production included — and additionally routed to the
-     *  dev overlay when the dev server installed it. */
+     *  dev overlay when the dev server installed it.
+     *
+     *  Returns true if every patch in this batch applied without error,
+     *  false if any failed. A failure means the DOM and Swift's mount tree
+     *  may have silently diverged; Swift responds by discarding the tree
+     *  it just computed and doing a full resync remount rather than
+     *  committing a known-divergent baseline for the next diff to build on. */
     applyPatches: function (patches) {
+      let allSucceeded = true;
       for (let i = 0; i < patches.length; i++) {
         try {
           applyOne(patches[i]);
         } catch (e) {
+          allSucceeded = false;
           console.error(
             "swiflow-driver: patch failed (op " +
               (patches[i] && patches[i].op) + ", index " + i + " of " +
@@ -409,6 +421,7 @@
           }
         }
       }
+      return allSucceeded;
     },
 
     /** Called by Swift exactly once to attach the root node. */

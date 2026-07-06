@@ -332,4 +332,66 @@ describe("driver opcodes", () => {
     // And the failure was loudly reported.
     assert.ok(errors.some(a => String(a[0]).includes("patch failed")));
   });
+
+  test("applyPatches returns true when every patch in the batch succeeds", () => {
+    const { swiflow } = setupDriver();
+    const result = swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createText", handle: 2, text: "hi" },
+      { op: "appendChild", parent: 1, child: 2 },
+    ]);
+    assert.equal(result, true);
+  });
+
+  test("applyPatches returns false when any patch in the batch fails", () => {
+    const { swiflow, window } = setupDriver();
+    const origError = window.console.error;
+    window.console.error = () => {};
+    let result;
+    try {
+      result = swiflow.applyPatches([
+        { op: "createElement", handle: 1, tag: "div" },
+        // Bad: parent handle 999 was never created.
+        { op: "appendChild", parent: 999, child: 1 },
+      ]);
+    } finally {
+      window.console.error = origError;
+    }
+    assert.equal(result, false);
+  });
+
+  test("a resync-shaped batch (destroy old + create new + replaceMount) lands the swap correctly even if an unrelated patch in the middle fails", () => {
+    // Mirrors what Swift's Renderer.resyncFullRemount() sends after a
+    // previous frame's patch failure: best-effort destroy of the old tree,
+    // then the freshly-diffed new tree's create patches, then a
+    // replaceMount to atomically swap the DOM — all in ONE batch. This
+    // proves the mechanism the resync depends on: an isolated failure
+    // anywhere in that batch must not prevent the swap from landing
+    // correctly, since the whole point of resyncing is to recover FROM a
+    // failure, not require a clean run to succeed.
+    const { swiflow, document, window } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
+    swiflow.mount(1, "#app");
+
+    const errors = [];
+    const origError = window.console.error;
+    window.console.error = (...args) => { errors.push(args); };
+    let result;
+    try {
+      result = swiflow.applyPatches([
+        { op: "destroyNode", handle: 1 },              // best-effort old-tree cleanup
+        { op: "createElement", handle: 2, tag: "section" }, // new tree
+        { op: "appendChild", parent: 999, child: 2 },  // unrelated failure mid-batch
+        { op: "replaceMount", selector: "#app", newHandle: 2 }, // the atomic swap
+      ]);
+    } finally {
+      window.console.error = origError;
+    }
+
+    const app = document.querySelector("#app");
+    assert.equal(app.children.length, 1, "the new root replaced the old one");
+    assert.equal(app.firstElementChild.tagName, "SECTION");
+    assert.equal(result, false, "the batch itself is still reported as having had a failure");
+    assert.ok(errors.some(a => String(a[0]).includes("patch failed")));
+  });
 });

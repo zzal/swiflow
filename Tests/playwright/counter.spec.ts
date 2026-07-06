@@ -132,4 +132,77 @@ test.describe("Counter demo", () => {
     await page.getByText("What's running here?").click();
     await expect(detailsEl).not.toHaveAttribute("open", "");
   });
+
+  test("a failed DOM patch triggers a full resync instead of a silently stuck UI", async ({ page }) => {
+    const errors: ConsoleMessage[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg);
+    });
+
+    await page.goto("/");
+    await expect(page.getByText("Count: 0")).toBeVisible();
+
+    // Wrap window.swiflow.applyPatches (not a browser-global DOM prototype —
+    // that consumed its one shot on an unrelated appendChild elsewhere on
+    // the page and escaped uncaught) so exactly the NEXT batch has its
+    // first "requires an existing handle" patch corrupted to reference a
+    // handle that was never created. The driver's OWN nodes.get(...)
+    // lookup then returns undefined and the real DOM op throws — a
+    // genuine failure, caught by the driver's own per-patch try/catch,
+    // entirely within Swiflow's patch pipeline. Self-disarms after one
+    // batch so the RESYNC's own patches apply normally. This is a
+    // test-only wrapper in the page context; production ships no
+    // failure-injection hook.
+    await page.evaluate(() => {
+      const HANDLE_FIELD: Record<string, string> = {
+        appendChild: "parent", insertBefore: "parent", removeChild: "parent",
+        setAttribute: "handle", removeAttribute: "handle",
+        setProperty: "handle", removeProperty: "handle",
+        setStyle: "handle", removeStyle: "handle", setText: "handle",
+        addHandler: "handle", removeHandler: "handle",
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sw = (window as any).swiflow;
+      const orig = sw.applyPatches;
+      let armed = true;
+      sw.applyPatches = function (patches: any[]) {
+        if (armed) {
+          const idx = patches.findIndex((p) => p && HANDLE_FIELD[p.op]);
+          if (idx !== -1) {
+            armed = false;
+            const field = HANDLE_FIELD[patches[idx].op];
+            const corrupted = patches.slice();
+            corrupted[idx] = { ...corrupted[idx], [field]: 999999999 };
+            return orig.call(sw, corrupted);
+          }
+        }
+        return orig.call(sw, patches);
+      };
+    });
+
+    // "Show toast" creates a new DOM node (the toast) — this is what
+    // calls the monkey-patched appendChild and injects the failure.
+    await page.getByRole("button", { name: "Show toast" }).click();
+
+    // Despite the injected failure, the app must self-heal. The toast's
+    // data lives on Counter (@ReducerState var toasts), the persistent
+    // ROOT component — resyncFullRemount's fresh diff reuses that same
+    // instance, so the toast survives the resync and still appears.
+    const toast = page.getByRole("status");
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText("Saved!");
+
+    // The whole tree was rebuilt from scratch — prove the app is fully
+    // interactive afterward, not just visually intact.
+    await page.getByRole("button", { name: "Increment" }).click();
+    await expect(page.getByText("Count: 1")).toBeVisible();
+
+    // The injected failure necessarily logs (the driver reports every
+    // patch failure loudly, in all builds, by design) — filter that one
+    // expected message out and assert there are no OTHER errors.
+    const unexpected = errors
+      .map((e) => e.text())
+      .filter((t) => !t.includes("injected failure for e2e test") && !t.includes("patch failed"));
+    expect(unexpected, "no unexpected console errors beyond the injected failure").toHaveLength(0);
+  });
 });
