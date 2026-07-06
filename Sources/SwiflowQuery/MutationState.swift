@@ -121,18 +121,14 @@ public final class MutationRuntime<M: Mutation> {
         case .success(let out):
             if !detached { status = .success; data = out }
             if let client {
-                let invalidations = mutation.invalidations(input: input, output: out)
-                #if DEBUG
-                if invalidations.isEmpty && !rollback.isEmpty {
-                    swiflowDiagnostic("""
-                    \(M.self) applied optimistic edits but declares no invalidations: \
-                    the cache keeps the optimistic guess and never reconciles with the \
-                    server value. Override invalidations(input:output:) to refetch the \
-                    keys touched by optimistic(_:).
-                    """)
+                // No optimistic-without-invalidations diagnostic here anymore:
+                // the default `invalidations` derives from `optimistic(_:)`'s
+                // declared keys, so the "cache keeps the guess forever" misuse
+                // is inexpressible unless deliberately opted into (an explicit
+                // `[]` override).
+                for inv in mutation.invalidations(input: input, output: out) {
+                    dispatch(inv, client)
                 }
-                #endif
-                for inv in invalidations { dispatch(inv, client) }
             }
         case .failure(let err):
             if let client {

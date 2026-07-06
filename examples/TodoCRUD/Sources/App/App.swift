@@ -29,17 +29,22 @@ struct Todo: Decodable, Equatable, Sendable {
 
 @Mutation struct AddTodo {
     /// Monotonic temp-id source for optimistic rows (negative so it never
-    /// collides with a real server id). The `["todos"]` refetch replaces it.
+    /// collides with a real server id). The derived refetch replaces it.
     static var tempSeq = -1
 
     func perform(_ title: String) async throws -> Todo {
         try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
     }
+    // No invalidations override: the default refetches the keys optimistic()
+    // declares — here, TodoList. The temp id is allocated inside the transform
+    // (which runs once, when the edit applies), keeping the declaration pure:
+    // the derived default re-reads optimistic() on success to learn the keys.
     func optimistic(_ title: String) -> [OptimisticEdit] {
-        let tmp = AddTodo.tempSeq; AddTodo.tempSeq -= 1
-        return [.update(TodoList()) { $0 + [Todo(id: tmp, title: title, done: false)] }]
+        [.update(TodoList()) { todos in
+            let tmp = AddTodo.tempSeq; AddTodo.tempSeq -= 1
+            return todos + [Todo(id: tmp, title: title, done: false)]
+        }]
     }
-    func invalidations(input: String, output: Todo) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 @Mutation struct ToggleTodo {
@@ -52,7 +57,6 @@ struct Todo: Decodable, Equatable, Sendable {
             todos.map { $0.id == i.id ? Todo(id: $0.id, title: $0.title, done: i.done) : $0 }
         }]
     }
-    func invalidations(input: Input, output: Todo) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 @Mutation struct DeleteTodo {
@@ -62,7 +66,6 @@ struct Todo: Decodable, Equatable, Sendable {
     func optimistic(_ id: Int) -> [OptimisticEdit] {
         [.update(TodoList()) { $0.filter { $0.id != id } }]
     }
-    func invalidations(input: Int, output: Void) -> [Invalidation] { [.exact(TodoList())] }
 }
 
 // MARK: - Component
