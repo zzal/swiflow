@@ -21,10 +21,26 @@ public struct SystemQueryClock: QueryClock {
     public func now() -> Duration {
         #if canImport(JavaScriptKit)
         let ms = JSObject.global.performance.object?.now?().number ?? 0
-        return .milliseconds(Int(ms))
+        return SystemQueryClock.duration(millisecondsSinceOrigin: ms)
         #else
         return ContinuousClock().now - SystemQueryClock.hostOrigin
         #endif
+    }
+
+    /// Converts a `performance.now()` reading (milliseconds since navigation
+    /// start) into a `Duration`.
+    ///
+    /// Widens through `Int64`, never `Int`: on wasm32 `Int` is 32-bit, so a bare
+    /// `Int(ms)` traps — killing the whole app — once page uptime passes
+    /// `Int32.max` ms ≈ 24.85 days, exactly the long-lived dashboard workload the
+    /// cache is built for. The host's 64-bit `Int` hides the narrowing, so this
+    /// is separated out to be host-testable at the boundary. `Int64(exactly:)`
+    /// also absorbs a non-finite reading (which would trap even on the host):
+    /// the `?? .max` fallback treats it as maximally stale — a refetch, never a
+    /// crash. Extracted (not inlined in `now()`) precisely so these rules can be
+    /// pinned by unit tests the browser-only path otherwise can't reach.
+    static func duration(millisecondsSinceOrigin ms: Double) -> Duration {
+        .milliseconds(Int64(exactly: ms.rounded()) ?? .max)
     }
 
     #if !canImport(JavaScriptKit)
