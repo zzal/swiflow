@@ -1820,10 +1820,14 @@ import SwiflowUI
 /// One pinned city. Holds no `@State` of its own — the weather lives in the
 /// query cache under (city id, unit), which is what makes unpin → re-pin
 /// inside `staleTime` paint instantly.
+///
+/// `unit` is a plain `var` so the parent can push a °C↔°F toggle into this
+/// live instance via `embed(_:refresh:)` — re-keying on `unit` would remount
+/// the card (and churn its query subscription) on every toggle instead.
 @Component
 final class CityCard {
     let city: City
-    let unit: String
+    var unit: String
     let onUnpin: () -> Void
 
     init(city: City, unit: String, onUnpin: @escaping () -> Void) {
@@ -2036,14 +2040,18 @@ final class WeatherPage {
             HStack(spacing: .md, .class("card-grid"), .style("flex-wrap", "wrap")) {
                 for city in pinned {
                     // Embedded instances are reused at a (type, key) position —
-                    // the factory runs on first mount only, so a changed prop
-                    // never reaches a live instance. Encoding `unit` in the
-                    // embed key remounts the card on toggle; the cache (keyed
-                    // on city + unit) makes the swap back instant.
+                    // the factory runs on first mount only. The `unit` toggle is
+                    // pushed into the LIVE card via `refresh:` (a stable key), so
+                    // °C↔°F changes it in place instead of remounting the card and
+                    // churning its query subscription. The card re-renders, its
+                    // (city, unit) query key changes, and the cache paints the
+                    // toggle-back instantly.
                     div(.key("city-\(city.id)")) {
-                        embed("card-\(city.id)-\(unit)") {
+                        embed("card-\(city.id)") {
                             CityCard(city: city, unit: self.unit,
                                      onUnpin: { self.unpin(city) })
+                        } refresh: { card in
+                            card.unit = self.unit
                         }
                     }
                 }

@@ -7,10 +7,14 @@ import SwiflowUI
 /// One pinned city. Holds no `@State` of its own — the weather lives in the
 /// query cache under (city id, unit), which is what makes unpin → re-pin
 /// inside `staleTime` paint instantly.
+///
+/// `unit` is a plain `var` so the parent can push a °C↔°F toggle into this
+/// live instance via `embed(_:refresh:)` — re-keying on `unit` would remount
+/// the card (and churn its query subscription) on every toggle instead.
 @Component
 final class CityCard {
     let city: City
-    let unit: String
+    var unit: String
     let onUnpin: () -> Void
 
     init(city: City, unit: String, onUnpin: @escaping () -> Void) {

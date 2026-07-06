@@ -39,3 +39,45 @@ public func embed<C: Component>(
 ) -> VNode {
     .component(ComponentDescription(C.self, key: key, factory: factory))
 }
+
+/// Embeds a `Component` and pushes changed props into the **reused** instance
+/// on every re-render, via the trailing `refresh:` closure.
+///
+/// Without `refresh:`, a changed prop never reaches a live embedded instance —
+/// the factory runs only at first mount, so parents are forced to re-key
+/// (`embed("row-\(value)") { … }`) to see the new value, which **remounts** the
+/// child and resets its `@State`. `refresh:` is the additive fix: keep a stable
+/// key, and re-push the parent's current data into the surviving instance right
+/// before its `body` re-evaluates.
+///
+/// ```swift
+/// embed("card-\(city.id)") {
+///     CityCard(city: city, unit: self.unit)   // first mount only
+/// } refresh: { card in
+///     card.unit = self.unit                    // every re-render, same instance
+/// }
+/// ```
+///
+/// > ⚠️ **Target plain stored `var`s ONLY — never `@State`.** `@State` is
+/// > framework-owned: assigning it fires the scheduler, and doing so from
+/// > `refresh` re-enters the render loop on every frame → a hang. To change
+/// > what a child renders from parent data, give it a plain `var` prop and push
+/// > it here. (The factory contract from `embed(_:)` still applies to the
+/// > factory closure: allocate a fresh instance per call.)
+public func embed<C: Component>(
+    _ factory: @escaping () -> C,
+    refresh: @escaping (C) -> Void
+) -> VNode {
+    .component(ComponentDescription(C.self, key: nil, factory: factory, refresh: refresh))
+}
+
+/// Keyed variant of `embed(_:refresh:)`. `key` stabilizes identity across
+/// reorders; `refresh` re-pushes props into the reused instance. Same
+/// plain-`var`-not-`@State` contract as the unkeyed overload.
+public func embed<C: Component>(
+    _ key: String,
+    _ factory: @escaping () -> C,
+    refresh: @escaping (C) -> Void
+) -> VNode {
+    .component(ComponentDescription(C.self, key: key, factory: factory, refresh: refresh))
+}
