@@ -18,7 +18,7 @@ struct QueryClientFetchTests {
         let client = QueryClient(clock: ManualClock())
         let owner = AnyComponent(Dummy())
 
-        let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let entry = QueryEntry()
         entry.boxedFetch = { 99 }
         client.entries[["n"]] = entry
         client.subscribe(owner: owner, scheduler: scheduler, to: ["n"])
@@ -36,7 +36,7 @@ struct QueryClientFetchTests {
     @Test("A second startFetch while one is in flight is ignored") func secondStartFetchDedupes() async {
         var calls = 0
         let client = QueryClient(clock: ManualClock())
-        let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let entry = QueryEntry()
         entry.boxedFetch = { calls += 1; return 1 }
         client.entries[["n"]] = entry
 
@@ -48,7 +48,7 @@ struct QueryClientFetchTests {
 
     @Test("A fetch result superseded by a generation bump is dropped, not committed") func supersededResultIsDropped() async {
         let client = QueryClient(clock: ManualClock())
-        let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let entry = QueryEntry()
         entry.boxedFetch = { 1 }
         client.entries[["n"]] = entry
 
@@ -69,7 +69,7 @@ struct QueryClientFetchTests {
         let gateA = Gate()
         let gateB = Gate()
         var started = 0
-        let entry = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let entry = QueryEntry()
         entry.boxedFetch = {
             started += 1
             let n = started

@@ -94,8 +94,7 @@ private struct FailAppendMut: Mutation {
         observations[id] = QueryClient.QueryObservation(
             key: ServerModel.key(id), tags: ["lists"], staleTime: .zero,
             refetchInterval: .seconds(5), refetchOnFocus: true, retry: .none,
-            boxedFetch: { model.value(id) },
-            valuesEqual: { ($0 as? [Int]) == ($1 as? [Int]) })
+            boxedFetch: { model.value(id) })
         subscribed.insert(id)
         client.reconcile(owner: owner, scheduler: scheduler, observations: Array(observations.values))
     }
@@ -252,8 +251,7 @@ struct QueryStateMachineFuzzTests {
                         return snapshot                  // resolves stale [1] late, under the OLD generation
                     }
                     return model.value(1)               // fetch #2 reads the FRESH truth
-                },
-                valuesEqual: { ($0 as? [Int]) == ($1 as? [Int]) })
+                })
         ])
 
         // Let fetch #1 enter boxedFetch (and park on the gate).

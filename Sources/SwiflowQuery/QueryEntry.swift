@@ -41,12 +41,6 @@ final class QueryEntry {
     /// The latest query's fetch, capturing its latest dependencies. Used to
     /// refetch on invalidation. `@MainActor` so calling it needs no Sendable.
     var boxedFetch: (@MainActor () async throws -> Any)?
-    /// Type-erased `Value` equality witness, captured from the concrete query.
-    let valuesEqual: (Any?, Any?) -> Bool
-
-    init(valuesEqual: @escaping (Any?, Any?) -> Bool) {
-        self.valuesEqual = valuesEqual
-    }
 }
 
 // MARK: - Supersede (the reset contract)

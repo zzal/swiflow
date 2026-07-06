@@ -16,8 +16,7 @@ struct QueryClientCacheTests {
             observations: [QueryClient.QueryObservation(
                 key: key, tags: [], staleTime: .zero,
                 refetchInterval: nil, refetchOnFocus: true, retry: .default,
-                boxedFetch: { value },
-                valuesEqual: { ($0 as? Int) == ($1 as? Int) })])
+                boxedFetch: { value })])
         for t in client.inFlightTasks() { await t.value }   // let the fetch settle
         _ = owner   // retain through settle
     }

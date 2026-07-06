@@ -42,8 +42,7 @@ struct MutationRollbackGuardTests {
             observations: [QueryClient.QueryObservation(
                 key: key, tags: [], staleTime: .seconds(9999),
                 refetchInterval: nil, refetchOnFocus: true, retry: .default,
-                boxedFetch: { value },
-                valuesEqual: { ($0 as? String) == ($1 as? String) })])
+                boxedFetch: { value })])
         for t in c.inFlightTasks() { await t.value }
         _ = owner
     }

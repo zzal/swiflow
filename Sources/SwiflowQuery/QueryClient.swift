@@ -131,10 +131,17 @@ public final class QueryClient {
                 entry.nextRetryDue = clock.now() + entry.retry.delay(forAttempt: attempt)
             }
         }
-        // v1 notifies on every settle (both fetch start and completion) so
-        // `isFetching` toggles and the SWR indicator clears; the VNode diff
-        // absorbs identical-output re-renders. `entry.valuesEqual` is reserved
-        // for markDirty-gating once `select` change-detection lands (deferred).
+        // Notify-per-settle is DELIBERATE, not a missing optimization: every
+        // commit flips `inFlight` non-nil → nil, `QueryState` exposes that as
+        // `isFetching`, and the client can't know which subscribers render it —
+        // so no settle notify can be safely gated on value equality (it would
+        // freeze SWR spinners). The VNode diff absorbs identical-output
+        // re-renders. Gating needs `select`-style subscriptions (components
+        // declare the projection they read; notify gates on projection
+        // inequality, with isFetching observed separately) — and THAT witness
+        // compares selected projections, not raw `Value`s. `Query.Value`'s
+        // `Equatable` constraint is the reserved door for that feature; a
+        // threaded witness was deleted as unusable dead weight (audit II.4).
         notify(key)
     }
 
@@ -265,7 +272,6 @@ public final class QueryClient {
         let retry: RetryPolicy
         var gcTime: Duration = .seconds(300)
         let boxedFetch: @MainActor () async throws -> Any
-        let valuesEqual: (Any?, Any?) -> Bool
     }
 
     /// Diff `owner`'s this-render observations against its previous set.
@@ -284,7 +290,7 @@ public final class QueryClient {
         var triggered = Set<QueryKey>()
         for ob in observations {
             let entry = entries[ob.key] ?? {
-                let e = QueryEntry(valuesEqual: ob.valuesEqual)
+                let e = QueryEntry()
                 entries[ob.key] = e
                 return e
             }()
@@ -339,8 +345,7 @@ public final class QueryClient {
             refetchOnFocus: q.refetchOnFocus,
             retry: q.retry,
             gcTime: q.gcTime,
-            boxedFetch: { try await q.fetch() },
-            valuesEqual: { ($0 as? Q.Value) == ($1 as? Q.Value) }
+            boxedFetch: { try await q.fetch() }
         )
         if !frames.isEmpty { frames[frames.count - 1].observations.append(ob) }
         return makeSnapshot(from: entries[key], as: Q.Value.self)
