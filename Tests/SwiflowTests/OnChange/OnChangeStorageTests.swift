@@ -80,4 +80,55 @@ struct OnChangeStorageTests {
         c.onChange(of: 5, key: "k") { _ in fired = true }
         #expect(!fired)
     }
+
+    // MARK: - Default-key collision (two omitted-key call sites in one method)
+    //
+    // Both `onChange(of:)` expressions below live as direct statements in
+    // ONE shared local function — mirroring a real `onChange()` override,
+    // where two calls are siblings in the same method body, called again on
+    // every render. `#function` for both resolves to that one enclosing
+    // function's name regardless of line (reproducing the old collision);
+    // `fileID:line` differs per statement while staying stable each time the
+    // shared function re-runs (each simulated render), which is exactly the
+    // property being tested. Two call sites each wrapped in their OWN local
+    // function would give them different `#function` values too, silently
+    // sidestepping the very collision under test.
+    private func render(_ c: OnChange_Holder, a: Int, b: Int, onA: (Int) -> Void, onB: (Int) -> Void) {
+        c.onChange(of: a, perform: onA)
+        c.onChange(of: b, perform: onB)
+    }
+
+    /// Two DIFFERENT call sites, each omitting `key:`, must not share a
+    /// storage slot: call site A's own unchanged value must not fire just
+    /// because sibling call site B legitimately changed in between. Under
+    /// the old `key: String = #function` default, both statements in the
+    /// same method resolve to the identical key — this reproduces the exact
+    /// collision that default was replaced to fix.
+    @Test("call site A's unchanged value does not fire when a sibling call site's value changes")
+    func sharedKeyDoesNotCauseFalsePositiveFire() {
+        let c = makeCleanHolder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
+
+        var aFired = false
+        render(c, a: 1, b: 100, onA: { _ in aFired = true }, onB: { _ in })   // render 1: seed both
+        render(c, a: 1, b: 200, onA: { _ in aFired = true }, onB: { _ in })   // render 2: A unchanged, B changed
+
+        #expect(aFired == false)
+    }
+
+    /// Mirror of the above: each call site's OWN real change must still be
+    /// detected independently, with no explicit `key:` at either site.
+    @Test("two omitted-key call sites each detect their own change independently")
+    func differentCallSitesTrackChangesIndependently() {
+        let c = makeCleanHolder()
+        defer { OnChangeStorage.remove(for: ObjectIdentifier(c)) }
+
+        var aFired = false
+        var bFired = false
+        render(c, a: 1, b: 100, onA: { _ in aFired = true }, onB: { _ in bFired = true })  // render 1: seed both
+        render(c, a: 2, b: 200, onA: { _ in aFired = true }, onB: { _ in bFired = true })  // render 2: both changed
+
+        #expect(aFired == true)
+        #expect(bFired == true)
+    }
 }
