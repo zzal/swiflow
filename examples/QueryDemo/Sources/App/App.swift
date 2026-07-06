@@ -39,7 +39,9 @@ struct FakeAPI: Sendable {
     }
 
     func invalidations(input: String, output: User) -> [Invalidation] {
-        [.exact(["users", .int(id)])]
+        // Type-referenced: UserByID owns its key (`@Query(prefix:)` + `@Key`),
+        // so a renamed prefix can't silently orphan this invalidation.
+        [.exact(UserByID(id: id))]
     }
 }
 
