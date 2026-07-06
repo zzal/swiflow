@@ -15,8 +15,7 @@ struct QueryClientReconcileTests {
         QueryClient.QueryObservation(
             key: key, tags: [], staleTime: .zero,
             refetchInterval: nil, refetchOnFocus: true, retry: .default,
-            boxedFetch: { counter(); return 1 },
-            valuesEqual: { ($0 as? Int) == ($1 as? Int) }
+            boxedFetch: { counter(); return 1 }
         )
     }
 
@@ -79,8 +78,7 @@ struct QueryClientReconcileTests {
             QueryClient.QueryObservation(
                 key: ["x"], tags: [], staleTime: .zero,
                 refetchInterval: nil, refetchOnFocus: true, retry: .default,
-                boxedFetch: { calls += 1; return 1 },
-                valuesEqual: { ($0 as? Int) == ($1 as? Int) }
+                boxedFetch: { calls += 1; return 1 }
             )
         }
         client.reconcile(owner: a, scheduler: sched, observations: [make()])  // triggers fetch

@@ -12,7 +12,7 @@ struct QueryEntryTests {
     }
 
     @Test("A fetched value with nothing in flight snapshots as settled success") func presentValueNotFetchingIsSettled() {
-        let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let e = QueryEntry()
         e.value = 7
         e.lastFetched = .zero
         let s = makeSnapshot(from: e, as: Int.self)
@@ -23,7 +23,7 @@ struct QueryEntryTests {
     }
 
     @Test("Existing data plus an in-flight task snapshots as background fetching, not loading") func inFlightFetchWithDataIsBackgroundFetching() {
-        let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let e = QueryEntry()
         e.value = 7
         e.lastFetched = .zero
         e.inFlight = Task<Void, Never> {}   // a revalidation is running in the background
@@ -34,7 +34,7 @@ struct QueryEntryTests {
     }
 
     @Test("A new entry starts with default background config and clean retry bookkeeping") func backgroundStateDefaults() {
-        let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let e = QueryEntry()
         #expect(e.staleTime == .zero)
         #expect(e.refetchInterval == nil)
         #expect(e.refetchOnFocus == true)

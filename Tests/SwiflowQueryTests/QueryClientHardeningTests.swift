@@ -46,8 +46,7 @@ struct EntryRecyclingTests {
                         return "stale"          // and this gate ignores it — models an
                     }                            // un-abortable in-flight HTTP fetch)
                     return "fresh"
-                },
-                valuesEqual: { ($0 as? String) == ($1 as? String) })
+                })
         }
 
         // Fetch #1 starts on entry E1 and parks.

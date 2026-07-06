@@ -37,8 +37,7 @@ import Swiflow
             observations: [QueryClient.QueryObservation(
                 key: ["k"], tags: [], staleTime: staleTime,
                 refetchInterval: refetchInterval, refetchOnFocus: refetchOnFocus, retry: retry,
-                boxedFetch: { try await probe.run() },
-                valuesEqual: { ($0 as? [String]) == ($1 as? [String]) })])
+                boxedFetch: { try await probe.run() })])
     }
 
     func settle() async { for t in client.inFlightTasks() { await t.value } }

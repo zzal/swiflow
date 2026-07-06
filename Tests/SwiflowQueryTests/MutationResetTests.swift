@@ -58,8 +58,7 @@ struct MutationResetTests {
             QueryClient.QueryObservation(
                 key: ["m"], tags: [], staleTime: .seconds(9999),
                 refetchInterval: nil, refetchOnFocus: false, retry: .none,
-                boxedFetch: { 10 },
-                valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+                boxedFetch: { 10 })
         ])
         for t in client.inFlightTasks() { await t.value }
         return (client, rt, ResetGate(), CallBox())
@@ -123,8 +122,7 @@ private struct NoInvalidationMut: Mutation {
         QueryClient.QueryObservation(
             key: ["m"], tags: [], staleTime: .seconds(9999),
             refetchInterval: nil, refetchOnFocus: false, retry: .none,
-            boxedFetch: { 10 },
-            valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+            boxedFetch: { 10 })
     ])
     for t in client.inFlightTasks() { await t.value }
     MutationHandle(runtime: rt, mutation: NoInvalidationMut()).mutate(5)

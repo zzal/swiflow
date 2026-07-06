@@ -46,8 +46,7 @@ struct MutationOptimismTests {
             observations: [QueryClient.QueryObservation(
                 key: ["todos"], tags: [], staleTime: .seconds(9999),
                 refetchInterval: nil, refetchOnFocus: true, retry: .default,
-                boxedFetch: { items },
-                valuesEqual: { ($0 as? [String]) == ($1 as? [String]) })])
+                boxedFetch: { items })])
         for t in c.inFlightTasks() { await t.value }
         _ = owner
     }
@@ -90,8 +89,7 @@ struct MutationOptimismTests {
             observations: [QueryClient.QueryObservation(
                 key: ["todos"], tags: [], staleTime: .seconds(9999),
                 refetchInterval: nil, refetchOnFocus: true, retry: .default,
-                boxedFetch: { fetches += 1; return ["a"] },
-                valuesEqual: { ($0 as? [String]) == ($1 as? [String]) })])
+                boxedFetch: { fetches += 1; return ["a"] })])
         for t in client.inFlightTasks() { await t.value }
         #expect(fetches == 1)
 

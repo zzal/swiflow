@@ -46,7 +46,7 @@ struct QueryEntrySupersedeTests {
 
     @Test("supersede bumps the generation, cancels in-flight, voids the retry ladder, and forces stale")
     func supersedeContract() {
-        let e = QueryEntry(valuesEqual: { _, _ in false })
+        let e = QueryEntry()
         e.lastFetched = .seconds(5)
         e.generation = 3
         e.failureCount = 2

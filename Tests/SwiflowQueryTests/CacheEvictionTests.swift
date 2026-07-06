@@ -24,8 +24,7 @@ struct CacheEvictionTests {
             key: key, tags: [], staleTime: .seconds(9999),
             refetchInterval: nil, refetchOnFocus: true, retry: .none,
             gcTime: gcTime,
-            boxedFetch: boxedFetch,
-            valuesEqual: { ($0 as? Int) == ($1 as? Int) }
+            boxedFetch: boxedFetch
         )
     }
 

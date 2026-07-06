@@ -23,7 +23,7 @@ struct QueryClientInvalidateTests {
     @discardableResult
     private func seed(_ client: QueryClient, _ key: QueryKey, tags: Set<QueryTag> = [],
                       bag: OwnerBag, counter: @escaping () -> Void) -> QueryEntry {
-        let e = QueryEntry(valuesEqual: { ($0 as? Int) == ($1 as? Int) })
+        let e = QueryEntry()
         e.boxedFetch = { counter(); return 1 }
         e.value = 1
         e.lastFetched = .zero
