@@ -96,20 +96,30 @@ jobs:
         # demangler / SIMD cost that Phase 15 cut by 90%. Host-side modules
         # (SwiflowCLI, SwiflowMacrosPlugin) run on macOS/Linux only and are
         # not gated.
+        #
+        # ONE sanctioned escape: a host-only import inside `#if !arch(wasm32)`
+        # (equivalently the `#else` of `#if arch(wasm32)`) — it never compiles
+        # into the wasm binary. It must carry the literal `// host-only:`
+        # marker on the import line; the Bundle-size job remains the empirical
+        # gate that the wasm binary didn't grow.
         run: |
           set -euo pipefail
-          # Update this list when adding a new runtime module.
-          if grep -rn "^import Foundation$" \
+          # Update this list when adding a new runtime module. The pattern is
+          # deliberately UNanchored at the end (the original was
+          # `^import Foundation$`) so a stray trailing comment can't silently
+          # evade the check — only the explicit `// host-only:` marker may.
+          if grep -rn "^import Foundation" \
                Sources/Swiflow \
                Sources/SwiflowRouter \
                Sources/SwiflowDOM \
                Sources/SwiflowQuery \
                Sources/SwiflowFetcher \
-               Sources/SwiflowUI; then
-            echo "::error::Runtime modules must not import Foundation (wasm binary size: the runtime is deliberately Foundation-free)."
+               Sources/SwiflowUI \
+             | grep -v "// host-only:"; then
+            echo "::error::Runtime modules must not import Foundation (wasm binary size: the runtime is deliberately Foundation-free). A host-only import must be #if !arch(wasm32)-gated and carry the '// host-only:' marker."
             exit 1
           fi
-          echo "Runtime modules are Foundation-free."
+          echo "Runtime modules are Foundation-free (host-only-marked imports excepted)."
 
       - name: Cache SwiftPM build + WASM SDK
         # Cache the slow-to-rebuild artifacts:

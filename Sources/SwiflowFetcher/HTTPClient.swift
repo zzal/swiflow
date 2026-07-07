@@ -10,7 +10,7 @@ import Swiflow
 #if arch(wasm32)
 import JavaScriptKit
 #else
-import Foundation
+import Foundation // host-only: !arch(wasm32)-gated, never compiled into the wasm binary
 #endif
 
 /// A reusable HTTP client bound to a base URL and default headers — construct
