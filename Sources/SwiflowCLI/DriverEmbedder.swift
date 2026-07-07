@@ -1,9 +1,11 @@
 // Sources/SwiflowCLI/DriverEmbedder.swift
 //
-// Pure formatting function used by both the codegen script
-// (scripts/embed-driver.swift) and the freshness test
-// (Tests/SwiflowCLITests/DriverEmbedderTests.swift). Keeping it here means
-// the codegen logic is itself under test.
+// Pure formatting function mirroring the codegen script
+// (scripts/embed-driver.swift), which re-implements it inline because it
+// runs standalone (no SPM context). The byte-pin test in
+// Tests/SwiflowCLITests/DriverEmbedderTests.swift asserts the tracked
+// EmbeddedDriver.swift is bit-for-bit this function's output, so the two
+// emitters cannot drift apart silently.
 
 import Foundation
 
