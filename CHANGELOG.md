@@ -20,6 +20,94 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.7] — 2026-07-07
+
+**Beta.** The architecture & DX audit release: the Swiflow/SwiflowDOM core
+backlog (Part I) and the entire SwiflowQuery/SwiflowFetcher backlog (Part II)
+of the 2026-07 audit, shipped as 21 reviewed PRs (#142–#162).
+
+### Added
+
+- **`embed(_:refresh:)`** — push changed props into a reused embedded
+  component without re-keying it (re-keying remounts and destroys `@State`,
+  which reuse exists to preserve). `refresh:` runs against the reused instance
+  right before its body evaluates; target plain stored properties, not
+  `@State`.
+- **Typed attribute helpers** — `.href`, `.target`, `.rel`, `.newTab()`
+  (sets `target="_blank"` *and* `rel="noopener noreferrer"` together),
+  `.src`, `.alt`, `.width`, `.height`, `.placeholder`, `.type(InputType)`,
+  `.name`, `.for`, `.title`. `.attr(_:_:)` remains the long-tail escape hatch.
+- **Type-referenced invalidation** — `Invalidation.exact(TodoList())` /
+  `.prefix(UserQuery(id: id))` take the typed owner of the key, so
+  `invalidations` rhymes with `optimistic`'s `.update(TodoList())` instead of
+  restating a raw key that a renamed `@Query(prefix:)` would silently orphan.
+- **Derived default `invalidations`** — a mutation's `invalidations` now
+  defaults to refetching exactly the keys its `optimistic(_:)` declares
+  (deduped, in declaration order). Plain optimistic CRUD mutations no longer
+  need the boilerplate method, and "optimistic without invalidations" — the
+  cache keeping the guess forever — is inexpressible rather than diagnosed.
+  New contract: keep `optimistic(_:)` a pure declaration (it is re-read on
+  success); run-once effects belong inside the edit's transform closure.
+- **Imperative refetch** — `QueryState.refetch()` (the "Refresh" button:
+  snapshot carries its client + key, works from event handlers, supersedes
+  in-flight fetches) and `Component.invalidate(query:)`/`(key:exact:)`/
+  `(tag:)` sugar, handler-safe via a persistent last-rendered-root fallback.
+- **`HTTPTransport` seam** — `HTTPClient` now sends through an injectable
+  transport (`HTTPRequest`/`HTTPResponse` plain-Swift values; browser default
+  `FetchTransport`), making request building, header merge, status mapping,
+  and decode policy host-testable with a mock.
+
+### Fixed
+
+- **Silent patch-failure divergence** — a driver-side patch failure used to
+  desync the Swift mount tree from the real DOM permanently; the renderer now
+  detects it and performs a one-shot resync remount of the affected root.
+- **wasm32 clock trap at ~25 days of uptime** — `SystemQueryClock` narrowed
+  `performance.now()` through 32-bit `Int`, trapping the whole app once page
+  uptime passed `Int32.max` ms. Widened through `Int64` with a non-finite
+  clamp.
+- **Optimistic rollback could resurrect stale data** — the rollback guard was
+  generation-only, so an evicted-then-recycled cache entry (which restarts at
+  generation 0) could accept a failed mutation's rollback and have newer data
+  clobbered by the previous incarnation's snapshot. Rollback now double-guards
+  on entry identity + generation, mirroring `commitFetch`.
+- **`onChange(of:)` default keys collided across call sites** — two calls in
+  the same `onChange()` override silently shared one storage slot; keys now
+  default to `#fileID:#line`.
+- **Fragment-rooted bodies at the app root** — the mount path now traps with
+  actionable guidance in all build configurations instead of feeding the DOM
+  a bogus handle in release.
+- **Superseded fetches now abort at the network layer** — cancelling a query
+  fetch (invalidate, optimistic write, eviction) aborts the underlying
+  browser `fetch` via a per-request `AbortController` instead of letting it
+  download to completion; a cancelled exchange surfaces as `CancellationError`,
+  never as a transport error a retry policy would chase.
+- **Invalidation error policy unified** — invalidating an errored query keeps
+  the last error visible until the refetch settles (SWR-symmetric with stale
+  data); optimistic writes clear it (the write is the new truth). The two
+  paths had drifted apart; they now share one deliberate implementation.
+
+### Examples
+
+- **TodoCRUD / QueryDemo templates modernized** — typed invalidations, then no
+  `invalidations` at all (derived defaults); QueryDemo gains a **Refresh**
+  button (`state.refetch()`); TodoCRUD's temp-id allocation moved into the
+  optimistic transform per the new purity contract.
+
+### Internal
+
+- Core refactors from the audit: shared `reconcileStructuralBody` diff arm,
+  `installRenderContext` ambients owner, typed `SwiflowDriver` facade over
+  `window.swiflow`, `HandlerRegistry` mutation funnel, unified `JSScalar`
+  Swift↔JS crossing, `QueryEntry.supersede` reset contract, and removal of
+  the dead `valuesEqual` witness (`select`-style change detection remains the
+  reserved door via `Query.Value: Equatable`).
+- The CI Playwright pipeline is green end-to-end for the first time (config
+  scoping + dedicated per-demo suites + a port-clash fix), and the query
+  fuzz model gained eviction/unsubscribe coverage.
+
+---
+
 ## [0.4.6] — 2026-07-04
 
 **Beta.**
