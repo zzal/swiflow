@@ -8,6 +8,8 @@
       nav { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 1rem; }
       nav a { text-decoration: none; color: #0070f3; }
       nav a:hover { text-decoration: underline; }
+      /* "You are here": Link marks the current page with aria-current="page". */
+      nav a[aria-current="page"] { color: inherit; font-weight: 600; border-bottom: 2px solid currentColor; }
       button { padding: 0.4rem 1rem; cursor: pointer; }
     </style>
   </head>
