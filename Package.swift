@@ -172,6 +172,25 @@ let package = Package(
             path: "Tests/SwiflowTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Compiled macro-consumer gate (audit III Wave-2 #9). Public/package
+        // types exercising every macro through PLAIN imports — no @testable,
+        // which the in-test compile gates all rely on and which defeats
+        // access-control checking of the emitted code. Built by the plain
+        // `swift build` CI already runs, so "golden strings match" becomes
+        // "the emitted code type-checks" on every push. See the target's
+        // header comment for what each shape gates.
+        .target(
+            name: "MacroConsumerChecks",
+            dependencies: ["Swiflow", "SwiflowQuery"],
+            path: "Sources/MacroConsumerChecks",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "MacroConsumerTests",
+            dependencies: ["MacroConsumerChecks", "SwiflowQuery"],
+            path: "Tests/MacroConsumerTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "SwiflowCLITests",
             dependencies: [
