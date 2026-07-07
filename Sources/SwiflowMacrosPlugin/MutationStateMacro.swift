@@ -12,26 +12,54 @@ public struct MutationStateMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // Reject multi-binding first, with a dedicated message: the compiler
+        // Tailored diagnostics, one per misuse (the @State standard) — a
+        // single folded guard used to tell a `let` author to add a type
+        // annotation.
+        guard let varDecl = declaration.as(VariableDeclSyntax.self) else {
+            // Attached to something that isn't a property at all.
+            context.diagnose(Diagnostic(
+                node: Syntax(declaration),
+                message: MutationStateDiagnostic.requiresVar))
+            return []
+        }
+        // Multi-binding first, with a dedicated message: the compiler
         // silently accepts a peer macro on a multi-binding var (expanding once
         // per binding, each emitting the FIRST name -> duplicate `$name` /
         // backing decls). This guard is the only safety net.
-        if let varDecl = declaration.as(VariableDeclSyntax.self),
-           varDecl.bindings.count > 1 {
+        guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
                 message: MutationStateDiagnostic.requiresSingleBinding))
             return []
         }
-        guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-              let binding = varDecl.bindings.first,
-              binding.accessorBlock == nil,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
-              let typeAnno = binding.typeAnnotation else {
+        guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
             context.diagnose(Diagnostic(
-                node: Syntax(declaration),
-                message: MutationStateDiagnostic.requiresVarWithType))
+                node: Syntax(varDecl),
+                message: MutationStateDiagnostic.requiresVar))
+            return []
+        }
+        guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+            // A tuple (or wildcard) pattern is one binding declaring several
+            // properties — the one-property-per-declaration advice is the fix.
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: MutationStateDiagnostic.requiresSingleBinding))
+            return []
+        }
+        if let accessorBlock = binding.accessorBlock {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: isComputedProperty(accessorBlock)
+                    ? MutationStateDiagnostic.computedPropertyRejected
+                    : MutationStateDiagnostic.userDidSetRejected))
+            return []
+        }
+        guard let typeAnno = binding.typeAnnotation else {
+            // Required even with an initializer: the runtime peer below is
+            // generic over the written type.
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: MutationStateDiagnostic.requiresType))
             return []
         }
         let name = identifier.text
@@ -58,14 +86,23 @@ public struct MutationStateMacro: PeerMacro {
 }
 
 enum MutationStateDiagnostic: DiagnosticMessage {
-    case requiresVarWithType
+    case requiresVar
+    case requiresType
     case requiresSingleBinding
+    case userDidSetRejected
+    case computedPropertyRejected
     var message: String {
         switch self {
-        case .requiresVarWithType:
-            return "@MutationState requires a `var` with an explicit Mutation type annotation (e.g. `@MutationState var create: CreateTodo`)."
+        case .requiresVar:
+            return "@MutationState requires a `var` (e.g. `@MutationState var create: CreateTodo`)."
+        case .requiresType:
+            return "@MutationState requires an explicit type annotation (e.g. `@MutationState var create: CreateTodo`)."
         case .requiresSingleBinding:
             return "@MutationState must be applied to a single property declaration; declare each mutation separately (e.g. `@MutationState var add: AddTodo` on its own line)."
+        case .userDidSetRejected:
+            return "@MutationState properties cannot declare their own didSet — the property only stores the mutation value; observe runs via the `$`-prefixed handle (e.g. `$create.isPending`)."
+        case .computedPropertyRejected:
+            return "@MutationState cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @MutationState if this isn't meant to be a mutation handle."
         }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }
