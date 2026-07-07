@@ -20,6 +20,65 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.8] — 2026-07-07
+
+**Beta.** The CLI & tooling audit release: Part III of the 2026-07
+architecture & DX audit — SwiflowCLI and the macro plugin — shipped complete
+(Waves 1 + 2) as 9 reviewed PRs (#164–#172).
+
+**Stability:** Stable for pre-1.0 usage.
+
+### Added
+
+- **Compile errors reach the browser** — a failed `swiflow dev` rebuild now
+  broadcasts the compiler output to the page, rendered as a dismissable
+  full-viewport overlay (the Vite model): the real diagnostic with source
+  context, anchored at the first `error:` line, ANSI-stripped. The next
+  successful rebuild clears it. Previously the browser silently kept
+  rendering the last-good build with a terminal-only failure line.
+- **Cold-build expectations + timings** — `swiflow dev`'s first build on a
+  fresh project warns that dependency resolution + WASM compilation can take
+  a few minutes (silence used to read as a hang); every initial build ends
+  with an elapsed stamp (`built in 13.0s`), and hot swaps report save-to-swap
+  latency (`hot-swapped in 0.5s`).
+- **Failures route to `swiflow doctor`** — toolchain-plausible `build`/`dev`
+  failures now point at doctor, and `swiflow init`'s next steps lead with it,
+  so first-timers learn the toolchain check exists *before* the first cryptic
+  failure.
+
+### Fixed
+
+- **Doctor agrees with the build** — `swiflow doctor` now probes the
+  toolchain through the same code paths `build`/`dev` use: it can no longer
+  bless a WASM SDK the build would reject (the filter had diverged), and it
+  reports the same compiler binary the build actually runs.
+- **`swiflow init`'s copy-paste serve command** no longer chains `open` after
+  the foreground server (which blocked it from ever running); the URL is a
+  comment instead.
+- **Tailored macro diagnostics** — `@MutationState`/`@ReducerState` misuse
+  now gets a message matching what you wrote (a `let`, a missing type, a
+  computed property, a `didSet`, a tuple pattern) instead of one folded
+  "requires a `var` with an explicit type annotation" for everything.
+- **Dev-loop status voice** — one action-first voice
+  (`rebuilding… / hot-swapped / reloaded / rebuild failed — <reason>`)
+  replaces the mixed tense and internal jargon (`HMR broadcast`).
+
+### Internal
+
+- A compiled macro-consumer target now gates emitted macro code in CI —
+  public/package access, witness isolation, and init synthesis are verified
+  by the real compiler on every push, not just by golden-string tests.
+- `SwiftContext` owns the swiftc invocation preamble (executable, project
+  cwd, `TOOLCHAINS`) in one place — the drift class behind the old
+  command-vs-reactor-ABI incident is structurally closed.
+- `swift run swiflow-codegen` replaces the standalone codegen scripts: one
+  emit path for the embedded driver/templates, with the per-example
+  runtime-JS copies refreshed by tool and enforced by a widened CI gate.
+- Rebuild diagnostics are captured on every dev-loop path (the recapture
+  path used to discard them entirely, showing nothing but "exit code 1").
+
+---
+
 ## [0.4.7] — 2026-07-07
 
 **Beta.** The architecture & DX audit release: the Swiflow/SwiflowDOM core
