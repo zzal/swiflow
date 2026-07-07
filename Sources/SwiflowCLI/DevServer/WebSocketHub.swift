@@ -82,6 +82,35 @@ actor WebSocketHub {
         }
     }
 
+    /// Send `{"type":"build-error","message":..}` to every connected client.
+    /// Broadcast by `DevCommand`'s rebuild loop when a save fails to compile;
+    /// the driver renders the message as a dismissable full-viewport overlay
+    /// and clears it on the next successful hmr-swap. Same
+    /// drop-on-write-failure semantics as the other broadcasts.
+    ///
+    /// The message is arbitrary compiler output, so it must be REAL JSON all
+    /// the way (newlines, quotes) — and unlike `broadcastHMRSwap`, no
+    /// cosmetic `"\/" → "/"` strip: on arbitrary content that strip corrupts
+    /// a literal backslash-before-slash (`\` + `/` encodes as `\\/`, which
+    /// the strip would mangle into an escaped `/`, silently dropping the
+    /// backslash).
+    func broadcastBuildError(message: String) async {
+        struct BuildErrorPayload: Encodable {
+            let type = "build-error"
+            let message: String
+        }
+        let encoded = (try? JSONEncoder().encode(BuildErrorPayload(message: message)))
+            .flatMap { String(bytes: $0, encoding: .utf8) }
+            ?? #"{"type":"build-error","message":""}"#
+        for (id, writer) in clients {
+            do {
+                try await writer.write(.text(encoded))
+            } catch {
+                clients.removeValue(forKey: id)
+            }
+        }
+    }
+
     /// Test-only: number of currently registered clients. Useful as a
     /// barrier in tests that need to wait until N concurrent connections
     /// have completed their register() call before broadcasting.
