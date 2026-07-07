@@ -22,6 +22,15 @@ extension QueryClient {
         entries[key]?.generation
     }
 
+    /// The live entry OBJECT at `key` — an identity handle for guards that must
+    /// distinguish a recycled entry (same key, fresh instance, generation
+    /// restarted at 0) from the incarnation a write actually touched. Pairs
+    /// with `generation(of:)` to form the same double guard `commitFetch` uses.
+    /// Internal (not `package`): `QueryEntry` itself is internal.
+    func liveEntry(_ key: QueryKey) -> QueryEntry? {
+        entries[key]
+    }
+
     /// Write `value` into the entry at `key`, supersede any in-flight fetch, and
     /// notify observers. No-op when no entry exists. Leaves the entry stale so a
     /// later `invalidate` still refetches (the optimistic value is provisional).
