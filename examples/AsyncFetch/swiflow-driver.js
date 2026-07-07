@@ -538,6 +538,62 @@
       target.appendChild(overlay);
     };
 
+    // 2.5 Build-error overlay (the Vite model) — rendered when the dev
+    //     server broadcasts {"type":"build-error"} after a failed rebuild.
+    //     The browser keeps running the LAST SUCCESSFUL build; without this
+    //     overlay the only failure signal is a terminal line, and the page
+    //     silently shows stale code. Distinct from __swiflowDevError above:
+    //     that one means the running WASM crashed (app frozen, reload to
+    //     recover); this one means the app is fine but the latest save
+    //     didn't compile. Cleared by the next successful rebuild (hmr-swap
+    //     frame) or a page reload; also manually dismissable.
+    function clearBuildErrorOverlay() {
+      const existing = document.getElementById("__swiflow-build-error-overlay");
+      if (existing) existing.remove();
+    }
+
+    function showBuildErrorOverlay(message) {
+      clearBuildErrorOverlay();
+
+      const overlay = document.createElement("div");
+      overlay.id = "__swiflow-build-error-overlay";
+      overlay.style.cssText =
+        "position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,0.85);" +
+        "color:#fff;font-family:monospace;font-size:14px;padding:24px;" +
+        "overflow:auto;white-space:pre-wrap;word-break:break-word;";
+
+      const title = document.createElement("div");
+      title.style.cssText =
+        "font-size:18px;font-weight:bold;margin-bottom:16px;color:#ffa94d;";
+      title.textContent = "⚠ Swiflow rebuild failed — showing the last successful build";
+
+      // textContent only — compiler output passes through the driver's
+      // XSS-safe contract (setRawHTML is the only intentional HTML-writing
+      // site).
+      const msg = document.createElement("pre");
+      msg.style.cssText = "margin:0 0 16px;";
+      msg.textContent = message || "(no compiler output was forwarded — see the swiflow dev terminal)";
+
+      const hint = document.createElement("div");
+      hint.style.cssText = "color:#aaa;font-size:12px;margin-bottom:16px;";
+      hint.textContent =
+        "Fix the error and save — this overlay clears on the next successful rebuild.";
+
+      const dismiss = document.createElement("button");
+      dismiss.style.cssText =
+        "padding:8px 16px;background:#444;color:#fff;border:none;" +
+        "cursor:pointer;font-size:14px;border-radius:4px;";
+      dismiss.textContent = "Dismiss";
+      dismiss.onclick = function () { overlay.remove(); };
+
+      overlay.appendChild(title);
+      overlay.appendChild(msg);
+      overlay.appendChild(hint);
+      overlay.appendChild(dismiss);
+      const target = document.body || document.documentElement;
+      target.appendChild(overlay);
+    }
+
     // 3. RAF shim — wraps window.requestAnimationFrame so every callback
     //    (including SwiftWasm's render loop) runs inside a try/catch.
     //    Installed before connect() so the WASM module sees the patched
@@ -582,7 +638,14 @@
           return;
         }
         if (payload.type === "hmr-swap") {
+          // The broadcast itself means the rebuild succeeded — clear the
+          // build-error overlay synchronously, before the async swap work.
+          clearBuildErrorOverlay();
           hmrSwap(payload);
+          return;
+        }
+        if (payload.type === "build-error") {
+          showBuildErrorOverlay(typeof payload.message === "string" ? payload.message : "");
           return;
         }
       };

@@ -190,12 +190,18 @@ struct DevCommand: AsyncParsableCommand {
                 // is owned solely by this serial loop (no cross-task sharing) —
                 // do NOT parallelize this loop (it would corrupt shared swiftc
                 // incremental state in .build).
-                let rebuildRunner = SystemProcessRunner()
+                //
+                // The wrapper captures every child's output so a failed
+                // rebuild's compiler diagnostics can be forwarded to the
+                // browser overlay (streaming callers get a post-exit echo
+                // instead of live output — see DiagnosticsRecordingRunner).
+                let rebuildRunner = DiagnosticsRecordingRunner(base: SystemProcessRunner())
                 var state = BypassState()
                 let loopClock = ContinuousClock()
                 for await changed in watcher.changes() {
                     let dispatch = Self.changeDispatch(for: changed)
                     print(Self.loopStatus(dispatch: dispatch, changedCount: changed.count))
+                    rebuildRunner.reset()
                     do {
                         var rebuildElapsed: Duration?
                         if dispatch.rebuild {
@@ -221,6 +227,14 @@ struct DevCommand: AsyncParsableCommand {
                             broadcast: dispatch.broadcast, rebuildElapsed: rebuildElapsed))
                     } catch {
                         print(Self.rebuildFailed(reason: String(describing: error)))
+                        // Forward the compiler output's tail to the browser —
+                        // the page keeps running the last successful build,
+                        // and without the overlay that staleness is invisible
+                        // (decision §2 still holds: no reload/hmr broadcast
+                        // on failure).
+                        await server.hub.broadcastBuildError(message: Self.buildErrorTail(
+                            diagnostics: rebuildRunner.lastFailureOutput,
+                            fallback: String(describing: error)))
                     }
                 }
             }
@@ -296,7 +310,61 @@ struct DevCommand: AsyncParsableCommand {
     }
 
     static func rebuildFailed(reason: String) -> String {
-        "swiflow: rebuild failed — \(reason). Browser unchanged; fix and save to retry."
+        "swiflow: rebuild failed — \(reason). Error shown in the browser overlay; fix and save to retry."
+    }
+
+    /// The compiler-output excerpt forwarded to the browser overlay.
+    ///
+    /// Anchored at the FIRST `error:` line: `swift build` routes compiler
+    /// diagnostics through stdout while stderr ends with kilobytes of
+    /// manifest/dependency chatter, so a naive last-N-lines tail of the
+    /// combined output ships pure noise (live-smoke-verified). From the
+    /// anchor we keep content FORWARD — root cause first, notes after —
+    /// and the caps keep a megabyte of `-v` spew from becoming the
+    /// WebSocket frame. No recognizable error line → plain tail, which at
+    /// least ends where the process gave up.
+    static func buildErrorTail(
+        diagnostics: String?,
+        fallback: String,
+        maxLines: Int = 120,
+        maxBytes: Int = 16_384
+    ) -> String {
+        guard let diagnostics,
+              !diagnostics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return fallback
+        }
+        // Strip ANSI color escapes BEFORE anchoring: swiftc emits them even
+        // into a pipe, they render as garbage in the overlay, and one sits
+        // right between ": " and "error:" — hiding the line from the anchor
+        // (live-smoke-verified).
+        let plain = diagnostics.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;]*m", with: "", options: .regularExpression)
+        // swiftc's format is "file:line:col: error: msg"; SwiftPM's own is
+        // "error: msg". Requiring the marker at line start or after ": "
+        // keeps single-line argv dumps (which mention flags like
+        // -serialize-diagnostics-path) from anchoring the excerpt on noise.
+        func isErrorLine(_ line: Substring) -> Bool {
+            line.hasPrefix("error:") || line.contains(": error:")
+        }
+        let lines = plain.split(separator: "\n", omittingEmptySubsequences: false)
+        var excerpt: String
+        let keepHeadOnByteCap: Bool
+        if let anchor = lines.firstIndex(where: isErrorLine) {
+            excerpt = lines[anchor...].prefix(maxLines).joined(separator: "\n")
+            keepHeadOnByteCap = true
+        } else {
+            excerpt = lines.suffix(maxLines).joined(separator: "\n")
+            keepHeadOnByteCap = false
+        }
+        if excerpt.utf8.count > maxBytes {
+            // Cap on the side holding the signal; a split code point at the
+            // cut becomes a replacement character, fine for a dev overlay.
+            let bytes = keepHeadOnByteCap
+                ? Array(excerpt.utf8.prefix(maxBytes))
+                : Array(excerpt.utf8.suffix(maxBytes))
+            excerpt = String(decoding: bytes, as: UTF8.self)
+        }
+        return excerpt
     }
 
     /// "12.3s" under a minute, "3m 42s" from there up.

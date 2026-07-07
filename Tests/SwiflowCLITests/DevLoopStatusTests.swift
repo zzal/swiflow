@@ -90,9 +90,83 @@ struct DevLoopStatusTests {
         }
     }
 
+    // "Browser unchanged" retired with the build-error overlay (audit III
+    // Wave-2 #7) — the browser now shows the failure.
     @Test("a failed rebuild names the reason and how to recover")
     func rebuildFailureVoice() {
         let msg = DevCommand.rebuildFailed(reason: "boom")
-        #expect(msg == "swiflow: rebuild failed — boom. Browser unchanged; fix and save to retry.")
+        #expect(msg == "swiflow: rebuild failed — boom. Error shown in the browser overlay; fix and save to retry.")
+    }
+
+    // MARK: #7 (Wave 2) — the compiler-output tail forwarded to the overlay
+
+    @Test("no captured diagnostics falls back to the error description")
+    func tailFallsBackToErrorDescription() {
+        #expect(DevCommand.buildErrorTail(diagnostics: nil, fallback: "swift build failed with exit code 1")
+                == "swift build failed with exit code 1")
+        #expect(DevCommand.buildErrorTail(diagnostics: "  \n ", fallback: "fb") == "fb",
+                "whitespace-only capture is as good as none")
+    }
+
+    @Test("short diagnostics pass through whole")
+    func tailPassesShortOutputThrough() {
+        let d = "App.swift:7:9: error: cannot find 'oops' in scope\n    let x = oops\n"
+        #expect(DevCommand.buildErrorTail(diagnostics: d, fallback: "fb") == d)
+    }
+
+    // Live-smoke finding: `swift build` puts compiler diagnostics on STDOUT
+    // while stderr ends with kilobytes of manifest/dependency chatter — a
+    // last-N-lines tail of the combined output forwarded pure noise and
+    // buried the actual error. The excerpt must anchor at the first
+    // `error:` line instead.
+    @Test("the excerpt starts at the first error line, however much noise follows")
+    func excerptAnchorsAtFirstErrorLine() {
+        let d = (1...50).map { "build progress \($0)" }.joined(separator: "\n")
+            + "\nApp.swift:7:9: error: cannot find 'oops' in scope"
+            + "\n    let x = oops"
+            + "\n" + (1...300).map { "warning: 'dep\($0)': manifest chatter" }.joined(separator: "\n")
+        let tail = DevCommand.buildErrorTail(diagnostics: d, fallback: "fb", maxLines: 100)
+        #expect(tail.hasPrefix("App.swift:7:9: error: cannot find 'oops' in scope"),
+                "the root-cause error must be the FIRST thing the overlay shows")
+        #expect(!tail.contains("build progress"))
+    }
+
+    @Test("with an error anchor, the byte cap keeps the head (where the error is)")
+    func errorAnchoredByteCapKeepsHead() {
+        let longNote = "note: " + String(repeating: "x", count: 200) + "\n"
+        let d = "error: the bit that matters\n" + String(repeating: longNote, count: 100)
+        let tail = DevCommand.buildErrorTail(diagnostics: d, fallback: "fb", maxBytes: 4_096)
+        #expect(tail.utf8.count <= 4_096)
+        #expect(tail.hasPrefix("error: the bit that matters"))
+    }
+
+    @Test("without a recognizable error line, the last maxLines lines are kept")
+    func fallbackTailKeepsLastLines() {
+        let noise = (1...500).map { "line \($0)" }.joined(separator: "\n")
+        let tail = DevCommand.buildErrorTail(diagnostics: noise, fallback: "fb", maxLines: 100)
+        #expect(!tail.contains("line 400\n"))
+        #expect(tail.hasPrefix("line 401\n"))
+        #expect(tail.hasSuffix("line 500"))
+    }
+
+    // Second live-smoke finding: swiftc emits ANSI color escapes even into a
+    // pipe here, which (a) render as garbage in the overlay and (b) sit
+    // between ": " and "error:", hiding the line from the anchor.
+    @Test("ANSI color escapes are stripped before anchoring and display")
+    func stripsANSIColorEscapes() {
+        let d = "building...\nApp.swift:7:9: \u{1B}[1;31merror: \u{1B}[1;39mcannot find 'oops'\u{1B}[0m"
+        let tail = DevCommand.buildErrorTail(diagnostics: d, fallback: "fb")
+        #expect(tail == "App.swift:7:9: error: cannot find 'oops'",
+                "colored error lines must still anchor, and the escapes must not reach the overlay")
+    }
+
+    @Test("argv dumps mentioning error flags do not fool the anchor")
+    func anchorRequiresRealErrorLine() {
+        // Manifest-compile argv lines are one giant token soup — they must
+        // not match, or the excerpt anchors on noise ABOVE the real error.
+        let d = "warning: 'dep': /usr/bin/swift-frontend -frontend -serialize-diagnostics-path /tmp/errors.dia\n"
+            + "App.swift:1:1: error: real one"
+        let tail = DevCommand.buildErrorTail(diagnostics: d, fallback: "fb")
+        #expect(tail.hasPrefix("App.swift:1:1: error: real one"))
     }
 }
