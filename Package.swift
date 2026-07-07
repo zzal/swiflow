@@ -20,6 +20,9 @@ let package = Package(
         // NEVER a dependency of the wasm SwiflowUI — it uses host Double/Foundation math.
         .library(name: "SwiflowColor", targets: ["SwiflowColor"]),
         .executable(name: "swiflow", targets: ["SwiflowCLI"]),
+        // Repo-dev tool, not shipped in releases: regenerates the embedded
+        // codegen outputs (see Sources/SwiflowCodegen/main.swift).
+        .executable(name: "swiflow-codegen", targets: ["SwiflowCodegen"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
@@ -78,6 +81,25 @@ let package = Package(
                 "SwiflowColor",
             ],
             path: "Sources/SwiflowCLI",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // The pure emit logic for the two GENERATED files (EmbeddedDriver /
+        // EmbeddedTemplates) plus the example runtime-JS copy sync. A library
+        // so both the byte-pin tests and the swiflow-codegen tool consume the
+        // SAME implementation (audit III Wave-2 #11 — the scripts used to
+        // re-implement it inline because they couldn't import an executable).
+        .target(
+            name: "SwiflowEmbedders",
+            path: "Sources/SwiflowEmbedders",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // Repo-dev codegen tool: `swift run swiflow-codegen <driver|templates|all>`.
+        // Not a shipped product — deliberately slim (no ArgumentParser) so the
+        // CI embed-freshness job builds it fast.
+        .executableTarget(
+            name: "SwiflowCodegen",
+            dependencies: ["SwiflowEmbedders"],
+            path: "Sources/SwiflowCodegen",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
@@ -195,6 +217,7 @@ let package = Package(
             name: "SwiflowCLITests",
             dependencies: [
                 "SwiflowCLI",
+                "SwiflowEmbedders",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
                 .product(name: "HummingbirdWSTesting", package: "hummingbird-websocket"),
             ],

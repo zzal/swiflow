@@ -241,11 +241,24 @@ jobs:
         working-directory: js-driver
         run: npm ci --no-audit --no-fund
 
-      - name: Regenerate EmbeddedDriver.swift
-        run: swift scripts/embed-driver.swift
+      # `swift run` builds only the slim SwiflowCodegen graph (Foundation-only,
+      # no external products) — the tool imports the REAL embedders, so this
+      # gate and the byte-pin tests exercise the same emit path.
+      - name: Regenerate EmbeddedDriver.swift + example runtime-JS copies
+        run: swift run swiflow-codegen driver
 
-      - name: Fail if EmbeddedDriver.swift is stale
-        run: git diff --exit-code Sources/SwiflowCLI/EmbeddedDriver.swift
+      - name: Regenerate EmbeddedTemplates.swift
+        run: swift run swiflow-codegen templates
+
+      - name: Fail if any generated output is stale
+        run: |
+          git diff --exit-code \
+            Sources/SwiflowCLI/EmbeddedDriver.swift \
+            Sources/SwiflowCLI/EmbeddedTemplates.swift \
+            'examples/*/swiflow-driver.js' \
+            'examples/*/swiflow-service-worker.js' \
+            'examples/*/swiflow-regions.js' \
+            'examples/*/swiflow-region-guest.js'
 
   playwright-e2e:
     name: Playwright E2E

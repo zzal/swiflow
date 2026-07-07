@@ -5,7 +5,7 @@
 // to any file's raw contents.
 //
 // Template contents live in EmbeddedTemplates.swift (generated from
-// examples/ by scripts/embed-templates.swift).
+// examples/ by `swift run swiflow-codegen templates`).
 
 import Foundation
 

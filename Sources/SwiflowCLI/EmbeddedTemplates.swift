@@ -1,7 +1,7 @@
 // GENERATED FILE — do not edit.
 //
 // Regenerate by running, from the repo root:
-//     swift scripts/embed-templates.swift
+//     swift run swiflow-codegen templates
 //
 // Source: examples/*/
 

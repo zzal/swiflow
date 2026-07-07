@@ -1,6 +1,7 @@
 // Tests/SwiflowCLITests/TemplateEmbedderTests.swift
 import Foundation
 import Testing
+import SwiflowEmbedders
 @testable import SwiflowCLI
 
 @Suite("Template embedding")
@@ -91,7 +92,7 @@ extension TemplateEmbedderTests {
         #expect(actual == expected, """
             EmbeddedTemplates.swift drifted from TemplateEmbedder.swiftSource output. \
             Regenerate by running, from the repo root:
-                swift scripts/embed-templates.swift
+                swift run swiflow-codegen templates
             then commit Sources/SwiflowCLI/EmbeddedTemplates.swift.
             """)
     }
