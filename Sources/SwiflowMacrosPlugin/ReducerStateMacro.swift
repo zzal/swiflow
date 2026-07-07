@@ -12,26 +12,54 @@ public struct ReducerStateMacro: PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // Reject multi-binding first, with a dedicated message: the compiler
+        // Tailored diagnostics, one per misuse (the @State standard) — a
+        // single folded guard used to tell a `let` author to add a type
+        // annotation.
+        guard let varDecl = declaration.as(VariableDeclSyntax.self) else {
+            // Attached to something that isn't a property at all.
+            context.diagnose(Diagnostic(
+                node: Syntax(declaration),
+                message: ReducerStateDiagnostic.requiresVar))
+            return []
+        }
+        // Multi-binding first, with a dedicated message: the compiler
         // silently accepts a peer macro on a multi-binding var (expanding once
         // per binding, each emitting the FIRST name -> duplicate `$name` /
         // backing decls). This guard is the only safety net.
-        if let varDecl = declaration.as(VariableDeclSyntax.self),
-           varDecl.bindings.count > 1 {
+        guard varDecl.bindings.count == 1, let binding = varDecl.bindings.first else {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
                 message: ReducerStateDiagnostic.requiresSingleBinding))
             return []
         }
-        guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-              let binding = varDecl.bindings.first,
-              binding.accessorBlock == nil,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
-              let typeAnno = binding.typeAnnotation else {
+        guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
             context.diagnose(Diagnostic(
-                node: Syntax(declaration),
-                message: ReducerStateDiagnostic.requiresVarWithType))
+                node: Syntax(varDecl),
+                message: ReducerStateDiagnostic.requiresVar))
+            return []
+        }
+        guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+            // A tuple (or wildcard) pattern is one binding declaring several
+            // properties — the one-property-per-declaration advice is the fix.
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: ReducerStateDiagnostic.requiresSingleBinding))
+            return []
+        }
+        if let accessorBlock = binding.accessorBlock {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: isComputedProperty(accessorBlock)
+                    ? ReducerStateDiagnostic.computedPropertyRejected
+                    : ReducerStateDiagnostic.userDidSetRejected))
+            return []
+        }
+        guard let typeAnno = binding.typeAnnotation else {
+            // Required even with an initializer: the runtime peer below is
+            // generic over the written type.
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: ReducerStateDiagnostic.requiresType))
             return []
         }
         let name = identifier.text
@@ -59,14 +87,23 @@ public struct ReducerStateMacro: PeerMacro {
 }
 
 enum ReducerStateDiagnostic: DiagnosticMessage {
-    case requiresVarWithType
+    case requiresVar
+    case requiresType
     case requiresSingleBinding
+    case userDidSetRejected
+    case computedPropertyRejected
     var message: String {
         switch self {
-        case .requiresVarWithType:
-            return "@ReducerState requires a `var` with an explicit Reducer type annotation (e.g. `@ReducerState var flow: Checkout`)."
+        case .requiresVar:
+            return "@ReducerState requires a `var` (e.g. `@ReducerState var flow: Checkout`)."
+        case .requiresType:
+            return "@ReducerState requires an explicit type annotation (e.g. `@ReducerState var flow: Checkout`)."
         case .requiresSingleBinding:
             return "@ReducerState must be applied to a single property declaration; declare each reducer separately (e.g. `@ReducerState var flow: Checkout` on its own line)."
+        case .userDidSetRejected:
+            return "@ReducerState properties cannot declare their own didSet — the property only stores the reducer value; state lives in the runtime, read via the `$`-prefixed handle (e.g. `$flow.state`)."
+        case .computedPropertyRejected:
+            return "@ReducerState cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @ReducerState if this isn't meant to be a reducer handle."
         }
     }
     var diagnosticID: MessageID { MessageID(domain: "SwiflowMacros", id: "\(self)") }

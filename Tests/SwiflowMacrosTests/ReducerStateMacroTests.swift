@@ -55,6 +55,137 @@ final class ReducerStateMacroTests: XCTestCase {
         )
     }
 
+    // MARK: Split diagnostics (audit III Wave-1 #4) — mirror of the
+    // @MutationState suite; the folded requiresVarWithType told a `let`
+    // author to add a type annotation.
+
+    func testRejectsLet() {
+        assertMacroExpansion(
+            """
+            @ReducerState let flow: Checkout
+            """,
+            expandedSource: """
+            let flow: Checkout
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState requires a `var` (e.g. `@ReducerState var flow: Checkout`).",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testRequiresTypeAnnotation() {
+        assertMacroExpansion(
+            """
+            @ReducerState var flow = Checkout()
+            """,
+            expandedSource: """
+            var flow = Checkout()
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState requires an explicit type annotation (e.g. `@ReducerState var flow: Checkout`).",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testUserDidSetIsRejected() {
+        assertMacroExpansion(
+            """
+            @ReducerState var flow: Checkout {
+                didSet { print("user") }
+            }
+            """,
+            expandedSource: """
+            var flow: Checkout {
+                didSet { print("user") }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState properties cannot declare their own didSet — the property only stores the reducer value; state lives in the runtime, read via the `$`-prefixed handle (e.g. `$flow.state`).",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testComputedPropertyIsRejected() {
+        assertMacroExpansion(
+            """
+            @ReducerState var flow: Checkout {
+                Checkout()
+            }
+            """,
+            expandedSource: """
+            var flow: Checkout {
+                Checkout()
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @ReducerState if this isn't meant to be a reducer handle.",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    // Explicit get/set must hit the same computed-property diagnostic as the
+    // getter-only shorthand (pins the shared isComputedProperty branch
+    // through THIS macro's call site).
+    func testComputedPropertyWithGetSetIsRejected() {
+        assertMacroExpansion(
+            """
+            @ReducerState var flow: Checkout {
+                get { Checkout() }
+                set { }
+            }
+            """,
+            expandedSource: """
+            var flow: Checkout {
+                get { Checkout() }
+                set { }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState cannot be applied to a computed property — only stored properties. Remove the computed body, or drop @ReducerState if this isn't meant to be a reducer handle.",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    // A tuple pattern is one binding declaring several properties — routes to
+    // requiresSingleBinding (one-property-per-declaration is the fix).
+    func testTuplePatternRejected() {
+        assertMacroExpansion(
+            """
+            @ReducerState var (flow, wizard): (Checkout, Signup)
+            """,
+            expandedSource: """
+            var (flow, wizard): (Checkout, Signup)
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@ReducerState must be applied to a single property declaration; declare each reducer separately (e.g. `@ReducerState var flow: Checkout` on its own line).",
+                    line: 1, column: 1, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
     // Access propagation (audit Wave-2): mirror of the @MutationState test.
     func testPackageReducerStateEmitsPackageProjection() {
         assertMacroExpansion(
