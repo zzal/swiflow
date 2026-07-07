@@ -42,6 +42,43 @@ test.describe("TodoCRUD (real backend)", () => {
     await expect(page.getByText("Watch optimistic updates reconcile")).toHaveCount(0);
   });
 
+  test("cancelling a superseded fetch aborts it at the network layer", async ({ page }) => {
+    // The list polls every 5s. Stall the NEXT poll GET so it stays in flight,
+    // then fire an optimistic add: setQueryData supersedes ["todos"], which
+    // cancels the in-flight fetch task — FetchTransport's AbortController must
+    // surface that as a real network-level abort, not a request that silently
+    // downloads to completion after its result was already superseded.
+    let stalledOne = false;
+    await page.route("**/todos", async (route) => {
+      if (!stalledOne && route.request().method() === "GET") {
+        stalledOne = true;   // hold exactly one GET (the poll); never continue it
+        return;
+      }
+      await route.continue();
+    });
+
+    const polled = await page.waitForRequest(
+      (r) => r.url().endsWith("/todos") && r.method() === "GET",
+      { timeout: 10_000 });   // poll cadence is 5s
+
+    const aborted = page.waitForEvent("requestfailed", {
+      predicate: (r) => r === polled,
+      timeout: 5_000,
+    });
+
+    const title = `Abort poll ${Date.now()}`;
+    await page.getByPlaceholder("What needs doing?").fill(title);
+    await page.getByRole("button", { name: "Add" }).click();
+
+    const failure = (await aborted).failure();
+    expect(failure?.errorText).toContain("ABORTED");
+
+    // The add itself is unaffected: the optimistic row shows and reconciles
+    // (its POST and the follow-up repair GET pass through the route).
+    await expect(page.getByText(title)).toBeVisible();
+    await page.unroute("**/todos");
+  });
+
   test("a forced network failure rolls the optimistic add back", async ({ page }) => {
     // Abort the POST so perform() fails → the optimistic row must roll back and
     // the error message must show. No backend change needed.

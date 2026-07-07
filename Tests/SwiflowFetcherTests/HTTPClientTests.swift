@@ -208,4 +208,21 @@ struct HTTPClientTests {
             #expect(error == .transport("connection refused"))
         } catch { Issue.record("wrong error type: \(error)") }
     }
+
+    @Test("a transport CancellationError passes through untranslated (the cancellation contract)")
+    func cancellationErrorPassesThrough() async {
+        // The HTTPTransport contract: a cancelled exchange throws
+        // CancellationError, and the client must NOT rewrap it as HTTPError —
+        // retry policies would otherwise chase a deliberate cancel as if it
+        // were a network failure. Pins the pass-through against a future
+        // catch-all in the client.
+        let mock = MockTransport { _ in throw CancellationError() }
+        let client = HTTPClient(baseURL: "http://api.test", transport: mock)
+        do {
+            _ = try await client.get("/x", as: Item.self)
+            Issue.record("expected CancellationError")
+        } catch is CancellationError {
+            // pass — untranslated
+        } catch { Issue.record("expected CancellationError, got \(error)") }
+    }
 }

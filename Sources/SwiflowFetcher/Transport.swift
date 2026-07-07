@@ -51,9 +51,12 @@ public struct HTTPResponse: Sendable, Equatable {
 /// non-2xx to `HTTPError.status` is the client's job, so the policy is
 /// host-tested once, not re-implemented per transport.
 ///
-/// This seam is also where request cancellation will live (audit II Wave-2
-/// #4): a transport that wires an `AbortController` can abort the underlying
-/// fetch when the surrounding Swift task is cancelled.
+/// **Cancellation contract:** when the surrounding Swift task is cancelled, a
+/// transport should stop the underlying exchange and throw
+/// `CancellationError` — NOT `HTTPError.transport` — so callers and retry
+/// policies see standard Swift cancellation rather than a fake network
+/// failure. `FetchTransport` implements this with a per-request
+/// `AbortController`; the client passes both errors through untranslated.
 public protocol HTTPTransport: Sendable {
     func send(_ request: HTTPRequest) async throws -> HTTPResponse
 }
