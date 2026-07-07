@@ -1,8 +1,9 @@
-// Sources/SwiflowCLI/TemplateEmbedder.swift
+// Sources/SwiflowEmbedders/TemplateEmbedder.swift
 //
-// Pure codegen helper used by both the codegen script
-// (scripts/embed-templates.swift) and the freshness test
-// (Tests/SwiflowCLITests/TemplateEmbedderTests.swift). Same shape as
+// THE emit path for EmbeddedTemplates.swift — invoked by the swiflow-codegen
+// tool (`swift run swiflow-codegen templates`), which replaced the standalone
+// script that used to duplicate this logic, and byte-pinned by the freshness
+// test (Tests/SwiflowCLITests/TemplateEmbedderTests.swift). Same shape as
 // DriverEmbedder.swift.
 //
 // Walks `examples/`, normalizes per-example tokens, and produces the
@@ -11,10 +12,10 @@
 
 import Foundation
 
-enum TemplateEmbedderError: Error, CustomStringConvertible {
+package enum TemplateEmbedderError: Error, CustomStringConvertible {
     case missingTrailingNewline(URL)
 
-    var description: String {
+    package var description: String {
         switch self {
         case .missingTrailingNewline(let url):
             return "example file does not end with a newline: \(url.path) — add a trailing \\n so the codegen round-trip stays exact"
@@ -22,7 +23,7 @@ enum TemplateEmbedderError: Error, CustomStringConvertible {
     }
 }
 
-enum TemplateEmbedder {
+package enum TemplateEmbedder {
 
     /// File / directory names excluded from every template.
     /// - `.build`, `.swiftpm`, `Package.resolved`, `.DS_Store`: build artifacts,
@@ -38,7 +39,7 @@ enum TemplateEmbedder {
     // as scaffolding starting points they're subsumed by `TodoCRUD` (the full
     // data-layer showcase) and `MissionControl` (real navigation). They stay in
     // examples/ for reading; they just aren't offered by `swiflow init`.
-    static let blacklist: Set<String> = [
+    package static let blacklist: Set<String> = [
         ".build",
         ".swiftpm",
         ".DS_Store",
@@ -51,10 +52,10 @@ enum TemplateEmbedder {
         "AsyncFetch", "MiniRouter",
     ]
 
-    struct TemplateData {
-        let name: String
+    package struct TemplateData {
+        package let name: String
         /// Sorted by `relativePath` for deterministic codegen output.
-        let files: [(relativePath: String, contents: String)]
+        package let files: [(relativePath: String, contents: String)]
     }
 
     // MARK: - Pure substitution (heavily tested)
@@ -65,7 +66,7 @@ enum TemplateEmbedder {
     /// - `{{SWIFLOW_DEP}}` ← the literal line `.package(path: "../..")`, but
     ///   only in `Package.swift`. (We require all examples to use that exact
     ///   form so the substitution can stay a single dumb string replace.)
-    static func normalize(_ raw: String, exampleName: String, relativePath: String) -> String {
+    package static func normalize(_ raw: String, exampleName: String, relativePath: String) -> String {
         var out = raw.replacingOccurrences(of: exampleName, with: "{{NAME}}")
         // Guard: {{NAME}} must never land in Swift DECLARATION position — the
         // user's project name is a directory name (hyphens legal), not a Swift
@@ -91,7 +92,7 @@ enum TemplateEmbedder {
     /// Walks `examplesRoot/*/`, collecting every template directory and its
     /// non-blacklisted files. Returns `TemplateData` sorted by name (so
     /// codegen output is deterministic regardless of directory enumeration order).
-    static func collect(examplesRoot: URL) throws -> [TemplateData] {
+    package static func collect(examplesRoot: URL) throws -> [TemplateData] {
         let fm = FileManager.default
         let entries = try fm.contentsOfDirectory(
             at: examplesRoot,
@@ -113,7 +114,7 @@ enum TemplateEmbedder {
 
     /// Recursively collects non-blacklisted files. Returns relative paths
     /// (POSIX-style, slash-separated) sorted alphabetically for determinism.
-    static func collectFiles(in dir: URL, exampleName: String) throws -> [(relativePath: String, contents: String)] {
+    package static func collectFiles(in dir: URL, exampleName: String) throws -> [(relativePath: String, contents: String)] {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: dir,
@@ -167,14 +168,14 @@ enum TemplateEmbedder {
     /// the file contents already end in `\n`, and that final `\n` is
     /// preserved (it's the `\n` after that — the one we emit — that gets
     /// stripped). `collectFiles` enforces the trailing-newline invariant.
-    static func swiftSource(examplesRoot: URL) throws -> String {
+    package static func swiftSource(examplesRoot: URL) throws -> String {
         let templates = try collect(examplesRoot: examplesRoot)
 
         var out = """
         // GENERATED FILE — do not edit.
         //
         // Regenerate by running, from the repo root:
-        //     swift scripts/embed-templates.swift
+        //     swift run swiflow-codegen templates
         //
         // Source: examples/*/
 

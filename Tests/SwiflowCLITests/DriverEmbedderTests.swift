@@ -1,6 +1,7 @@
 // Tests/SwiflowCLITests/DriverEmbedderTests.swift
 import Foundation
 import Testing
+import SwiflowEmbedders
 @testable import SwiflowCLI
 
 @Suite("Driver embedding")
@@ -39,22 +40,19 @@ struct DriverEmbedderTests {
         let onDiskJS = try String(contentsOf: driverURL, encoding: .utf8)
         #expect(EmbeddedDriver.javascriptSource == onDiskJS, """
             EmbeddedDriver is stale. Regenerate by running:
-                swift scripts/embed-driver.swift
+                swift run swiflow-codegen driver
             from the repo root, then commit Sources/SwiflowCLI/EmbeddedDriver.swift.
             """)
     }
 
-    // The byte-pin (audit III Wave-1 #5): the codegen script re-implements
-    // DriverEmbedder.swiftSource inline (it runs standalone, no SPM context)
-    // and its comment promises a freshness test catches drift between the
-    // two — this is that test. Feeding the compiled constants back in makes
-    // it a pure FORMAT pin, mirroring TemplateEmbedderTests' byte-pin of the
-    // twin embedder: if either emitter's wrapper (header, constant order,
-    // delimiters, whitespace) changes without the other, the reconstruction
-    // stops matching the tracked file. Content freshness is covered
-    // elsewhere — readable sources by the four verbatim tests below,
-    // minified bytes by CI's embed-freshness job (the one gate that can run
-    // esbuild). The three gates compose to full coverage.
+    // The byte-pin (audit III Wave-1 #5, retained after Wave-2 #11 unified
+    // the emit path in swiflow-codegen): the tracked file must be bit-for-bit
+    // DriverEmbedder.swiftSource's output. Feeding the compiled constants
+    // back in makes it a pure FORMAT pin, mirroring TemplateEmbedderTests'
+    // byte-pin of the twin embedder. Content freshness is covered elsewhere —
+    // readable sources by the four verbatim tests below, minified bytes by
+    // CI's embed-freshness job (the one gate that can run esbuild). The
+    // three gates compose to full coverage.
     @Test("EmbeddedDriver.swift is bit-for-bit what DriverEmbedder.swiftSource would produce")
     func embeddedDriverFileMatchesDriverEmbedderOutput() throws {
         let testFile = URL(fileURLWithPath: #filePath)
@@ -77,10 +75,8 @@ struct DriverEmbedderTests {
         )
         #expect(actual == expected, """
             EmbeddedDriver.swift no longer matches DriverEmbedder.swiftSource \
-            output — the emit format in scripts/embed-driver.swift and \
-            DriverEmbedder.swiftSource has drifted apart. Align the two \
-            emitters, then regenerate (from the repo root):
-                swift scripts/embed-driver.swift
+            output. Regenerate (from the repo root):
+                swift run swiflow-codegen driver
             and commit Sources/SwiflowCLI/EmbeddedDriver.swift.
             """)
     }
@@ -99,7 +95,7 @@ struct DriverEmbedderTests {
         let url = repoRoot.appendingPathComponent("js-driver/swiflow-regions.js")
         let onDisk = try String(contentsOf: url, encoding: .utf8)
         #expect(EmbeddedDriver.regionsSource == onDisk,
-                "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
+                "Run `swift run swiflow-codegen driver` to regenerate EmbeddedDriver.swift")
     }
 
     @Test("EmbeddedDriver.guestSdkSource matches js-driver/swiflow-region-guest.js verbatim")
@@ -109,7 +105,7 @@ struct DriverEmbedderTests {
         let url = repoRoot.appendingPathComponent("js-driver/swiflow-region-guest.js")
         let onDisk = try String(contentsOf: url, encoding: .utf8)
         #expect(EmbeddedDriver.guestSdkSource == onDisk,
-                "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
+                "Run `swift run swiflow-codegen driver` to regenerate EmbeddedDriver.swift")
     }
 
     @Test("EmbeddedDriver.serviceWorkerSource matches js-driver/swiflow-service-worker.js verbatim")
@@ -122,7 +118,7 @@ struct DriverEmbedderTests {
         let path = repoRoot.appendingPathComponent("js-driver/swiflow-service-worker.js")
         let onDisk = try String(contentsOf: path, encoding: .utf8)
         #expect(EmbeddedDriver.serviceWorkerSource == onDisk,
-                "Run `swift scripts/embed-driver.swift` to regenerate EmbeddedDriver.swift")
+                "Run `swift run swiflow-codegen driver` to regenerate EmbeddedDriver.swift")
     }
 
     @Test("minified constants are non-empty, shorter, and collapsed to one line")

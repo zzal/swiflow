@@ -8,6 +8,7 @@
 
 import Foundation
 import Testing
+import SwiflowEmbedders
 @testable import SwiflowCLI
 
 @Suite("Init templates")
@@ -63,7 +64,7 @@ struct TemplatesTests {
                 encoding: .utf8
             )
             #expect(rendered == onDisk,
-                    "drift in \(name)/\(relativePath); regenerate via `swift scripts/embed-templates.swift`")
+                    "drift in \(name)/\(relativePath); regenerate via `swift run swiflow-codegen templates`")
         }
     }
 
@@ -96,7 +97,7 @@ struct TemplatesTests {
             \(name) template files diverge from examples/\(name)/.
             Only-in-template: \(templatePaths.subtracting(onDiskRelativePaths))
             Only-on-disk:    \(onDiskRelativePaths.subtracting(templatePaths))
-            Regenerate via `swift scripts/embed-templates.swift`.
+            Regenerate via `swift run swiflow-codegen templates`.
             """)
     }
 
