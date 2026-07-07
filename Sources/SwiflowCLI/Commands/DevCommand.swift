@@ -110,12 +110,20 @@ struct DevCommand: AsyncParsableCommand {
             configuration: .dev,
             compileCacheDir: compileCacheDir
         )
-        print("swiflow: initial build (dev configuration)...")
+        // A missing .build/ means SwiftPM still has to resolve dependencies
+        // and compile every module from scratch — minutes of silence that
+        // look like a hang without the expectation line.
+        let coldBuild = !FileManager.default.fileExists(
+            atPath: projectURL.appendingPathComponent(".build").path)
+        print(Self.initialBuildStatus(cold: coldBuild))
+        let buildClock = ContinuousClock()
+        let buildStart = buildClock.now
         do {
             _ = try invocation.run(using: runner)
         } catch let error as BuildCommandError {
             throw ValidationError(String(describing: error))
         }
+        print(Self.initialBuildCompleted(elapsed: buildClock.now - buildStart))
 
         // 4.5 Build the bypass rebuilder. The dev loop replays SwiftPM's own
         //     swiftc + wasm-ld commands per save (~1.6s), re-capturing them via
@@ -184,16 +192,20 @@ struct DevCommand: AsyncParsableCommand {
                 // incremental state in .build).
                 let rebuildRunner = SystemProcessRunner()
                 var state = BypassState()
+                let loopClock = ContinuousClock()
                 for await changed in watcher.changes() {
                     let dispatch = Self.changeDispatch(for: changed)
-                    print("swiflow: \(dispatch.rebuild ? "rebuilding" : "reloading") (\(changed.count) file\(changed.count == 1 ? "" : "s") changed)...")
+                    print(Self.loopStatus(dispatch: dispatch, changedCount: changed.count))
                     do {
+                        var rebuildElapsed: Duration?
                         if dispatch.rebuild {
+                            let rebuildStart = loopClock.now
                             if let bypassRebuilder {
                                 try bypassRebuilder.rebuild(using: rebuildRunner, state: &state)
                             } else {
                                 _ = try invocation.run(using: rebuildRunner)
                             }
+                            rebuildElapsed = loopClock.now - rebuildStart
                         }
                         switch dispatch.broadcast {
                         case .hmrSwap:
@@ -202,13 +214,13 @@ struct DevCommand: AsyncParsableCommand {
                                 wasmURL: "/\(Self.packageToJSOutputRelativePath)/App.wasm?h=\(bust)",
                                 jsURL: "/\(Self.packageToJSOutputRelativePath)/index.js?h=\(bust)"
                             )
-                            print("swiflow: HMR broadcast")
                         case .reload:
                             await server.hub.broadcastReload()
-                            print("swiflow: reload broadcast")
                         }
+                        print(Self.loopCompletion(
+                            broadcast: dispatch.broadcast, rebuildElapsed: rebuildElapsed))
                     } catch {
-                        print("swiflow: rebuild failed — \(error). Browser unchanged; fix and save to retry.")
+                        print(Self.rebuildFailed(reason: String(describing: error)))
                     }
                 }
             }
@@ -242,6 +254,58 @@ struct DevCommand: AsyncParsableCommand {
         case (true, true):  return .init(rebuild: true, broadcast: .reload)
         default:            return .init(rebuild: false, broadcast: .reload)
         }
+    }
+
+    // MARK: - Status messages
+    //
+    // One action-first voice across the loop — rebuilding… / hot-swapped /
+    // reloaded / rebuild failed — <reason> — instead of the mixed tense +
+    // internal jargon ("HMR broadcast") these lines once had. Pure statics
+    // (like `changeDispatch`) so the voice is test-pinnable.
+
+    /// The initial-build announcement. A cold build (no `.build/` yet) adds
+    /// an expectation-setting line: dependency resolution + a full WASM
+    /// compile can run for minutes with no output, and without the warning
+    /// that silence reads as a hang.
+    static func initialBuildStatus(cold: Bool) -> String {
+        var lines = ["swiflow: building (dev configuration)..."]
+        if cold {
+            lines.append("swiflow: first build resolves dependencies and compiles to WASM — this can take a few minutes")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func initialBuildCompleted(elapsed: Duration) -> String {
+        "swiflow: built in \(formatElapsed(elapsed))"
+    }
+
+    static func loopStatus(dispatch: ChangeDispatch, changedCount: Int) -> String {
+        "swiflow: \(dispatch.rebuild ? "rebuilding" : "reloading") (\(changedCount) file\(changedCount == 1 ? "" : "s") changed)..."
+    }
+
+    /// `rebuildElapsed` is the save-to-swap latency — nil for static-asset
+    /// reloads, where nothing was rebuilt and a stamp would be noise.
+    static func loopCompletion(broadcast: ChangeDispatch.Broadcast, rebuildElapsed: Duration?) -> String {
+        let verb: String
+        switch broadcast {
+        case .hmrSwap: verb = "hot-swapped"
+        case .reload:  verb = "reloaded"
+        }
+        guard let rebuildElapsed else { return "swiflow: \(verb)" }
+        return "swiflow: \(verb) in \(formatElapsed(rebuildElapsed))"
+    }
+
+    static func rebuildFailed(reason: String) -> String {
+        "swiflow: rebuild failed — \(reason). Browser unchanged; fix and save to retry."
+    }
+
+    /// "12.3s" under a minute, "3m 42s" from there up.
+    static func formatElapsed(_ duration: Duration) -> String {
+        let totalSeconds = Double(duration.components.seconds)
+            + Double(duration.components.attoseconds) / 1e18
+        guard totalSeconds >= 60 else { return String(format: "%.1fs", totalSeconds) }
+        let whole = Int(totalSeconds)
+        return "\(whole / 60)m \(whole % 60)s"
     }
 
     /// PackageToJS plugin output directory, relative to the project
