@@ -1511,7 +1511,8 @@ import SwiflowRouter
 import SwiflowUI
 
 /// Tab bar shared by both pages. `Link` renders a fixed-shape `<a>`, so the
-/// styling targets `nav a` from the scoped sheet rather than per-link classes.
+/// styling targets `nav a` from the scoped sheet rather than per-link classes;
+/// the current page is styled via the `aria-current="page"` marker Link emits.
 final class NavBar: Component {
     @MainActor static var scopedStyles: CSSSheet? = css {
         // `host(...)` — the <nav> is the component root, and scoped `rule(...)`
@@ -1528,6 +1529,11 @@ final class NavBar: Component {
              .borderRadius("var(--sw-radius)"))
         rule("a:hover",
              .background("color-mix(in srgb, var(--sw-accent) 15%, transparent)"))
+        // "You are here": Link marks the current page's <a> with
+        // aria-current="page" — a free, class-less styling hook.
+        rule("a[aria-current=\"page\"]",
+             .background("color-mix(in srgb, var(--sw-accent) 20%, transparent)"),
+             .fontWeight("600"))
         rule(".brand",
              .fontWeight("700"),
              .marginRight("var(--sw-space-md)"))
