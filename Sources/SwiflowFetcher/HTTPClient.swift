@@ -1,13 +1,17 @@
 // Sources/SwiflowFetcher/HTTPClient.swift
 //
-// A configured JSON-over-`fetch` client: a base URL + default headers applied
-// to every request. WASM-only (behind `#if canImport(JavaScriptKit)`), like
-// the rest of Swiflow's JS code.
+// A configured JSON HTTP client: a base URL + default headers applied to every
+// request, sent through an injected `HTTPTransport` (browser default:
+// `FetchTransport`). The client itself is pure Swift and host-testable —
+// request building, header merge, status mapping, and decode policy all run
+// on every platform; only the transport touches JavaScriptKit.
 
-#if canImport(JavaScriptKit)
 import Swiflow
+#if arch(wasm32)
 import JavaScriptKit
-import JavaScriptEventLoop
+#else
+import Foundation
+#endif
 
 /// A reusable HTTP client bound to a base URL and default headers — construct
 /// once, call with relative paths.
@@ -20,53 +24,69 @@ import JavaScriptEventLoop
 /// ```
 ///
 /// For one-off requests against absolute URLs, the static `HTTP` facade wraps a
-/// base-URL-less client.
+/// base-URL-less client. Tests inject a mock `HTTPTransport` (the same seam
+/// `QueryClient` uses for its clock).
 ///
-/// **Concurrency:** `Sendable` (a value of `String` + `[String: String]`), and
-/// every method is `nonisolated`, taking `Sendable` inputs and returning a
-/// `Sendable` result. All non-`Sendable` JavaScriptKit values are created and
-/// awaited internally, so a `@MainActor` `Query.fetch()` / `Mutation.perform()`
-/// can `await` these without crossing an actor boundary. `Swiflow.render(...)`
-/// installs the JS event-loop executor, so no setup is required.
+/// **Concurrency:** `Sendable`, and every method is `nonisolated`, taking
+/// `Sendable` inputs and returning a `Sendable` result, so a `@MainActor`
+/// `Query.fetch()` / `Mutation.perform()` can `await` these without crossing
+/// an actor boundary. `Swiflow.render(...)` installs the JS event-loop
+/// executor, so no setup is required in the browser.
 ///
-/// **Decoding:** responses decode with JavaScriptKit's `JSValueDecoder`
-/// (`Foundation`/`JSONDecoder` aren't available under WASM), so result types
-/// are `Decodable & Sendable`. Bodies are sent as `JSONValue`.
+/// **Decoding:** responses decode from the body text — with JavaScriptKit's
+/// `JSValueDecoder` in the browser (`Foundation`/`JSONDecoder` aren't
+/// available under WASM) and `JSONDecoder` on the host — so result types are
+/// `Decodable & Sendable`. Bodies are sent as `JSONValue`.
 public struct HTTPClient: Sendable {
     /// Prepended to relative request paths. Empty for the `HTTP` facade.
     public let baseURL: String
     /// Sent on every request; a per-call header of the same name overrides.
     public let defaultHeaders: [String: String]
+    /// Performs the exchanges. Injected for tests; `FetchTransport` in the browser.
+    let transport: any HTTPTransport
 
-    public init(baseURL: String = "", headers: [String: String] = [:]) {
+    /// Explicit-transport initializer — the injection seam, available on
+    /// every platform.
+    public init(baseURL: String = "", headers: [String: String] = [:], transport: any HTTPTransport) {
         self.baseURL = baseURL
         self.defaultHeaders = headers
+        self.transport = transport
     }
+
+    #if canImport(JavaScriptKit)
+    /// Browser initializer — defaults to the `fetch`-backed transport.
+    /// (JavaScriptKit compiles on the host too, so this exists there as well;
+    /// like the pre-seam client, actually SENDING through `FetchTransport`
+    /// requires a real JS runtime. Host tests inject a mock transport.)
+    public init(baseURL: String = "", headers: [String: String] = [:]) {
+        self.init(baseURL: baseURL, headers: headers, transport: FetchTransport())
+    }
+    #endif
 
     // MARK: - Verbs
 
     public func get<T: Decodable & Sendable>(
         _ path: String, headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try await decode(send(.get, path, body: nil, headers: headers))
+        try decode(try await send(.get, path, body: nil, headers: headers))
     }
 
     public func post<T: Decodable & Sendable>(
         _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try await decode(send(.post, path, body: json, headers: headers))
+        try decode(try await send(.post, path, body: json, headers: headers))
     }
 
     public func put<T: Decodable & Sendable>(
         _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try await decode(send(.put, path, body: json, headers: headers))
+        try decode(try await send(.put, path, body: json, headers: headers))
     }
 
     public func patch<T: Decodable & Sendable>(
         _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try await decode(send(.patch, path, body: json, headers: headers))
+        try decode(try await send(.patch, path, body: json, headers: headers))
     }
 
     /// Fire-and-forget DELETE — the response body (if any) is discarded, so a
@@ -89,62 +109,59 @@ public struct HTTPClient: Sendable {
         return base + suffix
     }
 
-    /// Performs the request and returns the raw `Response` `JSValue` after
-    /// asserting `response.ok`. Internal — `JSValue` never escapes to a caller.
-    private func send(_ method: Method, _ path: String, body: JSONValue?, headers: [String: String]) async throws -> JSValue {
-        let options = JSObject.global.Object.function!.new()
-        options.method = .string(method.rawValue)
-
-        let headerObject = JSObject.global.Object.function!.new()
-        for (name, value) in defaultHeaders.merging(headers, uniquingKeysWith: { _, perCall in perCall }) {
-            headerObject[name] = .string(value)
-        }
+    /// Builds the final request (resolved URL, merged headers, serialized
+    /// body), performs it through the transport, and maps a non-2xx status to
+    /// `HTTPError.status` carrying the transport's best-effort body capture.
+    private func send(_ method: Method, _ path: String, body: JSONValue?, headers: [String: String]) async throws -> HTTPResponse {
+        var merged = defaultHeaders.merging(headers, uniquingKeysWith: { _, perCall in perCall })
+        var bodyString: String? = nil
         if let body {
-            headerObject["Content-Type"] = .string("application/json")
-            options.body = .string(body.jsonString)
+            // Deliberately AFTER the merge: a JSON body always ships as JSON,
+            // even if a default or per-call header said otherwise.
+            merged["Content-Type"] = "application/json"
+            bodyString = body.jsonString
         }
-        options.headers = .object(headerObject)
-
-        guard let promiseValue = JSObject.global.fetch.function?(resolve(path), JSValue.object(options)).object,
-              let promise = JSPromise(promiseValue) else {
-            throw HTTPError.transport("fetch did not return a Promise")
-        }
-        let response: JSValue
-        do { response = try await promise.value }
-        catch { throw HTTPError.transport(String(describing: error)) }
-
-        guard response.ok.boolean == true else {
-            let status = Int(response.status.number ?? 0)
-            throw HTTPError.status(status, body: await Self.readBody(response))
+        let request = HTTPRequest(method: method.rawValue, url: resolve(path), headers: merged, body: bodyString)
+        let response = try await transport.send(request)
+        guard response.ok else {
+            throw HTTPError.status(response.status, body: response.body)
         }
         return response
     }
 
-    /// Best-effort capture of a non-2xx response's text body, for
-    /// `HTTPError.status`'s `body`. Swallows any read failure (already
-    /// consumed body, malformed `text()` result, rejected promise) and
-    /// returns `nil` rather than letting a body-read problem mask the
-    /// original status error.
-    private static func readBody(_ response: JSValue) async -> String? {
-        guard let textValue = response.text().object, let textPromise = JSPromise(textValue) else {
-            return nil
+    /// Decodes a successful response's JSON body into `T`. An unreadable or
+    /// unparseable body is a `.transport` error (the exchange never produced
+    /// usable JSON — the same bucket a rejected `response.json()` fell into);
+    /// a parseable-but-mismatched body is a `.decoding` error.
+    private func decode<T: Decodable & Sendable>(_ response: HTTPResponse) throws -> T {
+        guard let text = response.body else {
+            throw HTTPError.transport("response body could not be read")
         }
-        guard let text = try? await textPromise.value else { return nil }
-        return text.string
-    }
-
-    /// Awaits and decodes a `Response`'s JSON body into `T`.
-    private func decode<T: Decodable & Sendable>(_ response: JSValue) async throws -> T {
-        guard let jsonValue = response.json().object, let jsonPromise = JSPromise(jsonValue) else {
-            throw HTTPError.transport("response.json() did not return a Promise")
+        #if arch(wasm32)
+        guard let parse = JSObject.global.JSON.object?.parse.function else {
+            throw HTTPError.transport("JSON.parse is unavailable")
         }
+        // `JSON.parse` throws on malformed input — call it as a throwing JS
+        // function (same idiom as PersistentStore) so a non-JSON body surfaces
+        // as `.transport` rather than trapping the wasm.
         let json: JSValue
-        do { json = try await jsonPromise.value }
-        catch { throw HTTPError.transport(String(describing: error)) }
-
+        do { json = try parse.throws(text) }
+        catch { throw HTTPError.transport("response body was not valid JSON: \(String(describing: error))") }
         do { return try JSValueDecoder().decode(T.self, from: json) }
         catch { throw HTTPError.decoding(String(describing: error)) }
+        #else
+        do { return try JSONDecoder().decode(T.self, from: Data(text.utf8)) }
+        catch let error as DecodingError {
+            switch error {
+            case .dataCorrupted:
+                // JSONDecoder folds "not JSON at all" into DecodingError;
+                // keep the wasm split: parse-level failures are transport.
+                throw HTTPError.transport("response body was not valid JSON: \(String(describing: error))")
+            default:
+                throw HTTPError.decoding(String(describing: error))
+            }
+        }
+        catch { throw HTTPError.decoding(String(describing: error)) }
+        #endif
     }
 }
-
-#endif
