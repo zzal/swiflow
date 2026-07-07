@@ -164,13 +164,26 @@ struct InitCommand: AsyncParsableCommand {
         }
 
         let projectPath = parentURL.appendingPathComponent(name).path
-        print("""
-            Created \(projectPath)
-              Next steps:
-                cd \(projectPath)
-                swiflow dev
-                # or:
-                swiflow build && python3 -m http.server 3000 && open http://localhost:3000
-            """)
+        print(Self.nextSteps(projectPath: projectPath))
+    }
+
+    /// The post-scaffold guidance. Doctor is deliberately step 0: a
+    /// first-timer without the WASM SDK should learn the toolchain check
+    /// exists BEFORE `swiflow dev`'s first cryptic build failure, not after.
+    /// The serve suggestion deliberately does NOT chain anything after
+    /// `http.server` — the server blocks in the foreground, so a chained
+    /// `open` would never run; the URL is a comment instead. Extracted (not
+    /// inline in `run`) so tests can pin both properties.
+    static func nextSteps(projectPath: String) -> String {
+        """
+        Created \(projectPath)
+          Next steps:
+            swiflow doctor   # first time? verify the toolchain (Swift + WASM SDK)
+            cd \(projectPath)
+            swiflow dev
+            # or:
+            swiflow build && python3 -m http.server 3000
+            # then browse to http://localhost:3000
+        """
     }
 }
