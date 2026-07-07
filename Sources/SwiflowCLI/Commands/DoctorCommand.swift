@@ -96,31 +96,71 @@ struct DoctorCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        let swift = probeSwift()
-        // The compiler version gates the wasm-sdk version check below; if swift
-        // itself is missing, the SDK row falls back to a presence-only check.
-        let compilerVersion: String? = {
-            if case .found(let line) = swift {
-                return ToolchainVersion.compilerVersion(fromVersionLine: line)
-            }
-            return nil
-        }()
-        let report = DoctorReport(
-            swift: swift,
-            wasmSDK: probeWasmSDK(compilerVersion: compilerVersion),
-            macToolchain: probeMacToolchain(),
-            wasmOpt: probeWasmOpt()
-        )
+        let report = Self.makeReport(using: SystemProcessRunner())
         print(report.summary)
         if report.exitCode != 0 {
             throw ExitCode(report.exitCode)
         }
     }
 
+    /// Composes the report by consulting the SAME seams `build`/`dev` use
+    /// (audit III Wave-2 #8): `SwiftExecutableLocator` for which compiler,
+    /// `WasmSDKProbe` for which SDKs. Doctor used to re-implement both with
+    /// a private raw-Process helper and had already diverged — it blessed
+    /// any SDK id containing "wasm" while the build path requires the
+    /// `_wasm` suffix, and it versioned bare `env swift` rather than the
+    /// binary the locator (and therefore the build) actually runs.
+    ///
+    /// `macToolchain` is injected because `MacToolchainProbe` reads the
+    /// filesystem, not a process — tests pass an explicit row; production
+    /// uses the default.
+    static func makeReport(
+        using runner: ProcessRunner,
+        macToolchain: ToolStatus? = probeMacToolchain()
+    ) -> DoctorReport {
+        // swift: the binary the build path would run, versioned at its
+        // located path. Locator failure (or a failing --version) → missing.
+        let swiftExecutable = (try? SwiftExecutableLocator.locate(using: runner)) ?? nil
+        let swift: ToolStatus
+        if let swiftExecutable,
+           let versionLine = firstLine(of: runner, executable: swiftExecutable, arguments: ["--version"]) {
+            swift = .found(versionLine)
+        } else {
+            swift = .missing
+        }
+
+        // The compiler version gates the wasm-sdk version check below; if swift
+        // itself is missing, there is nothing to list SDKs with either.
+        let compilerVersion: String? = {
+            if case .found(let line) = swift {
+                return ToolchainVersion.compilerVersion(fromVersionLine: line)
+            }
+            return nil
+        }()
+
+        let wasmSDK: ToolStatus
+        if case .found = swift, let swiftExecutable {
+            wasmSDK = probeWasmSDK(
+                swiftExecutable: swiftExecutable,
+                compilerVersion: compilerVersion,
+                using: runner
+            )
+        } else {
+            wasmSDK = .missing
+        }
+
+        return DoctorReport(
+            swift: swift,
+            wasmSDK: wasmSDK,
+            macToolchain: macToolchain,
+            wasmOpt: probeWasmOpt(using: runner)
+        )
+    }
+
     /// macOS only: `swiflow build` needs the swift.org toolchain's clang for
     /// the wasm triple (see MacToolchainProbe's header comment). On Linux
     /// the row is not applicable.
-    private func probeMacToolchain() -> ToolStatus? {
+    static func probeMacToolchain() -> ToolStatus? {
         #if os(macOS)
         if let bundleID = MacToolchainProbe.swiftLatestBundleIdentifier() {
             return .found(bundleID)
@@ -131,33 +171,30 @@ struct DoctorCommand: AsyncParsableCommand {
         #endif
     }
 
-    private func probeWasmOpt() -> ToolStatus {
-        guard let out = try? captureOutput("wasm-opt", ["--version"]) else { return .missing }
-        let firstLine = out.split(separator: "\n").first.map(String.init) ?? ""
-        return .found(firstLine)
+    private static func probeWasmOpt(using runner: ProcessRunner) -> ToolStatus {
+        let envURL = URL(fileURLWithPath: "/usr/bin/env")
+        guard let line = firstLine(of: runner, executable: envURL, arguments: ["wasm-opt", "--version"]) else {
+            return .missing
+        }
+        return .found(line)
     }
 
-    private func probeSwift() -> ToolStatus {
-        guard let out = try? captureOutput("swift", ["--version"]) else { return .missing }
-        let firstLine = out.split(separator: "\n").first.map(String.init) ?? ""
-        return .found(firstLine)
-    }
+    /// Lists installed WASM SDKs through the build path's probe (so the row
+    /// can never bless an SDK the build rejects) and, when the compiler
+    /// version is known, requires one whose version matches it exactly. A
+    /// version mismatch is the silent failure this hardening targets:
+    /// `swift sdk list` is happy, but `swiflow dev` later dies with "module
+    /// compiled with Swift X cannot be imported by the Swift Y compiler".
+    private static func probeWasmSDK(
+        swiftExecutable: URL,
+        compilerVersion: String?,
+        using runner: ProcessRunner
+    ) -> ToolStatus {
+        let probe = WasmSDKProbe(runner: runner, swiftExecutable: swiftExecutable)
+        guard let wasmIDs = try? probe.list(), !wasmIDs.isEmpty else { return .missing }
 
-    /// Lists installed WASM SDKs and, when the compiler version is known,
-    /// requires one whose version matches it exactly. A version mismatch is the
-    /// silent failure this hardening targets: `swift sdk list` is happy, but
-    /// `swiflow dev` later dies with "module compiled with Swift X cannot be
-    /// imported by the Swift Y compiler".
-    private func probeWasmSDK(compilerVersion: String?) -> ToolStatus {
-        guard let out = try? captureOutput("swift", ["sdk", "list"]) else { return .missing }
-        let wasmIDs = out
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.contains("wasm") }
-        guard !wasmIDs.isEmpty else { return .missing }
-
-        // No parseable compiler version (swift missing/odd output): fall back to
-        // the old presence-only behaviour rather than guess.
+        // No parseable compiler version (odd banner): fall back to the old
+        // presence-only behaviour rather than guess.
         guard let compilerVersion else { return .found(wasmIDs[0]) }
 
         // Prefer an SDK whose version matches the compiler exactly.
@@ -184,19 +221,24 @@ struct DoctorCommand: AsyncParsableCommand {
         return .incompatible(detail: detail, hint: hint)
     }
 
-    private func captureOutput(_ executable: String, _ args: [String]) throws -> String {
-        let proc = Process()
-        proc.launchPath = "/usr/bin/env"
-        proc.arguments = [executable] + args
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = FileHandle(forWritingAtPath: "/dev/null")  // discard stderr without buffering
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
-            throw NSError(domain: "DoctorCommand", code: Int(proc.terminationStatus))
-        }
-        return String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    /// Runs a probe process through the seam and returns its first output
+    /// line, or nil on launch failure / non-zero exit / empty output.
+    private static func firstLine(
+        of runner: ProcessRunner,
+        executable: URL,
+        arguments: [String]
+    ) -> String? {
+        guard let result = try? runner.run(
+            executable: executable,
+            arguments: arguments,
+            workingDirectory: nil,
+            environment: nil,
+            captureOutput: true
+        ), result.exitCode == 0 else { return nil }
+        return (result.standardOutput ?? "")
+            .split(separator: "\n")
+            .first
+            .map(String.init)
     }
 }
 
