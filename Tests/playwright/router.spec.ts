@@ -29,6 +29,25 @@ test.describe("MiniRouter — hash-mode navigation", () => {
     await expect(page.getByRole("heading", { name: "Home" })).toHaveCount(0);
   });
 
+  test("the current page's Link carries aria-current=page; others don't", async ({ page }) => {
+    await page.goto("/");
+    // Home is exact-matched and current on load.
+    await expect(page.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "About" })).not.toHaveAttribute("aria-current", "page");
+
+    await page.getByRole("link", { name: "About" }).click();
+    await expect(page).toHaveURL(/#\/about$/);
+
+    // The marker follows the navigation.
+    await expect(page.getByRole("link", { name: "About" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current", "page");
+
+    // User 42 is prefix-matched: active on the /users/42 child route.
+    await page.getByRole("link", { name: "User 42" }).click();
+    await expect(page).toHaveURL(/#\/users\/42$/);
+    await expect(page.getByRole("link", { name: "User 42" })).toHaveAttribute("aria-current", "page");
+  });
+
   test("Back button returns to Home page and restores URL", async ({ page }) => {
     // Navigate via Link rather than `page.goto("/#/about")` directly so the
     // browser history contains a real prior entry — without it,

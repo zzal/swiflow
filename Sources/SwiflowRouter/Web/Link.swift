@@ -19,6 +19,7 @@ public final class Link: Component {
 
     private let path: String
     private let content: Content
+    private let activeMatch: LinkActiveMatch
     private let linkRef = Ref<JSObject>()
     private var clickClosure: JSClosure?
     // Reads AmbientEnvironment.current during body (set by the diff).
@@ -29,15 +30,19 @@ public final class Link: Component {
     private var capturedNavigate: (@Sendable (String) -> Void)?
 
     /// Label variant — renders `<a href="{path}">{label}</a>`.
-    public init(_ path: String, _ label: String) {
+    /// `active:` picks the current-page marking rule (see `LinkActiveMatch`);
+    /// `.prefix` is the usual choice for section navs.
+    public init(_ path: String, _ label: String, active: LinkActiveMatch = .exact) {
         self.path = path
         self.content = .label(label)
+        self.activeMatch = active
     }
 
     /// Children variant — renders `<a href="{path}">{ children }</a>`.
-    public init(_ path: String, @ChildrenBuilder _ children: () -> [VNode]) {
+    public init(_ path: String, active: LinkActiveMatch = .exact, @ChildrenBuilder _ children: () -> [VNode]) {
         self.path = path
         self.content = .children(children())
+        self.activeMatch = active
     }
 
     public var body: VNode {
@@ -45,16 +50,35 @@ public final class Link: Component {
         // AmbientEnvironment.current which is set by the diff only during body.
         capturedNavigate = ambientRouter.navigate
         let href = ambientRouter.href(forPath: path)
-        let refAttr = Attribute.refBinding(AnyRefBinding(linkRef))
+        var attributes: [Attribute] = [
+            .attr("href", href),
+            .refBinding(AnyRefBinding(linkRef)),
+        ]
+        // The current page's link gets the web's standard "you are here":
+        // aria-current="page" (an a11y signal AND a free styling hook,
+        // `a[aria-current="page"]`) plus a stable class for selector-averse
+        // stylesheets. Emitted only when active so inactive links stay
+        // attribute-clean.
+        if activeMatch.isActive(linkPath: path, currentPath: ambientRouter.path) {
+            attributes.append(.attr("aria-current", "page"))
+            attributes.append(.attr("class", "sw-link-active"))
+        }
         switch content {
         case .label(let text):
-            return link(.attr("href", href), refAttr) { VNode.text(text) }
+            return element("a", attributes: attributes, children: [.text(text)])
         case .children(let nodes):
-            return link(.attr("href", href), refAttr) { nodes }
+            return element("a", attributes: attributes, children: nodes)
         }
     }
 
     public func onAppear() {
+        // Only build the JSClosure when the ref actually bound to a DOM
+        // element. Besides not allocating a closure nothing will attach,
+        // this is what makes Link HOST-RENDERABLE: under TestRenderer the
+        // ref never binds, and constructing a JSClosure with no JS runtime
+        // aborts the process (canImport(JavaScriptKit) is true on host —
+        // the wall gates compilability, not runtime availability).
+        guard let el = linkRef.wrappedValue else { return }
         let navigate = capturedNavigate ?? { _ in }
         let targetPath = path
         let closure = JSClosure { args -> JSValue in
@@ -62,7 +86,7 @@ public final class Link: Component {
             navigate(targetPath)
             return .undefined
         }
-        if let el = linkRef.wrappedValue { _ = el.addEventListener!("click", closure) }
+        _ = el.addEventListener!("click", closure)
         clickClosure = closure
     }
 
