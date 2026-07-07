@@ -25,6 +25,10 @@ package func installRenderContext(
     HandlerAmbient.current = handlers
     SwiflowTaskRuntime.currentScope = taskScope
     RenderObserverBox.current = observer
+    // Persistent handler-time fallback (see its doc). Only a non-nil observer
+    // records itself: an observer-less root rendering must not clobber the
+    // slot another root installed.
+    if let observer { RenderObserverBox.lastRendered = observer }
 }
 
 @MainActor

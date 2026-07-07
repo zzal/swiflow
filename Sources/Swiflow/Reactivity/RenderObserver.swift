@@ -19,4 +19,18 @@ package protocol RenderObserver: AnyObject {
 /// render, exactly like `SwiflowTaskRuntime.currentScope`.
 package enum RenderObserverBox {
     @MainActor package static var current: (any RenderObserver)?
+
+    /// The most recently RENDERED root's observer — the handler-time fallback.
+    ///
+    /// `current` is render-scoped (uninstalled after every diff pass), but
+    /// imperative APIs like `Component.invalidate` are naturally called from
+    /// event handlers, where `current` is nil. `installRenderContext` records
+    /// every non-nil observer here and `uninstallRenderContext` leaves it, so
+    /// after the first render a handler can still reach its root's observer.
+    ///
+    /// Single-root apps (every Swiflow app today): always the right observer.
+    /// Multiple render roots: the most recently rendered one — a documented
+    /// degradation, same class as the other per-process globals. `weak`: the
+    /// slot must not keep a torn-down root's observer alive; it self-clears.
+    @MainActor package static weak var lastRendered: (any RenderObserver)?
 }

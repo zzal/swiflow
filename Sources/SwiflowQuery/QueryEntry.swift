@@ -79,17 +79,27 @@ extension QueryEntry {
 }
 
 /// Project an entry into a typed snapshot. `nil` entry → optimistic loading.
+/// `client`/`key` ride along (when the caller has them) so the snapshot's
+/// `refetch()` can reach the owning root's client from a handler.
 @MainActor
-func makeSnapshot<V>(from entry: QueryEntry?, as _: V.Type) -> QueryState<V> {
-    guard let entry else {
-        return QueryState(isLoading: true, isFetching: true)
+func makeSnapshot<V>(
+    from entry: QueryEntry?, as _: V.Type,
+    client: QueryClient? = nil, key: QueryKey? = nil
+) -> QueryState<V> {
+    var state: QueryState<V>
+    if let entry {
+        let fetching = entry.inFlight != nil
+        let data = entry.value as? V
+        state = QueryState(
+            data: data,
+            error: entry.error,
+            isLoading: data == nil && fetching,
+            isFetching: fetching
+        )
+    } else {
+        state = QueryState(isLoading: true, isFetching: true)
     }
-    let fetching = entry.inFlight != nil
-    let data = entry.value as? V
-    return QueryState(
-        data: data,
-        error: entry.error,
-        isLoading: data == nil && fetching,
-        isFetching: fetching
-    )
+    state.client = client
+    state.key = key
+    return state
 }
