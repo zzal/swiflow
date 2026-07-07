@@ -20,15 +20,28 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case projectPathNotFound(URL)
     case manifestArtifactMissing(URL)
 
+    /// Appended to toolchain-plausible failures. Doctor probes all four
+    /// dependencies (swift, WASM SDK, macOS toolchain, wasm-opt) with
+    /// actionable hints — the pointer converts a dead-end failure into the
+    /// next command to run. Deliberately NOT appended to non-toolchain
+    /// failures (bad --path, packaging bug): doctor can't diagnose those,
+    /// and pointing at it there would erode the signal.
+    private static let doctorHint =
+        "If this looks like a toolchain problem, run `swiflow doctor` to check the whole setup."
+
     var description: String {
         switch self {
         case .swiftNotOnPath:
-            return "swift is not on PATH. Install Swift from https://swift.org/install and try again."
+            return """
+                swift is not on PATH. Install Swift from https://swift.org/install and try again. \
+                \(Self.doctorHint)
+                """
         case .noWasmSDKInstalled:
             return """
                 No WASM Swift SDK is installed. Run:
                     swift sdk install <SDK URL for your Swift version>
                 with a URL from https://swift.org/install (look for the WebAssembly SDK).
+                `swiflow doctor` checks the whole toolchain and prints the exact install hint.
                 """
         case .wasmSDKListFailed(let code, let stderr):
             let trimmed = stderr?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -36,12 +49,13 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
             return """
                 `swift sdk list` failed with exit code \(code). \
                 Your Swift toolchain may not support the `sdk` subcommand \
-                (it landed in Swift 5.9). Verify with `swift --version`.\(trailer)
+                (it landed in Swift 5.9). Verify with `swift --version`, \
+                or run `swiflow doctor` to check the whole setup.\(trailer)
                 """
         case .swiftPackageJSFailed(let code):
-            return "swift package js failed with exit code \(code). See output above."
+            return "swift package js failed with exit code \(code). See output above. \(Self.doctorHint)"
         case .swiftBuildFailed(let code):
-            return "swift build failed with exit code \(code). See output above."
+            return "swift build failed with exit code \(code). See output above. \(Self.doctorHint)"
         case .projectPathNotFound(let url):
             return "project path does not exist or is not a directory: \(url.path)"
         case .manifestArtifactMissing(let url):
