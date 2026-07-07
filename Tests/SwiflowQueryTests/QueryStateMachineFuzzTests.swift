@@ -99,6 +99,27 @@ private struct FailAppendMut: Mutation {
         client.reconcile(owner: owner, scheduler: scheduler, observations: Array(observations.values))
     }
 
+    /// Drop `id`'s observation (reconcile unsubscribes removed keys) — the
+    /// entry survives, unobserved, until a GC sweep evicts it. Convergence is
+    /// only asserted for `subscribed` keys, so an unobserved entry is allowed
+    /// to go stale (invalidate forces-stale without refetching when nobody
+    /// watches); re-subscribing refetches and must converge again.
+    func unsubscribe(_ id: Int) {
+        guard observations.removeValue(forKey: id) != nil else { return }
+        subscribed.remove(id)
+        client.reconcile(owner: owner, scheduler: scheduler, observations: Array(observations.values))
+    }
+
+    /// Evict everything unobserved: the first tick stamps `unobservedSince`
+    /// (if a prior tick hasn't already), the second — past gcTime (300s) —
+    /// evicts. Mutations fired after this against an evicted key exercise the
+    /// missing-entry paths (.noValue optimistic skip, no-op invalidation,
+    /// identity-guarded rollback) — the fuzz model's former blind spot.
+    func gcSweep() {
+        clock.advance(by: .seconds(400)); client.tick(now: clock.now())
+        clock.advance(by: .seconds(400)); client.tick(now: clock.now())
+    }
+
     func mutate<M: Mutation>(_ m: M, _ input: M.Input) {
         let rt = MutationRuntime<M>()
         rt.wire(owner: owner, scheduler: scheduler, client: client)
@@ -158,14 +179,16 @@ struct QueryStateMachineFuzzTests {
             var rng = SplitMix64(seed: baseSeed &+ UInt64(seq))
             let w = FuzzWorld()
             var trace: [String] = []
-            // Subscribe all list IDs upfront so every mutation targets a cached
-            // key (OptimisticEdit.update requires a cache entry to transform).
+            // Subscribe all list IDs upfront; unsubscribe/gcSweep ops below can
+            // later drop and evict them, so mutations DO reach unobserved and
+            // evicted keys mid-sequence (.noValue skips, no-op invalidations,
+            // identity-guarded rollback) — the model's former blind spot.
             for lid in listIDs { w.subscribe(lid); trace.append("subscribe \(lid)") }
             await w.settle()
 
             for _ in 0..<opsPerSequence {
                 let id = listIDs.randomElement(using: &rng)!
-                let pick = Int.random(in: 0..<7, using: &rng)
+                let pick = Int.random(in: 0..<9, using: &rng)
                 switch pick {
                 case 0:
                     w.subscribe(id); trace.append("subscribe \(id)")
@@ -185,6 +208,10 @@ struct QueryStateMachineFuzzTests {
                     w.client.invalidate(tag: "lists"); trace.append("invalidate.tag lists")
                 case 6:
                     w.clock.advance(by: .seconds(6)); w.client.tick(now: w.clock.now()); trace.append("tick +6s")
+                case 7:
+                    w.unsubscribe(id); trace.append("unsubscribe \(id)")
+                case 8:
+                    w.gcSweep(); trace.append("gcSweep +800s")
                 default: break
                 }
                 await w.settle()

@@ -30,14 +30,19 @@ private enum RGBoom: Error { case nope }
     func invalidations(input: String, output: String) -> [Invalidation] { [] }
 }
 
-@Suite("Mutation rollback is generation-guarded")
+@Suite("Mutation rollback is generation- and identity-guarded")
 @MainActor
 struct MutationRollbackGuardTests {
 
     /// Seed a String value at `key` by registering a live observer and
     /// awaiting its initial fetch — mirrors the pattern in MutationOptimismTests.
-    private func seedString(_ c: QueryClient, key: QueryKey, value: String) async {
-        let owner = AnyComponent(RGDummy())
+    /// Pass (and KEEP a reference to) an explicit `owner` when the test needs
+    /// to control the subscriber's lifecycle: letting the owner dealloc leaks
+    /// its `observed` set (only `dropComponent` cleans it), and a later owner
+    /// allocated at the same address inherits it via ObjectIdentifier collision
+    /// — silently suppressing the remount's initial fetch.
+    private func seedString(_ c: QueryClient, key: QueryKey, value: String,
+                            owner: AnyComponent = AnyComponent(RGDummy())) async {
         c.reconcile(owner: owner, scheduler: SyncScheduler { _ in },
             observations: [QueryClient.QueryObservation(
                 key: key, tags: [], staleTime: .seconds(9999),
@@ -105,5 +110,86 @@ struct MutationRollbackGuardTests {
 
         #expect(client.getQueryData(key, as: String.self) == v0,
             "rollback must restore the prior when the key was not superseded")
+    }
+
+    // 3. THE RECYCLE HOLE (audit II Wave-2 #2): generation alone cannot detect
+    //    an evicted-then-recycled entry, because fresh entries restart at
+    //    generation 0 and can climb back to the recorded number while the
+    //    mutation is still in flight. The rollback guard needs commitFetch's
+    //    IDENTITY check too — this is the missing-sibling-guard defect shape.
+    @Test("Rollback is skipped when the entry was evicted and recycled to a matching generation") func failedRollbackSkipsWhenEntryRecycledAtSameGeneration() async {
+        let clock = ManualClock()
+        let client = QueryClient(clock: clock)
+        let key: QueryKey = ["item"]
+
+        // Seed with an explicitly-held subscriber, then unmount it properly
+        // (dropComponent) so the entry becomes GC-eligible.
+        let owner1 = AnyComponent(RGDummy())
+        await seedString(client, key: key, value: "v0", owner: owner1)
+
+        // Slow mutation A: optimistic write bumps generation 0 → 1; the
+        // rollback record captures gen 1 against THIS entry incarnation.
+        let m = StringMutation(key: key, optimisticValue: "OPT", result: { throw RGBoom.nope })
+        let h = wired(m, client)
+        let rollback = h.runtime.beginOptimistic("x", m)
+        #expect(client.getQueryData(key, as: String.self) == "OPT")
+
+        // Unmount, then evict: one tick stamps unobservedSince, a second past
+        // gcTime evicts.
+        client.dropComponent(owner1)
+        clock.advance(by: .seconds(1)); client.tick(now: clock.now())
+        clock.advance(by: .seconds(400)); client.tick(now: clock.now())
+        #expect(client.getQueryData(key, as: String.self) == nil)
+
+        // Recycle: remount the query — a FRESH entry at generation 0 commits
+        // the current server truth.
+        let owner2 = AnyComponent(RGDummy())
+        await seedString(client, key: key, value: "server-truth", owner: owner2)
+        #expect(client.getQueryData(key, as: String.self) == "server-truth")
+        #expect(client.generation(of: key) == 0)
+
+        // One legitimate supersede brings the RECYCLED entry to generation 1 —
+        // the same number the rollback recorded against the previous
+        // incarnation.
+        client.setQueryData(key, "newer")
+        #expect(client.generation(of: key) == 1)
+
+        // A's failure must NOT resurrect the previous incarnation's snapshot
+        // ("v0") into the recycled entry — the generations collide, but the
+        // identity differs.
+        _ = await h.runtime.finish("x", m, rollback, epoch: h.runtime.epoch)
+        #expect(client.getQueryData(key, as: String.self) == "newer",
+            "rollback must not resurrect a previous incarnation's snapshot into a recycled entry")
+        _ = owner2
+    }
+
+    // 4. Benign self-healing pin: after a clean eviction (no recycle), a failed
+    //    mutation's rollback is a no-op — nothing is resurrected — and a later
+    //    remount refetches server truth.
+    @Test("Rollback after clean eviction is a no-op; a remount refetches server truth") func failedRollbackAfterEvictionIsNoOp() async {
+        let clock = ManualClock()
+        let client = QueryClient(clock: clock)
+        let key: QueryKey = ["item"]
+
+        let owner1 = AnyComponent(RGDummy())
+        await seedString(client, key: key, value: "v0", owner: owner1)
+        let m = StringMutation(key: key, optimisticValue: "OPT", result: { throw RGBoom.nope })
+        let h = wired(m, client)
+        let rollback = h.runtime.beginOptimistic("x", m)
+
+        client.dropComponent(owner1)
+        clock.advance(by: .seconds(1)); client.tick(now: clock.now())
+        clock.advance(by: .seconds(400)); client.tick(now: clock.now())
+        #expect(client.getQueryData(key, as: String.self) == nil)   // evicted
+
+        _ = await h.runtime.finish("x", m, rollback, epoch: h.runtime.epoch)
+        #expect(client.getQueryData(key, as: String.self) == nil,
+            "rollback into a missing entry must stay a no-op (nothing resurrected)")
+
+        // Self-healing: the next mount fetches fresh server truth.
+        let owner2 = AnyComponent(RGDummy())
+        await seedString(client, key: key, value: "fresh", owner: owner2)
+        #expect(client.getQueryData(key, as: String.self) == "fresh")
+        _ = owner2
     }
 }

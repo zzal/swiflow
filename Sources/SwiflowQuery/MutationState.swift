@@ -12,6 +12,21 @@ public func _currentRenderQueryClient() -> QueryClient? {
     RenderObserverBox.current as? QueryClient
 }
 
+/// One optimistic write's undo record. Captures the written entry's IDENTITY
+/// (weakly) alongside the post-write generation: the rollback guard mirrors
+/// `commitFetch`'s double guard, because an evicted-then-recycled entry shares
+/// the key and — fresh entries restart at generation 0 — can climb back to the
+/// recorded generation while a slow mutation is still in flight. Generation
+/// alone would let that rollback resurrect the previous incarnation's snapshot
+/// into the recycled entry (clobbering newer truth and cancelling its
+/// in-flight fetch); identity can never be forged by recycling.
+struct OptimisticRollback {
+    let key: QueryKey
+    let prior: Any?
+    let gen: Int?
+    weak var entry: QueryEntry?
+}
+
 /// Persistent, per-component reactive state for one `@MutationState`. A class so
 /// it survives across renders with the component instance. Wired once at mount
 /// by `@Component`'s `bind` (§8).
@@ -61,19 +76,23 @@ public final class MutationRuntime<M: Mutation> {
     /// Returns the rollback stack (prior values, in apply order) for `finish`
     /// to restore on failure. The stack is local to one mutation call, so
     /// concurrent mutations never share rollback state.
-    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [(key: QueryKey, prior: Any?, gen: Int?)] {
-        var rollback: [(key: QueryKey, prior: Any?, gen: Int?)] = []
+    func beginOptimistic(_ input: M.Input, _ mutation: M) -> [OptimisticRollback] {
+        var rollback: [OptimisticRollback] = []
         if let client {
             for edit in mutation.optimistic(input) {
                 let prior = client.getQueryDataErased(edit.key)
                 switch edit.apply(prior) {
                 case .write(let next):
                     client.setQueryData(edit.key, next)
-                    // Record the post-write generation so `finish` can detect
-                    // whether a LATER write superseded this key before rolling
-                    // back (which would otherwise clobber the newer value and
-                    // cancel its repair fetch).
-                    rollback.append((edit.key, prior, client.generation(of: edit.key)))
+                    // Record the post-write generation AND the entry's identity
+                    // so `finish` can detect whether a LATER write superseded
+                    // this key — or the entry itself was evicted and recycled —
+                    // before rolling back (which would otherwise clobber the
+                    // newer value and cancel its repair fetch).
+                    rollback.append(OptimisticRollback(
+                        key: edit.key, prior: prior,
+                        gen: client.generation(of: edit.key),
+                        entry: client.liveEntry(edit.key)))
                 case .noValue:
                     // The query isn't loaded yet — there is nothing to optimistically
                     // transform. Skip this optimistic layer silently (per
@@ -105,7 +124,7 @@ public final class MutationRuntime<M: Mutation> {
     /// returns a `Result` so `.error` is set in exactly one place and
     /// `mutateAsync` rethrows the same stored error.
     func finish(_ input: M.Input, _ mutation: M,
-                _ rollback: [(key: QueryKey, prior: Any?, gen: Int?)],
+                _ rollback: [OptimisticRollback],
                 epoch startEpoch: Int) async -> Result<M.Output, any Error> {
         let result: Result<M.Output, any Error>
         do { result = .success(try await mutation.perform(input)) }
@@ -133,11 +152,17 @@ public final class MutationRuntime<M: Mutation> {
         case .failure(let err):
             if let client {
                 for r in rollback.reversed() {
-                    // Only restore the prior if nothing has superseded this key
-                    // since our optimistic write. If the generation advanced, a
-                    // newer writer owns the value — rolling back would clobber it
-                    // (and cancel its in-flight fetch), so we skip.
-                    if client.generation(of: r.key) == r.gen {
+                    // Double guard, mirroring commitFetch (identity first, then
+                    // generation): the live entry must BE the instance the
+                    // optimistic write touched — an evicted-then-recycled entry
+                    // shares the key and, since fresh entries restart at
+                    // generation 0, can even reach the same generation — AND
+                    // nothing may have superseded the key since our write. If
+                    // either fails, a newer owner holds the value; rolling back
+                    // would clobber it (and cancel its in-flight fetch), so we
+                    // skip.
+                    if let live = client.liveEntry(r.key), live === r.entry,
+                       client.generation(of: r.key) == r.gen {
                         client.setQueryData(r.key, r.prior)
                     }
                 }
