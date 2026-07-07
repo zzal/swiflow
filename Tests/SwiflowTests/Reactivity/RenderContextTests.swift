@@ -51,4 +51,41 @@ struct RenderContextTests {
         #expect(SwiflowTaskRuntime.currentScope === scope)
         #expect(RenderObserverBox.current == nil)
     }
+
+    @Test("install records the observer in lastRendered; uninstall leaves it (handler-time fallback)")
+    func lastRenderedSurvivesUninstall() {
+        defer { uninstallRenderContext(); RenderObserverBox.lastRendered = nil }
+        let observer = RecordingObserver()
+        installRenderContext(handlers: HandlerRegistry(), taskScope: TaskScope(), observer: observer)
+        uninstallRenderContext()
+        #expect(RenderObserverBox.current == nil)
+        #expect(RenderObserverBox.lastRendered === observer,
+                "handlers run between renders and resolve the client through lastRendered")
+    }
+
+    @Test("an observer-less install does not clobber another root's lastRendered")
+    func nilObserverDoesNotClobberLastRendered() {
+        defer { uninstallRenderContext(); RenderObserverBox.lastRendered = nil }
+        let observer = RecordingObserver()
+        installRenderContext(handlers: HandlerRegistry(), taskScope: TaskScope(), observer: observer)
+        uninstallRenderContext()
+
+        installRenderContext(handlers: HandlerRegistry(), taskScope: TaskScope(), observer: nil)
+        uninstallRenderContext()
+        #expect(RenderObserverBox.lastRendered === observer)
+    }
+
+    @Test("lastRendered is weak: a torn-down root's observer self-clears")
+    func lastRenderedIsWeak() {
+        defer { uninstallRenderContext(); RenderObserverBox.lastRendered = nil }
+        do {
+            let observer = RecordingObserver()
+            installRenderContext(handlers: HandlerRegistry(), taskScope: TaskScope(), observer: observer)
+            uninstallRenderContext()
+            #expect(RenderObserverBox.lastRendered === observer)
+        }
+        // The observer's last strong reference is gone — the slot must not
+        // have kept it alive.
+        #expect(RenderObserverBox.lastRendered == nil)
+    }
 }

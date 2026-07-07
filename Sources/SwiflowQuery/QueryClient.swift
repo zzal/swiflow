@@ -348,7 +348,9 @@ public final class QueryClient {
             boxedFetch: { try await q.fetch() }
         )
         if !frames.isEmpty { frames[frames.count - 1].observations.append(ob) }
-        return makeSnapshot(from: entries[key], as: Q.Value.self)
+        // client/key ride on the snapshot so a handler can `refetch()` this
+        // exact observation against this exact root.
+        return makeSnapshot(from: entries[key], as: Q.Value.self, client: self, key: key)
     }
 }
 

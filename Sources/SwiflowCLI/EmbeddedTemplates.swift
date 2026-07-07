@@ -2415,7 +2415,13 @@ final class QueryRoot {
                 else if u.isLoading { p("Loading…") }
                 if u.isFetching { Spinner(size: .sm, label: "Fetching") }
             }
-            Button("Next user") { self.userID += 1 }
+            HStack(spacing: .sm, align: .center) {
+                Button("Next user") { self.userID += 1 }
+                // Imperative refetch: the snapshot carries its client + key,
+                // so a click handler can force this exact query stale and
+                // refetch it — watch the Spinner flash (FakeAPI's 400ms).
+                Button("Refresh") { u.refetch() }
+            }
 
             VStack(spacing: .sm, align: .start) {
                 h2("Rename user")
