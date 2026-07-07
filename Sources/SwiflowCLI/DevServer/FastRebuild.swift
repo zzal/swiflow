@@ -27,21 +27,15 @@ enum WasmArtifactLocator {
     }
 
     /// Query the bin path and append `App.wasm`. Returns nil on any failure —
-    /// the caller falls back to the full `swift package js` path.
-    static func resolve(
-        swiftExecutable: URL,
-        projectPath: URL,
-        swiftSDK: String,
-        toolchainBundleID: String?,
-        using runner: ProcessRunner
-    ) -> URL? {
-        let environment: [String: String]? = toolchainBundleID.map { ["TOOLCHAINS": $0] }
+    /// the caller falls back to the full `swift package js` path. Runs under
+    /// the same invocation preamble as the builds whose bin path it predicts
+    /// (`SwiftContext`) — a drift here would resolve the artifact under a
+    /// different toolchain than the one that builds it.
+    static func resolve(context: SwiftContext, using runner: ProcessRunner) -> URL? {
         guard
-            let result = try? runner.run(
-                executable: swiftExecutable,
-                arguments: ["build", "--show-bin-path", "--swift-sdk", swiftSDK],
-                workingDirectory: projectPath,
-                environment: environment,
+            let result = try? context.run(
+                ["build", "--show-bin-path", "--swift-sdk", context.sdk],
+                using: runner,
                 captureOutput: true
             ),
             result.exitCode == 0,

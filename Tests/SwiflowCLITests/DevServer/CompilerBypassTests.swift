@@ -436,7 +436,7 @@ struct BypassRebuilderIntegrationTests {
         #expect(try initial.run(using: probeRunner).exitCode == 0)
 
         let outputWasmURL = projectPath.appendingPathComponent(DevCommand.packageToJSOutputRelativePath).appendingPathComponent("App.wasm")
-        let artifactURL = try #require(WasmArtifactLocator.resolve(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID, using: probeRunner))
+        let artifactURL = try #require(WasmArtifactLocator.resolve(context: SwiftContext(swift: swift, projectPath: projectPath, sdk: sdk, toolchainBundleID: toolchainBundleID), using: probeRunner))
 
         let rebuilder = BypassRebuilder(
             capturingBuild: CapturingWasmBuildInvocation(swiftExecutable: swift, projectPath: projectPath, swiftSDK: sdk, toolchainBundleID: toolchainBundleID),

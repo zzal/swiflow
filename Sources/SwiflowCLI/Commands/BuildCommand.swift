@@ -125,17 +125,29 @@ enum CompileCache {
     }
 }
 
-/// Pure argv-composition + Process invocation. BuildCommand.run() delegates here.
+/// Pure argv-composition + Process invocation. BuildCommand.run() delegates
+/// here; the invocation preamble (executable, project cwd, TOOLCHAINS env)
+/// is owned by `SwiftContext` — this type only owns the `swift package js`
+/// argv policy.
 struct BuildInvocation: Sendable {
-    let swiftExecutable: URL
-    let projectPath: URL
-    let swiftSDK: String
-    let toolchainBundleID: String?
+    let context: SwiftContext
     let configuration: BuildConfiguration
     /// Experimental, opt-in: a shared module-cache directory threaded as
     /// `-Xswiftc -module-cache-path`. `nil` = off (the default). See `CompileCache`.
     let compileCacheDir: URL?
 
+    init(
+        context: SwiftContext,
+        configuration: BuildConfiguration = .release,
+        compileCacheDir: URL? = nil
+    ) {
+        self.context = context
+        self.configuration = configuration
+        self.compileCacheDir = compileCacheDir
+    }
+
+    /// Convenience over the context init — loose-field call sites funnel
+    /// into the same preamble owner rather than composing their own.
     init(
         swiftExecutable: URL,
         projectPath: URL,
@@ -144,12 +156,16 @@ struct BuildInvocation: Sendable {
         configuration: BuildConfiguration = .release,
         compileCacheDir: URL? = nil
     ) {
-        self.swiftExecutable = swiftExecutable
-        self.projectPath = projectPath
-        self.swiftSDK = swiftSDK
-        self.toolchainBundleID = toolchainBundleID
-        self.configuration = configuration
-        self.compileCacheDir = compileCacheDir
+        self.init(
+            context: SwiftContext(
+                swift: swiftExecutable,
+                projectPath: projectPath,
+                sdk: swiftSDK,
+                toolchainBundleID: toolchainBundleID
+            ),
+            configuration: configuration,
+            compileCacheDir: compileCacheDir
+        )
     }
 
     /// Composes the `swift package js` argv without side effects.
@@ -164,7 +180,7 @@ struct BuildInvocation: Sendable {
         // --product, --debug-info-format) come after it.
         var prePluginArgs: [String] = [
             "package",
-            "--swift-sdk", swiftSDK,
+            "--swift-sdk", context.sdk,
         ]
         var pluginArgs: [String] = [
             "js",
@@ -215,25 +231,12 @@ struct BuildInvocation: Sendable {
     }
 
     /// Runs `swift package --swift-sdk <id> js --use-cdn --product App ...`
-    /// in `projectPath`. Inherits stdout/stderr so the user sees swift's progress.
-    /// Delegates argv composition to `composeArguments()`.
+    /// in the project directory. Inherits stdout/stderr so the user sees
+    /// swift's progress. Argv policy is `composeArguments()`; the preamble
+    /// (executable, cwd, TOOLCHAINS) is the context's.
     @discardableResult
     func run(using runner: ProcessRunner) throws -> ProcessResult {
-        let arguments = composeArguments()
-
-        let environment: [String: String]? = {
-            guard let bundleID = toolchainBundleID else { return nil }
-            return ["TOOLCHAINS": bundleID]
-        }()
-
-        let result = try runner.run(
-            executable: swiftExecutable,
-            arguments: arguments,
-            workingDirectory: projectPath,
-            environment: environment,
-            captureOutput: false
-        )
-
+        let result = try context.run(composeArguments(), using: runner, captureOutput: false)
         if result.exitCode != 0 {
             throw BuildCommandError.swiftPackageJSFailed(exitCode: result.exitCode)
         }
@@ -286,11 +289,10 @@ struct BuildCommand: AsyncParsableCommand {
         }
 
         // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
-        //      shared with `swiflow dev` (see ToolchainResolution).
+        //      shared with `swiflow dev` (see ToolchainResolution). The
+        //      resolved context owns the invocation preamble from here on.
         let resolution = try ToolchainResolution.resolve(swiftSDKOverride: swiftSDK, using: runner)
-        let swift = resolution.swift
-        let sdk = resolution.sdk
-        let toolchainBundleID = resolution.toolchainBundleID
+        let context = SwiftContext(resolution: resolution, projectPath: projectURL)
 
         // 3.5 Experimental opt-in: resolve a shared module-cache directory.
         let compileCacheDir = CompileCache.resolveAndPrepare(
@@ -299,15 +301,9 @@ struct BuildCommand: AsyncParsableCommand {
         )
 
         // 4. Run the build.
-        let invocation = BuildInvocation(
-            swiftExecutable: swift,
-            projectPath: projectURL,
-            swiftSDK: sdk,
-            toolchainBundleID: toolchainBundleID,
-            compileCacheDir: compileCacheDir
-        )
+        let invocation = BuildInvocation(context: context, compileCacheDir: compileCacheDir)
 
-        print("swiflow: building with swift-sdk=\(sdk)\(toolchainBundleID.map { " toolchain=\($0)" } ?? "")")
+        print("swiflow: building with swift-sdk=\(context.sdk)\(context.toolchainBundleID.map { " toolchain=\($0)" } ?? "")")
         do {
             _ = try invocation.run(using: runner)
         } catch let error as BuildCommandError {
