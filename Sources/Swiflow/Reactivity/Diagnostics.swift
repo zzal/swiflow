@@ -35,7 +35,42 @@ public func swiflowDiagnostic(_ message: @autoclosure () -> String) {
     #endif
 }
 
+/// Non-trapping counterpart to `swiflowDiagnostic` — a debug-only console
+/// warning for RECOVERABLE degradations: conditions the framework
+/// deliberately tolerates (it degrades and keeps running) but the developer
+/// almost certainly wants to know about. In release builds the call
+/// compiles to nothing.
+///
+/// The split matters: `swiflowDiagnostic` is a `preconditionFailure` in
+/// DEBUG, so routing a tolerated condition through it turns "degrade
+/// gracefully" into a dev-time crash. Use `swiflowDiagnostic` for genuine
+/// programmer errors that produce silent wrong behaviour in production;
+/// use `swiflowWarn` when the code path continues on purpose (a no-op
+/// default filling in for a missing provider, a fallback render, a
+/// swallowed-but-suspicious failure).
+///
+/// Same message convention: framework concept first, then location/cause,
+/// then guidance. Same test seam shape: `_swiflowWarnOverride`.
+@inlinable
+public func swiflowWarn(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    if let override = _swiflowWarnOverride {
+        override(message())
+        return
+    }
+    print("Swiflow warning: \(message())")
+    #endif
+}
+
 #if DEBUG
+/// Test-side override for capturing `swiflowWarn` messages — the
+/// assertable path, since the default just prints. Same discipline as
+/// `_swiflowDiagnosticOverride` below: install from a @MainActor test,
+/// restore the prior value before returning.
+// Thread isolation: DEBUG-only test seam, same single-threaded
+// set/read pattern as _swiflowDiagnosticOverride.
+nonisolated(unsafe) public var _swiflowWarnOverride: ((String) -> Void)?
+
 /// Test-side override for capturing `swiflowDiagnostic` messages.
 ///
 /// Set to a non-nil closure from inside a test to redirect diagnostics
