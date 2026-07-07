@@ -44,6 +44,47 @@ struct DriverEmbedderTests {
             """)
     }
 
+    // The byte-pin (audit III Wave-1 #5): the codegen script re-implements
+    // DriverEmbedder.swiftSource inline (it runs standalone, no SPM context)
+    // and its comment promises a freshness test catches drift between the
+    // two — this is that test. Feeding the compiled constants back in makes
+    // it a pure FORMAT pin, mirroring TemplateEmbedderTests' byte-pin of the
+    // twin embedder: if either emitter's wrapper (header, constant order,
+    // delimiters, whitespace) changes without the other, the reconstruction
+    // stops matching the tracked file. Content freshness is covered
+    // elsewhere — readable sources by the four verbatim tests below,
+    // minified bytes by CI's embed-freshness job (the one gate that can run
+    // esbuild). The three gates compose to full coverage.
+    @Test("EmbeddedDriver.swift is bit-for-bit what DriverEmbedder.swiftSource would produce")
+    func embeddedDriverFileMatchesDriverEmbedderOutput() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repoRoot = testFile
+            .deletingLastPathComponent()  // SwiflowCLITests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+        let embeddedURL = repoRoot.appendingPathComponent("Sources/SwiflowCLI/EmbeddedDriver.swift")
+
+        let actual = try String(contentsOf: embeddedURL, encoding: .utf8)
+        let expected = DriverEmbedder.swiftSource(
+            driverJS: EmbeddedDriver.javascriptSource,
+            driverJSMinified: EmbeddedDriver.javascriptSourceMinified,
+            swJS: EmbeddedDriver.serviceWorkerSource,
+            swJSMinified: EmbeddedDriver.serviceWorkerSourceMinified,
+            regionsJS: EmbeddedDriver.regionsSource,
+            regionsJSMinified: EmbeddedDriver.regionsSourceMinified,
+            guestSdkJS: EmbeddedDriver.guestSdkSource,
+            guestSdkJSMinified: EmbeddedDriver.guestSdkSourceMinified
+        )
+        #expect(actual == expected, """
+            EmbeddedDriver.swift no longer matches DriverEmbedder.swiftSource \
+            output — the emit format in scripts/embed-driver.swift and \
+            DriverEmbedder.swiftSource has drifted apart. Align the two \
+            emitters, then regenerate (from the repo root):
+                swift scripts/embed-driver.swift
+            and commit Sources/SwiflowCLI/EmbeddedDriver.swift.
+            """)
+    }
+
     @Test("EmbeddedDriver contains dev error handler and RAF shim")
     func containsDevErrorHandlerAndRAFShim() {
         #expect(EmbeddedDriver.javascriptSource.contains("__swiflowDevError"))

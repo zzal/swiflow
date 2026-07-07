@@ -84,8 +84,10 @@ let guestSdkMin = minify(guestSdkPath, esm: true)
 
 // We re-implement DriverEmbedder.swiftSource inline because this script
 // runs standalone (no SPM context, can't `import SwiflowCLI`). The format
-// must stay in sync with DriverEmbedder; the freshness test will catch
-// any drift between this script and DriverEmbedder.swiftSource.
+// must stay in sync with DriverEmbedder — the byte-pin test
+// (DriverEmbedderTests, "EmbeddedDriver.swift is bit-for-bit what
+// DriverEmbedder.swiftSource would produce") fails on any drift between
+// this script's emit and DriverEmbedder.swiftSource.
 // Swift multi-line raw strings strip one \n after the opening delimiter
 // and one \n before the closing delimiter. Each JS file already ends in
 // "\n", so to round-trip each file byte-for-byte we want the literal
