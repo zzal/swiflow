@@ -30,10 +30,12 @@ struct WasmArtifactLocatorTests {
             stubbedStandardOutput: "/tmp/demo/.build/wasm32-unknown-wasip1/debug\n"
         )
         let url = WasmArtifactLocator.resolve(
-            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
-            projectPath: URL(fileURLWithPath: "/tmp/demo"),
-            swiftSDK: "swift-6.3-RELEASE_wasm",
-            toolchainBundleID: nil,
+            context: SwiftContext(
+                swift: URL(fileURLWithPath: "/usr/bin/swift"),
+                projectPath: URL(fileURLWithPath: "/tmp/demo"),
+                sdk: "swift-6.3-RELEASE_wasm",
+                toolchainBundleID: nil
+            ),
             using: stub
         )
         #expect(url?.path == "/tmp/demo/.build/wasm32-unknown-wasip1/debug/App.wasm")
@@ -44,14 +46,40 @@ struct WasmArtifactLocatorTests {
         // stdout, which ProcessResult populates only when captureOutput == true.)
     }
 
+    // Pin (audit III Wave-2 #10, pre-refactor): the locator's query must run
+    // in the PROJECT directory with the TOOLCHAINS env — the same preamble
+    // as the builds whose bin path it predicts. A drift here resolves the
+    // artifact under a different toolchain than the one that builds it.
+    @Test("resolve runs in the project directory with the TOOLCHAINS environment")
+    func resolvePreamble() {
+        let stub = StubProcessRunner(
+            stubbedExitCode: 0,
+            stubbedStandardOutput: "/tmp/demo/.build/wasm32-unknown-wasip1/debug\n"
+        )
+        _ = WasmArtifactLocator.resolve(
+            context: SwiftContext(
+                swift: URL(fileURLWithPath: "/usr/bin/swift"),
+                projectPath: URL(fileURLWithPath: "/tmp/demo"),
+                sdk: "swift-6.3-RELEASE_wasm",
+                toolchainBundleID: "org.swift.632"
+            ),
+            using: stub
+        )
+        #expect(stub.calls[0].workingDirectory?.path == "/tmp/demo")
+        #expect(stub.calls[0].environment?["TOOLCHAINS"] == "org.swift.632")
+        #expect(stub.calls[0].executable.path == "/usr/bin/swift")
+    }
+
     @Test("resolve returns nil when the query exits non-zero")
     func resolveNilOnFailure() {
         let stub = StubProcessRunner(stubbedExitCode: 1, stubbedStandardOutput: nil)
         let url = WasmArtifactLocator.resolve(
-            swiftExecutable: URL(fileURLWithPath: "/usr/bin/swift"),
-            projectPath: URL(fileURLWithPath: "/tmp/demo"),
-            swiftSDK: "swift-6.3-RELEASE_wasm",
-            toolchainBundleID: nil,
+            context: SwiftContext(
+                swift: URL(fileURLWithPath: "/usr/bin/swift"),
+                projectPath: URL(fileURLWithPath: "/tmp/demo"),
+                sdk: "swift-6.3-RELEASE_wasm",
+                toolchainBundleID: nil
+            ),
             using: stub
         )
         #expect(url == nil)

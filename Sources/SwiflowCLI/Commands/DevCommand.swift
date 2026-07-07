@@ -85,11 +85,11 @@ struct DevCommand: AsyncParsableCommand {
             at: projectURL.appendingPathComponent("swiflow-manifest.json"))
 
         // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
-        //      shared with `swiflow build` (see ToolchainResolution).
+        //      shared with `swiflow build` (see ToolchainResolution). The
+        //      resolved context owns the invocation preamble for the initial
+        //      build, the bin-path query, and every capture rebuild below.
         let resolution = try ToolchainResolution.resolve(swiftSDKOverride: swiftSDK, using: runner)
-        let swift = resolution.swift
-        let sdk = resolution.sdk
-        let toolchainBundleID = resolution.toolchainBundleID
+        let context = SwiftContext(resolution: resolution, projectPath: projectURL)
 
         // 3.5 Experimental opt-in: resolve a shared module-cache directory. Wired
         //     into the initial build + the per-save full-build fallback; the fast
@@ -103,10 +103,7 @@ struct DevCommand: AsyncParsableCommand {
         // 4. Initial build. Failures here exit non-zero (Phase 2c
         //    decision §6 — nothing to serve if the first build fails).
         let invocation = BuildInvocation(
-            swiftExecutable: swift,
-            projectPath: projectURL,
-            swiftSDK: sdk,
-            toolchainBundleID: toolchainBundleID,
+            context: context,
             configuration: .dev,
             compileCacheDir: compileCacheDir
         )
@@ -134,19 +131,11 @@ struct DevCommand: AsyncParsableCommand {
             .appendingPathComponent(Self.packageToJSOutputRelativePath)
             .appendingPathComponent("App.wasm")
         let bypassRebuilder: BypassRebuilder? = WasmArtifactLocator.resolve(
-            swiftExecutable: swift,
-            projectPath: projectURL,
-            swiftSDK: sdk,
-            toolchainBundleID: toolchainBundleID,
+            context: context,
             using: runner
         ).map { artifactURL in
             BypassRebuilder(
-                capturingBuild: CapturingWasmBuildInvocation(
-                    swiftExecutable: swift,
-                    projectPath: projectURL,
-                    swiftSDK: sdk,
-                    toolchainBundleID: toolchainBundleID
-                ),
+                capturingBuild: CapturingWasmBuildInvocation(context: context),
                 // Correctness fallback: the same full `swift package js` build the
                 // initial build uses — it emits a browser-ready reactor wasm.
                 fullBuild: invocation,

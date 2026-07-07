@@ -17,29 +17,35 @@ struct ResolvedCommand: Sendable, Equatable {
 
 /// `swift build --swift-sdk <id> --product App -v` with output captured so the
 /// emitted swiftc/wasm-ld lines can be parsed. The name signals intent:
-/// capturing the commands is the purpose, `-v` the means.
+/// capturing the commands is the purpose, `-v` the means. The invocation
+/// preamble (executable, project cwd, TOOLCHAINS env) is `SwiftContext`'s.
 struct CapturingWasmBuildInvocation: Sendable {
-    let swiftExecutable: URL
-    let projectPath: URL
-    let swiftSDK: String
-    let toolchainBundleID: String?
+    let context: SwiftContext
+
+    init(context: SwiftContext) {
+        self.context = context
+    }
+
+    /// Convenience over the context init — loose-field call sites funnel
+    /// into the same preamble owner rather than composing their own.
+    init(swiftExecutable: URL, projectPath: URL, swiftSDK: String, toolchainBundleID: String?) {
+        self.init(context: SwiftContext(
+            swift: swiftExecutable,
+            projectPath: projectPath,
+            sdk: swiftSDK,
+            toolchainBundleID: toolchainBundleID
+        ))
+    }
 
     func composeArguments() -> [String] {
-        ["build", "--swift-sdk", swiftSDK, "--product", "App", "-v"]
+        ["build", "--swift-sdk", context.sdk, "--product", "App", "-v"]
     }
 
     /// Runs the build (which also produces the wasm) and returns the combined
     /// stdout+stderr — SwiftPM's verbose command lines can appear on either
     /// stream, and the version may vary, so we hand the parser both.
     func run(using runner: ProcessRunner) throws -> String {
-        let environment: [String: String]? = toolchainBundleID.map { ["TOOLCHAINS": $0] }
-        let result = try runner.run(
-            executable: swiftExecutable,
-            arguments: composeArguments(),
-            workingDirectory: projectPath,
-            environment: environment,
-            captureOutput: true
-        )
+        let result = try context.run(composeArguments(), using: runner, captureOutput: true)
         if result.exitCode != 0 {
             throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
         }
