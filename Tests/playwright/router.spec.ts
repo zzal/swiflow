@@ -48,6 +48,16 @@ test.describe("MiniRouter — hash-mode navigation", () => {
     await expect(page.getByRole("link", { name: "User 42" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("an unmatched path renders the custom notFound page, and its Link goes home", async ({ page }) => {
+    await page.goto("/#/definitely/not/a/route");
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.getByText("/definitely/not/a/route")).toBeVisible();
+
+    // The 404 page renders inside the router environment — Link works.
+    await page.getByRole("link", { name: "Go home" }).click();
+    await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+  });
+
   test("Back button returns to Home page and restores URL", async ({ page }) => {
     // Navigate via Link rather than `page.goto("/#/about")` directly so the
     // browser history contains a real prior entry — without it,

@@ -15,9 +15,17 @@ import Swiflow
 ///         Route("/") { HomePage() }
 ///         Route("/about") { AboutPage() }
 ///         Route("/users/:id") { ctx in UsersPage(id: ctx.params["id"] ?? "") }
+///     } notFound: { ctx in
+///         NotFoundPage(path: ctx.path)   // rendered when no route matches
 ///     }
 /// }
 /// ```
+///
+/// Without `notFound:` an unmatched path renders a plain diagnostic text
+/// node ("404 — no route matched …") — fine in dev, not what you want to
+/// ship. The closure receives a `RouterContext` whose `path` is the
+/// unmatched path (params/query are empty), and it renders inside the
+/// router environment, so a `Link` home works.
 // Explicit @MainActor kept DELIBERATELY (not an oversight from the bare-
 // @Component migration): the [weak self] captures in the @Sendable navigate/
 // replace closures need the implicit Sendable that class-level @MainActor
@@ -43,9 +51,27 @@ public final class RouterRoot {
     /// The event name registered alongside `listenerValue`.
     private var listenerEvent: String?
 
+    /// nil = today's built-in diagnostic text. Set via the `notFound:` init.
+    private let notFoundFactory: ((RouterContext) -> VNode)?
+
     public init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
         self.mode = mode
         self.routes = routes()
+        self.notFoundFactory = nil
+        self.currentPath = Self.readPath(mode: mode)
+    }
+
+    /// Routed root with a custom 404: `notFound` renders whenever no route
+    /// matches the current path. Mirrors `Route`'s component-factory
+    /// ergonomics (the component is embedded for you).
+    public init<C: Component>(
+        mode: Mode = .hash,
+        @RouteBuilder routes: () -> [RouteDefinition],
+        notFound: @escaping (RouterContext) -> C
+    ) {
+        self.mode = mode
+        self.routes = routes()
+        self.notFoundFactory = { ctx in embed { notFound(ctx) } }
         self.currentPath = Self.readPath(mode: mode)
     }
 
@@ -67,9 +93,26 @@ public final class RouterRoot {
             }
         )
         let matched = matchRoutes(routes, path: currentPath)
+        // withEnvironment stays OUTSIDE the fallback decision so a custom
+        // 404 page renders with the live router (its Link home works).
         return withEnvironment(\.router, router) {
-            matched ?? VNode.text("404 — no route matched \(currentPath)")
+            Self.resolveContent(matched: matched, path: currentPath, notFound: notFoundFactory)
         }
+    }
+
+    /// The fallback decision: matched route → user's `notFound` → the
+    /// built-in diagnostic text. Pure and `package` so it's host-testable —
+    /// RouterRoot itself is not host-constructible (its init reads the
+    /// browser URL through force-unwrapped globals; the Navigator seam is
+    /// the audit's separate follow-up).
+    package static func resolveContent(
+        matched: VNode?,
+        path: String,
+        notFound: ((RouterContext) -> VNode)?
+    ) -> VNode {
+        if let matched { return matched }
+        if let notFound { return notFound(RouterContext(path: path)) }
+        return VNode.text("404 — no route matched \(path)")
     }
 
     public func onAppear() {

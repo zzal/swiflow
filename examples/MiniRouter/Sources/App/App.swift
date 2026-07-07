@@ -14,6 +14,8 @@ struct App {
                 Route("/users/:id") { ctx in
                     UsersPage(userId: ctx.params["id"] ?? "unknown")
                 }
+            } notFound: { ctx in
+                NotFoundPage(path: ctx.path)
             }
         }
     }
