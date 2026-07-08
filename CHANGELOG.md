@@ -20,6 +20,82 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.9] — 2026-07-08
+
+**Beta.** The router & store DX release: Part IV of the 2026-07 architecture
+& DX audit — SwiflowRouter and SwiflowStore — shipped complete (Waves 1 + 2)
+as 8 reviewed PRs (#174–#181), plus a docs catch-up (#182) that brings every
+guide current, including a new persistence guide.
+
+**Stability:** Stable for pre-1.0 usage.
+
+### Added
+
+- **`@Persisted`** — persistent reactive state with zero ritual:
+  `@Persisted var magnitude: String = "2.5"` behaves exactly like `@State`
+  (dirty-marking writes, `$name` binding) and additionally hydrates from
+  IndexedDB on mount and saves on every write. Keys auto-namespace by the
+  owning component's type (`"QuakesPage.magnitude"`); pass
+  `@Persisted("legacy-key")` to share or migrate. The old ~8-line ritual
+  (store instance, key constants, hydrate task, `onChange` saves) is gone —
+  QuakesPage in MissionControl is the worked example. New
+  [persistence guide](docs/guides/persistence.md).
+- **Typed path params** — `ctx.param("id")` is non-optional (a matched route
+  guarantees its declared captures), and `ctx.param("num", as: Int.self)`
+  parses through `LosslessStringConvertible`. A typo'd param *name* logs a
+  DEBUG warning naming the declared params; an unparseable *value* (URLs are
+  user input) is a silent `nil`. The `ctx.params["id"] ?? ""` ritual is
+  retired from every example and doc.
+- **`Link` active state** — a `Link` whose destination matches the current
+  path emits `aria-current="page"` and a `sw-link-active` class.
+  `active: .prefix` also lights section links on segment children
+  (`/users` on `/users/42`), segment-aware and root-safe.
+- **`RouterRoot` `notFound:`** — a custom 404 closure receiving the
+  unmatched path, rendered inside the router environment so a `Link` home
+  works. The bare diagnostic text remains the default.
+- **No-op router warning** — writing `navigate`/`replace`/`back` on the
+  default no-op router (the classic read-`@Environment`-outside-`body`
+  mistake) now logs a DEBUG warning naming the attempted path and the fix,
+  instead of silently doing nothing.
+
+### Fixed
+
+- **Hash navigation no longer depends on a live event listener** — the
+  router's path state now commits imperatively in both modes through one
+  dedupe-guarded choke point; the browser's echoed `hashchange` is absorbed
+  without a second render. Previously a dead listener silently killed hash
+  navigation while history mode kept working.
+- **One URL convention** — hash-mode push, replace, and `href` all build the
+  same canonical `"#/path"` form through one construction site
+  (`RouterMode.url(for:)`); push used to write a bare path while the others
+  prefixed `#`.
+- **`PersistentStore` no longer traps off-browser** — its wasm/host split
+  was keyed on `canImport(JavaScriptKit)` (true on host), so constructing a
+  store in host tests or tooling aborted at `JSObject.global`. Now keyed on
+  `arch(wasm32)`; hosts get the inert stub as documented.
+
+### Internal
+
+- **`Navigator` seam** — RouterRoot's URL machine (location reads, history
+  writes, listeners) sits behind a package protocol; `BrowserNavigator` is
+  the verbatim JS crossing with guarded, descriptively-fatal globals, and
+  the whole routing lifecycle is host-tested for the first time (initial
+  read, event wiring, navigate/replace/back, teardown).
+- **`RouterMode` owns its behavior** — `changeEvent`/`url(for:)`/
+  `readPath(from:)` live on the mode; the five open-coded mode switches are
+  gone.
+- **`Component._swiflowDidMount`** — a framework mount hook (default no-op,
+  fired before `onAppear`) that `@Component` synthesizes when needed; it is
+  what `@Persisted` hydration rides.
+- **`PersistedStorage` seam** — the store crossing behind `@Persisted`, with
+  one shared default `PersistentStore` and a test-swappable registry; the
+  full hydrate→render→write→save loop runs headless in CI.
+- **`swiflowWarn`** — the framework's first non-trapping warn primitive
+  (DEBUG console warning, release no-op), the vehicle for the router's new
+  diagnostics.
+
+---
+
 ## [0.4.8] — 2026-07-07
 
 **Beta.** The CLI & tooling audit release: Part III of the 2026-07
