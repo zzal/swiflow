@@ -248,8 +248,12 @@ final class AutocompleteBox {
     }
 
     // MARK: state transitions
+    // Internal (not private) so host tests drive the keyboard/commit contract
+    // directly instead of digging keydown handlers out of a re-rendered body —
+    // the DataTable internal-seam precedent (audit V Wave-2 #4). Production
+    // callers remain this file's own handlers.
 
-    private func openList() {
+    func openList() {
         guard !disabled, !open else { return }
         open = true
         typed = false   // browsing; displayValue shows the committed label (no query seed needed)
@@ -257,7 +261,7 @@ final class AutocompleteBox {
         activeIndex = isAsync ? -1 : (options.firstIndex(where: { $0.value == selection.get() }) ?? -1)
     }
 
-    private func closeList() {
+    func closeList() {
         open = false
         activeIndex = -1
         typed = false   // displayValue now reverts to the committed label
@@ -268,7 +272,7 @@ final class AutocompleteBox {
         if isAsync { results = []; loading = false; loadFailed = false }
     }
 
-    private func commit(_ opt: SelectOption) {
+    func commit(_ opt: SelectOption) {
         selection.set(opt.value)
         selectedOption = opt   // remember the label for the closed display (esp. async)
         closeList()
@@ -320,7 +324,7 @@ final class AutocompleteBox {
         }
     }
 
-    private func onKeyDown(_ e: EventInfo) {
+    func onKeyDown(_ e: EventInfo) {
         guard !disabled else { return }
         switch e.key {
         case "ArrowDown":
@@ -337,6 +341,11 @@ final class AutocompleteBox {
             break
         }
     }
+
+    /// Test-only read probes over the private @State (the DataTable
+    /// DEBUG-probe shape) — the transitions above are the write seams.
+    var isOpenForTesting: Bool { open }
+    var activeIndexForTesting: Int { activeIndex }
 
     private func onInputBlur() {
         closeList()
