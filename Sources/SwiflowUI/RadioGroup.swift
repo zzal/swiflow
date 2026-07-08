@@ -17,17 +17,14 @@ import Swiflow
 /// groups on the same page would otherwise collide. Caller `Attribute...`/`.class`
 /// land on the `<fieldset>` (the group root).
 ///
-/// > Warning: `RadioGroup` is a stateless free function — it has no ambient
-/// > registry of the other `RadioGroup`s in the current render, so a native
-/// > `name` collision between two same-label groups on one page (e.g. two
-/// > "Role" pickers in different components) is currently UNDETECTED, even
-/// > in DEBUG. Colliding groups silently share roving-focus/selection state
-/// > at the DOM level (checking a radio in one group visually "checks" the
-/// > matching-value radio in the other, and arrow-key roving crosses between
-/// > them). If your app renders more than one `RadioGroup` that could share a
-/// > label — or the same slugged name — pass `name:` explicitly on each to
-/// > guarantee uniqueness; don't rely on the label-slug default outside a
-/// > single-instance-per-label page.
+/// > Warning: two `RadioGroup`s sharing a native `name` (e.g. two "Role"
+/// > pickers in different components — the name defaults to a label slug)
+/// > share roving-focus/selection state at the DOM level: checking a radio
+/// > in one group visually "checks" the matching-value radio in the other,
+/// > and arrow-key roving crosses between them. DEBUG builds now DETECT
+/// > this: an invisible mount sentinel registers each group's name, and a
+/// > collision logs a warning naming both groups (see `RadioNameRegistry`).
+/// > The fix is an explicit `name:` on one of the colliding groups.
 ///
 ///     RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"])
 ///     RadioGroup("Role", field: roleField, options: [SelectOption("admin", "Administrator"), "Member"])
@@ -115,7 +112,75 @@ private func radioGroupControl(
     }
     if let errorNode = fieldErrorNode(error) { children.append(errorNode) }
 
+    #if DEBUG
+    // Mount sentinel (audit V Wave-1): gives this stateless free function
+    // the lifecycle identity the collision registry needs. Renders nothing;
+    // DEBUG-only, so the release tree carries no extra node.
+    children.append(embed { RadioNameSentinel(name: name, label: labelText) })
+    #endif
+
     let groupAttrs = fieldGroupAttributes(["sw-radio", "sw-radio--\(size.modifierClass)"], error: error, required: required,
                                           disabled: disabled, caller: attributes)
     return element("fieldset", attributes: groupAttrs, children: children)
 }
+
+#if DEBUG
+/// DEBUG-only, invisible mount sentinel embedded in every `RadioGroup`
+/// fieldset. `RadioGroup` itself is a stateless free function — it has no
+/// mount/unmount identity — so this component's lifecycle IS the group's
+/// registration window: `onAppear` registers the native radio `name`,
+/// `onDisappear` unregisters. Catches late-mounted collisions (conditional
+/// rendering) and never false-positives on re-renders (the instance
+/// persists; `onAppear` fires once). Dev tree ≠ release tree by exactly
+/// this leaf — accepted, documented trade-off.
+@Component
+final class RadioNameSentinel {
+    let name: String
+    let label: String
+    init(name: String, label: String) {
+        self.name = name
+        self.label = label
+    }
+    var body: VNode { .text("") }
+    func onAppear() {
+        RadioNameRegistry.register(name: name, label: label, id: ObjectIdentifier(self))
+    }
+    func onDisappear() {
+        RadioNameRegistry.unregister(name: name, id: ObjectIdentifier(self))
+    }
+}
+
+/// The live owners of each native radio `name`, keyed by sentinel instance
+/// identity — an HMR swap or remount can never double-count itself into a
+/// false positive (a count could).
+@MainActor
+enum RadioNameRegistry {
+    static var owners: [String: [(id: ObjectIdentifier, label: String)]] = [:]
+
+    static func register(name: String, label: String, id: ObjectIdentifier) {
+        var list = owners[name] ?? []
+        if let first = list.first(where: { $0.id != id }) {
+            swiflowWarn(
+                "RadioGroup name collision: \"\(label)\" and \"\(first.label)\" both render "
+                    + "radios under the native name '\(name)' — selection and arrow-key "
+                    + "roving will cross between them at the DOM level. Pass an explicit "
+                    + "name: on one to keep the groups independent."
+            )
+        }
+        if !list.contains(where: { $0.id == id }) {
+            list.append((id: id, label: label))
+        }
+        owners[name] = list
+    }
+
+    static func unregister(name: String, id: ObjectIdentifier) {
+        owners[name]?.removeAll { $0.id == id }
+        if owners[name]?.isEmpty == true { owners[name] = nil }
+    }
+
+    /// Test seam — suites sharing the process-global registry reset it
+    /// per test (and stay `.serialized`, the one-suite-owns-a-global-seam
+    /// lesson from the @Persisted registry).
+    static func _reset() { owners = [:] }
+}
+#endif
