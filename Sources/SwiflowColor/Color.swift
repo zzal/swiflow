@@ -22,7 +22,18 @@ enum Color {
     /// `normalizeHex`); traps on malformed input — gate user input through `normalizeHex` first.
     static func hex(_ hex: String) -> LinRGB {
         let h = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
-        let v = UInt32(h, radix: 16)!
+        // Exactly six digits, enforced: a 3-digit shorthand like "f00" would
+        // NOT trap — `UInt32("f00", radix: 16)` succeeds as 0x000f00, feeding
+        // a silently wrong (near-black) color into contrast math the
+        // generator then blesses. Trap-on-malformed is this function's
+        // documented contract; keep it loudly.
+        precondition(
+            h.count == 6,
+            "Color.hex expects exactly 6 hex digits, got '\(hex)' — pass shorthand through normalizeHex first."
+        )
+        guard let v = UInt32(h, radix: 16) else {
+            preconditionFailure("Color.hex: '\(hex)' is not valid hexadecimal — gate input through normalizeHex.")
+        }
         let r = Double((v >> 16) & 0xff) / 255.0
         let g = Double((v >> 8) & 0xff) / 255.0
         let b = Double(v & 0xff) / 255.0
