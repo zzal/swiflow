@@ -204,7 +204,7 @@ let package = Package(
         // header comment for what each shape gates.
         .target(
             name: "MacroConsumerChecks",
-            dependencies: ["Swiflow", "SwiflowQuery"],
+            dependencies: ["Swiflow", "SwiflowQuery", "SwiflowStore"],
             path: "Sources/MacroConsumerChecks",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
