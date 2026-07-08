@@ -40,6 +40,10 @@ public final class PersistentStore {
     private let storeName: String
     /// The opened `IDBDatabase`, cached after the first `database()` call.
     private var database: JSObject?
+    /// The `onversionchange`/`onclose` handlers installed on the cached
+    /// connection — retained here because `JSClosure` is ref-counted on the
+    /// Swift side; replaced wholesale on each (re)open.
+    private var connectionWatchers: [JSClosure] = []
     /// The in-flight open, memoized so concurrent first callers all await the
     /// SAME `open` request instead of each issuing their own `indexedDB.open`
     /// (which would leak every loser's connection — IndexedDB has no
@@ -77,11 +81,7 @@ public final class PersistentStore {
     /// Throws `StoreError.decoding` if a stored value can't be decoded as `T`.
     public func load<T: Decodable>(_ type: T.Type, forKey key: String) async throws -> T? {
         let db = try await openedDatabase()
-        guard let tx = db.transaction!(storeName, "readonly").object,
-              let objectStore = tx.objectStore!(storeName).object,
-              let request = objectStore.get!(key).object else {
-            throw StoreError.unavailable
-        }
+        let request = try requestOnStore(db, mode: "readonly") { try $0.get?(key) }
         try await awaitRequest(request)
 
         // A missing key resolves with `undefined`, so `.string` is nil — treat
@@ -104,23 +104,42 @@ public final class PersistentStore {
     public func save<T: Encodable>(_ value: T, forKey key: String) async throws {
         let jsonString = try JSONValueEncoder().encode(value).jsonString
         let db = try await openedDatabase()
-        guard let tx = db.transaction!(storeName, "readwrite").object,
-              let objectStore = tx.objectStore!(storeName).object,
-              let request = objectStore.put!(jsonString, key).object else {
-            throw StoreError.unavailable
-        }
+        let request = try requestOnStore(db, mode: "readwrite") { try $0.put?(jsonString, key) }
         try await awaitRequest(request)
     }
 
     /// Delete whatever is stored at `key` (a no-op if nothing is).
     public func remove(forKey key: String) async throws {
         let db = try await openedDatabase()
-        guard let tx = db.transaction!(storeName, "readwrite").object,
-              let objectStore = tx.objectStore!(storeName).object,
-              let request = objectStore.delete!(key).object else {
-            throw StoreError.unavailable
-        }
+        let request = try requestOnStore(db, mode: "readwrite") { try $0.delete?(key) }
         try await awaitRequest(request)
+    }
+
+    /// Opens a transaction, resolves the object store, and runs `operate` to
+    /// issue the request — with every synchronous JS call made through
+    /// `JSThrowingObject`, so a sync exception (`InvalidStateError` on a
+    /// connection the browser or another tab closed, `TransactionInactiveError`,
+    /// …) surfaces as `StoreError.request` instead of trapping the wasm.
+    /// The old bang-call style only guarded nil RETURNS — the same intra-file
+    /// inconsistency the audit flagged (`JSON.parse` used `.throws`, the IDB
+    /// calls didn't).
+    private func requestOnStore(
+        _ db: JSObject,
+        mode: String,
+        _ operate: (JSThrowingObject) throws -> JSValue?
+    ) throws -> JSObject {
+        do {
+            guard let tx = try JSThrowingObject(db).transaction?(storeName, mode).object,
+                  let store = try JSThrowingObject(tx).objectStore?(storeName).object,
+                  let request = try operate(JSThrowingObject(store))?.object else {
+                throw StoreError.unavailable
+            }
+            return request
+        } catch let error as StoreError {
+            throw error
+        } catch {
+            throw StoreError.request(String(describing: error))
+        }
     }
 
     // MARK: - IndexedDB plumbing
@@ -156,7 +175,42 @@ public final class PersistentStore {
 
         let opened = try await task.value.value
         database = opened
+        installConnectionWatchers(on: opened)
         return opened
+    }
+
+    /// Self-evict when another tab upgrades or deletes this database
+    /// (`onversionchange`) or the browser force-closes the connection
+    /// (`onclose`, e.g. storage eviction). Without these, the cached handle
+    /// went dead-but-cached: the other tab's upgrade BLOCKED forever on our
+    /// open connection, and our next call hit a closed handle. After
+    /// eviction the next operation reopens; if the database has since moved
+    /// past our version (hardcoded 1 — this store's schema is a single kv
+    /// object store, deliberately frozen), that open fails as a
+    /// `StoreError`, a graceful degrade rather than a trap.
+    private func installConnectionWatchers(on db: JSObject) {
+        let onVersionChange = JSClosure { [weak self] _ in
+            MainActor.assumeIsolated {
+                // Close FIRST so the other tab's upgrade/delete can proceed,
+                // then drop the cache so our next call reopens.
+                _ = db.close!()
+                self?.evictConnection()
+            }
+            return .undefined
+        }
+        let onClose = JSClosure { [weak self] _ in
+            // The browser already closed the connection — just stop caching it.
+            MainActor.assumeIsolated { self?.evictConnection() }
+            return .undefined
+        }
+        db.onversionchange = .object(onVersionChange)
+        db.onclose = .object(onClose)
+        connectionWatchers = [onVersionChange, onClose]
+    }
+
+    private func evictConnection() {
+        database = nil
+        connectionWatchers = []
     }
 
     /// Bridges one `IDBRequest` to async/await: resumes when `onsuccess` fires,
@@ -180,6 +234,10 @@ public final class PersistentStore {
             let onError = JSClosure { _ in
                 retainer.closures = []
                 let message = request.error.object?.message.string ?? "IndexedDB request failed"
+                // DEBUG visibility (audit IV Wave-3): callers routinely
+                // swallow these with `try?` (fire-and-forget saves), so a
+                // quota-exceeded or version error would otherwise vanish.
+                swiflowWarn("PersistentStore: IndexedDB request failed — \(message)")
                 continuation.resume(throwing: StoreError.request(message))
                 return .undefined
             }

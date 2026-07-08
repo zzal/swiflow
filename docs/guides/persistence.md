@@ -101,6 +101,11 @@ try await store.remove(forKey: "pinned-cities")
 - The database name defaults to the document title (your app's name shows
   up in the browser's storage inspector); pass `PersistentStore(database:store:)`
   to pin it — note a changed name starts a fresh, empty database.
+- Multi-tab safe: if another tab upgrades or deletes the database, the
+  store closes its connection (so the other tab isn't blocked) and reopens
+  on the next operation; a dead connection surfaces as a thrown `StoreError`,
+  never a crash. DEBUG builds log every failed IndexedDB request — useful
+  since fire-and-forget saves usually `try?` them away.
 
 On non-browser platforms (host tests, tooling) the API is present but inert:
 `load` yields `nil`, writes are no-ops.
