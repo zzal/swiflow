@@ -135,7 +135,7 @@ public final class RouterRoot {
     // MARK: - Private
 
     private func sync() {
-        currentPath = mode.readPath(from: navigator)
+        commit(mode.readPath(from: navigator))
     }
 
     /// Package (not private) so lifecycle tests can drive navigation without
@@ -144,20 +144,28 @@ public final class RouterRoot {
     /// environment `Router`'s closures.
     package func push(_ path: String) {
         switch mode {
-        case .hash:
-            navigator.setHash(mode.url(for: path))
-        case .history:
-            navigator.pushState(mode.url(for: path))
-            currentPath = path
+        case .hash: navigator.setHash(mode.url(for: path))
+        case .history: navigator.pushState(mode.url(for: path))
         }
-        // The residual switch is DELIBERATE: setHash-vs-pushState are
-        // different browser APIs, and history mode must update currentPath
-        // imperatively while hash mode waits for the hashchange event —
-        // the asymmetry audit item #8 (commit choke point) unifies.
+        commit(path)
+        // The switch above is now PURELY the browser-API choice (setHash
+        // fires an echoed hashchange, pushState fires nothing); the
+        // currentPath policy is uniform — commit, imperatively, both modes.
     }
 
     package func replacePath(_ path: String) {
         navigator.replaceState(mode.url(for: path))
+        commit(path)
+    }
+
+    /// THE single write site for currentPath — every navigation (push,
+    /// replace, external event) lands here. Dedupe guard: our own writes
+    /// commit imperatively, so the browser's echoed hashchange re-reads the
+    /// same path and must not re-render. This is also the designated landing
+    /// spot for future route guards / scroll restoration / analytics — one
+    /// place, not four.
+    package func commit(_ path: String) {
+        guard path != currentPath else { return }
         currentPath = path
     }
 }

@@ -42,9 +42,9 @@ struct RouterRootNavigatorTests {
         #expect(h.allText.contains("about"), "matcher strips the query; the route still matches")
     }
 
-    @Test("hash navigate is EVENT-DRIVEN: setHash recorded, path unchanged until the event")
+    @Test("hash navigate commits IMMEDIATELY; the echoed hashchange is deduped")
     @MainActor
-    func hashNavigateWaitsForEvent() {
+    func hashNavigateCommitsImmediately() {
         let nav = MockNavigator()
         let root = makeRoot(mode: .hash, nav: nav)
         let h = render(root)
@@ -53,13 +53,13 @@ struct RouterRootNavigatorTests {
         root.push("/about")
         h.renderer.scheduler.flush()
         #expect(nav.setHashCalls == ["#/about"],
-                "push writes mode.url(for:) — the same canonical '#'-prefixed form as href and replace (the #7 convention fix)")
-        #expect(h.allText.contains("home"),
-                "no imperative update in hash mode — the browser event drives sync (the asymmetry #8 unifies)")
+                "push writes mode.url(for:) — the same canonical '#'-prefixed form as href and replace")
+        #expect(h.allText.contains("about"),
+                "commit(path:) is imperative in BOTH modes — navigation no longer depends on the listener being alive (audit #8)")
 
-        nav.fireChange() // the browser's half; mock.hash was updated by setHash
+        nav.fireChange() // the browser's echoed hashchange
         h.renderer.scheduler.flush()
-        #expect(h.allText.contains("about"))
+        #expect(h.allText.contains("about"), "echo deduped — same path, no state change")
     }
 
     @Test("history navigate is IMPERATIVE: pushState + immediate path update, no event")
@@ -111,6 +111,74 @@ struct RouterRootNavigatorTests {
         h2.unmount()
         #expect(histNav.stopListeningCount == 1)
     }
+
+    /// Shared body-evaluation counter: BOTH factories increment it, so the
+    /// count equals RouterRoot body evaluations regardless of which route
+    /// matched. Plain class (not @MainActor) because RouteDefinition
+    /// factories are non-isolated closures; tests are single-threaded.
+    private final class Counter { var value = 0 }
+
+    @Test("echoed hashchange does not re-render — commit's dedupe guard (render count pinned)")
+    @MainActor
+    func echoedEventDedupes() {
+        let nav = MockNavigator()
+        let bodyEvals = Counter()
+        let root = RouterRoot(mode: .hash, navigator: nav, routes: {
+            RouteDefinition(pattern: RoutePattern("/"), factory: { _ in
+                bodyEvals.value += 1
+                return .text("home")
+            })
+            RouteDefinition(pattern: RoutePattern("/about"), factory: { _ in
+                bodyEvals.value += 1
+                return .text("about")
+            })
+        }, notFound: nil)
+        let h = render(root)
+        #expect(bodyEvals.value == 1)
+
+        root.push("/about")
+        h.renderer.scheduler.flush()
+        #expect(bodyEvals.value == 2, "the imperative commit re-rendered once")
+
+        nav.fireChange() // the echo: sync re-reads the SAME path
+        h.renderer.scheduler.flush()
+        #expect(bodyEvals.value == 2, "commit's guard absorbed the echo — no second render")
+    }
+
+    @Test("external URL change (back/forward, manual hash edit) still applies through sync")
+    @MainActor
+    func externalChangeApplies() {
+        let nav = MockNavigator()
+        let root = makeRoot(mode: .hash, nav: nav)
+        let h = render(root)
+        #expect(h.allText.contains("home"))
+
+        // The browser back button / a manual hash edit: URL state changes
+        // WITHOUT going through push/replacePath — only the event tells us.
+        nav.hash = "#/about"
+        nav.fireChange()
+        h.renderer.scheduler.flush()
+        #expect(h.allText.contains("about"), "paths differ — commit applies the external change")
+    }
+
+    @Test("pushing the current path is a no-op — browser parity (no hashchange for an identical hash)")
+    @MainActor
+    func samePathPushNoOp() {
+        let nav = MockNavigator()
+        let bodyEvals = Counter()
+        let root = RouterRoot(mode: .hash, navigator: nav, routes: {
+            RouteDefinition(pattern: RoutePattern("/"), factory: { _ in
+                bodyEvals.value += 1
+                return .text("home")
+            })
+        }, notFound: nil)
+        let h = render(root)
+        #expect(bodyEvals.value == 1)
+
+        root.push("/")
+        h.renderer.scheduler.flush()
+        #expect(bodyEvals.value == 1, "same path — commit dedupes, nothing re-renders")
+    }
 }
 
 // MARK: - Full stack: the environment Router's closures reach the navigator
@@ -151,11 +219,14 @@ struct RouterRootFullStackTests {
         #expect(h.find("p")?.text == "/")
 
         // The REAL body-built closure: @Sendable navigate → weak self →
-        // push → navigator.setHash. Then the browser's half, scripted.
+        // push → setHash + imperative commit.
         box.value?.navigate("/about")
-        nav.fireChange()
         h.renderer.scheduler.flush()
-        #expect(h.allText.contains("about-page"))
+        #expect(h.allText.contains("about-page"), "commit is imperative — renders before the echoed event")
+
+        nav.fireChange() // the echo
+        h.renderer.scheduler.flush()
+        #expect(h.allText.contains("about-page"), "echo deduped")
 
         box.value?.back()
         #expect(nav.backCount == 1, "body's back closure reaches the navigator, not JS globals")
