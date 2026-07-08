@@ -51,7 +51,7 @@ public final class RouterRoot {
         self.navigator = navigator
         self.routes = routes()
         self.notFoundFactory = nil
-        self.currentPath = Self.readPath(mode: mode, from: navigator)
+        self.currentPath = mode.readPath(from: navigator)
     }
 
     /// Routed root with a custom 404: `notFound` renders whenever no route
@@ -67,7 +67,7 @@ public final class RouterRoot {
         self.navigator = navigator
         self.routes = routes()
         self.notFoundFactory = { ctx in embed { notFound(ctx) } }
-        self.currentPath = Self.readPath(mode: mode, from: navigator)
+        self.currentPath = mode.readPath(from: navigator)
     }
 
     /// The seam init — host tests inject a `MockNavigator` here. Package
@@ -83,7 +83,7 @@ public final class RouterRoot {
         self.navigator = navigator
         self.routes = routes()
         self.notFoundFactory = notFound
-        self.currentPath = Self.readPath(mode: mode, from: navigator)
+        self.currentPath = mode.readPath(from: navigator)
     }
 
     public var body: VNode {
@@ -123,8 +123,7 @@ public final class RouterRoot {
     }
 
     public func onAppear() {
-        let event = mode == .hash ? "hashchange" : "popstate"
-        navigator.startListening(to: event) { [weak self] in
+        navigator.startListening(to: mode.changeEvent) { [weak self] in
             self?.sync()
         }
     }
@@ -136,22 +135,7 @@ public final class RouterRoot {
     // MARK: - Private
 
     private func sync() {
-        currentPath = Self.readPath(mode: mode, from: navigator)
-    }
-
-    /// `readPath` over Navigator primitives — pure, host-testable.
-    package static func readPath(mode: Mode, from navigator: Navigator) -> String {
-        switch mode {
-        case .hash:
-            let hash = navigator.hash
-            let path = hash.hasPrefix("#") ? String(hash.dropFirst()) : ""
-            return path.isEmpty ? "/" : path
-        case .history:
-            // pathname alone loses the query on popstate/refresh — the
-            // audit's 'history mode drops query strings' finding. The matcher
-            // strips the query for matching; RouterContext.query parses it.
-            return navigator.pathname + navigator.search
-        }
+        currentPath = mode.readPath(from: navigator)
     }
 
     /// Package (not private) so lifecycle tests can drive navigation without
@@ -161,20 +145,19 @@ public final class RouterRoot {
     package func push(_ path: String) {
         switch mode {
         case .hash:
-            navigator.setHash(path)
+            navigator.setHash(mode.url(for: path))
         case .history:
-            navigator.pushState(path)
+            navigator.pushState(mode.url(for: path))
             currentPath = path
         }
+        // The residual switch is DELIBERATE: setHash-vs-pushState are
+        // different browser APIs, and history mode must update currentPath
+        // imperatively while hash mode waits for the hashchange event —
+        // the asymmetry audit item #8 (commit choke point) unifies.
     }
 
     package func replacePath(_ path: String) {
-        switch mode {
-        case .hash:
-            navigator.replaceState("#" + path)
-        case .history:
-            navigator.replaceState(path)
-        }
+        navigator.replaceState(mode.url(for: path))
         currentPath = path
     }
 }
