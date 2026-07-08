@@ -130,18 +130,25 @@ extension Color {
     static func clampGamut(_ c: LinRGB) -> LinRGB {
         LinRGB(r: min(max(c.r, 0), 1), g: min(max(c.g, 0), 1), b: min(max(c.b, 0), 1))
     }
+    /// Which display gamut a derivation clamps into. `.srgb` models the
+    /// fallback hex rendering; `.p3` models what a wide-gamut display shows
+    /// for the widened `oklch()` lines (audit V Wave-2 #1).
+    enum Gamut { case srgb, p3 }
+    private static func clamp(_ c: LinRGB, to gamut: Gamut) -> LinRGB {
+        gamut == .srgb ? clampGamut(c) : clampGamutP3(c)
+    }
     /// CSS `color-mix(in oklab, base <weightBase·100>%, other)`: lerp in OKLab.
-    static func mixOKLab(_ base: LinRGB, _ other: LinRGB, weightBase w: Double) -> LinRGB {
+    static func mixOKLab(_ base: LinRGB, _ other: LinRGB, weightBase w: Double, gamut: Gamut = .srgb) -> LinRGB {
         let a = linRGBToOKLab(base), b = linRGBToOKLab(other)
-        return clampGamut(okLabToLinRGB(OKLab(
+        return clamp(okLabToLinRGB(OKLab(
             L: w * a.L + (1 - w) * b.L,
             a: w * a.a + (1 - w) * b.a,
-            b: w * a.b + (1 - w) * b.b)))
+            b: w * a.b + (1 - w) * b.b)), to: gamut)
     }
     /// CSS `oklch(from <source> <lightness> c h)`: source chroma+hue, replaced lightness.
-    static func oklchFrom(_ source: LinRGB, lightness: Double) -> LinRGB {
+    static func oklchFrom(_ source: LinRGB, lightness: Double, gamut: Gamut = .srgb) -> LinRGB {
         let lch = okLabToOKLCH(linRGBToOKLab(source))
-        return clampGamut(okLabToLinRGB(okLCHToOKLab(OKLCH(L: lightness, C: lch.C, H: lch.H))))
+        return clamp(okLabToLinRGB(okLCHToOKLab(OKLCH(L: lightness, C: lch.C, H: lch.H))), to: gamut)
     }
     /// CSS `contrast-color(<bg>)`: black or white, whichever maximizes WCAG contrast.
     static func contrastColor(against bg: LinRGB) -> LinRGB {
@@ -192,6 +199,26 @@ extension Color {
             && p.b >= -eps && p.b <= 1 + eps
     }
 
+    /// Linear-Display-P3 → linear-sRGB: the hardcoded inverse of
+    /// `linRGBToLinP3` (both D65 — no adaptation). Pinned by the
+    /// round-trip test; rows sum to 1 (white maps to white).
+    static func linP3ToLinRGB(_ p: LinRGB) -> LinRGB {
+        LinRGB(
+            r:  1.22494022 * p.r - 0.22494022 * p.g + 0.0        * p.b,
+            g: -0.04205697 * p.r + 1.04205697 * p.g + 0.0        * p.b,
+            b: -0.01963786 * p.r - 0.07863580 * p.g + 1.09827359 * p.b)
+    }
+
+    /// Per-channel clamp into the Display-P3 gamut (clamp in linear-P3
+    /// coordinates, convert back). Same fidelity note as `clampGamut`: the
+    /// browser does CSS Color 4 chroma-reduction; a channel clamp is a
+    /// close-enough approximation for a luminance assertion.
+    static func clampGamutP3(_ c: LinRGB) -> LinRGB {
+        let p = linRGBToLinP3(c)
+        return linP3ToLinRGB(LinRGB(
+            r: min(max(p.r, 0), 1), g: min(max(p.g, 0), 1), b: min(max(p.b, 0), 1)))
+    }
+
     /// Largest chroma whose OKLCH(L, C, H) stays inside Display-P3, via binary search.
     static func p3MaxChroma(L: Double, H: Double) -> Double {
         var lo = 0.0, hi = 0.5   // 0.5 is beyond any real-display chroma
@@ -202,16 +229,49 @@ extension Color {
         return lo
     }
 
-    /// A hex color re-expressed as `oklch(L C Hdeg)` with chroma pushed to the P3 gamut edge at
-    /// its own L and H (same lightness/hue → same luminance/contrast; only chroma widens, and
-    /// only on P3 displays). H is converted radians→degrees.
-    static func p3OKLCHString(fromHex hexStr: String) -> String {
-        let lch = okLabToOKLCH(linRGBToOKLab(hex(hexStr)))
-        let c = max(lch.C, p3MaxChroma(L: lch.L, H: lch.H))   // can only widen
-        var deg = lch.H * 180 / .pi
+    /// Format an OKLCH triple as the CSS `oklch(L C Hdeg)` the generator emits.
+    private static func oklchString(L: Double, C: Double, H: Double) -> String {
+        var deg = H * 180 / .pi
         if deg < 0 { deg += 360 }
         func round(_ x: Double, _ scale: Double) -> Double { (x * scale).rounded() / scale }
-        return "oklch(\(round(lch.L, 10000)) \(round(c, 10000)) \(round(deg, 100)))"
+        return "oklch(\(round(L, 10000)) \(round(C, 10000)) \(round(deg, 100)))"
+    }
+
+    /// A hex color re-expressed as `oklch()` with chroma widened toward the
+    /// P3 gamut edge — BUT only as far as `checks` allows (audit V Wave-2 #1,
+    /// widen-then-back-off). Chroma widening at constant OKLCH L/H SHIFTS
+    /// WCAG relative luminance (perceptual L is not photometric Y — the old
+    /// "same lightness → same contrast" claim here was wrong, test-pinned),
+    /// so each candidate widening is validated through `checks` — the calling
+    /// arm's whole family contract against the UNCLAMPED widened color.
+    ///
+    /// Search: a deterministic downward scan from the gamut edge toward the
+    /// seed's own chroma (contrast is not guaranteed monotone in chroma, so
+    /// no binary search); first candidate whose checks pass wins. Floor = the
+    /// seed's chroma, where the "widened" color IS the sRGB color — the P3
+    /// verdict can never be worse than the already-reported sRGB verdict, so
+    /// widening cannot introduce new failures by construction.
+    static func safeP3OKLCHString(fromHex hexStr: String, checks: (LinRGB) -> Bool) -> String {
+        let lch = okLabToOKLCH(linRGBToOKLab(hex(hexStr)))
+        let edge = max(lch.C, p3MaxChroma(L: lch.L, H: lch.H))   // can only widen
+        let steps = 16
+        for k in 0...steps {
+            let c = edge - (edge - lch.C) * Double(k) / Double(steps)
+            let candidate = okLabToLinRGB(okLCHToOKLab(OKLCH(L: lch.L, C: c, H: lch.H)))
+            if checks(candidate) {
+                return oklchString(L: lch.L, C: c, H: lch.H)
+            }
+        }
+        return oklchString(L: lch.L, C: lch.C, H: lch.H)   // floor: no widening
+    }
+
+    /// Unchecked gamut-edge widening — `safeP3OKLCHString` with no family
+    /// contract. NB: widening at constant L/H DOES shift WCAG contrast
+    /// (L is perceptual, not photometric); production emission goes through
+    /// the checked variant, this remains only for contexts with no family
+    /// to validate against.
+    static func p3OKLCHString(fromHex hexStr: String) -> String {
+        safeP3OKLCHString(fromHex: hexStr, checks: { _ in true })
     }
 }
 
@@ -244,6 +304,44 @@ extension Color {
     // -strong lightnesses: (normal 4.5 → light/dark), (more-contrast 7 → light/dark)
     private static let strongAA: (Double, Double) = (0.40, 0.80)
     private static let strongAAA: (Double, Double) = (0.30, 0.88)
+
+    /// The four family measurements every accent/status token answers to, for
+    /// ONE mode arm. LinRGB-seeded (not hex) so the same core can measure the
+    /// out-of-sRGB widened colors a P3 display renders; `gamut` picks which
+    /// display the derived tint/-strong are clamped into.
+    struct FamilyRatios {
+        let raw: Double        // seed used directly on the surface
+        let strongAA: Double   // oklch(from seed, L_AA) on the 15% tint
+        let strongAAA: Double  // oklch(from seed, L_AAA) on the tint
+        let text: Double       // contrast-color(seed) on the solid seed
+    }
+
+    static func familyRatios(seed: LinRGB, surface: LinRGB,
+                             lAA: Double, lAAA: Double,
+                             gamut: Gamut = .srgb) -> FamilyRatios {
+        let tint = mixOKLab(seed, surface, weightBase: tintWeight, gamut: gamut)
+        return FamilyRatios(
+            raw: wcagContrast(seed, surface),
+            strongAA: wcagContrast(oklchFrom(seed, lightness: lAA, gamut: gamut), tint),
+            strongAAA: wcagContrast(oklchFrom(seed, lightness: lAAA, gamut: gamut), tint),
+            text: wcagContrast(contrastColor(against: seed), seed))
+    }
+
+    /// The widen-then-back-off predicate: does the WHOLE family clear its
+    /// bars for this (possibly out-of-sRGB) seed? `textBar` is nil for
+    /// status tokens (no solid-fill status buttons — mirrors
+    /// `validateStatusFamily`'s scope).
+    static func familyPasses(seed: LinRGB, surface: LinRGB,
+                             lAA: Double, lAAA: Double,
+                             rawBar: Double, textBar: Double?,
+                             gamut: Gamut) -> Bool {
+        let r = familyRatios(seed: seed, surface: surface, lAA: lAA, lAAA: lAAA, gamut: gamut)
+        if r.raw < rawBar { return false }
+        if r.strongAA < 4.5 { return false }
+        if r.strongAAA < 7.0 { return false }
+        if let textBar, r.text < textBar { return false }
+        return true
+    }
 
     /// Recompute the accent-derived tokens (-strong at 4.5 + 7, -text, and --sw-accent used
     /// as text/links) for the given light/dark accents and return every WCAG shortfall.
@@ -356,42 +454,57 @@ extension Color {
         var statusLines: [String] = []
         var flagEcho = ""
         // Each accent/status token emits a hex fallback line + a progressive oklch() line whose
-        // chroma is pushed to the P3 gamut edge (wider gamut on capable displays; same L/H).
-        func tokenLines(_ name: String, _ lightHex: String, _ darkHex: String) -> [String] {
-            ["  \(name): light-dark(\(lightHex), \(darkHex));",
-             "  \(name): light-dark(\(p3OKLCHString(fromHex: lightHex)), \(p3OKLCHString(fromHex: darkHex)));"]
+        // chroma widens toward the P3 gamut edge — held back per arm to the widest chroma whose
+        // WHOLE derived family still clears its WCAG bars on a P3 display (widen-then-back-off;
+        // widening at constant L/H shifts photometric luminance, so "same L/H" does NOT mean
+        // "same contrast" — the derived tint/-strong are re-measured with P3-clamped math).
+        func tokenLines(_ name: String, _ lightHex: String, _ darkHex: String,
+                        rawBar: Double, textBar: Double?) -> [String] {
+            let arms: [(seedHex: String, surfaceHex: String, lAA: Double, lAAA: Double)] = [
+                (lightHex, surfaceLight, strongAA.0, strongAAA.0),
+                (darkHex, surfaceDark, strongAA.1, strongAAA.1),
+            ]
+            let widened = arms.map { arm in
+                safeP3OKLCHString(fromHex: arm.seedHex) { candidate in
+                    familyPasses(seed: candidate, surface: hex(arm.surfaceHex),
+                                 lAA: arm.lAA, lAAA: arm.lAAA,
+                                 rawBar: rawBar, textBar: textBar, gamut: .p3)
+                }
+            }
+            return ["  \(name): light-dark(\(lightHex), \(darkHex));",
+                    "  \(name): light-dark(\(widened[0]), \(widened[1]));"]
         }
         if let dangerHex {
             let dl = try normalizeHex(dangerHex)
             let dd = darkAccent(from: dl)
             failures += validateStatusFamily(name: "--sw-danger", lightHex: dl, darkHex: dd, rawBar: 4.5)
-            statusLines += tokenLines("--sw-danger", dl, dd)
+            statusLines += tokenLines("--sw-danger", dl, dd, rawBar: 4.5, textBar: nil)
             flagEcho += " --danger \(dl)"
         }
         if let successHex {
             let sl = try normalizeHex(successHex)
             let sd = darkAccent(from: sl)
             failures += validateStatusFamily(name: "--sw-success", lightHex: sl, darkHex: sd, rawBar: 3.0)
-            statusLines += tokenLines("--sw-success", sl, sd)
+            statusLines += tokenLines("--sw-success", sl, sd, rawBar: 3.0, textBar: nil)
             flagEcho += " --success \(sl)"
         }
         if let warningHex {
             let wl = try normalizeHex(warningHex)
             let wd = darkAccent(from: wl)
             failures += validateStatusFamily(name: "--sw-warning", lightHex: wl, darkHex: wd, rawBar: 3.0)
-            statusLines += tokenLines("--sw-warning", wl, wd)
+            statusLines += tokenLines("--sw-warning", wl, wd, rawBar: 3.0, textBar: nil)
             flagEcho += " --warning \(wl)"
         }
         if let infoHex {
             let il = try normalizeHex(infoHex)
             let id = darkAccent(from: il)
             failures += validateStatusFamily(name: "--sw-info", lightHex: il, darkHex: id, rawBar: 3.0)
-            statusLines += tokenLines("--sw-info", il, id)
+            statusLines += tokenLines("--sw-info", il, id, rawBar: 3.0, textBar: nil)
             flagEcho += " --info \(il)"
         }
 
         if !includeNeutrals {
-            let rootBody = (tokenLines("--sw-accent", light, dark) + statusLines)
+            let rootBody = (tokenLines("--sw-accent", light, dark, rawBar: 3.0, textBar: 4.5) + statusLines)
                 .joined(separator: "\n")
             let css = """
             /* Generated by `swiflow theme --primary \(light)\(flagEcho)`. Include after SwiflowUI's styles.
@@ -406,7 +519,7 @@ extension Color {
         let neutrals = neutralPalette(accentHex: light)
         failures += validateNeutrals(neutrals)
 
-        let rootLines = (tokenLines("--sw-accent", light, dark)
+        let rootLines = (tokenLines("--sw-accent", light, dark, rawBar: 3.0, textBar: 4.5)
             + statusLines
             + neutrals.map { "  \($0.name): light-dark(\($0.light), \($0.dark));" })
             .joined(separator: "\n")
