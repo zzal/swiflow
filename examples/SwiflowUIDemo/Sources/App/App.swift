@@ -51,12 +51,11 @@ final class Demo {
 
             // --- Stacks --------------------------------------------------
             h2("Stacks")
-            HStack(spacing: .md, align: .center) {
-                Button("One") {}; Button("Two") {}; Button("Three") {}
+            Card(variant: .plain) {
+                HStack(spacing: .md, align: .center) {
+                    Button("One") {}; Button("Two") {}; Button("Three") {}
+                }
             }
-            .padding(.md)
-            .style("background", "var(--sw-surface)")
-            .style("border-radius", "var(--sw-radius)")
 
             p("The row above uses HStack(spacing: .md). Change --sw-space-md "
               + "in index.html's <style> to reskin every gap at once.")
@@ -75,14 +74,13 @@ final class Demo {
 
             // --- Spacer --------------------------------------------------
             h2("Spacer")
-            HStack(align: .center) {
-                Button("Leading", variant: .secondary) {}
-                Spacer()
-                Button("Trailing", variant: .secondary) {}
+            Card(variant: .plain) {
+                HStack(align: .center) {
+                    Button("Leading", variant: .secondary) {}
+                    Spacer()
+                    Button("Trailing", variant: .secondary) {}
+                }
             }
-            .padding(.md)
-            .style("background", "var(--sw-surface)")
-            .style("border-radius", "var(--sw-radius)")
             p("A Spacer() between the buttons pushes them to opposite ends.")
 
             Divider()
@@ -392,11 +390,14 @@ final class Demo {
 
     /// A small surfaced tile used to fill the grid demo.
     private func card(_ title: String) -> VNode {
+        // Typed token spellings: single-token values take a Token directly;
+        // composites interpolate .css. A typo'd Token fails at compile time —
+        // a typo'd var() string fails silent.
         div { text(title) }
             .padding(.md)
-            .style("background", "var(--sw-surface)")
-            .style("border", "var(--sw-border-width) solid var(--sw-border)")
-            .style("border-radius", "var(--sw-radius)")
+            .style("background", Token.surface)
+            .style("border", "\(Token.borderWidth.css) solid \(Token.border.css)")
+            .style("border-radius", Token.radius)
             .style("text-align", "center")
     }
 }
@@ -452,8 +453,8 @@ final class SignupWizardView {
             }
         }
         .padding(.md)
-        .style("background", "var(--sw-surface)")
-        .style("border-radius", "var(--sw-radius)")
+        .style("background", Token.surface)
+        .style("border-radius", Token.radius)
     }
 }
 
