@@ -66,6 +66,9 @@ public enum SwiflowUI {
         @property --sw-accent-active { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
         @property --sw-accent-text { syntax: "<color>"; inherits: true; initial-value: #0b1220; }
         @property --sw-danger { syntax: "<color>"; inherits: true; initial-value: #dc2626; }
+        @property --sw-danger-hover { syntax: "<color>"; inherits: true; initial-value: #b91c1c; }
+        @property --sw-danger-active { syntax: "<color>"; inherits: true; initial-value: #991b1b; }
+        @property --sw-danger-text { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
         @property --sw-success { syntax: "<color>"; inherits: true; initial-value: #16a34a; }
         @property --sw-warning { syntax: "<color>"; inherits: true; initial-value: #b45309; }
         @property --sw-info { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
@@ -114,6 +117,15 @@ public enum SwiflowUI {
           --sw-accent-text: light-dark(#0b1220, #0b1220);
           --sw-accent-text: contrast-color(var(--sw-accent));
           --sw-danger: light-dark(#dc2626, #f87171);
+          /* danger hover/active/text mirror the accent family exactly, so
+             re-pointing --sw-danger cascades the whole destructive palette
+             (Button .danger). Literal fallbacks first, same convention. */
+          --sw-danger-hover: light-dark(#b91c1c, #ef4444);
+          --sw-danger-hover: light-dark(oklch(from var(--sw-danger) calc(l - 0.08) c h), oklch(from var(--sw-danger) calc(l + 0.08) c h));
+          --sw-danger-active: light-dark(#991b1b, #dc2626);
+          --sw-danger-active: light-dark(oklch(from var(--sw-danger) calc(l - 0.16) c h), oklch(from var(--sw-danger) calc(l + 0.16) c h));
+          --sw-danger-text: light-dark(#ffffff, #450a0a);
+          --sw-danger-text: contrast-color(var(--sw-danger));
           --sw-success: light-dark(#16a34a, #4ade80);
           --sw-warning: light-dark(#b45309, #fbbf24);
           --sw-info: var(--sw-accent);

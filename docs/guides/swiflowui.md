@@ -77,11 +77,12 @@ accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 ```swift
 Button("Save") { save() }
 Button("Cancel", variant: .secondary, size: .sm) { dismiss() }
-Button("Delete", variant: .ghost, disabled: !canDelete) { delete() }
+Button("Delete", variant: .danger, disabled: !canDelete) { delete() }
 Button("Submit", type: .submit)        // form button — renders type=submit, NO click action
 ```
 
-`ButtonVariant`: `.primary` / `.secondary` / `.ghost`. `ControlSize`: `.sm/.md/.lg`.
+`ButtonVariant`: `.primary` / `.secondary` / `.ghost` / `.danger` (destructive
+solid fill — delete/remove confirms). `ControlSize`: `.sm/.md/.lg`.
 The `type:` overload (`.submit`/`.reset`) is for a button the enclosing `<form>`
 drives — it takes no action closure.
 

@@ -2644,6 +2644,7 @@ final class Demo {
                 Button("Primary") {}
                 Button("Secondary", variant: .secondary) {}
                 Button("Ghost", variant: .ghost) {}
+                Button("Danger", variant: .danger) {}
                 Button("Disabled", disabled: true) {}
             }
             HStack(spacing: .md, align: .center) {
@@ -2786,7 +2787,7 @@ final class Demo {
             Alert("Delete this item?", isPresented: $confirmDelete,
                   message: "This can't be undone.") {
                 Button("Cancel", variant: .secondary) { self.confirmDelete = false }
-                Button("Delete") { self.deleteResult = "Item deleted"; self.confirmDelete = false }
+                Button("Delete", variant: .danger) { self.deleteResult = "Item deleted"; self.confirmDelete = false }
             }
             // Rename opts into backdrop-to-cancel (clicking outside closes without renaming).
             Prompt("Rename file", isPresented: $showRename, text: $fileName,

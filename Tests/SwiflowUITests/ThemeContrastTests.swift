@@ -53,17 +53,31 @@ struct ThemeContrastTests {
         }
     }
 
-    @Test("Solid-fill accent text clears WCAG 4.5 (contrast-color result AND fallback)")
+    @Test("Solid-fill accent AND danger text clear WCAG 4.5 (contrast-color result AND fallback)")
     func solidFillMeetsAA() {
         let base = CSSValueParsing.baseRegion(sheet)
-        let accent = CSSValueParsing.lightDarkHex(base, "--sw-accent")!
-        let fallback = CSSValueParsing.lightDarkHex(base, "--sw-accent-text")!
-        for (accentHex, fallbackHex) in [(accent.light, fallback.light), (accent.dark, fallback.dark)] {
-            let bg = Color.hex(accentHex)
-            let derived = Color.contrastColor(against: bg)        // what the browser renders
-            #expect(Color.wcagContrast(derived, bg) >= 4.5, "contrast-color on \(accentHex) fails AA")
-            #expect(Color.wcagContrast(Color.hex(fallbackHex), bg) >= 4.5, "fallback \(fallbackHex) on \(accentHex) fails AA")
+        // (fill, its -text token) pairs — Button .primary and .danger solid fills.
+        for (fillToken, textToken) in [("--sw-accent", "--sw-accent-text"),
+                                       ("--sw-danger", "--sw-danger-text")] {
+            let fill = CSSValueParsing.lightDarkHex(base, fillToken)!
+            let fallback = CSSValueParsing.lightDarkHex(base, textToken)!
+            for (fillHex, fallbackHex) in [(fill.light, fallback.light), (fill.dark, fallback.dark)] {
+                let bg = Color.hex(fillHex)
+                let derived = Color.contrastColor(against: bg)        // what the browser renders
+                #expect(Color.wcagContrast(derived, bg) >= 4.5, "contrast-color on \(fillHex) fails AA")
+                #expect(Color.wcagContrast(Color.hex(fallbackHex), bg) >= 4.5,
+                        "fallback \(fallbackHex) on \(fillHex) fails AA")
+            }
+            #expect(base.contains("contrast-color(var(\(fillToken)))"), "dynamic \(textToken) declaration missing")
         }
-        #expect(base.contains("contrast-color(var(--sw-accent))"), "dynamic declaration missing")
+    }
+
+    @Test("Danger hover/active derive from --sw-danger exactly like the accent family")
+    func dangerFamilyDerives() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        #expect(base.contains("--sw-danger-hover: light-dark(oklch(from var(--sw-danger) calc(l - 0.08) c h)"),
+                "hover derivation missing — re-pointing --sw-danger must cascade the family")
+        #expect(base.contains("--sw-danger-active: light-dark(oklch(from var(--sw-danger) calc(l - 0.16) c h)"),
+                "active derivation missing")
     }
 }

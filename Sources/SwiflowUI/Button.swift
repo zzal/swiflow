@@ -2,18 +2,22 @@
 import Swiflow
 
 /// Visual style of a `Button`. `.primary` is an accent fill, `.secondary` a
-/// bordered surface, `.ghost` a transparent text button. Maps to a
-/// `sw-btn--<variant>` modifier class whose declarations live in the shared
-/// button stylesheet — every value reads a `--sw-*` token, so variants reskin
-/// (and respond to the media-feature layers) with no API change.
+/// bordered surface, `.ghost` a transparent text button, `.danger` a
+/// destructive solid fill on the danger token family (delete/remove
+/// confirms — Badge/Toast/DropdownItem already speak danger; buttons now
+/// do too). Maps to a `sw-btn--<variant>` modifier class whose declarations
+/// live in the shared button stylesheet — every value reads a `--sw-*`
+/// token, so variants reskin (and respond to the media-feature layers)
+/// with no API change.
 public enum ButtonVariant: Equatable {
-    case primary, secondary, ghost
+    case primary, secondary, ghost, danger
     /// The `sw-btn--<variant>` modifier-class token.
     var modifierClass: String {
         switch self {
         case .primary:   return "primary"
         case .secondary: return "secondary"
         case .ghost:     return "ghost"
+        case .danger:    return "danger"
         }
     }
 }
@@ -155,5 +159,11 @@ let buttonStyleSheet: CSSSheet = css {
     }
     .sw-btn--ghost:hover:not(:disabled),
     .sw-btn--ghost:active:not(:disabled) { background-color: var(--sw-surface-2); }
+    .sw-btn--danger {
+      background-color: var(--sw-danger);
+      color: var(--sw-danger-text);
+    }
+    .sw-btn--danger:hover:not(:disabled)  { background-color: var(--sw-danger-hover); }
+    .sw-btn--danger:active:not(:disabled) { background-color: var(--sw-danger-active); }
     """)
 }
