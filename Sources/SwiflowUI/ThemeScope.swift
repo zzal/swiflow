@@ -6,20 +6,29 @@
 import Swiflow
 
 /// A single `--sw-*` override for a `Theme` region. Use the typed statics for the
-/// commonly-branded tokens, or `.token(_:_:)` for anything else.
+/// commonly-branded tokens, `.set(_:_:)` for any other `Token`, or `.token(_:_:)`
+/// for app-custom properties. The branded statics route through the shared
+/// `Token` constants, so the write vocabulary can't drift from the read one.
 public struct ThemeToken: Equatable, Sendable {
     public let name: String     // e.g. "--sw-accent"
     public let value: String
 
-    public static func accent(_ v: String)  -> ThemeToken { .init(name: "--sw-accent",  value: v) }
-    public static func radius(_ v: String)  -> ThemeToken { .init(name: "--sw-radius",  value: v) }
-    public static func surface(_ v: String) -> ThemeToken { .init(name: "--sw-surface", value: v) }
-    public static func text(_ v: String)    -> ThemeToken { .init(name: "--sw-text",    value: v) }
-    public static func border(_ v: String)  -> ThemeToken { .init(name: "--sw-border",  value: v) }
-    public static func danger(_ v: String)  -> ThemeToken { .init(name: "--sw-danger",  value: v) }
-    public static func success(_ v: String) -> ThemeToken { .init(name: "--sw-success", value: v) }
+    public static func accent(_ v: String)  -> ThemeToken { .set(.accent,  v) }
+    public static func radius(_ v: String)  -> ThemeToken { .set(.radius,  v) }
+    public static func surface(_ v: String) -> ThemeToken { .set(.surface, v) }
+    public static func text(_ v: String)    -> ThemeToken { .set(.text,    v) }
+    public static func border(_ v: String)  -> ThemeToken { .set(.border,  v) }
+    public static func danger(_ v: String)  -> ThemeToken { .set(.danger,  v) }
+    public static func success(_ v: String) -> ThemeToken { .set(.success, v) }
 
-    /// Escape hatch for any other token (spacing scale, motion, overlay, custom props).
+    /// Override any typed token — the vocabulary door beyond the branded
+    /// shortcuts, without falling back to a stringly name.
+    public static func set(_ token: Token, _ value: String) -> ThemeToken {
+        .init(name: token.name, value: value)
+    }
+
+    /// Escape hatch for app-custom properties (anything outside the `--sw-*`
+    /// vocabulary — custom props your own CSS reads).
     public static func token(_ name: String, _ value: String) -> ThemeToken { .init(name: name, value: value) }
 }
 

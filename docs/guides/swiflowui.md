@@ -131,8 +131,27 @@ Spinner()                                   // role=status; pauses under reduced
 ProgressView(value: 0.6)                     // native <progress>, value clamped 0…1
 Card { h3("Title"); p("Body") }              // elevated surface (shadow)
 Card(variant: .outlined) { … }               // bordered
+Card(variant: .plain) { … }                  // the bare padded surface — no shadow, no border
 Badge("New", variant: .accent)               // pill; .neutral/.accent/.info/.success/.warning/.danger
 ```
+
+## Typed tokens
+
+Reference `--sw-*` tokens by name and a typo fails at compile time — a
+stringly `var(--sw-surfce)` fails silent in CSS:
+
+```swift
+div(.style("background", .surface),            // Token — typed, compile-checked
+    .style("border-radius", .radius))
+.style("border", "\(Token.borderWidth.css) solid \(Token.border.css)")  // composites interpolate .css
+
+Theme(.set(.warning, "#b45309")) { … }         // override ANY typed token in a subtree
+Theme(.accent("#7c3aed")) { … }                // the branded shortcuts still work
+```
+
+The vocabulary mirrors everything the base sheet ships (a CI test pins it);
+app-custom properties keep the string spellings (`.style(_:_: String)`,
+`ThemeToken.token(_:_:)`).
 
 ## Overlays
 

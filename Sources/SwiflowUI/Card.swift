@@ -1,11 +1,21 @@
 // Sources/SwiflowUI/Card.swift
 import Swiflow
 
-/// Visual style of a `Card`: `.elevated` (a `--sw-shadow` drop shadow) or
-/// `.outlined` (a `--sw-border` outline). Maps to a `sw-card--<variant>` class.
+/// Visual style of a `Card`: `.elevated` (a `--sw-shadow` drop shadow),
+/// `.outlined` (a `--sw-border` outline), or `.plain` — the bare padded
+/// surface, nothing added (the base `.sw-card` class is already
+/// background + radius + padding; use it for the surface/radius tile
+/// otherwise hand-written with `.style` pairs). Maps to a
+/// `sw-card--<variant>` class.
 public enum CardVariant: Equatable {
-    case elevated, outlined
-    var modifierClass: String { self == .elevated ? "elevated" : "outlined" }
+    case elevated, outlined, plain
+    var modifierClass: String {
+        switch self {
+        case .elevated: return "elevated"
+        case .outlined: return "outlined"
+        case .plain:    return "plain"
+        }
+    }
 }
 
 /// A surfaced container. Stateless free function: a `<div>` with `--sw-surface`
