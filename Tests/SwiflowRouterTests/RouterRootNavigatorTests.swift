@@ -137,3 +137,52 @@ struct RouterRootNavigatorTests {
         #expect(histNav.stopListeningCount == 1)
     }
 }
+
+// MARK: - Full stack: the environment Router's closures reach the navigator
+
+@MainActor
+private final class RouterBox {
+    var value: Router?
+}
+
+@Component
+private final class RouterGrabber {
+    @Environment(\.router) var router
+    let box: RouterBox
+    init(box: RouterBox) { self.box = box }
+    var body: VNode {
+        // The documented capture-in-body ritual: @Environment is only live
+        // during body, so the test (like any handler) uses the captured value.
+        box.value = router
+        return p(router.path)
+    }
+}
+
+@Suite("RouterRoot full lifecycle headless")
+struct RouterRootFullStackTests {
+
+    @Test("navigate via the environment Router; external event re-renders; back reaches the navigator")
+    @MainActor
+    func fullStackThroughEnvironmentRouter() {
+        let nav = MockNavigator()
+        let box = RouterBox()
+        let root = RouterRoot(mode: .hash, navigator: nav, routes: {
+            RouteDefinition(pattern: RoutePattern("/"), factory: { _ in
+                embed { RouterGrabber(box: box) }
+            })
+            RouteDefinition(pattern: RoutePattern("/about"), factory: { _ in .text("about-page") })
+        }, notFound: nil)
+        let h = render(root)
+        #expect(h.find("p")?.text == "/")
+
+        // The REAL body-built closure: @Sendable navigate → weak self →
+        // push → navigator.setHash. Then the browser's half, scripted.
+        box.value?.navigate("/about")
+        nav.fireChange()
+        h.renderer.scheduler.flush()
+        #expect(h.allText.contains("about-page"))
+
+        box.value?.back()
+        #expect(nav.backCount == 1, "body's back closure reaches the navigator, not JS globals")
+    }
+}
