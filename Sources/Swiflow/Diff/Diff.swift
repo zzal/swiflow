@@ -944,6 +944,7 @@ package func firePostRenderLifecycle(_ node: MountNode, preExistingIDs: Set<Obje
         if preExistingIDs.contains(ObjectIdentifier(any.instance)) {
             any.instance.onChange()
         } else {
+            any.instance._swiflowDidMount()
             any.instance.onAppear()
         }
     }
