@@ -176,7 +176,7 @@ labelled by `message`.
 ```swift
 @ReducerState var toasts: ToastQueue
 
-Button("Save") { self.$toasts.send(.show(ToastItem("Saved!", variant: .success))) }
+Button("Save") { self.$toasts.show("Saved!", .success) }
 ToastStack(queue: $toasts)         // mount once (e.g. at the app root)
 ```
 

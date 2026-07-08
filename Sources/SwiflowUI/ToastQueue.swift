@@ -54,11 +54,23 @@ public struct ToastQueue: Reducer {
     }
 }
 
+/// Firing a toast is ONE call — no `ToastItem`/`Action` ceremony at the call
+/// site (`send(.show(ToastItem(...)))` remains available for pre-built items):
+///
+///     $toasts.show("Saved!", .success)
+public extension ReducerHandle where R == ToastQueue {
+    /// Show a toast. Defaults mirror `ToastItem.init` (`.info`, 4 s) so the
+    /// two spellings can't drift apart on behavior.
+    func show(_ message: String, _ variant: ToastVariant = .info, duration: Double = 4) {
+        send(.show(ToastItem(message, variant: variant, duration: duration)))
+    }
+}
+
 /// Renders a `ToastQueue`'s visible toasts. Mount once (e.g. app root):
 ///
 ///     @ReducerState var toasts: ToastQueue
 ///     …
-///     Button("Save") { self.$toasts.send(.show(ToastItem("Saved!", variant: .success))) }
+///     Button("Save") { self.$toasts.show("Saved!", .success) }
 ///     ToastStack(queue: $toasts)
 ///
 /// Only `state.visible` renders; each toast auto-dismisses (or via ✕) and dispatches
