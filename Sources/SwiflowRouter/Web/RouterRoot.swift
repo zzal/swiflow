@@ -44,35 +44,29 @@ public final class RouterRoot {
 
     /// nil = today's built-in diagnostic text. Set via the `notFound:` init.
     private let notFoundFactory: ((RouterContext) -> VNode)?
+    /// Dedupe for the DEBUG unmatched-path warning — body runs every
+    /// render, the warn fires once per distinct unmatched path.
+    private var lastWarnedUnmatchedPath: String?
 
-    public init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
-        let navigator = BrowserNavigator()
-        self.mode = mode
-        self.navigator = navigator
-        self.routes = routes()
-        self.notFoundFactory = nil
-        self.currentPath = mode.readPath(from: navigator)
+    public convenience init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
+        self.init(mode: mode, navigator: BrowserNavigator(), routes: routes, notFound: nil)
     }
 
     /// Routed root with a custom 404: `notFound` renders whenever no route
     /// matches the current path. Mirrors `Route`'s component-factory
     /// ergonomics (the component is embedded for you).
-    public init<C: Component>(
+    public convenience init<C: Component>(
         mode: Mode = .hash,
         @RouteBuilder routes: () -> [RouteDefinition],
         notFound: @escaping (RouterContext) -> C
     ) {
-        let navigator = BrowserNavigator()
-        self.mode = mode
-        self.navigator = navigator
-        self.routes = routes()
-        self.notFoundFactory = { ctx in embed { notFound(ctx) } }
-        self.currentPath = mode.readPath(from: navigator)
+        self.init(mode: mode, navigator: BrowserNavigator(), routes: routes,
+                  notFound: { ctx in embed { notFound(ctx) } })
     }
 
-    /// The seam init — host tests inject a `MockNavigator` here. Package
-    /// (not public) on purpose: a testability seam, not user API (the
-    /// SwiflowDriver precedent).
+    /// The designated init — also the seam where host tests inject a
+    /// `MockNavigator`. Package (not public) on purpose: a testability
+    /// seam, not user API (the SwiflowDriver precedent).
     package init(
         mode: Mode = .hash,
         navigator: Navigator,
@@ -84,6 +78,9 @@ public final class RouterRoot {
         self.routes = routes()
         self.notFoundFactory = notFound
         self.currentPath = mode.readPath(from: navigator)
+        #if DEBUG
+        warnRouteTableHazards(self.routes)
+        #endif
     }
 
     public var body: VNode {
@@ -101,6 +98,20 @@ public final class RouterRoot {
             }
         )
         let matched = matchRoutes(routes, path: currentPath)
+        #if DEBUG
+        // Guardrail (audit IV Wave-3): a navigation that matched nothing is
+        // usually a typo'd path in a Link or navigate call. Once per path —
+        // body runs every render, the warn must not.
+        if matched == nil, currentPath != lastWarnedUnmatchedPath {
+            lastWarnedUnmatchedPath = currentPath
+            swiflowWarn(
+                "No route matched '\(currentPath)' (\(routes.count) top-level route(s) "
+                    + "declared). Check the Link/navigate path — the "
+                    + (notFoundFactory == nil ? "built-in diagnostic 404" : "notFound page")
+                    + " is rendering instead."
+            )
+        }
+        #endif
         // withEnvironment stays OUTSIDE the fallback decision so a custom
         // 404 page renders with the live router (its Link home works).
         return withEnvironment(\.router, router) {

@@ -235,3 +235,13 @@ Without `notFound:`, an unmatched path renders a plain diagnostic text node
 A catch-all `Route("*")` also works (it must be last — first match wins) and
 is the right tool when the 404 page should participate in route matching,
 e.g. under a nested prefix.
+
+## DEBUG diagnostics
+
+DEBUG builds warn (never crash) about three silent-misuse shapes: a sibling
+route shadowed by an earlier one with the same matching shape
+(`/users/:id` then `/users/:slug` — first match wins, the second is dead),
+a catch-all `Route("*")` placed before other siblings, and an empty `:`
+segment (`Route("/users/:")`). Navigating to a path no route matches also
+logs the path once — a typo'd `Link` is findable instead of silently
+rendering the 404. All of these compile to nothing in release builds.
