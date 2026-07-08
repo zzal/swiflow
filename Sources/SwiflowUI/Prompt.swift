@@ -57,14 +57,13 @@ final class PromptDialog {
     private let placeholder: String
     private let confirmTitle: String
     private let cancelTitle: String
-    private let isPresented: Binding<Bool>
+    private let isPresented: Binding<Bool>   // kept for the form's confirm/cancel closures
     private let textBinding: Binding<String>   // not `text` — that would shadow the text(_:) node factory
     private let onSubmit: (String) -> Void
-    private let dismissOnBackdrop: Bool
     private let titleID: String
-    #if canImport(JavaScriptKit)
-    private let dialogRef = Ref<JSObject>()
-    #endif
+    /// The shared modal machinery: ref, open/close sync, guarded close
+    /// handler, backdrop dismissal (a CANCEL here — never submits), scaffold.
+    private let host: ModalDialogHost
 
     init(title: String, isPresented: Binding<Bool>, text: Binding<String>, message: String?,
          placeholder: String, confirmTitle: String, cancelTitle: String,
@@ -76,31 +75,15 @@ final class PromptDialog {
         self.placeholder = placeholder
         self.confirmTitle = confirmTitle
         self.cancelTitle = cancelTitle
-        self.dismissOnBackdrop = dismissOnBackdrop
         self.onSubmit = onSubmit
         self.titleID = nextSwID("sw-prompt-title")
+        self.host = ModalDialogHost(isPresented: isPresented, dismissOnBackdrop: dismissOnBackdrop)
     }
 
     var body: VNode {
         ensureBaseStyles()
         installDialogChrome()
         installControlSheet(id: "sw-prompt", promptStyleSheet)
-
-        var attrs: [Attribute] = [
-            .class("sw-dialog sw-prompt"),
-            // dialog name = the <h2>; the input is named by its own wrapping <label> (TextField).
-            .attr("aria-labelledby", titleID),
-            // ESC closes natively → keep the binding in sync (guarded so we don't echo our own close).
-            .on(.custom("close")) { if self.isPresented.get() { self.isPresented.set(false) } },
-        ]
-        if dismissOnBackdrop {
-            // Backdrop click (targets the <dialog> itself) cancels — never calls onSubmit.
-            // Content clicks target a child (the body/form), so they don't dismiss.
-            attrs.append(.on(.click) { if $0.isSelfTarget { self.isPresented.set(false) } })
-        }
-        #if canImport(JavaScriptKit)
-        attrs.append(.refBinding(AnyRefBinding(dialogRef)))
-        #endif
 
         // The prompt text labels the input (implicit <label> association via TextField).
         let fieldLabel = message ?? title
@@ -124,32 +107,18 @@ final class PromptDialog {
                 ]),
             ])
 
-        // Inner body carries the padding (DialogChrome) so the dialog box coincides
-        // with it — keeping a backdrop click the only self-target for dismiss-on-tap.
-        let bodyNode = element("div", attributes: [.class("sw-dialog__body")], children: [
-            element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
-            formNode,
-        ])
-        return element("dialog", attributes: attrs, children: [bodyNode])
+        return host.dialogNode(
+            kindClass: "sw-prompt",
+            // dialog name = the <h2>; the input is named by its own wrapping <label> (TextField).
+            extra: [.attr("aria-labelledby", titleID)],
+            bodyChildren: [
+                element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
+                formNode,
+            ])
     }
 
-    func onAppear() { syncOpenState() }
-    func onChange() { syncOpenState() }
-
-    /// Identical contract to `AlertDialog.syncOpenState` — idempotent read-diff-write,
-    /// safe under the global per-render `onChange` firing; no-ops on host (nil ref).
-    private func syncOpenState() {
-        #if canImport(JavaScriptKit)
-        guard let el = dialogRef.wrappedValue else { return }
-        let want = isPresented.get()
-        let isOpen = el.open.boolean ?? false
-        if want, !isOpen {
-            _ = el.showModal?()
-        } else if !want, isOpen {
-            _ = el.close?()
-        }
-        #endif
-    }
+    func onAppear() { host.syncOpenState() }
+    func onChange() { host.syncOpenState() }
 }
 
 /// Just the prompt-specific layout — the chrome (surface/animation/backdrop/title/
