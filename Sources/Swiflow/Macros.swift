@@ -14,7 +14,11 @@
     named(runtimeOwner),
     named(runtimeScheduler),
     named(stateCells),
-    named(bind)
+    named(bind),
+    named(_swiflowDidMount),
+    named(_swiflowHydratePersisted),
+    named(_swiflowPersistNamespace),
+    named(_swiflowIsHydrating)
 )
 public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "ComponentMacro")
 
