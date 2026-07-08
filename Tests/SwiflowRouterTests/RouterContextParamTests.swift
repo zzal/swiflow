@@ -107,4 +107,42 @@ struct RouterContextParamTests {
         #expect(warnings.count == 1)
         #expect((warnings.first ?? "").contains("'userId'"))
     }
+
+    @Test("accessors through a real matched route tree — nested namespace merges parent params")
+    @MainActor
+    func integrationThroughMatchRoutes() {
+        var org: String?
+        var repoId: Int?
+        let child = RouteDefinition(pattern: RoutePattern("/:id")) { ctx in
+            org = ctx.param("org")
+            repoId = ctx.param("id", as: Int.self)
+            return .text("repo")
+        }
+        let parent = RouteDefinition(
+            pattern: RoutePattern("/orgs/:org"),
+            factory: { _ in .text("") },
+            children: [child]
+        )
+        let warnings = captureWarnings {
+            _ = matchRoutes([parent], path: "/orgs/apple/7")
+        }
+        #expect(org == "apple", "ancestor params merge into the leaf context")
+        #expect(repoId == 7)
+        #expect(warnings.isEmpty, "declared access through the real matcher never warns")
+    }
+
+    @Test("wildcard capture reads through param(\"*\")")
+    @MainActor
+    func wildcardParam() {
+        var rest: String?
+        let route = RouteDefinition(pattern: RoutePattern("/files/*")) { ctx in
+            rest = ctx.param("*")
+            return .text("files")
+        }
+        let warnings = captureWarnings {
+            _ = matchRoutes([route], path: "/files/a/b/c")
+        }
+        #expect(rest == "a/b/c")
+        #expect(warnings.isEmpty)
+    }
 }
