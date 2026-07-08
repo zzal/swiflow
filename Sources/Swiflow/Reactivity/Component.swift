@@ -36,6 +36,15 @@ public protocol Component: AnyObject {
     /// Defaulted to no-op.
     func onDisappear()
 
+    /// Framework mount hook — runs once per instance, immediately before
+    /// `onAppear()`. Synthesized by `@Component` when the class declares
+    /// framework-managed members needing mount work (today: `@Persisted`
+    /// hydration). The underscore marks it framework-internal — user code
+    /// overrides `onAppear`, never this. A protocol REQUIREMENT (not just
+    /// an extension method): the diff calls it through `any Component`,
+    /// which would statically dispatch an extension method to the no-op.
+    func _swiflowDidMount()
+
     static var scopedStyles: CSSSheet? { get }
     static var exitAnimation: String? { get }
     static var exitDuration: Double? { get }
@@ -45,6 +54,7 @@ public extension Component {
     func onAppear() {}
     func onChange() {}
     func onDisappear() {}
+    func _swiflowDidMount() {}
     static var scopedStyles: CSSSheet? { nil }
     static var exitAnimation: String? { nil }
     static var exitDuration: Double? { nil }
