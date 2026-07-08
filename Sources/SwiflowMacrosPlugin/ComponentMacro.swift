@@ -89,7 +89,11 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                       let attrName = attrSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text else {
                     return false
                 }
-                return attrName == "MacroState" || attrName == "State"
+                // @Persisted members are state cells too — same didSet shape,
+                // same HMR snapshot/restore contract (hydration re-runs from
+                // the store on remount, but a hot swap preserves the live
+                // value like any @State).
+                return attrName == "MacroState" || attrName == "State" || attrName == "Persisted"
             }
             guard isState else { continue }
             // Multi-binding @State is rejected by StateMacro's own diagnostic;
@@ -214,6 +218,36 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             }
         }
 
+        // Scan for @Persisted — collect (name, type, explicit-key) so the
+        // hydration wiring below can be synthesized. Key derivation shares
+        // PersistedKeyDerivation with PersistedMacro's didSet so the two
+        // emission sites cannot drift.
+        var persistedMembers: [(name: String, valueType: String, explicitKey: String?)] = []
+        for member in classDecl.memberBlock.members {
+            guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
+            var persistedAttr: AttributeSyntax? = nil
+            for attr in varDecl.attributes {
+                if let a = attr.as(AttributeSyntax.self),
+                   a.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Persisted" {
+                    persistedAttr = a
+                    break
+                }
+            }
+            guard let persistedAttr,
+                  // Multi-binding / missing type: PersistedMacro diagnoses;
+                  // emit no hydration for the invalid declaration.
+                  varDecl.bindings.count == 1,
+                  let b = varDecl.bindings.first,
+                  let id = b.pattern.as(IdentifierPatternSyntax.self)?.identifier,
+                  let typeAnno = b.typeAnnotation else { continue }
+            guard !PersistedKeyDerivation.hasNonLiteralKey(persistedAttr) else { continue }
+            persistedMembers.append((
+                name: id.text,
+                valueType: typeAnno.type.trimmedDescription,
+                explicitKey: PersistedKeyDerivation.explicitKey(from: persistedAttr)
+            ))
+        }
+
         // Build the `bind` body: always the two owner/scheduler assignments,
         // plus one wire() line per @MutationState (conditional — mutation-free
         // components emit a byte-identical body with no SwiflowQuery reference),
@@ -269,6 +303,37 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             stateCellsDecl,
             bindDecl,
         ])
+
+        // @Persisted hydration wiring — ONLY when such members exist, so a
+        // persistence-free component's emission stays byte-identical (the
+        // existing goldens pin that). The flag window around each assignment
+        // is SYNCHRONOUS (no await between set/assign/clear): a user write
+        // can never interleave and have its save flag-swallowed. The mount
+        // hook is the Component._swiflowDidMount requirement the diff fires
+        // before onAppear.
+        if !persistedMembers.isEmpty {
+            let hydrateBlocks = persistedMembers.map { m in
+                let key = PersistedKeyDerivation.keyExpression(
+                    explicitKey: m.explicitKey, propertyName: m.name)
+                return """
+                    if let v = try? await _PersistedStorageRegistry.current.load(\(m.valueType).self, forKey: \(key)) {
+                        _swiflowIsHydrating = true
+                        \(m.name) = v
+                        _swiflowIsHydrating = false
+                    }
+                """
+            }.joined(separator: "\n")
+            emitted.append(contentsOf: [
+                DeclSyntax(stringLiteral:
+                    "\(access)static let _swiflowPersistNamespace = \"\(className)\""),
+                DeclSyntax(stringLiteral:
+                    "\(synthActor)var _swiflowIsHydrating = false"),
+                DeclSyntax(stringLiteral:
+                    "\(synthActor)\(access)func _swiflowDidMount() {\n    Task { await self._swiflowHydratePersisted() }\n}"),
+                DeclSyntax(stringLiteral:
+                    "\(synthActor)\(access)func _swiflowHydratePersisted() async {\n\(hydrateBlocks)\n}"),
+            ])
+        }
         return emitted
     }
 

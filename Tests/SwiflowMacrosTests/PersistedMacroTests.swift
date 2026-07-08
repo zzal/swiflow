@@ -103,6 +103,110 @@ final class PersistedMacroTests: XCTestCase {
         )
     }
 
+    // MARK: - @Component cooperation
+
+    // The synthesized hydration wiring: namespace literal, flag, mount hook,
+    // per-member load-assign under a SYNCHRONOUS flag window, and stateCells
+    // inclusion. Registers ONLY ComponentMacro (the house idiom from
+    // ComponentMacroMutationTests): @Component scans for the attribute NAME,
+    // never expands it, so @Persisted stays verbatim in the golden.
+    func testComponentSynthesizesHydration() {
+        let componentMacros: [String: Macro.Type] = [
+            "Component": ComponentMacro.self,
+        ]
+        assertMacroExpansion(
+            """
+            @Component
+            final class Prefs {
+                @Persisted var theme: String = "light"
+                @Persisted("legacy-locale") var locale: String = "en"
+                init() {}
+            }
+            """,
+            expandedSource: """
+            final class Prefs {
+                @Persisted
+                @MainActor var theme: String = "light"
+                @Persisted("legacy-locale")
+                @MainActor var locale: String = "en"
+                @MainActor
+                init() {}
+
+                @MainActor private weak var runtimeOwner: AnyComponent?
+
+                @MainActor private var runtimeScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Prefs>(
+                    name: "theme",
+                    snapshot: {
+                        $0.theme as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: String.self) else {
+                            return false
+                        }
+                        c.theme = typed
+                        return true
+                    },
+                    restoreNil: { _ in
+                        false
+                    }
+                    ),
+                    StateCell<Prefs>(
+                    name: "locale",
+                    snapshot: {
+                        $0.locale as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: String.self) else {
+                            return false
+                        }
+                        c.locale = typed
+                        return true
+                    },
+                    restoreNil: { _ in
+                        false
+                    }
+                    ),
+                ]
+
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self.runtimeOwner = owner
+                    self.runtimeScheduler = scheduler
+                }
+
+                static let _swiflowPersistNamespace = "Prefs"
+
+                @MainActor var _swiflowIsHydrating = false
+
+                @MainActor func _swiflowDidMount() {
+                    Task {
+                        await self._swiflowHydratePersisted()
+                    }
+                }
+
+                @MainActor func _swiflowHydratePersisted() async {
+                    if let v = try? await _PersistedStorageRegistry.current.load(String.self, forKey: Self._swiflowPersistNamespace + ".theme") {
+                        _swiflowIsHydrating = true
+                        theme = v
+                        _swiflowIsHydrating = false
+                    }
+                    if let v = try? await _PersistedStorageRegistry.current.load(String.self, forKey: "legacy-locale") {
+                        _swiflowIsHydrating = true
+                        locale = v
+                        _swiflowIsHydrating = false
+                    }
+                }
+            }
+
+            extension Prefs: Component, _ComponentRuntime {
+            }
+            """,
+            macros: componentMacros
+        )
+    }
+
     // MARK: - Diagnostics (the six-message split)
 
     func testLetIsRejected() {
