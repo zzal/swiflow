@@ -307,26 +307,12 @@ let dropdownStyleSheet: CSSSheet = css {
       box-shadow: var(--sw-shadow);
       /* anchored a touch below/above the trigger */
       margin-block: var(--sw-space-xs);
-      opacity: 0;
-      transform: translateY(-4px);
-      transition: opacity var(--sw-duration) var(--sw-ease),
-                  transform var(--sw-duration) var(--sw-ease),
-                  overlay var(--sw-duration) var(--sw-ease) allow-discrete,
-                  display var(--sw-duration) var(--sw-ease) allow-discrete;
     }
-    /* `display` lives on the open state only: an author `display` in the base rule
-       would override the popover UA's `display:none`-when-closed (author beats UA
-       regardless of specificity), leaving a closed menu present at opacity:0. */
-    .sw-dropdown__menu:popover-open {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      opacity: 1;
-      transform: translateY(0);
-    }
-    @starting-style {
-      .sw-dropdown__menu:popover-open { opacity: 0; transform: translateY(-4px); }
-    }
+    /* entry/exit animation — the shared quartet (see PopoverTransition.swift) */
+    \(popoverTransitionCSS(
+        base: ".sw-dropdown__menu", open: ".sw-dropdown__menu:popover-open",
+        closedTransform: "translateY(-4px)", openTransform: "translateY(0)",
+        openExtras: "\n      display: flex;\n      flex-direction: column;\n      gap: 2px;"))
 
     .sw-dropdown__item {
       display: flex;

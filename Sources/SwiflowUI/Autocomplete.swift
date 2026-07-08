@@ -560,23 +560,12 @@ let autocompleteStyleSheet: CSSSheet = css {
       border-radius: var(--sw-radius);
       box-shadow: var(--sw-shadow);
       margin-block: var(--sw-space-xs);
-      opacity: 0;
-      transform: translateY(-4px);
-      transition: opacity var(--sw-duration) var(--sw-ease),
-                  transform var(--sw-duration) var(--sw-ease),
-                  overlay var(--sw-duration) var(--sw-ease) allow-discrete,
-                  display var(--sw-duration) var(--sw-ease) allow-discrete;
     }
-    /* `display` on the open state only — an author `display` in the base rule would beat
-       the popover UA's `display:none`-when-closed (author wins over UA at any specificity). */
-    .sw-ac__listbox:popover-open {
-      display: block;
-      opacity: 1;
-      transform: translateY(0);
-    }
-    @starting-style {
-      .sw-ac__listbox:popover-open { opacity: 0; transform: translateY(-4px); }
-    }
+    /* entry/exit animation — the shared quartet (see PopoverTransition.swift) */
+    \(popoverTransitionCSS(
+        base: ".sw-ac__listbox", open: ".sw-ac__listbox:popover-open",
+        closedTransform: "translateY(-4px)", openTransform: "translateY(0)",
+        openExtras: "\n      display: block;"))
     .sw-ac__listbox::backdrop { background: transparent; }   /* combobox: no dimming */
 
     .sw-ac__option {
