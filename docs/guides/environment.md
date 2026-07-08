@@ -121,23 +121,27 @@ final class Counter {
     }
 
     func onChange() {
-        onChange(of: count, key: "count") { newCount in
+        onChange(of: count) { newCount in
             print("Count changed to \(newCount)")
         }
     }
 }
 ```
 
-**Multiple watched values** require explicit `key:` strings:
+**Multiple watched values** track independently with no extra ceremony —
+the key defaults to the call site (`fileID:line`), so each call gets its
+own:
 
 ```swift
 func onChange() {
-    onChange(of: count, key: "count") { ... }
-    onChange(of: label, key: "label") { ... }
+    onChange(of: count) { ... }
+    onChange(of: label) { ... }
 }
 ```
 
-The `key:` defaults to `#function`, which is the same string for every call site in the same method. Always supply explicit keys when watching more than one value.
+Supply an explicit `key:` only when call sites would collide — a call
+inside a loop (`#line` is identical every iteration), or when you want two
+sites to share one tracking slot.
 
 The side table is cleared automatically when the component unmounts.
 

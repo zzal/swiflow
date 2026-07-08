@@ -278,9 +278,18 @@ This guide covers the *read* half of the data layer. The rest has shipped and
 builds on the same `QueryClient` cache and `Query` protocol:
 
 - **Mutations** — `@MutationType` + `@MutationState`: a write path with
-  optimistic updates (generation-guarded rollback via `OptimisticEdit`) and
-  tag-based invalidation on success. `examples/TodoCRUD/` is the worked
-  example.
+  optimistic updates (generation-guarded rollback via `OptimisticEdit`).
+  Successful mutations refetch the keys `optimistic(_:)` declares by
+  default; override `invalidations` for anything else, with type-referenced
+  members that reuse your query types instead of restating key strings:
+  `[.exact(TodoList()), .prefix(UserQuery(id: 1)), .tag("users")]`.
+  `examples/TodoCRUD/` is the worked example.
+- **Imperative refetch** — `QueryState.refetch()` on a query's snapshot
+  (exact-invalidate semantics), and `Component.invalidate(query:/key:/tag:)`
+  for handler-time invalidation without plumbing a `QueryClient` reference.
+- **Cancellation at the network** — a superseded fetch (key change, fast
+  typeahead churn) aborts its underlying request via `AbortController`;
+  cancelled exchanges surface as `CancellationError`, never `HTTPError`.
 - **Background refetch** — refetch on window focus (`refetchOnFocus`, on by
   default) and on a polling interval (`refetchInterval`). Both defer to the
   retry backoff after failures rather than hammering a failing endpoint.

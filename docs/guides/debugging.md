@@ -50,6 +50,15 @@ the JS driver catches it and shows a full-viewport red overlay:
 The same error is also emitted to `console.error` so it appears in the DevTools
 Console tab alongside the source-resolved stack trace.
 
+### Compile-error overlay (dev loop)
+
+There is a second, distinct overlay: when a save triggers a rebuild that FAILS
+to compile, `swiflow dev` pushes the compiler diagnostics to the browser as a
+dismissable overlay (Vite-style), anchored at the first `error:` line. The
+page keeps rendering the last-good build behind it, and the overlay clears
+itself on the next successful hot-swap. Unlike the render-error overlay above,
+nothing has crashed — fix the code and save.
+
 ---
 
 ## 4. Setting breakpoints in Swift source
