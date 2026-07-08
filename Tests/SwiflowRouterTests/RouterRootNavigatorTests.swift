@@ -9,34 +9,8 @@ import Swiflow
 @testable import SwiflowRouter
 @testable import SwiflowTesting
 
-@Suite("RouterRoot.readPath over Navigator primitives")
-struct ReadPathTests {
-
-    @Test("hash mode: empty and bare-# hashes normalize to /, #/x strips the #")
-    @MainActor
-    func hashTruthTable() {
-        let nav = MockNavigator()
-        nav.hash = ""
-        #expect(RouterRoot.readPath(mode: .hash, from: nav) == "/")
-        nav.hash = "#"
-        #expect(RouterRoot.readPath(mode: .hash, from: nav) == "/")
-        nav.hash = "#/about"
-        #expect(RouterRoot.readPath(mode: .hash, from: nav) == "/about")
-        nav.hash = "#/users/42"
-        #expect(RouterRoot.readPath(mode: .hash, from: nav) == "/users/42")
-    }
-
-    @Test("history mode: pathname + search join, preserving the query")
-    @MainActor
-    func historyJoinsPathnameAndSearch() {
-        let nav = MockNavigator()
-        nav.pathname = "/search"
-        nav.search = "?q=swift"
-        #expect(RouterRoot.readPath(mode: .history, from: nav) == "/search?q=swift")
-        nav.search = ""
-        #expect(RouterRoot.readPath(mode: .history, from: nav) == "/search")
-    }
-}
+// (The readPath truth table moved to RouterModeBehaviorTests — the read
+// logic lives on RouterMode since audit IV Wave-2 #7.)
 
 @MainActor
 private func makeRoot(mode: RouterMode, nav: MockNavigator) -> RouterRoot {
@@ -78,7 +52,8 @@ struct RouterRootNavigatorTests {
 
         root.push("/about")
         h.renderer.scheduler.flush()
-        #expect(nav.setHashCalls == ["/about"])
+        #expect(nav.setHashCalls == ["#/about"],
+                "push writes mode.url(for:) — the same canonical '#'-prefixed form as href and replace (the #7 convention fix)")
         #expect(h.allText.contains("home"),
                 "no imperative update in hash mode — the browser event drives sync (the asymmetry #8 unifies)")
 
@@ -109,7 +84,7 @@ struct RouterRootNavigatorTests {
         hashRoot.replacePath("/about")
         h1.renderer.scheduler.flush()
         #expect(hashNav.replacedURLs == ["#/about"],
-                "the drifted convention (push assigns bare hash, replace prefixes '#') — frozen here, fixed in #7")
+                "replace writes mode.url(for:) — one canonical construction shared with push and href")
         #expect(h1.allText.contains("about"), "replacePath updates currentPath imperatively in BOTH modes")
 
         let histNav = MockNavigator()
