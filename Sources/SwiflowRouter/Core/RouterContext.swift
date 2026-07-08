@@ -41,6 +41,27 @@ public struct RouterContext: Sendable {
         return value
     }
 
+    /// Typed access to a declared `:param` capture via
+    /// `LosslessStringConvertible` (`Int`, `Double`, `Bool`, custom types).
+    ///
+    /// Two failure classes, deliberately distinct:
+    /// - undeclared NAME (programmer typo) → DEBUG-warns, returns `nil`;
+    /// - declared but unparseable VALUE (`/users/abc` read as `Int`) →
+    ///   silent `nil`. The URL is user input; the app renders its fallback.
+    ///
+    /// `Bool` parses `"true"`/`"false"` only.
+    ///
+    /// ```swift
+    /// Route("/posts/:num") { ctx in PostPage(n: ctx.param("num", as: Int.self)) }
+    /// ```
+    public func param<T: LosslessStringConvertible>(_ name: String, as type: T.Type) -> T? {
+        guard let value = params[name] else {
+            warnUndeclaredParam(name)
+            return nil
+        }
+        return T(value)
+    }
+
     /// Shared by both `param` accessors so the wording cannot drift
     /// (sibling-inconsistency is the audit's dominant defect shape).
     private func warnUndeclaredParam(_ name: String) {
