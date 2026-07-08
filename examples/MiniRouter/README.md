@@ -27,4 +27,4 @@ Then open <http://localhost:3000>.
 - A navbar with **Home**, **About**, and **Users** links.
 - Clicking a link swaps the page content without a full reload — the
   router renders the matching `Route` from `Sources/App/App.swift`.
-- `/users/:id` shows a dynamic `:id` segment via `ctx.params["id"]`.
+- `/users/:id` shows a dynamic `:id` segment via `ctx.param("id")`.
