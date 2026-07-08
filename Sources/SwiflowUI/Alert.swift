@@ -55,52 +55,34 @@ public func Alert(
 final class AlertDialog {
     private let title: String
     private let message: String?
-    private let isPresented: Binding<Bool>
-    private let dismissOnBackdrop: Bool
     private let actions: () -> [VNode]
     // Stable ids for ARIA wiring, captured once at init (not per body) so they're
     // stable across re-renders and never collide between two instances.
     private let titleID: String
     private let messageID: String
-    #if canImport(JavaScriptKit)
-    private let dialogRef = Ref<JSObject>()
-    #endif
+    /// The shared modal machinery: ref, open/close sync, guarded close
+    /// handler, backdrop dismissal, scaffold. See `ModalDialogHost`.
+    private let host: ModalDialogHost
 
     init(title: String, isPresented: Binding<Bool>, message: String? = nil,
          dismissOnBackdrop: Bool = false, actions: @escaping () -> [VNode]) {
         self.title = title
-        self.isPresented = isPresented
         self.message = message
-        self.dismissOnBackdrop = dismissOnBackdrop
         self.actions = actions
         self.titleID = nextSwID("sw-alert-title")
         self.messageID = nextSwID("sw-alert-msg")
+        self.host = ModalDialogHost(isPresented: isPresented, dismissOnBackdrop: dismissOnBackdrop)
     }
 
     var body: VNode {
         ensureBaseStyles()
         installDialogChrome()
 
-        var attrs: [Attribute] = [
-            .class("sw-dialog sw-alert"),                 // shared modal chrome + internal alert marker
+        var extra: [Attribute] = [
             .attr("role", "alertdialog"),                 // an alert that requires a response
             .attr("aria-labelledby", titleID),            // name = the visible <h2> (stays in sync)
-            // Native close (ESC, close(), or a form method=dialog) → sync the binding back.
-            // Guarded: this handler exists for *user*-driven closes; when we drive the close
-            // ourselves (binding went false → syncOpenState calls close()), the native `close`
-            // event still fires, and writing an already-false binding would schedule a wasted render.
-            .on(.custom("close")) { if self.isPresented.get() { self.isPresented.set(false) } },
         ]
-        if message != nil { attrs.append(.attr("aria-describedby", messageID)) }  // description = the message
-        if dismissOnBackdrop {
-            // A backdrop click targets the <dialog> itself (isSelfTarget); a click on
-            // the .sw-dialog__body or its content targets a child, so this only fires
-            // for true backdrop clicks. ESC + the action buttons still close it too.
-            attrs.append(.on(.click) { if $0.isSelfTarget { self.isPresented.set(false) } })
-        }
-        #if canImport(JavaScriptKit)
-        attrs.append(.refBinding(AnyRefBinding(dialogRef)))
-        #endif
+        if message != nil { extra.append(.attr("aria-describedby", messageID)) }  // description = the message
 
         var bodyChildren: [VNode] = [
             element("h2", attributes: [.class("sw-dialog__title"), .attr("id", titleID)], children: [text(title)]),
@@ -109,37 +91,12 @@ final class AlertDialog {
             bodyChildren.append(element("p", attributes: [.class("sw-dialog__message"), .attr("id", messageID)], children: [text(message)]))
         }
         bodyChildren.append(element("div", attributes: [.class("sw-dialog__actions")], children: actions()))
-        // Inner body holds the padding (see DialogChrome) so the dialog box coincides
-        // with it — that's what keeps a backdrop click the only self-target.
-        let bodyNode = element("div", attributes: [.class("sw-dialog__body")], children: bodyChildren)
-        return element("dialog", attributes: attrs, children: [bodyNode])
+        // `sw-alert` is the SwiflowUI-internal semantic marker (see note below).
+        return host.dialogNode(kindClass: "sw-alert", extra: extra, bodyChildren: bodyChildren)
     }
 
-    func onAppear() { syncOpenState() }
-    func onChange() { syncOpenState() }
-
-    /// Drive the native modal state from `isPresented`.
-    ///
-    /// Read-diff-write, deliberately idempotent: `onChange` fires after *every* app
-    /// render (the framework walks the whole committed tree post-render, not just
-    /// changed components), so this runs constantly — the `el.open` diff guard is what
-    /// makes that safe and cheap. Do NOT "optimize" the guard away. `onAppear` runs
-    /// post-commit (ref handles are set at element mount, before this lifecycle pass),
-    /// so the `<dialog>` is guaranteed resolved here — an `isPresented: true`-at-mount
-    /// alert opens correctly. `showModal()`/`close()` set `.open` synchronously; the
-    /// native `close` event is queued as a separate task, so there's no re-entrancy here.
-    private func syncOpenState() {
-        #if canImport(JavaScriptKit)
-        guard let el = dialogRef.wrappedValue else { return }   // nil on host / pre-mount → no-op
-        let want = isPresented.get()
-        let isOpen = el.open.boolean ?? false
-        if want, !isOpen {
-            _ = el.showModal?()
-        } else if !want, isOpen {
-            _ = el.close?()
-        }
-        #endif
-    }
+    func onAppear() { host.syncOpenState() }
+    func onChange() { host.syncOpenState() }
 }
 
 // Alert has no chrome of its own — it renders the shared `.sw-dialog` slots
