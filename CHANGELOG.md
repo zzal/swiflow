@@ -20,6 +20,79 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.10] — 2026-07-08
+
+**Beta.** The store hardening & UI polish release: audit Part IV Wave 3
+(SwiflowStore hardening + router guardrails, PRs #184–#187), all of Part V
+Wave 1 (SwiflowUI + SwiflowColor, #188–#192), and Part V Wave 2's first two
+structural items (#193–#194) — 11 reviewed PRs.
+
+**Stability:** Stable for pre-1.0 usage.
+
+### Added
+
+- **`StoreKey<Value>`** — typed storage keys: name + value type in one
+  declaration (`StoreKey<[City]>("pinned-cities")`), so the type can't
+  drift between the save site and the load sites; `store.load(key)` infers,
+  `save(_:for:)` type-checks. On the `PersistedStorage` protocol, so test
+  doubles share the surface.
+- **Router DEBUG guardrails** — three silent-misuse shapes now warn (never
+  crash): a sibling route shadowed by an earlier same-shape pattern
+  (`/users/:id` then `/users/:slug` — first match wins, the second is
+  dead) or by a non-last catch-all; an empty `:` segment; and navigation
+  matching no route (logged once per path, naming it). All compile to
+  nothing in release.
+- **`Button(variant: .danger)`** — a destructive solid fill on a complete
+  danger token family: `--sw-danger-hover`/`-active` derive from
+  `--sw-danger` exactly like the accent family (re-point one token, the
+  palette cascades), `--sw-danger-text` is `contrast-color()` with
+  WCAG-proven fallbacks in both modes.
+- **`$toasts.show("Saved!", .success)`** — firing a toast is one call;
+  the `send(.show(ToastItem(...)))` longhand remains for pre-built items.
+- **RadioGroup name-collision detection** — two same-label groups slug to
+  one native radio `name` and silently share selection/arrow-roving at the
+  DOM level; DEBUG builds now detect this via an invisible mount sentinel
+  and warn naming both groups and the explicit-`name:` fix.
+- **DataTable duplicate-column warning** — `Column.id` defaults to the
+  title, so same-titled columns silently shared sort identity; DEBUG now
+  says so at construction.
+
+### Fixed
+
+- **DataTable misconfiguration no longer crashes DEBUG builds** — the
+  three sites whose docs promise "falls back to a non-virtualized render"
+  (missing `maxHeight`, non-positive `rowHeight`, the columnsTemplate+width
+  advisory) warned through the *trapping* diagnostic; they now warn and
+  fall back exactly as documented.
+- **Wide-gamut (P3) rendering can no longer dip below the validated
+  contrast bar** — chroma widening at constant OKLCH lightness shifts WCAG
+  luminance (the old "same lightness → same contrast" claim was wrong), so
+  the theme generator now emits the widest chroma whose whole derived
+  family still clears its bars on a P3 display, backing off when needed.
+  The shipped base sheet's display-p3 block is now under the same test
+  (all values pass).
+- **`PersistentStore` survives multi-tab life** — another tab upgrading or
+  deleting the database no longer blocks forever on our connection
+  (`onversionchange` closes and re-opens lazily), a browser-closed
+  connection no longer traps the wasm on the next call (sync IndexedDB
+  exceptions surface as thrown `StoreError`s), and failed requests log a
+  DEBUG warning (fire-and-forget saves `try?` them away).
+- **`Color.hex` shorthand trap** — a raw 3-digit hex like `"f00"` silently
+  parsed as near-black `0x000f00` and flowed into contrast validation; it
+  now traps per the documented contract, pointing at `normalizeHex`.
+
+### Internal
+
+- `ModalDialogHost` — Alert's and Prompt's byte-identical modal machinery
+  (open/close sync, guarded native-close handler, backdrop dismissal, ref,
+  scaffold) consolidated into one owned struct before it could drift
+  further (the copies' comments already had).
+- Registry-backed test suites follow the one-suite-owns-a-global-seam rule
+  (`.serialized` is per-suite, not cross-suite — a parallel-test race
+  taught this the honest way).
+
+---
+
 ## [0.4.9] — 2026-07-08
 
 **Beta.** The router & store DX release: Part IV of the 2026-07 architecture
