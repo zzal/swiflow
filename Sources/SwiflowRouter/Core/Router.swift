@@ -7,6 +7,49 @@ public enum RouterMode: Sendable, Equatable {
     case hash, history
 }
 
+// MARK: - Mode behavior
+
+/// The mode's behavior lives ON the mode (audit IV Wave-2 #7) — before
+/// this, the dispatch was open-coded at five sites and the URL-string
+/// conventions had drifted into two forms. `package`: implementation
+/// vocabulary for RouterRoot/Router, not user API.
+extension RouterMode {
+    /// The window event that signals an external URL change in this mode.
+    package var changeEvent: String {
+        switch self {
+        case .hash: return "hashchange"
+        case .history: return "popstate"
+        }
+    }
+
+    /// The canonical URL string for `path` in this mode — THE one
+    /// construction site. Everything the router writes (push, replace) or
+    /// renders (href) goes through here, so the conventions cannot drift
+    /// apart again.
+    package func url(for path: String) -> String {
+        switch self {
+        case .hash: return "#" + path
+        case .history: return path
+        }
+    }
+
+    /// The current route path per this mode's URL source.
+    @MainActor
+    package func readPath(from navigator: Navigator) -> String {
+        switch self {
+        case .hash:
+            let hash = navigator.hash
+            let path = hash.hasPrefix("#") ? String(hash.dropFirst()) : ""
+            return path.isEmpty ? "/" : path
+        case .history:
+            // pathname alone loses the query on popstate/refresh — the
+            // audit's 'history mode drops query strings' finding. The matcher
+            // strips the query for matching; RouterContext.query parses it.
+            return navigator.pathname + navigator.search
+        }
+    }
+}
+
 /// The value injected into `@Environment(\.router)`.
 /// Gives components read access to the current path and write
 /// access via `navigate`, `replace`, and `back`.
@@ -36,9 +79,6 @@ public struct Router: Sendable {
     /// "copy link address" resolve to the route, not a server path);
     /// history mode uses the path itself.
     public func href(forPath path: String) -> String {
-        switch mode {
-        case .hash: return "#" + path
-        case .history: return path
-        }
+        mode.url(for: path)
     }
 }
