@@ -38,27 +38,20 @@ public final class RouterRoot {
     @State private var currentPath: String = "/"
     private let mode: Mode
     private let routes: [RouteDefinition]
-    /// Held for ownership clarity (mirrors `RAFScheduler.rafClosure`), not
-    /// because it's what keeps the listener callable — `JSClosure.init`
-    /// self-registers into JavaScriptKit's static `sharedClosures` table.
-    /// What actually stops it from firing is `onDisappear`'s explicit
-    /// `removeEventListener` call.
-    private var listenerClosure: JSClosure?
-    /// The exact `JSValue` registered as the listener in `onAppear`, stored
-    /// so `onDisappear`'s `removeEventListener` passes the SAME reference
-    /// `addEventListener` got (mirrors `BackgroundRevalidation.focusListener`).
-    private var listenerValue: JSValue?
-    /// The event name registered alongside `listenerValue`.
-    private var listenerEvent: String?
+    /// The browser crossing (location/history/listeners). Injected package-
+    /// side for host tests; the public inits default it to `BrowserNavigator`.
+    private let navigator: Navigator
 
     /// nil = today's built-in diagnostic text. Set via the `notFound:` init.
     private let notFoundFactory: ((RouterContext) -> VNode)?
 
     public init(mode: Mode = .hash, @RouteBuilder routes: () -> [RouteDefinition]) {
+        let navigator = BrowserNavigator()
         self.mode = mode
+        self.navigator = navigator
         self.routes = routes()
         self.notFoundFactory = nil
-        self.currentPath = Self.readPath(mode: mode)
+        self.currentPath = Self.readPath(mode: mode, from: navigator)
     }
 
     /// Routed root with a custom 404: `notFound` renders whenever no route
@@ -69,10 +62,28 @@ public final class RouterRoot {
         @RouteBuilder routes: () -> [RouteDefinition],
         notFound: @escaping (RouterContext) -> C
     ) {
+        let navigator = BrowserNavigator()
         self.mode = mode
+        self.navigator = navigator
         self.routes = routes()
         self.notFoundFactory = { ctx in embed { notFound(ctx) } }
-        self.currentPath = Self.readPath(mode: mode)
+        self.currentPath = Self.readPath(mode: mode, from: navigator)
+    }
+
+    /// The seam init — host tests inject a `MockNavigator` here. Package
+    /// (not public) on purpose: a testability seam, not user API (the
+    /// SwiflowDriver precedent).
+    package init(
+        mode: Mode = .hash,
+        navigator: Navigator,
+        @RouteBuilder routes: () -> [RouteDefinition],
+        notFound: ((RouterContext) -> VNode)?
+    ) {
+        self.mode = mode
+        self.navigator = navigator
+        self.routes = routes()
+        self.notFoundFactory = notFound
+        self.currentPath = Self.readPath(mode: mode, from: navigator)
     }
 
     public var body: VNode {
@@ -85,11 +96,8 @@ public final class RouterRoot {
             replace:  { [weak self] path in
                 MainActor.assumeIsolated { self?.replacePath(path) }
             },
-            back: {
-                MainActor.assumeIsolated {
-                    let history = JSObject.global.history.object!
-                    _ = history.back!()
-                }
+            back: { [weak self] in
+                MainActor.assumeIsolated { self?.navigator.back() }
             }
         )
         let matched = matchRoutes(routes, path: currentPath)
@@ -101,10 +109,9 @@ public final class RouterRoot {
     }
 
     /// The fallback decision: matched route → user's `notFound` → the
-    /// built-in diagnostic text. Pure and `package` so it's host-testable —
-    /// RouterRoot itself is not host-constructible (its init reads the
-    /// browser URL through force-unwrapped globals; the Navigator seam is
-    /// the audit's separate follow-up).
+    /// built-in diagnostic text. Pure and `package` — host-testable without
+    /// even constructing RouterRoot (which, since the Navigator seam, is
+    /// also possible: inject a mock through the package init).
     package static func resolveContent(
         matched: VNode?,
         path: String,
@@ -116,57 +123,23 @@ public final class RouterRoot {
     }
 
     public func onAppear() {
-        let closure = JSClosure { [weak self] _ -> JSValue in
-            self?.sync()
-            return .undefined
-        }
         let event = mode == .hash ? "hashchange" : "popstate"
-        let window = JSObject.global.window.object!
-        let value = JSValue.object(closure)
-        _ = window.addEventListener!(event.jsValue, value)
-        listenerClosure = closure
-        listenerValue = value
-        listenerEvent = event
+        navigator.startListening(to: event) { [weak self] in
+            self?.sync()
+        }
     }
 
     public func onDisappear() {
-        if let event = listenerEvent, let value = listenerValue {
-            let window = JSObject.global.window.object!
-            _ = window.removeEventListener!(event.jsValue, value)
-        }
-        // Nil the closure AFTER removeEventListener, so the JSClosure stays
-        // alive through the remove (mirrors `BackgroundRevalidation.stop()`).
-        listenerClosure = nil
-        listenerValue = nil
-        listenerEvent = nil
+        navigator.stopListening()
     }
 
     // MARK: - Private
 
     private func sync() {
-        currentPath = Self.readPath(mode: mode)
+        currentPath = Self.readPath(mode: mode, from: navigator)
     }
 
-    private static func readPath(mode: Mode) -> String {
-        let loc = JSObject.global.window.object!["location"].object!
-        switch mode {
-        case .hash:
-            let hash = loc["hash"].string ?? ""
-            let path = hash.hasPrefix("#") ? String(hash.dropFirst()) : ""
-            return path.isEmpty ? "/" : path
-        case .history:
-            // pathname alone loses the query on popstate/refresh — the
-            // audit's 'history mode drops query strings' finding. The matcher
-            // strips the query for matching; RouterContext.query parses it.
-            let pathname = loc["pathname"].string ?? "/"
-            let search = loc["search"].string ?? ""
-            return pathname + search
-        }
-    }
-
-    /// `readPath` over Navigator primitives — pure, host-testable. The
-    /// browser-global twin above is deleted in the seam rewiring; both
-    /// coexist only mid-migration.
+    /// `readPath` over Navigator primitives — pure, host-testable.
     package static func readPath(mode: Mode, from navigator: Navigator) -> String {
         switch mode {
         case .hash:
@@ -181,24 +154,26 @@ public final class RouterRoot {
         }
     }
 
-    private func push(_ path: String) {
+    /// Package (not private) so lifecycle tests can drive navigation without
+    /// a browser — the DataTable internal-seam precedent (`cycleSort`,
+    /// `visibleWindow`). Production callers reach these only through the
+    /// environment `Router`'s closures.
+    package func push(_ path: String) {
         switch mode {
         case .hash:
-            JSObject.global.window.object!["location"].object!["hash"] = path.jsValue
+            navigator.setHash(path)
         case .history:
-            let history = JSObject.global.history.object!
-            _ = history.pushState!(JSValue.null, "".jsValue, path.jsValue)
+            navigator.pushState(path)
             currentPath = path
         }
     }
 
-    private func replacePath(_ path: String) {
-        let history = JSObject.global.history.object!
+    package func replacePath(_ path: String) {
         switch mode {
         case .hash:
-            _ = history.replaceState!(JSValue.null, "".jsValue, ("#" + path).jsValue)
+            navigator.replaceState("#" + path)
         case .history:
-            _ = history.replaceState!(JSValue.null, "".jsValue, path.jsValue)
+            navigator.replaceState(path)
         }
         currentPath = path
     }
