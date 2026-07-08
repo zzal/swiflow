@@ -14,7 +14,7 @@ import Swiflow
 ///     RouterRoot {
 ///         Route("/") { HomePage() }
 ///         Route("/about") { AboutPage() }
-///         Route("/users/:id") { ctx in UsersPage(id: ctx.params["id"] ?? "") }
+///         Route("/users/:id") { ctx in UsersPage(id: ctx.param("id")) }
 ///     } notFound: { ctx in
 ///         NotFoundPage(path: ctx.path)   // rendered when no route matches
 ///     }

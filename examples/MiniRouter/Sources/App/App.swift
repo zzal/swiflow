@@ -12,7 +12,7 @@ struct App {
                 Route("/") { HomePage() }
                 Route("/about") { AboutPage() }
                 Route("/users/:id") { ctx in
-                    UsersPage(userId: ctx.params["id"] ?? "unknown")
+                    UsersPage(userId: ctx.param("id"))
                 }
             } notFound: { ctx in
                 NotFoundPage(path: ctx.path)

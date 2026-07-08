@@ -46,7 +46,7 @@ public func Route<C: Component>(
 /// (useful for reading `:param` captures and query params).
 ///
 /// ```swift
-/// Route("/users/:id") { ctx in UserPage(id: ctx.params["id"] ?? "") }
+/// Route("/users/:id") { ctx in UserPage(id: ctx.param("id")) }
 /// ```
 public func Route<C: Component>(
     _ path: String,
@@ -62,7 +62,7 @@ public func Route<C: Component>(
 /// ```swift
 /// Route("/users") {
 ///     Route("/") { UserListPage() }
-///     Route("/:id") { ctx in UserDetailPage(id: ctx.params["id"] ?? "") }
+///     Route("/:id") { ctx in UserDetailPage(id: ctx.param("id")) }
 /// }
 /// ```
 public func Route(
