@@ -7,6 +7,7 @@ struct SwiflowMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         ComponentMacro.self,
         StateMacro.self,
+        PersistedMacro.self,
         MutationStateMacro.self,
         ReducerStateMacro.self,
         CSSMacro.self,
