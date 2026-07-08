@@ -208,21 +208,21 @@ final class Demo {
                 if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
             }
             HStack(spacing: .md, align: .center) {
-                Button("Toast: success", variant: .ghost) { self.$toasts.send(.show(ToastItem("Saved successfully", variant: .success))) }
-                Button("Toast: info", variant: .ghost) { self.$toasts.send(.show(ToastItem("Heads up — sync running"))) }
-                Button("Toast: warning", variant: .ghost) { self.$toasts.send(.show(ToastItem("Low disk space", variant: .warning))) }
-                Button("Toast: error", variant: .ghost) { self.$toasts.send(.show(ToastItem("Couldn't reach the server", variant: .danger))) }
+                Button("Toast: success", variant: .ghost) { self.$toasts.show("Saved successfully", .success) }
+                Button("Toast: info", variant: .ghost) { self.$toasts.show("Heads up — sync running") }
+                Button("Toast: warning", variant: .ghost) { self.$toasts.show("Low disk space", .warning) }
+                Button("Toast: error", variant: .ghost) { self.$toasts.show("Couldn't reach the server", .danger) }
                 Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
             }
             HStack(spacing: .md, align: .center) {
                 // Dropdown: a Popover-API menu anchored to its trigger; items close it on
                 // select (popovertargetaction=hide) and fire a toast here.
                 Dropdown("Actions") {
-                    DropdownItem("Edit") { self.$toasts.send(.show(ToastItem("Edit selected"))) }
-                    DropdownItem("Duplicate") { self.$toasts.send(.show(ToastItem("Duplicated", variant: .success))) }
+                    DropdownItem("Edit") { self.$toasts.show("Edit selected") }
+                    DropdownItem("Duplicate") { self.$toasts.show("Duplicated", .success) }
                     DropdownItem("Archive", disabled: true) {}
                     DropdownDivider()
-                    DropdownItem("Delete", variant: .danger) { self.$toasts.send(.show(ToastItem("Deleted", variant: .danger))) }
+                    DropdownItem("Delete", variant: .danger) { self.$toasts.show("Deleted", .danger) }
                 }
             }
             p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
@@ -313,7 +313,7 @@ final class Demo {
                           pageSize: 5,
                           page: $peoplePage,
                           onRowClick: { p in
-                              self.$toasts.send(.show(ToastItem("Opening \(p.name)", variant: .success)))
+                              self.$toasts.show("Opening \(p.name)", .success)
                           },
                           maxHeight: .custom("360px"),
                           key: "people-\(roleFilter)-\(shown.count)") {
@@ -322,7 +322,7 @@ final class Demo {
                     Column("Role") { p in Badge(p.role, variant: .accent) }
                     Column("") { p in
                         Button("Edit", variant: .secondary, size: .sm) {
-                            self.$toasts.send(.show(ToastItem("Editing \(p.name)", variant: .info)))
+                            self.$toasts.show("Editing \(p.name)", .info)
                         }
                     }
                 }

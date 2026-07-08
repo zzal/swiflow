@@ -97,4 +97,24 @@ struct ToastStackQueueTests {
         let root = el(ToastStack(queue: h))!
         #expect(root.children.count == 2)   // c is pending, not rendered
     }
+
+    @Test("$toasts.show sugar — one call, no ToastItem/Action ceremony")
+    func showVerbSugar() {
+        let h = handle(ToastQueue())
+        h.show("Saved", .success)
+        h.show("Plain default")   // variant defaults to .info like ToastItem's init
+        #expect(h.state.visible.count == 2)
+        #expect(h.state.visible[0].message == "Saved")
+        #expect(h.state.visible[0].variant == .success)
+        #expect(h.state.visible[1].variant == .info)
+    }
+
+    @Test("show sugar coalesces exactly like the longhand — same dedup semantics")
+    func showVerbCoalesces() {
+        let h = handle(ToastQueue())
+        h.show("Copied", .success)
+        h.show("Copied", .success)
+        #expect(h.state.visible.count == 1)
+        #expect(h.state.visible[0].count == 2, "recurrence badge, not a second toast")
+    }
 }
