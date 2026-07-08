@@ -34,6 +34,29 @@ package struct RoutePattern: Sendable {
                     return .literal(String(part))
                 }
         }
+        // Guardrail (audit IV Wave-3): a bare ":" segment silently captures
+        // under the name "" — almost certainly a typo'd pattern.
+        if segments.contains(where: { if case .param("") = $0 { return true }; return false }) {
+            swiflowWarn(
+                "Route pattern '\(pattern)' has an empty ':' parameter segment — "
+                    + "it captures under the name \"\". Name the parameter "
+                    + "(e.g. ':id') or drop the ':'."
+            )
+        }
+    }
+
+    /// The pattern's matching SHAPE, param names erased — two sibling
+    /// patterns with the same shape match the same paths regardless of what
+    /// their params are called (`/users/:id` vs `/users/:slug`). Powers the
+    /// shadowed-sibling guardrail.
+    package var shapeKey: String {
+        segments.map { seg in
+            switch seg {
+            case .literal(let text): return text
+            case .param: return ":"
+            case .wildcard: return "*"
+            }
+        }.joined(separator: "/")
     }
 
     /// Full match: returns param dict on match, nil on no-match.
