@@ -164,6 +164,23 @@ public final class RouterRoot {
         }
     }
 
+    /// `readPath` over Navigator primitives — pure, host-testable. The
+    /// browser-global twin above is deleted in the seam rewiring; both
+    /// coexist only mid-migration.
+    package static func readPath(mode: Mode, from navigator: Navigator) -> String {
+        switch mode {
+        case .hash:
+            let hash = navigator.hash
+            let path = hash.hasPrefix("#") ? String(hash.dropFirst()) : ""
+            return path.isEmpty ? "/" : path
+        case .history:
+            // pathname alone loses the query on popstate/refresh — the
+            // audit's 'history mode drops query strings' finding. The matcher
+            // strips the query for matching; RouterContext.query parses it.
+            return navigator.pathname + navigator.search
+        }
+    }
+
     private func push(_ path: String) {
         switch mode {
         case .hash:
