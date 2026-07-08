@@ -37,8 +37,10 @@ import SwiflowRouter
                 Route("/") { HomePage() }
                 Route("/about") { AboutPage() }
                 Route("/users/:id") { ctx in
-                    UsersPage(id: ctx.params["id"] ?? "")
+                    UsersPage(id: ctx.param("id"))
                 }
+            } notFound: { ctx in
+                NotFoundPage(path: ctx.path)
             }
         }
     }
@@ -72,11 +74,31 @@ Trailing slashes are normalised — `/about` and `/about/` match the same patter
 
 ## Receiving route params
 
+A matched route guarantees its declared `:param` captures are present, so
+`ctx.param(_:)` is non-optional — no `?? fallback` ritual:
+
 ```swift
 Route("/users/:id") { ctx in
-    UserPage(id: ctx.params["id"] ?? "")
+    UserPage(id: ctx.param("id"))
 }
 ```
+
+For non-string params, `param(_:as:)` parses through
+`LosslessStringConvertible` (`Int`, `Double`, `Bool`, or your own types).
+It returns an Optional because the *value* is user input — someone can
+type `/users/abc` into the URL bar:
+
+```swift
+Route("/posts/:num") { ctx in
+    PostPage(number: ctx.param("num", as: Int.self))   // Int? — nil on "/posts/abc"
+}
+```
+
+The two failure modes are deliberately different: an unparseable **value**
+is a silent `nil` (render your fallback), while a typo'd **name** — asking
+for a param the pattern never declared — logs a DEBUG warning naming the
+path and the declared params, then degrades (`""` / `nil`). The raw
+`ctx.params: [String: String]` dictionary remains available.
 
 `ctx.query` carries `?key=value` pairs from the URL:
 
@@ -93,7 +115,7 @@ RouterRoot {
     Route("/") { HomePage() }
     Route("/users") {
         Route("/") { UserListPage() }
-        Route("/:id") { ctx in UserDetailPage(id: ctx.params["id"] ?? "") }
+        Route("/:id") { ctx in UserDetailPage(id: ctx.param("id")) }
     }
 }
 ```
@@ -113,6 +135,29 @@ embed { Link("/about") { span { text("About Us") } } }
 
 `Link` renders an `<a>` element and intercepts the click to call
 `router.navigate(path)` without a full-page reload.
+
+### Active state
+
+When a `Link`'s destination matches the current path, it emits
+`aria-current="page"` (the standard current-page marker for assistive tech)
+and adds the `sw-link-active` class for styling:
+
+```swift
+// .exact (default): active only on the destination itself
+Link("/about", "About")
+
+// .prefix: also active on segment children — section links in a nav bar
+Link("/users", "Users", active: .prefix)   // lights up on /users/42 too
+```
+
+`.prefix` is segment-aware (`/users` does not match `/users2`), and on the
+root path it degrades to exact — a Home link never lights up on every page.
+Style it with either hook:
+
+```css
+a[aria-current="page"] { font-weight: 600; }
+.sw-link-active { text-decoration: underline; }
+```
 
 ## Programmatic navigation
 
@@ -142,7 +187,9 @@ final class LogoutButton: Component {
 while the diff is evaluating a component's `body`. Lifecycle hooks like
 `onAppear`, `onChange(of:)`, and `onDisappear` run outside that context — if
 you read `router` there directly, you'll get the framework's default no-op
-router (path `"/"`, no-op `navigate`).
+router (path `"/"`, no-op `navigate`). In DEBUG builds, calling `navigate`,
+`replace`, or `back` on that default logs a warning naming the attempted
+path and this fix — so a dead click is findable instead of silent.
 
 The fix is to capture the values you need during `body` and use them later:
 
@@ -169,12 +216,22 @@ final class DelayedRedirect: Component {
 
 ## 404 handling
 
-If no route matches, `RouterRoot` renders a plain text "404" node. Add a
-catch-all route to show a custom page:
+Pass a `notFound:` closure — it renders whenever no route matches, receives
+a `RouterContext` whose `path` is the unmatched path (params/query are
+empty), and renders inside the router environment, so a `Link` home works:
 
 ```swift
 RouterRoot {
     Route("/") { HomePage() }
-    Route("*") { NotFoundPage() }   // must be last
+    Route("/about") { AboutPage() }
+} notFound: { ctx in
+    NotFoundPage(path: ctx.path)
 }
 ```
+
+Without `notFound:`, an unmatched path renders a plain diagnostic text node
+("404 — no route matched …") — fine in dev, not what you want to ship.
+
+A catch-all `Route("*")` also works (it must be last — first match wins) and
+is the right tool when the 404 page should participate in route matching,
+e.g. under a nested prefix.

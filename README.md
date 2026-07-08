@@ -27,8 +27,9 @@ see the [changelog](CHANGELOG.md) for where things stand.
 - **Reactive components** — `@Component` + `@State`, with `onAppear` / `onChange` / `onDisappear` lifecycle hooks firing across the whole tree.
 - **Typed event DSL & bindings** — `.on(.click) { … }`; two-way `.value($text)`, `.checked($flag)`, `.selection($choice)`.
 - **CSS-in-Swift** — a `css { }` builder, scoped `<style>` per component, and exit animations.
-- **Routing** — `SwiflowRouter`: hash + history mode, `RouterRoot` / `Route` / `Link`, `@Environment(\.router)`.
+- **Routing** — `SwiflowRouter`: hash + history mode, `RouterRoot` / `Route` / `Link` with active-state marking, typed `ctx.param(_:)` captures, custom `notFound:`.
 - **Data layer** — `SwiflowQuery`: declarative data fetching with caching, request dedup, and stale-while-revalidate.
+- **Persistence** — `@Persisted` component state that survives navigation and reload (IndexedDB via `SwiflowStore`), plus the imperative `PersistentStore`.
 - **Forms** — `FormController` / `Field` with blur-triggered validation.
 - **UI kit** — `SwiflowUI`: accessible, token-driven components that adapt to dark mode / contrast / reduced motion with no component code.
 - **Testing** — `SwiflowTesting` headless harness (`render` / `click` / `input`); deterministic async via `AsyncTestHarness`.
@@ -135,7 +136,8 @@ A few more exist for reading, not scaffolding: **MiniRouter** (`SwiflowRouter` i
 
 Guides live in [`docs/guides/`](docs/guides/): [SwiflowUI](docs/guides/swiflowui.md) ·
 [theming](docs/guides/swiflowui-theming.md) · [router](docs/guides/router.md) ·
-[query](docs/guides/query.md) · [forms](docs/guides/forms.md) ·
+[query](docs/guides/query.md) · [persistence](docs/guides/persistence.md) ·
+[forms](docs/guides/forms.md) ·
 [async tasks](docs/guides/async-tasks.md) · [testing](docs/guides/testing.md) ·
 [styling](docs/guides/styling.md) · [environment](docs/guides/environment.md) ·
 [DevTools](docs/guides/devtools.md) · [debugging WASM](docs/guides/debugging.md).
