@@ -30,20 +30,11 @@ let dialogChromeSheet: CSSSheet = css {
          that's what makes `EventInfo.isSelfTarget` backdrop-only for dismiss-on-tap. */
       padding: 0;
       box-shadow: var(--sw-shadow);
-      opacity: 0;
-      transform: translateY(8px) scale(0.98);
-      transition: opacity var(--sw-duration) var(--sw-ease),
-                  transform var(--sw-duration) var(--sw-ease),
-                  overlay var(--sw-duration) var(--sw-ease) allow-discrete,
-                  display var(--sw-duration) var(--sw-ease) allow-discrete;
     }
-    .sw-dialog[open] {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-    @starting-style {
-      .sw-dialog[open] { opacity: 0; transform: translateY(8px) scale(0.98); }
-    }
+    /* entry/exit animation — the shared quartet (see PopoverTransition.swift) */
+    \(popoverTransitionCSS(
+        base: ".sw-dialog", open: ".sw-dialog[open]",
+        closedTransform: "translateY(8px) scale(0.98)", openTransform: "translateY(0) scale(1)"))
     .sw-dialog::backdrop {
       background-color: var(--sw-overlay-bg);
       -webkit-backdrop-filter: var(--sw-backdrop);
