@@ -65,4 +65,46 @@ struct RouterContextParamTests {
         let warnings = captureWarnings { _ = ctx.param("nope") }
         #expect((warnings.first ?? "").contains("declared params: alpha, zed"))
     }
+
+    @Test("typed access parses Int, Double, and Bool")
+    @MainActor
+    func typedSuccess() {
+        let ctx = RouterContext(
+            path: "/p",
+            params: ["n": "42", "ratio": "2.5", "draft": "true"]
+        )
+        var n: Int?
+        var ratio: Double?
+        var draft: Bool?
+        let warnings = captureWarnings {
+            n = ctx.param("n", as: Int.self)
+            ratio = ctx.param("ratio", as: Double.self)
+            draft = ctx.param("draft", as: Bool.self)
+        }
+        #expect(n == 42)
+        #expect(ratio == 2.5)
+        #expect(draft == true)
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("declared-but-unparseable value is a silent nil — URLs are user input")
+    @MainActor
+    func unparseableIsSilentNil() {
+        let ctx = RouterContext(path: "/users/abc", params: ["id": "abc"])
+        var value: Int? = 0
+        let warnings = captureWarnings { value = ctx.param("id", as: Int.self) }
+        #expect(value == nil)
+        #expect(warnings.isEmpty, "parse failure is runtime input, not a programmer error")
+    }
+
+    @Test("typed access to an undeclared name returns nil AND warns")
+    @MainActor
+    func typedUndeclaredWarns() {
+        let ctx = RouterContext(path: "/users/42", params: ["id": "42"])
+        var value: Int? = 0
+        let warnings = captureWarnings { value = ctx.param("userId", as: Int.self) }
+        #expect(value == nil)
+        #expect(warnings.count == 1)
+        #expect((warnings.first ?? "").contains("'userId'"))
+    }
 }
