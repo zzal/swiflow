@@ -182,35 +182,50 @@ final class DropdownMenu {
         }
     }
 
-    /// Imperatively rove focus among the enabled menu items in response to a keydown.
-    /// `#if canImport(JavaScriptKit)`-guarded DOM access (a no-op on host), mirroring
-    /// Autocomplete's focus-by-id. ↑/↓ wrap; Home/End jump to the ends; Tab closes the menu.
-    /// Enter/Space/Escape are intentionally NOT handled here — they are native (`<button>`
-    /// activation + `popovertargetaction="hide"`, and popover light-dismiss with focus return).
-    private static func rove(_ e: EventInfo, current: String, order: [String], menuID: String) {
-        guard let key = e.key, !order.isEmpty,
-              let idx = order.firstIndex(of: current) else { return }
+    /// The outcome of a roving keydown — which item id gets focus, or that
+    /// the menu closes. Pure value so the decision table is host-testable
+    /// apart from its JS focus effect (audit V Wave-2 #4, the DataTable
+    /// seam pattern).
+    enum RoveAction: Equatable {
+        case focus(String)
+        case closeMenu
+    }
+
+    /// The pure roving decision. ↑/↓ wrap; Home/End jump to the ends; Tab
+    /// closes. Enter/Space/Escape are intentionally NOT handled — they are
+    /// native (`<button>` activation + `popovertargetaction="hide"`, and
+    /// popover light-dismiss with focus return). `nil` = not a roving key
+    /// (or no roving context) — the event passes through untouched.
+    static func roveTarget(key: String?, current: String, order: [String]) -> RoveAction? {
+        guard let key, !order.isEmpty,
+              let idx = order.firstIndex(of: current) else { return nil }
         let count = order.count
-        let target: String?
-        let close: Bool
         switch key {
-        case "ArrowDown": target = order[(idx + 1) % count];         close = false
-        case "ArrowUp":   target = order[(idx + count - 1) % count]; close = false
-        case "Home":      target = order[0];                         close = false
-        case "End":       target = order[count - 1];                 close = false
+        case "ArrowDown": return .focus(order[(idx + 1) % count])
+        case "ArrowUp":   return .focus(order[(idx + count - 1) % count])
+        case "Home":      return .focus(order[0])
+        case "End":       return .focus(order[count - 1])
         // Tab: close and let the browser's native Tab focus progression continue (we can't
         // preventDefault — the no-event-preventDefault project invariant). The menu closes and
         // focus moves to the next tabbable element outside it, NOT back to the trigger (Escape
         // does that, via the Popover API's native focus-return).
-        case "Tab":       target = nil;                              close = true
-        default:          return
+        case "Tab":       return .closeMenu
+        default:          return nil
         }
+    }
+
+    /// The imperative half: apply the roving decision through the DOM.
+    /// `#if canImport(JavaScriptKit)`-guarded (a no-op on host), mirroring
+    /// Autocomplete's focus-by-id.
+    private static func rove(_ e: EventInfo, current: String, order: [String], menuID: String) {
+        guard let action = roveTarget(key: e.key, current: current, order: order) else { return }
         #if canImport(JavaScriptKit)
         guard let doc = JSObject.global.document.object else { return }
-        if close {
+        switch action {
+        case .closeMenu:
             _ = doc.getElementById?(menuID).object?.hidePopover?()
-        } else if let target, let el = doc.getElementById?(target).object {
-            _ = el.focus?()
+        case .focus(let id):
+            if let el = doc.getElementById?(id).object { _ = el.focus?() }
         }
         #endif
     }
