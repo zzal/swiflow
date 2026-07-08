@@ -17,16 +17,26 @@ private final class FilterPage {
     var body: VNode { p("\(magnitude)|\(window)") }
 }
 
-@Suite("@Persisted full loop (MemoryStorage through the real harness)")
+// .serialized: the registry is process-global mutable state, and the emitted
+// save/hydrate Tasks are fire-and-forget — under parallel execution one
+// test's pending Task can run after ANOTHER test swapped the registry (the
+// exact flake this suite shipped with). Serialization plus the drain in
+// `withMemoryStorage` (yields before restoring, so stray Tasks land in THIS
+// test's storage) makes the global seam safe.
+@Suite("@Persisted full loop (MemoryStorage through the real harness)", .serialized)
 struct PersistedRuntimeTests {
 
     @MainActor
     private func withMemoryStorage<T>(_ body: (MemoryStorage) async throws -> T) async rethrows -> T {
         let prior = _PersistedStorageRegistry.current
-        defer { _PersistedStorageRegistry.current = prior }
         let memory = MemoryStorage()
         _PersistedStorageRegistry.current = memory
-        return try await body(memory)
+        defer { _PersistedStorageRegistry.current = prior }
+        let result = try await body(memory)
+        // Drain fire-and-forget mount/save Tasks spawned during the body so
+        // none outlives this test's registry installation.
+        for _ in 0..<20 { await Task.yield() }
+        return result
     }
 
     @Test("default paints first; hydrate restores stored values and repaints")
