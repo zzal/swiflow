@@ -23,6 +23,11 @@ private final class FilterPage {
 // exact flake this suite shipped with). Serialization plus the drain in
 // `withMemoryStorage` (yields before restoring, so stray Tasks land in THIS
 // test's storage) makes the global seam safe.
+//
+// COROLLARY: this suite must be the ONLY one that touches the registry.
+// `.serialized` serializes within a suite, not across suites — a separate
+// registry-touching suite races this one at await points (a standalone
+// seam suite shipped exactly that flake; its test now lives here).
 @Suite("@Persisted full loop (MemoryStorage through the real harness)", .serialized)
 struct PersistedRuntimeTests {
 
@@ -37,6 +42,21 @@ struct PersistedRuntimeTests {
         // none outlives this test's registry installation.
         for _ in 0..<20 { await Task.yield() }
         return result
+    }
+
+    @Test("the seam: registry default is a PersistentStore; swap + typed round-trip works")
+    @MainActor
+    func registrySwaps() async throws {
+        // Sound ONLY because this suite is serialized and nothing else
+        // touches the registry — see the suite comment.
+        #expect(_PersistedStorageRegistry.current is PersistentStore)
+        try await withMemoryStorage { memory in
+            try await _PersistedStorageRegistry.current.save("x", forKey: "k")
+            let roundTrip = try await _PersistedStorageRegistry.current.load(String.self, forKey: "k")
+            #expect(roundTrip == "x")
+            #expect(memory.saves.map(\.key) == ["k"])
+            #expect(memory.loadedKeys == ["k"])
+        }
     }
 
     @Test("default paints first; hydrate restores stored values and repaints")
