@@ -36,6 +36,16 @@ struct ButtonTests {
         #expect(b.attributes["class"] == "sw-btn sw-btn--ghost sw-btn--lg")
     }
 
+    @Test(".danger is a destructive solid fill on the danger token family") func dangerVariant() {
+        let b = elementOf(building { Button("Delete", variant: .danger) {} })!
+        #expect(b.attributes["class"] == "sw-btn sw-btn--danger sw-btn--md")
+        let css = buttonStyleSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-btn--danger"))
+        #expect(css.contains("var(--sw-danger-text)"), "solid fill needs the paired text token — never raw white")
+        #expect(css.contains("var(--sw-danger-hover)") && css.contains("var(--sw-danger-active)"),
+                "hover/active read dedicated tokens so they stay dark-mode-correct")
+    }
+
     @Test("disabled emits the disabled attribute and attaches no click handler") func disabledNoHandler() {
         // No ambient needed: the disabled path never calls .on(.click).
         let b = elementOf(Button("X", disabled: true) {})!
