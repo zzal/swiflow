@@ -170,6 +170,21 @@ func makeDataTableBox<Row, ID: Hashable>(
         )
     }
 
+    // Guardrail (audit V Wave-1): Column.id defaults to its title, so two
+    // columns with the same title — or two untitled "" columns — silently
+    // share sort identity (clicking one sorts "both"). Warn once at
+    // construction; disambiguate with Column(id:...).
+    var seenColumnIDs: Set<String> = []
+    for col in dataColumns {
+        if !seenColumnIDs.insert(col.id).inserted {
+            swiflowWarn(
+                "DataTable: duplicate column id '\(col.id)' — Column.id defaults to the "
+                    + "title, so same-titled columns share sort identity. Give one an "
+                    + "explicit id."
+            )
+        }
+    }
+
     let selModel: SelectionModel? = selection.map { sel in
         // `rows` is frozen for the box's life (embed-reuse), so its id set is computed once
         // here rather than rebuilt on every render/click.
@@ -352,16 +367,18 @@ final class DataTableBox {
 
     /// Resolved row height when virtualization is *active* this render, else nil.
     /// Active requires a positive rowHeight AND a bounded scroll container (`maxHeight`).
-    /// Emits a DEBUG diagnostic when the config asked for virtualization but a precondition
-    /// is missing, then falls back to a non-virtualized render.
+    /// Emits a DEBUG *warning* (swiflowWarn, not the trapping swiflowDiagnostic —
+    /// audit V: the docs promise "falls back to a non-virtualized render", and a
+    /// kept promise must not crash DEBUG builds) when the config asked for
+    /// virtualization but a precondition is missing, then falls back.
     func activeRowHeight() -> Int? {
         guard case let .fixed(rowHeight)? = virtualization else { return nil }
         guard rowHeight > 0 else {
-            swiflowDiagnostic("DataTable: virtualized rowHeight must be > 0; rendering all rows.")
+            swiflowWarn("DataTable: virtualized rowHeight must be > 0; rendering all rows.")
             return nil
         }
         guard maxHeight != nil else {
-            swiflowDiagnostic("DataTable: virtualization needs maxHeight (the scroll container); rendering all rows.")
+            swiflowWarn("DataTable: virtualization needs maxHeight (the scroll container); rendering all rows.")
             return nil
         }
         return rowHeight
@@ -380,7 +397,9 @@ final class DataTableBox {
             // .width is ALSO set the intent is ambiguous (the widths can't size
             // grid tracks under a fixed template) — flag it so the dev picks one.
             if hasPerColumnWidth {
-                swiflowDiagnostic("DataTable: both columnsTemplate and per-column .width are set — columnsTemplate wins and the per-column widths are ignored in virtualized mode. Use one or the other.")
+                // Advisory, not a programmer error the render can't survive —
+                // warn (the template wins and rendering proceeds), never trap.
+                swiflowWarn("DataTable: both columnsTemplate and per-column .width are set — columnsTemplate wins and the per-column widths are ignored in virtualized mode. Use one or the other.")
             }
             dataCols = columnsTemplate
         } else if hasPerColumnWidth {

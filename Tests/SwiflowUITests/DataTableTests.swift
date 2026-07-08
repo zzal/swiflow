@@ -526,9 +526,9 @@ struct DataTableStateTests {
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #if DEBUG
         var captured: [String] = []
-        let prior = _swiflowDiagnosticOverride
-        _swiflowDiagnosticOverride = { captured.append($0) }
-        defer { _swiflowDiagnosticOverride = prior }
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
         #expect(box.activeRowHeight() == nil)   // no maxHeight ⇒ not active
         #expect(captured.contains { $0.contains("maxHeight") })
         #else
@@ -543,9 +543,9 @@ struct DataTableStateTests {
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #if DEBUG
         var captured: [String] = []
-        let prior = _swiflowDiagnosticOverride
-        _swiflowDiagnosticOverride = { captured.append($0) }
-        defer { _swiflowDiagnosticOverride = prior }
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
         #expect(box.activeRowHeight() == nil)
         #expect(captured.contains { $0.contains("rowHeight") })
         #else
@@ -790,12 +790,12 @@ struct DataTableVirtualWidthTests {
         #expect(b.gridTemplate() == "min-content 120px minmax(0, 1fr)")
     }
 
-    @Test("explicit columnsTemplate wins; diagnostic fires when per-column .width is also set")
+    @Test("explicit columnsTemplate wins; a WARNING fires when per-column .width is also set")
     func columnsTemplateWinsWithDiagnostic() {
         var captured: [String] = []
-        let prior = _swiflowDiagnosticOverride
-        _swiflowDiagnosticOverride = { captured.append($0) }
-        defer { _swiflowDiagnosticOverride = prior }
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
 
         let b = makeDataTableBox(people, id: \.id,
                                  maxHeight: .custom("200px"),
@@ -811,9 +811,9 @@ struct DataTableVirtualWidthTests {
     @Test("columnsTemplate with no per-column width does not warn")
     func columnsTemplateNoWidthNoWarn() {
         var captured: [String] = []
-        let prior = _swiflowDiagnosticOverride
-        _swiflowDiagnosticOverride = { captured.append($0) }
-        defer { _swiflowDiagnosticOverride = prior }
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
 
         let b = makeDataTableBox(people, id: \.id,
                                  maxHeight: .custom("200px"),
@@ -823,6 +823,50 @@ struct DataTableVirtualWidthTests {
             Column("Age", value: \.age)
         }
         #expect(b.gridTemplate() == "2fr 1fr")
+        #expect(captured.isEmpty)
+    }
+
+    @Test("virtualization misconfig WARNS and falls back — the documented promise must not crash DEBUG")
+    func virtualizationMisconfigNeverTraps() {
+        var trapped: [String] = []
+        let priorDiag = _swiflowDiagnosticOverride
+        _swiflowDiagnosticOverride = { trapped.append($0) }
+        defer { _swiflowDiagnosticOverride = priorDiag }
+
+        let box = makeDataTableBox(people, id: \.id, virtualization: .fixed(rowHeight: 40),
+                                   columnsTemplate: "1fr") { Column("Name", value: \.name) }
+        #expect(box.activeRowHeight() == nil, "degrades to the non-virtualized render")
+        #expect(trapped.isEmpty,
+                "the recoverable sites route through swiflowWarn — nothing reaches the trapping diagnostic")
+    }
+
+    @Test("duplicate column ids warn — same-titled columns share sort identity")
+    func duplicateColumnIDsWarn() {
+        var captured: [String] = []
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
+
+        _ = makeDataTableBox(people, id: \.id) {
+            Column("Name", value: \.name)
+            Column("Name", value: \.name)   // id defaults to title → collision
+        }
+        #expect(captured.count == 1)
+        #expect((captured.first ?? "").contains("'Name'"))
+        #expect((captured.first ?? "").contains("explicit id"))
+    }
+
+    @Test("distinct column ids stay silent — explicit id disambiguates same titles")
+    func explicitIDDisambiguates() {
+        var captured: [String] = []
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
+
+        _ = makeDataTableBox(people, id: \.id) {
+            Column("Name", value: \.name)
+            Column("Name", value: \.name, id: "name-2")
+        }
         #expect(captured.isEmpty)
     }
 }
