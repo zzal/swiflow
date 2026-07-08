@@ -12,8 +12,14 @@
 //
 // WASM-only — IndexedDB lives in the browser. The `#else` host stub keeps the
 // API present so app targets still typecheck off-WASM (where they never run).
+//
+// Split keyed on arch(wasm32), NOT canImport(JavaScriptKit): JavaScriptKit is
+// an unconditional dependency, so canImport is TRUE on host — the "wasm"
+// branch would compile on macOS and `init` would trap at `JSObject.global`
+// the moment anything constructs a store (the @Persisted registry does).
+// Same class of bug PR #160 fixed in SwiflowFetcher.
 
-#if canImport(JavaScriptKit)
+#if arch(wasm32)
 import Swiflow
 import JavaScriptKit
 import SwiflowFetcher
@@ -225,6 +231,26 @@ public final class PersistentStore {
 }
 
 #endif
+
+/// The persistence crossing behind `@Persisted`: async Codable key/value.
+/// Minimal on purpose (no remove — YAGNI); `PersistentStore` conforms
+/// verbatim on both the wasm and host-stub sides.
+@MainActor
+public protocol PersistedStorage: AnyObject {
+    func load<T: Decodable>(_ type: T.Type, forKey key: String) async throws -> T?
+    func save<T: Encodable>(_ value: T, forKey key: String) async throws
+}
+
+extension PersistentStore: PersistedStorage {}
+
+/// Where `@Persisted`-emitted code resolves its store. ONE shared default
+/// (kills per-component-connection waste; gives apps a single repoint
+/// site); tests swap in a recording `MemoryStorage`. Underscored-public:
+/// macro-emitted code in user modules must reach it.
+@MainActor
+public enum _PersistedStorageRegistry {
+    public static var current: any PersistedStorage = PersistentStore()
+}
 
 /// Errors surfaced by `PersistentStore`.
 public enum StoreError: Error, Sendable {
