@@ -95,6 +95,23 @@ let restored = try await store.load([City].self, forKey: "pinned-cities")   // n
 try await store.remove(forKey: "pinned-cities")
 ```
 
+### Typed keys
+
+`StoreKey<Value>` declares the key name and value type together, so the
+type can't drift between the save site and the load sites (with stringly
+keys, every `load(SomeType.self, forKey:)` restates it, and a mismatch
+reads as "nothing stored"):
+
+```swift
+static let pinnedKey = StoreKey<[City]>("pinned-cities")
+
+try await store.save(pinned, for: Self.pinnedKey)
+let restored = try await store.load(Self.pinnedKey)   // [City]? — inferred
+try await store.remove(Self.pinnedKey)
+```
+
+### Notes
+
 - Values are `Codable`, written as JSON.
 - `load` returns `nil` for a missing key and throws `StoreError.decoding`
   if a stored value can't be decoded as the requested type.

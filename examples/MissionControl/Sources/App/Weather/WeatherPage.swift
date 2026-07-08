@@ -29,8 +29,10 @@ final class WeatherPage {
     /// `WeatherPage` on every navigation, so they're persisted to IndexedDB and
     /// rehydrated on mount. `City.seeds` / "celsius" are just first-visit defaults.
     private let store = PersistentStore()
-    private static let pinnedKey = "pinned-cities"
-    private static let unitKey = "weather-unit"
+    /// Typed keys: name + value type in one declaration — the load sites
+    /// below can't restate a drifted type.
+    private static let pinnedKey = StoreKey<[City]>("pinned-cities")
+    private static let unitKey = StoreKey<String>("weather-unit")
 
     var body: VNode {
         VStack(spacing: .md, .class("page")) {
@@ -118,7 +120,7 @@ final class WeatherPage {
     /// clobbers the value `bootstrap()` rehydrates.
     func onChange() {
         onChange(of: unit, key: "unit") { newUnit in
-            Task { try? await self.store.save(newUnit, forKey: Self.unitKey) }
+            Task { try? await self.store.save(newUnit, for: Self.unitKey) }
         }
     }
 
@@ -127,10 +129,10 @@ final class WeatherPage {
     /// Restore persisted pins + unit (keeping the defaults only on a first-ever
     /// visit), then ask the browser for the current location and pin it first.
     private func bootstrap() async {
-        if let saved = try? await store.load([City].self, forKey: Self.pinnedKey) {
+        if let saved = try? await store.load(Self.pinnedKey) {
             pinned = saved
         }
-        if let savedUnit = try? await store.load(String.self, forKey: Self.unitKey) {
+        if let savedUnit = try? await store.load(Self.unitKey) {
             unit = savedUnit
         }
         guard let fix = await Geolocation.currentPosition(),
@@ -146,6 +148,6 @@ final class WeatherPage {
     /// Fire-and-forget save — `@State` mutations already repainted; persistence
     /// trails behind without blocking the UI.
     private func persist() {
-        Task { try? await store.save(pinned, forKey: Self.pinnedKey) }
+        Task { try? await store.save(pinned, for: Self.pinnedKey) }
     }
 }
