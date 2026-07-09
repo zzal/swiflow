@@ -260,28 +260,30 @@ struct ProfileTests {
         #expect(h.allText.contains("User#1"))
 
         vm.userID = 2                        // change the dependency
-        h.flush()                            // reconcile: cancel A, start B
-        try await h.settle()                 // task B completes
+        try await h.settle()                 // reconcile (cancel A, start B), then task B completes
         #expect(h.allText.contains("User#2"))
     }
 }
 ```
 
 `settle()` loops:
-1. Await all currently in-flight `Task` handles.
-2. Flush the scheduler synchronously (apply any `@State` writes those tasks
-   produced).
-3. If a flush triggered a `rerunOn` change, new tasks are spawned — loop again.
-4. Stop when no task is in flight and no component is dirty.
+1. Flush the scheduler synchronously — so a direct `@State` mutation made
+   from test code is reconciled first (cancel/spawn tasks as the new body
+   dictates); no manual `flush()` call is needed before `settle()`.
+2. Await all currently in-flight `Task` handles.
+3. Flush again (apply any `@State` writes those tasks produced).
+4. If a flush triggered a `rerunOn` change, new tasks are spawned — loop again.
+5. Stop when no task is in flight and no component is dirty.
 
-`flush()` applies a synchronous `@State` mutation (made directly from test
-code) before `settle()` so the diff has a chance to reconcile the new
-dependency and spawn the next task:
+`flush()` is still available for asserting the *intermediate* synchronous
+state — after reconciliation but before the new task's writes land:
 
 ```swift
 vm.userID = 2   // mutate from test code
-h.flush()       // reconcile renders the new body, sees rerunOn changed, starts task B
-try await h.settle()
+h.flush()       // reconcile only: task B is now in flight, its writes not yet applied
+#expect(h.allText.contains("User#1"))   // still the old data
+try await h.settle()                     // task B completes
+#expect(h.allText.contains("User#2"))
 ```
 
 `settle()` throws `AsyncTestHarness.SettleError` if it cannot reach a fixed

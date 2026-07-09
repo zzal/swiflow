@@ -171,55 +171,101 @@ final class TestRenderer {
         return (value, checked)
     }
 
-    func click(tag: String, text: String?) {
+    /// Why an interaction could not dispatch (audit VI Wave-1: the five
+    /// interactions used to `guard … else { return }` — a typo'd selector
+    /// silently no-opped and the assertion three lines later failed with a
+    /// bare "expected non-nil"). Carried up to the harness, which records a
+    /// test Issue naming the reason and the candidates.
+    enum InteractionFailure: CustomStringConvertible {
+        case noMatch(tag: String, text: String?, tagsPresent: [String])
+        case indexOutOfRange(tag: String, index: Int, matchCount: Int)
+        case noHandler(event: String, tag: String, handlersPresent: [String])
+
+        var description: String {
+            switch self {
+            case .noMatch(let tag, let text, let present):
+                let textPart = text.map { " with text \"\($0)\"" } ?? ""
+                let candidates = present.isEmpty ? "none" : present.joined(separator: ", ")
+                return "no <\(tag)>\(textPart) in the rendered tree — tags present: \(candidates)"
+            case .indexOutOfRange(let tag, let index, let count):
+                return "index \(index) is out of range — only \(count) <\(tag)> element(s) rendered"
+            case .noHandler(let event, let tag, let present):
+                let handlers = present.isEmpty ? "none" : present.joined(separator: ", ")
+                return "the matched <\(tag)> has no \"\(event)\" handler — handlers present: \(handlers)"
+            }
+        }
+    }
+
+    /// One dispatch core for every interaction. Returns nil on success, or
+    /// the reason nothing was dispatched.
+    func dispatch(event: String, tag: String, text: String?, index: Int,
+                  payload: ((value: String?, checked: Bool?)) -> EventInfo) -> InteractionFailure? {
         let matches = findElements(tag: tag, text: text, in: mountTree)
-        guard let (node, _) = matches.first,
-              let id = node.handlerIds["click"] else { return }
-        let snap = targetSnapshot(of: node)
-        handlers.dispatch(id: id, event: EventInfo(type: "click", targetValue: snap.value, targetChecked: snap.checked))
+        guard !matches.isEmpty else {
+            return .noMatch(tag: tag, text: text, tagsPresent: allTagsPresent())
+        }
+        guard index < matches.count else {
+            return .indexOutOfRange(tag: tag, index: index, matchCount: matches.count)
+        }
+        let (node, data) = matches[index]
+        guard let id = node.handlerIds[event] else {
+            return .noHandler(event: event, tag: data.tag,
+                              handlersPresent: node.handlerIds.keys.sorted())
+        }
+        handlers.dispatch(id: id, event: payload(targetSnapshot(of: node)))
         scheduler.flush()
+        return nil
     }
 
-    func input(tag: String, at index: Int, value: String) {
-        let matches = findElements(tag: tag, text: nil, in: mountTree)
-        guard index < matches.count else { return }
-        let (node, _) = matches[index]
-        guard let id = node.handlerIds["input"] else { return }
-        let snap = targetSnapshot(of: node)
-        handlers.dispatch(id: id, event: EventInfo(type: "input", targetValue: value, targetChecked: snap.checked))
-        scheduler.flush()
+    /// Distinct tags in document order — the candidate list for no-match failures.
+    private func allTagsPresent() -> [String] {
+        var seen: Set<String> = []
+        var out: [String] = []
+        func walk(_ node: MountNode) {
+            if case .element(let data) = node.vnode, seen.insert(data.tag).inserted {
+                out.append(data.tag)
+            }
+            if let body = node.componentBody { walk(body) }
+            for child in node.children { walk(child) }
+        }
+        walk(mountTree)
+        return out
     }
 
-    func blur(tag: String, at index: Int) {
-        let matches = findElements(tag: tag, text: nil, in: mountTree)
-        guard index < matches.count else { return }
-        let (node, _) = matches[index]
-        guard let id = node.handlerIds["blur"] else { return }
-        let snap = targetSnapshot(of: node)
-        handlers.dispatch(id: id, event: EventInfo(type: "blur", targetValue: snap.value, targetChecked: snap.checked))
-        scheduler.flush()
+    @discardableResult
+    func click(tag: String, text: String?) -> InteractionFailure? {
+        dispatch(event: "click", tag: tag, text: text, index: 0) {
+            EventInfo(type: "click", targetValue: $0.value, targetChecked: $0.checked)
+        }
     }
 
-    func change(tag: String, at index: Int, value: String) {
-        let matches = findElements(tag: tag, text: nil, in: mountTree)
-        guard index < matches.count else { return }
-        let (node, _) = matches[index]
-        guard let id = node.handlerIds["change"] else { return }
-        let snap = targetSnapshot(of: node)
-        handlers.dispatch(id: id, event: EventInfo(type: "change", targetValue: value, targetChecked: snap.checked))
-        scheduler.flush()
+    @discardableResult
+    func input(tag: String, at index: Int, value: String) -> InteractionFailure? {
+        dispatch(event: "input", tag: tag, text: nil, index: index) {
+            EventInfo(type: "input", targetValue: value, targetChecked: $0.checked)
+        }
+    }
+
+    @discardableResult
+    func blur(tag: String, at index: Int) -> InteractionFailure? {
+        dispatch(event: "blur", tag: tag, text: nil, index: index) {
+            EventInfo(type: "blur", targetValue: $0.value, targetChecked: $0.checked)
+        }
+    }
+
+    @discardableResult
+    func change(tag: String, at index: Int, value: String) -> InteractionFailure? {
+        dispatch(event: "change", tag: tag, text: nil, index: index) {
+            EventInfo(type: "change", targetValue: value, targetChecked: $0.checked)
+        }
     }
 
     /// Simulates toggling a checkbox/radio: dispatches `change` with
     /// `targetChecked` — the payload shape `.checked(_:)` bindings read.
-    func check(tag: String, at index: Int, checked: Bool) {
-        let matches = findElements(tag: tag, text: nil, in: mountTree)
-        guard index < matches.count else { return }
-        let (node, _) = matches[index]
-        guard let id = node.handlerIds["change"] else { return }
-        let snap = targetSnapshot(of: node)
-        handlers.dispatch(id: id, event: EventInfo(
-            type: "change", targetValue: snap.value, targetChecked: checked))
-        scheduler.flush()
+    @discardableResult
+    func check(tag: String, at index: Int, checked: Bool) -> InteractionFailure? {
+        dispatch(event: "change", tag: tag, text: nil, index: index) {
+            EventInfo(type: "change", targetValue: $0.value, targetChecked: checked)
+        }
     }
 }

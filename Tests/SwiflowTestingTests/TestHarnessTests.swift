@@ -209,18 +209,44 @@ struct InteractionTests {
         #expect(r.find("p", text: "Hello, Swiflow!") == nil)
     }
 
-    @Test("click is a no-op when no handler is registered")
-    func clickNoHandlerIsNoOp() {
+    // Audit VI Wave-1: interactions are STRICT by default — a dispatch that
+    // reaches nothing records a test failure naming the reason and the
+    // candidates, instead of silently no-opping into a confusing downstream
+    // "expected non-nil". The IfPresent variants keep the old contract.
+
+    @Test("STRICT: clicking an element with no handler records a failure naming the handlers present")
+    func clickNoHandlerRecords() {
         let r = render(MinimalCounter())
-        r.click("p")     // <p> has no click handler — must not crash
-        #expect(r.find("p", text: "Count: 0") != nil)
+        withKnownIssue {
+            r.click("p")     // <p> has no click handler
+        }
+        #expect(r.find("p", text: "Count: 0") != nil, "nothing dispatched — state unchanged")
     }
 
-    @Test("input at out-of-bounds index is a no-op")
-    func inputOutOfBoundsIsNoOp() {
+    @Test("STRICT: a selector matching nothing records a failure listing the tags present")
+    func clickNoMatchRecords() {
         let r = render(MinimalCounter())
-        r.input(at: 99, value: "boom")   // no crash
+        withKnownIssue {
+            r.click("buton")   // the typo the old no-op contract swallowed
+        }
+    }
+
+    @Test("STRICT: out-of-bounds index records a failure naming the match count")
+    func inputOutOfBoundsRecords() {
+        let r = render(MinimalCounter())
+        withKnownIssue {
+            r.input(at: 99, value: "boom")
+        }
         #expect(r.find("p", text: "Hello, Swiflow!") != nil)
+    }
+
+    @Test("clickIfPresent keeps the no-op contract for conditional interactions")
+    func clickIfPresentIsNoOp() {
+        let r = render(MinimalCounter())
+        r.clickIfPresent("p")            // no handler — silent
+        r.clickIfPresent("nonexistent")  // no match — silent
+        r.inputIfPresent(at: 99, value: "boom")
+        #expect(r.find("p", text: "Count: 0") != nil)
     }
 
     @Test("change() dispatches a change event and updates state via the .on(.change) handler")

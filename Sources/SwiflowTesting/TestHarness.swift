@@ -1,5 +1,6 @@
 // Sources/SwiflowTesting/TestHarness.swift
 import Swiflow
+import Testing
 
 /// A snapshot of a single element node. Assert against its fields with `#expect`.
 public struct TestNode {
@@ -29,6 +30,17 @@ public func render<C: Component>(_ component: C) -> TestHarness {
 }
 
 /// Wraps a `TestRenderer` and exposes the public query + interaction API.
+///
+/// > **Fidelity boundary (audit VI Wave-1):** the harness renders, diffs, and
+/// > asserts against the DECLARED VNode tree — the real diff, lifecycle, and
+/// > handler wiring run, but nothing is ever applied to a DOM. Everything on
+/// > the far side of the patch stream is invisible here: `PatchSerializer`,
+/// > `JSAdapter`, the JS driver, and any `#if`-JS-gated imperative effect
+/// > (`showModal`, focus, scroll). A bug in *applying* a correct declaration
+/// > — the class that shipped the `.style()` custom-property miss — cannot be
+/// > caught at this layer; that is what the js-driver tests and Playwright
+/// > suites are for. Assert what the tree DECLARES, verify what the browser
+/// > DOES elsewhere.
 @MainActor
 public struct TestHarness {
     let renderer: TestRenderer
@@ -71,40 +83,103 @@ public struct TestHarness {
         !renderer.findElements(tag: tag, text: text, in: renderer.mountTree).isEmpty
     }
 
+    /// Records a test failure at the CALLER's line when an interaction could
+    /// not dispatch (audit VI Wave-1: interactions used to silently no-op on
+    /// a typo'd selector, and the assertion three lines later failed with a
+    /// bare "expected non-nil"). The `IfPresent` variants opt back into the
+    /// no-op contract for genuinely conditional interactions.
+    private func recordIfFailed(_ failure: TestRenderer.InteractionFailure?,
+                                _ interaction: String,
+                                _ sourceLocation: SourceLocation) {
+        guard let failure else { return }
+        Issue.record("\(interaction) dispatched nothing: \(failure)", sourceLocation: sourceLocation)
+    }
+
     /// Fires a `click` event on the first element matching `tag` (and `text`).
-    /// No-op if no matching element has a click handler.
-    public func click(_ tag: String, text: String? = nil) {
-        renderer.click(tag: tag, text: text)
+    /// STRICT: records a test failure (with candidates) when nothing matches
+    /// or the match has no click handler — see `clickIfPresent` for the
+    /// old no-op contract.
+    public func click(_ tag: String, text: String? = nil,
+                      sourceLocation: SourceLocation = #_sourceLocation) {
+        recordIfFailed(renderer.click(tag: tag, text: text), "click(\"\(tag)\")", sourceLocation)
+    }
+
+    /// `click` with the no-op contract: dispatches when the element and
+    /// handler exist, silently does nothing otherwise.
+    public func clickIfPresent(_ tag: String, text: String? = nil) {
+        _ = renderer.click(tag: tag, text: text)
     }
 
     /// Fires an `input` event on the element at position `index` among all
-    /// elements matching `tag` (default `"input"`). No-op if out-of-bounds
-    /// or if the element has no `input` handler.
-    public func input(_ tag: String = "input", at index: Int = 0, value: String) {
-        renderer.input(tag: tag, at: index, value: value)
+    /// elements matching `tag` (default `"input"`). STRICT — see `inputIfPresent`.
+    public func input(_ tag: String = "input", at index: Int = 0, value: String,
+                      sourceLocation: SourceLocation = #_sourceLocation) {
+        recordIfFailed(renderer.input(tag: tag, at: index, value: value), "input(\"\(tag)\")", sourceLocation)
+    }
+
+    public func inputIfPresent(_ tag: String = "input", at index: Int = 0, value: String) {
+        _ = renderer.input(tag: tag, at: index, value: value)
     }
 
     /// Fires a `blur` event on the element at position `index` among all
-    /// elements matching `tag` (default `"input"`). No-op if out-of-bounds
-    /// or if the element has no `blur` handler.
-    public func blur(_ tag: String = "input", at index: Int = 0) {
-        renderer.blur(tag: tag, at: index)
+    /// elements matching `tag` (default `"input"`). STRICT — see `blurIfPresent`.
+    public func blur(_ tag: String = "input", at index: Int = 0,
+                     sourceLocation: SourceLocation = #_sourceLocation) {
+        recordIfFailed(renderer.blur(tag: tag, at: index), "blur(\"\(tag)\")", sourceLocation)
+    }
+
+    public func blurIfPresent(_ tag: String = "input", at index: Int = 0) {
+        _ = renderer.blur(tag: tag, at: index)
     }
 
     /// Fires a `change` event on the element at position `index` among all
-    /// elements matching `tag` (default `"select"`) and flushes. No-op if
-    /// out-of-bounds or if the element has no `change` handler.
+    /// elements matching `tag` (default `"select"`) and flushes. STRICT —
+    /// see `changeIfPresent`.
     ///
     /// Use for `<select>` and `<textarea>` with `.on(.change)` handlers;
     /// pair with `.input(...)` for `<input>` elements that use `.on(.input)`.
-    public func change(_ tag: String = "select", at index: Int = 0, value: String) {
-        renderer.change(tag: tag, at: index, value: value)
+    public func change(_ tag: String = "select", at index: Int = 0, value: String,
+                       sourceLocation: SourceLocation = #_sourceLocation) {
+        recordIfFailed(renderer.change(tag: tag, at: index, value: value), "change(\"\(tag)\")", sourceLocation)
+    }
+
+    public func changeIfPresent(_ tag: String = "select", at index: Int = 0, value: String) {
+        _ = renderer.change(tag: tag, at: index, value: value)
     }
 
     /// Simulates toggling a checkbox/radio input. Dispatches a `change` event
-    /// whose `targetChecked` is `checked`, mirroring the browser driver's payload.
-    public func check(_ tag: String = "input", at index: Int = 0, checked: Bool) {
-        renderer.check(tag: tag, at: index, checked: checked)
+    /// whose `targetChecked` is `checked`, mirroring the browser driver's
+    /// payload. STRICT — see `checkIfPresent`.
+    public func check(_ tag: String = "input", at index: Int = 0, checked: Bool,
+                      sourceLocation: SourceLocation = #_sourceLocation) {
+        recordIfFailed(renderer.check(tag: tag, at: index, checked: checked), "check(\"\(tag)\")", sourceLocation)
+    }
+
+    public func checkIfPresent(_ tag: String = "input", at index: Int = 0, checked: Bool) {
+        _ = renderer.check(tag: tag, at: index, checked: checked)
+    }
+
+    /// Fires an arbitrary event type on the matched element (audit VI
+    /// Wave-1: keydown/mousedown/etc. previously required digging handlers
+    /// out of the body by hand). The payload carries the target's
+    /// value/checked snapshot, like every other interaction. STRICT.
+    public func fire(_ event: String, on tag: String, text: String? = nil, at index: Int = 0,
+                     sourceLocation: SourceLocation = #_sourceLocation) {
+        let failure = renderer.dispatch(event: event, tag: tag, text: text, index: index) {
+            EventInfo(type: event, targetValue: $0.value, targetChecked: $0.checked)
+        }
+        recordIfFailed(failure, "fire(\"\(event)\", on: \"\(tag)\")", sourceLocation)
+    }
+
+    /// Dispatches a `keydown` whose `key` is passed through verbatim
+    /// (`"ArrowDown"`, `"Enter"`, `"Escape"`, …) — pure `EventInfo.key`
+    /// passthrough. STRICT.
+    public func press(_ tag: String = "input", key: String, at index: Int = 0,
+                      sourceLocation: SourceLocation = #_sourceLocation) {
+        let failure = renderer.dispatch(event: "keydown", tag: tag, text: nil, index: index) {
+            EventInfo(type: "keydown", targetValue: $0.value, targetChecked: $0.checked, key: key)
+        }
+        recordIfFailed(failure, "press(\"\(tag)\", key: \"\(key)\")", sourceLocation)
     }
 
     /// Unmounts the rendered tree, firing `onDisappear` parent-first — mirrors
