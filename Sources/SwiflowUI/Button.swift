@@ -34,9 +34,10 @@ public enum ButtonVariant: Equatable {
 /// than clobbering them (see `splitClasses`). SwiflowUI reserves the `sw-` class
 /// prefix — don't author app CSS under it.
 ///
-/// The label is a `String` for v1; `action` is deliberately a *labeled* trailing
-/// closure so a future `@ChildrenBuilder` label overload (icon + text) can take
-/// the unlabeled trailing-closure slot without breaking callers.
+/// `action` is deliberately a *labeled* trailing closure so the
+/// `@ChildrenBuilder` label overloads below (icon + text) take the unlabeled
+/// trailing-closure slot without breaking callers — the seat M4 reserved,
+/// now filled.
 ///
 ///     Button("Save") { store.save() }
 ///     Button("Delete", variant: .ghost, size: .sm, disabled: !canDelete) { delete() }
@@ -49,7 +50,30 @@ public func Button(
     _ attributes: Attribute...,
     action: @escaping @MainActor () -> Void
 ) -> VNode {
-    buttonNode(title, variant: variant, size: size, disabled: disabled,
+    buttonNode([text(title)], variant: variant, size: size, disabled: disabled,
+               type: .button, attributes: attributes, action: action)
+}
+
+/// Builder-label variant — compose the label from any VNodes (icon + text,
+/// badges, …). `.sw-btn` is `inline-flex` with the spacing-token gap, so
+/// children lay out without extra CSS. Icons are plain VNodes (a masked
+/// `span`, an SVG, an emoji) — mark decorative ones `aria-hidden`.
+///
+/// > Accessibility: an icon-ONLY label leaves the button with no accessible
+/// > name — pass `.attr("aria-label", …)` (DEBUG builds warn if you forget).
+///
+///     Button(variant: .danger, action: { delete() }) { trashIcon(); text("Delete") }
+///     Button(.attr("aria-label", "Close"), action: { close() }) { closeIcon() }
+@MainActor
+public func Button(
+    variant: ButtonVariant = .primary,
+    size: ControlSize = .md,
+    disabled: Bool = false,
+    _ attributes: Attribute...,
+    action: @escaping @MainActor () -> Void,
+    @ChildrenBuilder label: () -> [VNode]
+) -> VNode {
+    buttonNode(label(), variant: variant, size: size, disabled: disabled,
                type: .button, attributes: attributes, action: action)
 }
 
@@ -72,14 +96,31 @@ public func Button(
     type: ButtonType,
     _ attributes: Attribute...
 ) -> VNode {
-    buttonNode(title, variant: variant, size: size, disabled: disabled,
+    buttonNode([text(title)], variant: variant, size: size, disabled: disabled,
+               type: type, attributes: attributes, action: nil)
+}
+
+/// Builder-label twin of the form-button variant: `type: .submit`/`.reset`
+/// with a composed label and no click handler (the form drives it).
+///
+///     Button(type: .submit) { checkIcon(); text("Save") }
+@MainActor
+public func Button(
+    variant: ButtonVariant = .primary,
+    size: ControlSize = .md,
+    disabled: Bool = false,
+    type: ButtonType,
+    _ attributes: Attribute...,
+    @ChildrenBuilder label: () -> [VNode]
+) -> VNode {
+    buttonNode(label(), variant: variant, size: size, disabled: disabled,
                type: type, attributes: attributes, action: nil)
 }
 
 /// Shared lowering. `action == nil` ⇒ no click handler is registered (form buttons).
 @MainActor
 private func buttonNode(
-    _ title: String,
+    _ label: [VNode],
     variant: ButtonVariant,
     size: ControlSize,
     disabled: Bool,
@@ -102,8 +143,53 @@ private func buttonNode(
     }
     attrs += callerRest   // caller wins on everything except the merged class
 
-    return element("button", attributes: attrs, children: [text(title)])
+    #if DEBUG
+    // A11y guardrail (audit V Wave-2 #7): a label with no text content
+    // anywhere leaves the button with NO accessible name unless the caller
+    // supplied aria-label. String-titled buttons always pass (their label
+    // is a text node); only composed icon-only labels can trip this.
+    if !containsTextContent(label), !hasAriaLabel(attributes) {
+        swiflowWarn(
+            "Button: icon-only label has no accessible name — add "
+                + ".attr(\"aria-label\", \"…\") or include text in the label."
+        )
+    }
+    #endif
+
+    return element("button", attributes: attrs, children: label)
 }
+
+#if DEBUG
+/// Does any node in the subtree carry non-whitespace text?
+@MainActor
+private func containsTextContent(_ nodes: [VNode]) -> Bool {
+    for node in nodes {
+        switch node {
+        case .text(let s):
+            if s.contains(where: { !$0.isWhitespace }) { return true }   // Foundation-free
+        case .element(let data):
+            if containsTextContent(data.children) { return true }
+        case .fragment(let children):
+            if containsTextContent(children) { return true }
+        default:
+            continue
+        }
+    }
+    return false
+}
+
+/// Did the caller provide an aria-label (directly or inside a .compound)?
+@MainActor
+private func hasAriaLabel(_ attributes: [Attribute]) -> Bool {
+    attributes.contains { attribute in
+        switch attribute {
+        case .attribute(let name, _) where name == "aria-label": return true
+        case .compound(let inner): return hasAriaLabel(inner)
+        default: return false
+        }
+    }
+}
+#endif
 
 /// The global `.sw-btn` stylesheet, injected once. Authored raw because these are
 /// unscoped utility classes (not per-instance scoped styles) — every value reads

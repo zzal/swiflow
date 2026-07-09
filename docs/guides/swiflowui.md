@@ -78,6 +78,8 @@ accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 Button("Save") { save() }
 Button("Cancel", variant: .secondary, size: .sm) { dismiss() }
 Button("Delete", variant: .danger, disabled: !canDelete) { delete() }
+Button(variant: .danger, action: { delete() }) { trashIcon(); text("Delete") }  // builder label
+Button(.attr("aria-label", "Close"), action: { close() }) { closeIcon() }       // icon-only: aria-label required (DEBUG warns)
 Button("Submit", type: .submit)        // form button — renders type=submit, NO click action
 ```
 
