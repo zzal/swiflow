@@ -70,6 +70,89 @@ func diagKeyAndIsKeyable(_ child: VNode) -> (key: String?, isKeyable: Bool) {
     }
 }
 
+#if DEBUG
+/// `true` when a keyable child carries a key AND is an embedded component.
+/// A keyed component among unkeyed siblings is the dominant way the
+/// mixed-keying trap fires: passing `key:` to an `embed`/component to force
+/// remount-on-change (the [[embed-props-need-rekey]] fix) makes it a keyed
+/// sibling, which traps if the siblings aren't keyed too.
+private func diagIsKeyedComponent(_ child: VNode) -> Bool {
+    switch child {
+    case .component(let desc): return desc.key != nil
+    case .environmentOverride(_, let inner): return diagIsKeyedComponent(inner)
+    default: return false
+    }
+}
+
+/// The mixed-keying diagnostic for a parent whose keyable children are part
+/// keyed / part unkeyed, or `nil` when the children are consistent. Both the
+/// mount-time and re-render checks share this one message so they can't drift.
+/// When a keyed *component* is present, the message names that specific cause
+/// and the isolate-in-a-container fix; otherwise it gives the generic guidance.
+func mixedKeyingDiagnostic(parentTag: String, children: [VNode]) -> String? {
+    var keyedCount = 0, unkeyedCount = 0, keyedComponentCount = 0
+    for child in children {
+        let (key, isKeyable) = diagKeyAndIsKeyable(child)
+        guard isKeyable else { continue }
+        if key != nil {
+            keyedCount += 1
+            if diagIsKeyedComponent(child) { keyedComponentCount += 1 }
+        } else {
+            unkeyedCount += 1
+        }
+    }
+    guard keyedCount > 0 && unkeyedCount > 0 else { return nil }
+    let base = "Children of <\(parentTag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none."
+    guard keyedComponentCount > 0 else { return base }
+    return base + " A keyed embedded component needs keyed siblings — if you passed `key:` to force a remount-on-change, isolate that component in its own single-child container (e.g. `VStack { … }`) so it doesn't mix with unkeyed siblings."
+}
+
+/// An `<option>`'s effective value: its explicit `value` attribute, else its
+/// text content (the browser's own fallback). Only inspects direct text
+/// children — good enough for the guardrail's static read.
+private func diagOptionValue(_ data: ElementData) -> String {
+    if let v = data.attributes["value"] { return v }
+    return data.children.reduce(into: "") { acc, child in
+        if case .text(let t) = child { acc += t }
+    }
+}
+
+/// Diagnostic for the silent `<select>` mount-order trap, or `nil` when the
+/// bound value will land correctly. `.selection($state)` sets the select's
+/// `value` property before its `<option>` children attach at first mount, so
+/// the browser resets to the first option and the DOM stays wrong until the
+/// state next changes ([[select-initial-value-mount-order]]). It only bites
+/// when the bound value isn't the first option AND the matching option carries
+/// no `selected` attribute (the workaround) — so we warn on exactly that.
+func selectMountOrderDiagnostic(_ data: ElementData) -> String? {
+    guard data.tag == "select",
+          case .string(let bound)? = data.properties["value"],
+          !bound.isEmpty else { return nil }
+
+    // Direct `<option>` children (transparent through fragment/env wrappers).
+    func options(_ children: [VNode]) -> [ElementData] {
+        children.flatMap { child -> [ElementData] in
+            switch child {
+            case .element(let d) where d.tag == "option": return [d]
+            case .environmentOverride(_, let inner): return options([inner])
+            case .fragment(let kids): return options(kids)
+            default: return []
+            }
+        }
+    }
+    let opts = options(data.children)
+    guard let first = opts.first else { return nil }        // no options to reason about
+    if diagOptionValue(first) == bound { return nil }        // first option matches → browser default lands right
+    // A matching option carrying `selected` makes the browser honor it
+    // regardless of mount order — that's the intended fix, so stay quiet.
+    let match = opts.first { diagOptionValue($0) == bound }
+    if let match, match.attributes["selected"] != nil { return nil }
+    guard match != nil else { return nil }                   // no matching option at all → a different problem; don't false-warn
+
+    return "<select> bound to '\(bound)' via .selection(...) won't show that value at first mount — the value is applied before the <option> children attach, so the browser resets to the first option. Add `.attr(\"selected\", \"\")` to the <option> whose value is '\(bound)'."
+}
+#endif
+
 // MARK: - CSS scope-class helpers
 
 /// Prepends `scopeClass` to the `class` attribute of a VNode's root element.
@@ -190,15 +273,13 @@ func mount(
                 }
                 seenKeys[key] = index
             }
-            var keyedCount = 0
-            var unkeyedCount = 0
-            for child in data.children {
-                let (key, isKeyable) = diagKeyAndIsKeyable(child)
-                guard isKeyable else { continue }
-                if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
+            if let message = mixedKeyingDiagnostic(parentTag: data.tag, children: data.children) {
+                swiflowDiagnostic(message)
             }
-            if keyedCount > 0 && unkeyedCount > 0 {
-                swiflowDiagnostic("Children of <\(data.tag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none.")
+            // The <select> mount-order trap is silent and recoverable (add a
+            // `selected` attr), so warn rather than trap.
+            if let message = selectMountOrderDiagnostic(data) {
+                swiflowWarn(message)
             }
         }
         #endif
@@ -988,21 +1069,14 @@ func diffChildren(
     // .rawHTML cannot. diagKeyAndIsKeyable() handles the discrimination.
     #if DEBUG
     do {
-        var keyedCount = 0
-        var unkeyedCount = 0
-        for child in newChildren {
-            let (key, isKeyable) = diagKeyAndIsKeyable(child)
-            guard isKeyable else { continue }
-            if key != nil { keyedCount += 1 } else { unkeyedCount += 1 }
+        let parentTag: String
+        if case .element(let parentData) = mounted.vnode {
+            parentTag = parentData.tag
+        } else {
+            parentTag = "<root>"
         }
-        if keyedCount > 0 && unkeyedCount > 0 {
-            let parentTag: String
-            if case .element(let parentData) = mounted.vnode {
-                parentTag = parentData.tag
-            } else {
-                parentTag = "<root>"
-            }
-            swiflowDiagnostic("Children of <\(parentTag)> mix keyed (\(keyedCount)) and unkeyed (\(unkeyedCount)) entries. Either key every child or key none.")
+        if let message = mixedKeyingDiagnostic(parentTag: parentTag, children: newChildren) {
+            swiflowDiagnostic(message)
         }
     }
     #endif
