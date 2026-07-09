@@ -29,15 +29,31 @@ public func embed<C: Component>(
     .component(ComponentDescription(C.self, key: nil, factory: factory))
 }
 
+/// Unkeyed embed with a `contentKey:` digest — the position-identity variant
+/// of the keyed overload's guardrail (an unkeyed embed freezes its init
+/// content exactly the same way).
+public func embed<C: Component>(
+    contentKey: String?,
+    _ factory: @escaping () -> C
+) -> VNode {
+    .component(ComponentDescription(C.self, key: nil, contentKey: contentKey, factory: factory))
+}
+
 /// Embeds a keyed `Component` in a VNode tree. The `key` stabilizes
 /// identity across reorders. The same factory contract from
 /// `embed(_:)`'s leading ⚠️ block applies: allocate a fresh instance
 /// per call.
+///
+/// `contentKey:` (optional) is a cheap digest of the content the factory
+/// freezes at first mount. It does NOT affect identity; it powers a DEBUG
+/// warning when the digest changes under an unchanged key with no
+/// `refresh:` — the silently-stale-content mistake made findable.
 public func embed<C: Component>(
     _ key: String,
+    contentKey: String? = nil,
     _ factory: @escaping () -> C
 ) -> VNode {
-    .component(ComponentDescription(C.self, key: key, factory: factory))
+    .component(ComponentDescription(C.self, key: key, contentKey: contentKey, factory: factory))
 }
 
 /// Embeds a `Component` and pushes changed props into the **reused** instance
@@ -73,11 +89,14 @@ public func embed<C: Component>(
 
 /// Keyed variant of `embed(_:refresh:)`. `key` stabilizes identity across
 /// reorders; `refresh` re-pushes props into the reused instance. Same
-/// plain-`var`-not-`@State` contract as the unkeyed overload.
+/// plain-`var`-not-`@State` contract as the unkeyed overload. (`contentKey:`
+/// accepted for symmetry, though a present `refresh:` already silences the
+/// stale-content warning it powers.)
 public func embed<C: Component>(
     _ key: String,
+    contentKey: String? = nil,
     _ factory: @escaping () -> C,
     refresh: @escaping (C) -> Void
 ) -> VNode {
-    .component(ComponentDescription(C.self, key: key, factory: factory, refresh: refresh))
+    .component(ComponentDescription(C.self, key: key, contentKey: contentKey, factory: factory, refresh: refresh))
 }

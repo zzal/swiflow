@@ -68,7 +68,9 @@ public func Autocomplete(
     key: String? = nil
 ) -> VNode {
     let caller = attributes
-    return embedKeyed(key) {
+    // Freeze digest — see the selection-binding overload above.
+    let freezeDigest = "\(options.count)|\(options.first?.value ?? "")|\(options.last?.value ?? "")"
+    return embedKeyed(key, contentKey: freezeDigest) {
         AutocompleteBox(label: label, selection: field.binding, options: options,
                         placeholder: placeholder, error: field.error, size: size,
                         required: required, disabled: disabled, filter: filter,

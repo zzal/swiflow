@@ -16,7 +16,10 @@ import JavaScriptKit
 @MainActor
 struct ModalDialogHost {
     let isPresented: Binding<Bool>
-    let dismissOnBackdrop: Bool
+    /// `var`: threaded LIVE by the owning facade's `refresh:` push (audit V
+    /// Wave-2 #6). Mutating this sibling field never touches `dialogRef` —
+    /// the Ref is a class reference; the struct mutation leaves it intact.
+    var dismissOnBackdrop: Bool
     #if canImport(JavaScriptKit)
     let dialogRef = Ref<JSObject>()
     #endif
