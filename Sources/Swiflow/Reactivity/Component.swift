@@ -133,17 +133,27 @@ public struct ComponentDescription: Equatable {
     /// exactly like `factory`).
     let refresh: ((AnyComponent) -> Void)?
 
-    package init(typeID: ObjectIdentifier, key: String?, factory: @escaping () -> AnyComponent, refresh: ((AnyComponent) -> Void)? = nil) {
+    /// Optional cheap digest of the FROZEN init content (audit V Wave-2 #6).
+    /// NOT part of identity — same (typeID, key) still reuses the instance —
+    /// but when the reuse arm sees the digest CHANGE with no `refresh:`
+    /// closure, DEBUG builds warn that the instance is showing first-mount
+    /// data. Facades derive it from whatever their doc-note says freezes
+    /// (row counts, option values, …); a heuristic, not a proof.
+    let contentKey: String?
+
+    package init(typeID: ObjectIdentifier, key: String?, contentKey: String? = nil, factory: @escaping () -> AnyComponent, refresh: ((AnyComponent) -> Void)? = nil) {
         self.typeID = typeID
         self.key = key
+        self.contentKey = contentKey
         self.factory = factory
         self.refresh = refresh
     }
 
     /// Convenience init for the common case: a concrete Component factory.
-    public init<C: Component>(_ type: C.Type, key: String? = nil, factory: @escaping () -> C, refresh: ((C) -> Void)? = nil) {
+    public init<C: Component>(_ type: C.Type, key: String? = nil, contentKey: String? = nil, factory: @escaping () -> C, refresh: ((C) -> Void)? = nil) {
         self.typeID = ObjectIdentifier(type)
         self.key = key
+        self.contentKey = contentKey
         self.factory = { AnyComponent(factory()) }
         self.refresh = refresh.map { push in { any in push(any.instance as! C) } }
     }

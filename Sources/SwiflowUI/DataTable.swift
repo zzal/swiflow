@@ -54,6 +54,8 @@ struct SelectionModel {
 /// > (filtering, fetching, upstream re-sort), pass a `key:` that changes with them so the table
 /// > remounts with fresh data, e.g. `key: "people-\(filtered.count)"`. Remounting resets the
 /// > self-managed sort/page state; drive `sortOrder:`/`page:` bindings if you need it preserved.
+/// > DEBUG builds detect the common changed-content case (row count / loading /
+/// > pageSize / column set) under an unchanged key and warn.
 @MainActor
 public func DataTable<Row, ID: Hashable>(
     _ rows: [Row],
@@ -75,7 +77,12 @@ public func DataTable<Row, ID: Hashable>(
 ) -> VNode {
     let cols = columns()
     let caller = attributes
-    return embedKeyed(key) {
+    // Freeze digest (audit V Wave-2 #6): rows/loading/pageSize/columns are
+    // captured at first mount; this cheap heuristic lets DEBUG builds warn
+    // when they change under an unchanged key (same-count edits slip
+    // through — the filter/fetch/reload case is what it catches).
+    let freezeDigest = "\(rows.count)|\(loading)|\(pageSize ?? -1)|" + cols.map(\.id).joined(separator: ",")
+    return embedKeyed(key, contentKey: freezeDigest) {
         makeDataTableBox(rows, id: id, selection: selection, sortable: sortable,
                          sortOrder: sortOrder, pageSize: pageSize, page: page,
                          onRowClick: onRowClick, loading: loading, maxHeight: maxHeight,
@@ -105,7 +112,9 @@ public func DataTable<Row: Identifiable>(
 ) -> VNode {
     let cols = columns()
     let caller = attributes
-    return embedKeyed(key) {
+    // Freeze digest — see the id-keypath overload above.
+    let freezeDigest = "\(rows.count)|\(loading)|\(pageSize ?? -1)|" + cols.map(\.id).joined(separator: ",")
+    return embedKeyed(key, contentKey: freezeDigest) {
         makeDataTableBox(rows, id: \.id, selection: selection, sortable: sortable,
                          sortOrder: sortOrder, pageSize: pageSize, page: page,
                          onRowClick: onRowClick, loading: loading, maxHeight: maxHeight,

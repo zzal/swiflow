@@ -22,9 +22,9 @@ import JavaScriptKit
 /// implicit `<label>` association as every other field; `message` becomes that label
 /// (falling back to `title` if omitted, so the input is always labelled).
 ///
-/// > Note: like `Alert`, `title`/`message`/button titles are captured at first
-/// > presentation (the component is `embed`-reused; the `isPresented`/`text` bindings
-/// > stay live). Pass a `key:` that changes with the content if you need that chrome to update while mounted.
+/// > Note: like `Alert`, `title`/`message`/button titles/`onSubmit` update LIVE —
+/// > pushed into the reused dialog on every parent re-render. `key:` remains for
+/// > deliberate remounts.
 ///
 /// Set `dismissOnBackdrop: true` to cancel (close without `onSubmit`) on a backdrop
 /// click, in addition to ESC + Cancel. Off by default.
@@ -41,29 +41,39 @@ public func Prompt(
     key: String? = nil,
     onSubmit: @escaping (String) -> Void
 ) -> VNode {
-    embedKeyed(key) {
+    embedKeyed(key, {
         PromptDialog(title: title, isPresented: isPresented, text: text, message: message,
                      placeholder: placeholder, confirmTitle: confirmTitle,
                      cancelTitle: cancelTitle, dismissOnBackdrop: dismissOnBackdrop, onSubmit: onSubmit)
-    }
+    }, refresh: { dialog in
+        // Thread the display props LIVE (audit V Wave-2 #6); the
+        // isPresented/text Bindings were always live.
+        dialog.title = title
+        dialog.message = message
+        dialog.placeholder = placeholder
+        dialog.confirmTitle = confirmTitle
+        dialog.cancelTitle = cancelTitle
+        dialog.onSubmit = onSubmit
+        dialog.host.dismissOnBackdrop = dismissOnBackdrop
+    })
 }
 
 /// The stateful implementation behind `Prompt`. Mirrors `AlertDialog`'s `<dialog>`
 /// open/close sync; adds the `<form method="dialog">` submit path.
 @Component
 final class PromptDialog {
-    private let title: String
-    private let message: String?
-    private let placeholder: String
-    private let confirmTitle: String
-    private let cancelTitle: String
+    var title: String
+    var message: String?
+    var placeholder: String
+    var confirmTitle: String
+    var cancelTitle: String
     private let isPresented: Binding<Bool>   // kept for the form's confirm/cancel closures
     private let textBinding: Binding<String>   // not `text` — that would shadow the text(_:) node factory
-    private let onSubmit: (String) -> Void
+    var onSubmit: (String) -> Void
     private let titleID: String
     /// The shared modal machinery: ref, open/close sync, guarded close
     /// handler, backdrop dismissal (a CANCEL here — never submits), scaffold.
-    private let host: ModalDialogHost
+    var host: ModalDialogHost
 
     init(title: String, isPresented: Binding<Bool>, text: Binding<String>, message: String?,
          placeholder: String, confirmTitle: String, cancelTitle: String,

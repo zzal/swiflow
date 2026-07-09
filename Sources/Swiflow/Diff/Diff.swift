@@ -449,6 +449,23 @@ func update(
             destroy(mounted, into: &patches, handlers: handlers)
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
+        #if DEBUG
+        // Guardrail (audit V Wave-2 #6): the factory ran at FIRST MOUNT only,
+        // so init content froze — a changed contentKey digest under this
+        // unchanged (typeID, key) identity means the reused instance is
+        // showing stale first-mount data. `refresh:` present = the caller
+        // threads data live, so it's exempt. Warns once per change:
+        // `mounted.vnode = next` below stores THIS description, so the next
+        // render compares against the new digest.
+        if let oldCK = oldDesc.contentKey, let newCK = newDesc.contentKey,
+           oldCK != newCK, newDesc.refresh == nil {
+            swiflowWarn(
+                "\(type(of: instance.instance))'s embedded content changed but its key "
+                    + "didn't — the reused instance still shows its FIRST-MOUNT data. "
+                    + "Pass a key: that changes with the content, or push it live with refresh:."
+            )
+        }
+        #endif
         // Push refreshed props into the reused instance BEFORE re-evaluating its
         // body, so the body reflects the parent's current data (see
         // `embed(_:refresh:)`). The closure comes from THIS render's description

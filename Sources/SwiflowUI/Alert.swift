@@ -22,12 +22,10 @@ import JavaScriptKit
 ///         Button("Delete") { delete(); confirmDelete = false }
 ///     }
 ///
-/// > Note: `title`/`message`/`actions` are captured when the alert is **first
-/// > presented** (the underlying component is `embed`-reused across renders, so its
-/// > stored props don't update live; the `isPresented` binding *does* stay live).
-/// > That's the right model for an alert — its text is fixed per logical alert. If
-/// > you genuinely need the content to change while mounted, pass a `key:` that
-/// > changes with the content (e.g. `key: title`).
+/// > Note: `title`/`message`/`actions` (and `dismissOnBackdrop`) update LIVE —
+/// > the facade pushes them into the reused dialog on every parent re-render,
+/// > so interpolated titles just work. `key:` remains available when you want a
+/// > full remount instead (fresh entry animation, reset internal state).
 ///
 /// Set `dismissOnBackdrop: true` to also close when the user clicks the backdrop
 /// (outside the card). Off by default — an alert asks for a deliberate response, so
@@ -41,10 +39,18 @@ public func Alert(
     key: String? = nil,
     @ChildrenBuilder actions: @escaping () -> [VNode]
 ) -> VNode {
-    embedKeyed(key) {
+    embedKeyed(key, {
         AlertDialog(title: title, isPresented: isPresented, message: message,
                     dismissOnBackdrop: dismissOnBackdrop, actions: actions)
-    }
+    }, refresh: { dialog in
+        // Thread the display props LIVE into the reused instance (audit V
+        // Wave-2 #6) — the old "captured at first presentation" freeze is
+        // gone. isPresented stays init-bound: it's a Binding, already live.
+        dialog.title = title
+        dialog.message = message
+        dialog.actions = actions
+        dialog.host.dismissOnBackdrop = dismissOnBackdrop
+    })
 }
 
 /// The stateful implementation behind `Alert`. A `@Component` because a *modal*
@@ -53,16 +59,16 @@ public func Alert(
 /// bits are `#if`-gated so the dialog structure still builds + unit-tests on host.
 @Component
 final class AlertDialog {
-    private let title: String
-    private let message: String?
-    private let actions: () -> [VNode]
+    var title: String
+    var message: String?
+    var actions: () -> [VNode]
     // Stable ids for ARIA wiring, captured once at init (not per body) so they're
     // stable across re-renders and never collide between two instances.
     private let titleID: String
     private let messageID: String
     /// The shared modal machinery: ref, open/close sync, guarded close
     /// handler, backdrop dismissal, scaffold. See `ModalDialogHost`.
-    private let host: ModalDialogHost
+    var host: ModalDialogHost
 
     init(title: String, isPresented: Binding<Bool>, message: String? = nil,
          dismissOnBackdrop: Bool = false, actions: @escaping () -> [VNode]) {

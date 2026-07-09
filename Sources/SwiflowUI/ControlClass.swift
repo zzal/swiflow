@@ -42,9 +42,21 @@ func splitClasses(_ attributes: [Attribute]) -> (classes: [String], rest: [Attri
 /// frozen at first mount (see each overlay's doc note). Keeps the `key != nil` branch in
 /// one place so every facade behaves identically.
 @MainActor
-func embedKeyed<C: Component>(_ key: String?, _ factory: @escaping () -> C) -> VNode {
-    if let key { return embed(key, factory) }
-    return embed(factory)
+func embedKeyed<C: Component>(_ key: String?, contentKey: String? = nil,
+                              _ factory: @escaping () -> C) -> VNode {
+    if let key { return embed(key, contentKey: contentKey, factory) }
+    return embed(contentKey: contentKey, factory)
+}
+
+/// `embedKeyed` with a `refresh:` prop-push — the overlays that thread their
+/// display props LIVE into the reused instance (Alert/Prompt since audit V
+/// Wave-2 #6) route here. Same plain-`var`-never-`@State` contract as
+/// `embed(_:refresh:)`.
+@MainActor
+func embedKeyed<C: Component>(_ key: String?, _ factory: @escaping () -> C,
+                              refresh: @escaping (C) -> Void) -> VNode {
+    if let key { return embed(key, factory, refresh: refresh) }
+    return embed(factory, refresh: refresh)
 }
 
 /// Injects a stateless control's global utility-class sheet into `<head>` exactly
