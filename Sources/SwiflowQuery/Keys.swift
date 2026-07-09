@@ -29,4 +29,15 @@ extension Array where Element == QueryKeyComponent {
         guard prefix.count <= count else { return false }
         return Array(self.prefix(prefix.count)) == prefix
     }
+
+    /// Human-readable form for diagnostics — `["todos", 7]` rather than the
+    /// enum's reflected `[string("todos"), int(7)]`.
+    var diagnosticText: String {
+        "[" + map { component in
+            switch component {
+            case .string(let s): return "\"\(s)\""
+            case .int(let i):    return String(i)
+            }
+        }.joined(separator: ", ") + "]"
+    }
 }

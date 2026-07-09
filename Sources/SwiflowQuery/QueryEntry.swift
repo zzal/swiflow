@@ -1,4 +1,5 @@
 // Sources/SwiflowQuery/QueryEntry.swift
+import Swiflow
 
 /// One cache slot. A reference type so the client can mutate it in place and
 /// hold it across awaits. All access is on the `@MainActor` (via `QueryClient`).
@@ -90,6 +91,22 @@ func makeSnapshot<V>(
     if let entry {
         let fetching = entry.inFlight != nil
         let data = entry.value as? V
+        #if DEBUG
+        // A cached value that fails the typed read is never intentional: two
+        // query types are sharing one key with different `Value` types, and
+        // `as?` degrades that to data == nil — a permanent spinner for the
+        // mismatched reader with zero signal (audit II guardrail; the write
+        // path's `OptimisticOutcome.typeMismatch` already shouts).
+        if let cached = entry.value, data == nil {
+            swiflowDiagnostic("""
+            Query value type mismatch\(key.map { " for key \($0.diagnosticText)" } ?? ""): \
+            the cache holds \(type(of: cached)) but this reader asked for \
+            \(V.self). Two query types are sharing one key with different \
+            Value types — the mismatched reader sees data == nil forever. \
+            Give each Value type its own key (e.g. a distinct prefix).
+            """)
+        }
+        #endif
         state = QueryState(
             data: data,
             error: entry.error,

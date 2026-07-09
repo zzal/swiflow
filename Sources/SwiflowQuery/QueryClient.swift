@@ -235,10 +235,29 @@ public final class QueryClient {
     /// Force every entry whose key starts with `key` (or equals it when
     /// `exact`) stale, and refetch the ones with live subscribers.
     public func invalidate(_ key: QueryKey, exact: Bool = false) {
+        #if DEBUG
+        var liveFanout = 0
+        #endif
         for (entryKey, entry) in entries {
             let match = exact ? (entryKey == key) : entryKey.hasPrefix(key)
-            if match { forceStaleAndRefetch(entryKey, entry) }
+            if match {
+                #if DEBUG
+                if hasLiveSubscribers(entryKey) { liveFanout += 1 }
+                #endif
+                forceStaleAndRefetch(entryKey, entry)
+            }
         }
+        #if DEBUG
+        // An accidental over-broad prefix reads like one invalidation but
+        // lands as a refetch storm; note it (audit II guardrail).
+        if !exact, liveFanout > 20 {
+            swiflowWarn("""
+            invalidate(\(key.diagnosticText)) fanned out to \(liveFanout) live \
+            entries, each refetching now. If that is broader than intended, \
+            narrow the prefix, pass exact: true, or target a tag.
+            """)
+        }
+        #endif
     }
 
     /// Force every entry tagged `tag` stale, and refetch the live ones.
