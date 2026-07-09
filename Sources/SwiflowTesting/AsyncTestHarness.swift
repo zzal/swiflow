@@ -105,6 +105,12 @@ public struct AsyncTestHarness {
     public var allText: String { harness.allText }
     public func find(_ tag: String, text: String? = nil) -> TestNode? { harness.find(tag, text: text) }
     public func findAll(_ tag: String, text: String? = nil) -> [TestNode] { harness.findAll(tag, text: text) }
+    public func find(role: String, label: String? = nil) -> TestNode? { harness.find(role: role, label: label) }
+    public func findAll(role: String, label: String? = nil) -> [TestNode] { harness.findAll(role: role, label: label) }
+    public func find(class className: String) -> TestNode? { harness.find(class: className) }
+    public func findAll(class className: String) -> [TestNode] { harness.findAll(class: className) }
+    public func find(label: String) -> TestNode? { harness.find(label: label) }
+    public func findAll(label: String) -> [TestNode] { harness.findAll(label: label) }
     public func exists(_ tag: String, text: String? = nil) -> Bool { harness.exists(tag, text: text) }
     public func click(_ tag: String, text: String? = nil, sourceLocation: SourceLocation = #_sourceLocation) { harness.click(tag, text: text, sourceLocation: sourceLocation) }
     public func clickIfPresent(_ tag: String, text: String? = nil) { harness.clickIfPresent(tag, text: text) }

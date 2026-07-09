@@ -83,6 +83,50 @@ let buttons = h.findAll("button")
 #expect(buttons[1].text == "Show toast")
 ```
 
+### `find(role: label:)` / `findAll(role: label:)`
+
+Query by **ARIA role** — the way a user (or screen reader) perceives the
+element, robust against markup shuffles that break tag-position queries:
+
+```swift
+h.find(role: "button", label: "Save")
+h.find(role: "textbox", label: "Email")
+h.findAll(role: "checkbox")
+h.find(role: "heading")
+```
+
+The effective role is the explicit `role` attribute if present, else the
+implicit WAI-ARIA mapping for the tag: `button` → button, `a[href]` → link,
+`input` → textbox/checkbox/radio/slider/spinbutton/searchbox by `type`,
+`textarea` → textbox, `select` → combobox, `h1`–`h6` → heading, landmark
+tags (`nav`/`main`/`header`/`footer`/`aside`/`section`/`form`), table parts,
+`ul`/`ol` → list, `li` → listitem, `dialog`, `progress` → progressbar, and
+`fieldset` → group.
+
+`label` filters by **accessible label** (contains-match, like `text:`),
+resolved in precedence order: `aria-label` → a `<label for=id>` naming the
+element's `id` → a wrapping ancestor `<label>` (the SwiflowUI form-control
+pattern) → the element's own subtree text (a button names itself).
+`aria-labelledby` is *not* resolved — this is a pragmatic subset of accname
+computation, not the full algorithm.
+
+### `find(label:)` / `findAll(label:)`
+
+Accessible-label query with no role filter:
+
+```swift
+h.find(label: "Accept terms")
+```
+
+### `find(class:)` / `findAll(class:)`
+
+Matches a **token** of the element's class list (never a substring —
+`sw-err` does not match `sw-error`):
+
+```swift
+h.find(class: "sw-field__error")
+```
+
 ### `exists(_ tag: text:) -> Bool`
 
 Convenience predicate. True iff at least one matching element exists.
@@ -133,14 +177,33 @@ let h = render(Counter())
 h.debug()
 ```
 
-## `TestNode` fields
+## `TestNode` — a live element handle
 
-| Field | Type | Description |
-|-------|------|-------------|
+`find`/`findAll` return **live** handles to rendered elements, not
+snapshots: reads reflect the current tree after every re-render, actions
+dispatch on *this* element (never re-queried, never "first in document
+order"), and queries scope to its subtree.
+
+| Member | Type | Description |
+|--------|------|-------------|
 | `tag` | `String` | HTML tag name (e.g. `"div"`, `"input"`) |
-| `text` | `String` | Subtree text content of this node |
+| `text` | `String` | Subtree text content, current as of the last render |
 | `attributes` | `[String: String]` | HTML attributes set via `.attr(...)`, `.class(...)`, `.id(...)` |
 | `properties` | `[String: String]` | DOM properties set via `.value(...)`, `.checked(...)`, `.prop(...)`. Each `PropertyValue` is stringified: `.string(s)` → `s`, `.bool(b)` → `"true"` / `"false"`, `.int(n)` → decimal string, `.double(d)` → Swift `String(d)` representation. |
+| `isAttached` | `Bool` | Whether the element is still part of the rendered tree |
+| `find` / `findAll` | | The tag+text queries, scoped to this node's subtree |
+| `click()` `type(_:)` `blur()` `change(value:)` `check(_:)` `press(key:)` `fire(_:)` | | Actions on this element — strict and chainable (each returns the node) |
+
+```swift
+h.find(role: "textbox", label: "Email")!.type("x").blur()
+
+let banner = h.find(class: "banner")!
+#expect(banner.find("button")?.text == "Dismiss")
+```
+
+If a re-render removes the element, the handle is *detached*: reads return
+its last committed state, and actions record a test Issue telling you to
+re-query for the current element.
 
 `attributes` covers HTML attributes (`element.setAttribute(name, value)`),
 while `properties` covers typed DOM property assignments (`element[name] = value`).
