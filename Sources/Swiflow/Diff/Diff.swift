@@ -556,7 +556,16 @@ func update(
         // from the factory. Contract: the closure targets plain stored props,
         // never `@State` (assigning `@State` here re-enters the scheduler every
         // render → a render loop).
+        #if DEBUG
+        // Mark this instance's refresh as running so the scheduler can catch a
+        // `@State` assignment inside the closure (the documented render-loop
+        // footgun). Cleared immediately after — refresh is non-throwing.
+        RefreshReentrancyGuard.activeInstanceID = ObjectIdentifier(instance.instance)
         newDesc.refresh?(instance)
+        RefreshReentrancyGuard.activeInstanceID = nil
+        #else
+        newDesc.refresh?(instance)
+        #endif
         // Re-render: call body on the reused instance so any state
         // mutations since the last render (e.g. n = 42 on a Counter)
         // are reflected in the new body VNode.

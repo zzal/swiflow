@@ -69,6 +69,9 @@ final class RAFScheduler: Scheduler {
     /// Records `component` as needing re-render and schedules a rAF
     /// callback if one is not already pending.
     func markDirty(_ component: AnyComponent) {
+        #if DEBUG
+        RefreshReentrancyGuard.noteDirty(component)
+        #endif
         dirty.insert(ObjectIdentifier(component.instance))
         scheduleRAFIfNeeded()
     }
