@@ -20,6 +20,69 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.11] — 2026-07-08
+
+**Beta.** The component composition & guardrails release: the remainder of
+audit Part V (SwiflowUI + SwiflowColor Waves 2–3, PRs #196–#201) — Part V is
+now complete end-to-end.
+
+**Stability:** Stable for pre-1.0 usage. **One breaking change** (below).
+
+### Breaking
+
+- **`DataTable(maxHeight:)` is now a CSS length string** (`"480px"`), not
+  `Spacing?` — the old type let `.lg` compile into a nonsensical 1.25rem
+  scroll box; only `.custom` was ever sensible. Migrate
+  `maxHeight: .custom("480px")` → `maxHeight: "480px"`.
+
+### Added
+
+- **Typed design tokens** — `Token` covers the entire shipped `--sw-*`
+  vocabulary: `.style("background", .surface)` fails at compile time where
+  a stringly `var(--sw-surfce)` typo failed silent. `Theme` overrides route
+  through the same constants (`ThemeToken.set(.warning, "#b45309")`), so the
+  read and write vocabularies cannot drift — and a CI test pins the
+  vocabulary to the shipped sheet.
+- **Stringly `.style` values are validated too** — DEBUG builds scan
+  `var(--sw-…)` references in string style values against the token
+  vocabulary and warn on unknown names (composites and app-custom
+  properties keep working untouched).
+- **`Card(variant: .plain)`** — the bare padded surface (background +
+  radius + padding, no shadow or border).
+- **Button builder labels** — `Button(variant: .danger, action: { … }) {
+  trashIcon(); text("Delete") }`, the overload slot reserved since M4; a
+  form-button twin covers `type: .submit`. Icon-only labels without an
+  `aria-label` warn in DEBUG (no accessible name).
+- **Alert/Prompt content is live** — `title`/`message`/actions/button
+  titles now update on every parent re-render; the "captured at first
+  presentation" caveat (and its `key:` workaround) is gone.
+- **Stale-embed detection** — components whose init content freezes at
+  first mount (DataTable rows, sync Autocomplete options) now carry a
+  content digest; DEBUG builds warn when the content changes under an
+  unchanged key with no `refresh:`, instead of silently showing
+  first-mount data. App embeds can opt in via `embed(contentKey:)`.
+
+### Fixed
+
+- **DataTable virtualization is wasm32-safe** — scroll/runway pixel math
+  computed in `Double` and clamped: an extreme scroll position or a
+  runway past 2³¹ px can no longer trap the wasm module (the 32-bit `Int`
+  class of bug; host tests now pin the exact clamping wasm gets).
+
+### Internal
+
+- One authoring site for the overlay entry/exit animation quartet
+  (Dropdown/Autocomplete/dialog chrome interpolate a shared generator —
+  the third copy had already drifted its load-bearing comment).
+- Autocomplete's state transitions and Dropdown's roving-focus decision
+  table promoted to host-testable seams (the pure roving table is
+  unit-pinned for the first time).
+- `swiflowcolor.md` documents the runtime flip side of native-only: no
+  runtime contrast checking exists — dynamically-themed palettes must be
+  validated at generation time.
+
+---
+
 ## [0.4.10] — 2026-07-08
 
 **Beta.** The store hardening & UI polish release: audit Part IV Wave 3
