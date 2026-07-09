@@ -113,7 +113,7 @@ public final class MutationRuntime<M: Mutation> {
             // direct-construction safety net. Loud in DEBUG, degraded in
             // release — the write still runs (in `finish`); only optimism and
             // invalidation are skipped. Never a silently-wrong write.
-            assertionFailure("MutationRuntime: no QueryClient wired (was the component mounted through the renderer?)")
+            assertionFailure("MutationRuntime: no QueryClient wired. Either the enclosing class is missing @Component (which wires @MutationState at mount), or the component wasn't mounted through the renderer.")
         }
         status = .pending; markDirty()
         return rollback

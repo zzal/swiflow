@@ -66,7 +66,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         // witnesses at the same access, or they silently narrow to internal and
         // break cross-module construction. `SynthesizedAccess` returns the
         // keyword to copy onto them ("public " / "package " / ""). The
-        // `runtimeOwner` and `runtimeScheduler` stored properties stay private
+        // `_swiflowOwner` and `_swiflowScheduler` stored properties stay private
         // regardless — they're implementation detail, not part of the protocol.
         let access = SynthesizedAccess.keyword(for: classDecl.modifiers)
 
@@ -76,6 +76,13 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         // nothing extra (byte-identical to today; `stateCells` keeps its own
         // @MainActor as it does now).
         let synthActor = ComponentIsolation.hasMainActorAttribute(classDecl.attributes) ? "" : "@MainActor "
+
+        // Whether the user owns construction. When they don't, @Component
+        // synthesizes the init — and a non-optional @State with no default
+        // would then be left uninitialized, so we diagnose it below (guardrail).
+        let hasUserInit = classDecl.memberBlock.members.contains {
+            $0.decl.is(InitializerDeclSyntax.self)
+        }
 
         // Scan members for @MacroState or @State. The scanner accepts
         // both during the Phase 15 migration window (Task 4 introduced
@@ -107,6 +114,26 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             let name = identifier.text
             let valueType = typeAnno.type.trimmedDescription
             let isOptional = Self.isOptionalType(typeAnno.type)
+
+            // Guardrail: a non-optional @State with no default, when @Component
+            // owns construction, leaves the property uninitialized in the
+            // synthesized init() — which the compiler reports as "return from
+            // initializer without initializing all stored properties" on
+            // invisible synthesized code. Diagnose at the property instead.
+            // (@Persisted always carries a default; @MutationState/@ReducerState
+            // are default-constructed in the synthesized init — this is @State
+            // only. Optionals default to nil, so they need no explicit default.)
+            let isPlainState = varDecl.attributes.contains { attr in
+                guard let a = attr.as(AttributeSyntax.self),
+                      let n = a.attributeName.as(IdentifierTypeSyntax.self)?.name.text else { return false }
+                return n == "State" || n == "MacroState"
+            }
+            if isPlainState, !hasUserInit, !isOptional, binding.initializer == nil {
+                context.diagnose(Diagnostic(
+                    node: Syntax(varDecl),
+                    message: ComponentMacroDiagnostic.stateNeedsDefault(name: name, type: valueType)
+                ))
+            }
 
             // Per Phase 15 Task 1 finding: Optional<T>.none stored in Any
             // is type-erased. Snapshot must normalize .none to HMRNilSentinel
@@ -252,7 +279,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         // plus one wire() line per @MutationState (conditional — mutation-free
         // components emit a byte-identical body with no SwiflowQuery reference),
         // then one wire() line per @ReducerState.
-        var bindStmts = ["self.runtimeOwner = owner", "self.runtimeScheduler = scheduler"]
+        var bindStmts = ["self._swiflowOwner = owner", "self._swiflowScheduler = scheduler"]
         bindStmts += mutationNames.map { name in
             "_\(name)_mutationRuntime.wire(owner: owner, scheduler: scheduler, client: _currentRenderQueryClient())"
         }
@@ -266,7 +293,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         //
         // For bare `@Component` (synthActor != ""), we ALWAYS synthesize a
         // `@MainActor init()` — even for mutation-free components — because
-        // the synthesized storage (`runtimeOwner`, `runtimeScheduler`) is
+        // the synthesized storage (`_swiflowOwner`, `_swiflowScheduler`) is
         // `@MainActor`-isolated. Without an explicit `@MainActor init()`,
         // Swift generates a nonisolated default init which conflicts with those
         // `@MainActor`-isolated stored properties (Swift 6 strict concurrency).
@@ -275,9 +302,6 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         // Swift itself infers the correct actor on the implicit default init, so
         // we revert to the old behaviour: synthesize only when mutations/reducers
         // require default-construction assignments.
-        let hasUserInit = classDecl.memberBlock.members.contains {
-            $0.decl.is(InitializerDeclSyntax.self)
-        }
         let allInits = mutationInits + reducerInits
         var synthesizedInit: DeclSyntax? = nil
         if !hasUserInit {
@@ -298,8 +322,8 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         var emitted: [DeclSyntax] = []
         if let synthesizedInit { emitted.append(synthesizedInit) }
         emitted.append(contentsOf: [
-            DeclSyntax(stringLiteral: "\(synthActor)private weak var runtimeOwner: AnyComponent?"),
-            DeclSyntax(stringLiteral: "\(synthActor)private var runtimeScheduler: Scheduler?"),
+            DeclSyntax(stringLiteral: "\(synthActor)private weak var _swiflowOwner: AnyComponent?"),
+            DeclSyntax(stringLiteral: "\(synthActor)private var _swiflowScheduler: Scheduler?"),
             stateCellsDecl,
             bindDecl,
         ])
@@ -382,6 +406,7 @@ extension ComponentMacro: MemberAttributeMacro {
 enum ComponentMacroDiagnostic: DiagnosticMessage {
     case requiresClass
     case requiresFinal
+    case stateNeedsDefault(name: String, type: String)
 
     var message: String {
         switch self {
@@ -389,11 +414,19 @@ enum ComponentMacroDiagnostic: DiagnosticMessage {
             return "@Component requires a class — components are reference types in Swiflow"
         case .requiresFinal:
             return "@Component requires 'final' — components cannot be subclassed"
+        case let .stateNeedsDefault(name, type):
+            return "@State '\(name)' needs a default value — @Component synthesizes init(), so give it one (e.g. `@State var \(name): \(type) = …`), or write your own init that assigns it."
         }
     }
 
     var diagnosticID: MessageID {
-        MessageID(domain: "SwiflowMacros", id: "\(self)")
+        let id: String
+        switch self {
+        case .requiresClass: id = "requiresClass"
+        case .requiresFinal: id = "requiresFinal"
+        case .stateNeedsDefault: id = "stateNeedsDefault"
+        }
+        return MessageID(domain: "SwiflowMacros", id: id)
     }
 
     var severity: DiagnosticSeverity { .error }

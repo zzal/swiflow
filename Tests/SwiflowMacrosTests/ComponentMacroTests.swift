@@ -29,9 +29,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -53,8 +53,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -140,15 +140,15 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -180,7 +180,7 @@ final class ComponentMacroTests: XCTestCase {
                             count = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -202,7 +202,7 @@ final class ComponentMacroTests: XCTestCase {
                             label = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -224,9 +224,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -264,8 +264,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -293,15 +293,15 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -332,7 +332,7 @@ final class ComponentMacroTests: XCTestCase {
                             maybeId = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -354,9 +354,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -381,8 +381,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -413,7 +413,7 @@ final class ComponentMacroTests: XCTestCase {
                             maybeId = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -435,9 +435,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -462,8 +462,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -506,9 +506,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -530,8 +530,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -559,9 +559,9 @@ final class ComponentMacroTests: XCTestCase {
                 @State var count: Int = 0
                 var body: VNode { .text("hello") }
 
-                private weak var runtimeOwner: AnyComponent?
+                private weak var _swiflowOwner: AnyComponent?
 
-                private var runtimeScheduler: Scheduler?
+                private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -583,8 +583,8 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
@@ -614,7 +614,7 @@ final class ComponentMacroTests: XCTestCase {
                             maybeId = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -636,9 +636,9 @@ final class ComponentMacroTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -663,14 +663,259 @@ final class ComponentMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 
             extension Counter: Component, _ComponentRuntime {
             }
             """,
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
+        )
+    }
+
+    // #3 guardrail: a non-optional @State with no default is diagnosed at the
+    // property — @Component synthesizes init() and would leave it uninitialized.
+    func testStateWithoutDefaultDiagnostic() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Counter {
+                @State var count: Int
+                var body: VNode { .text("hello") }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                @MainActor var count: Int {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            count = oldValue
+                            return
+                        }
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                @MainActor var $count: Binding<Int> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.count
+                        },
+                        set: { [unowned self] in
+                            self.count = $0
+                        }
+                    )
+                }
+                @MainActor
+                var body: VNode { .text("hello") }
+
+                @MainActor init() {
+                }
+
+                @MainActor private weak var _swiflowOwner: AnyComponent?
+
+                @MainActor private var _swiflowScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Counter>(
+                    name: "count",
+                    snapshot: {
+                        $0.count as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: Int.self) else {
+                            return false
+                        }
+                        c.count = typed
+                        return true
+                    },
+                    restoreNil: { _ in
+                        false
+                    }
+                    ),
+                ]
+
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
+                }
+            }
+
+            extension Counter: Component, _ComponentRuntime {
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@State 'count' needs a default value — @Component synthesizes init(), so give it one (e.g. `@State var count: Int = …`), or write your own init that assigns it.",
+                    line: 3,
+                    column: 5
+                )
+            ],
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
+        )
+    }
+
+    // An optional @State needs no default (defaults to nil) — no diagnostic.
+    func testOptionalStateNeedsNoDefault() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Counter {
+                @State var name: String?
+                var body: VNode { .text("hello") }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                @MainActor var name: String? {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            name = oldValue
+                            return
+                        }
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                @MainActor var $name: Binding<String?> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.name
+                        },
+                        set: { [unowned self] in
+                            self.name = $0
+                        }
+                    )
+                }
+                @MainActor
+                var body: VNode { .text("hello") }
+
+                @MainActor init() {
+                }
+
+                @MainActor private weak var _swiflowOwner: AnyComponent?
+
+                @MainActor private var _swiflowScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Counter>(
+                    name: "name",
+                    snapshot: { c in
+                        c.name.map {
+                            $0 as Any
+                        } ?? HMRNilSentinel() as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: String?.self) else {
+                            return false
+                        }
+                        c.name = typed
+                        return true
+                    },
+                    restoreNil: { c in
+                        c.name = nil
+                        return true
+                    }
+                    ),
+                ]
+
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
+                }
+            }
+
+            extension Counter: Component, _ComponentRuntime {
+            }
+            """,
+            diagnostics: [],
+            macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
+        )
+    }
+
+    // A user-written init owns construction — no @State-default diagnostic.
+    func testUserInitSuppressesStateDefaultDiagnostic() {
+        assertMacroExpansion(
+            """
+            @Component
+            final class Counter {
+                @State var count: Int
+                init() {
+                    count = 0
+                }
+                var body: VNode { .text("hello") }
+            }
+            """,
+            expandedSource: """
+            final class Counter {
+                @MainActor var count: Int {
+                    didSet {
+                        if SwiflowTaskRuntime.shouldDropWrite() {
+                            count = oldValue
+                            return
+                        }
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
+                            s.markDirty(o)
+                        }
+                    }
+                }
+
+                @MainActor var $count: Binding<Int> {
+                    Binding(
+                        get: { [unowned self] in
+                            self.count
+                        },
+                        set: { [unowned self] in
+                            self.count = $0
+                        }
+                    )
+                }
+                @MainActor
+                init() {
+                    count = 0
+                }
+                @MainActor
+                var body: VNode { .text("hello") }
+
+                @MainActor private weak var _swiflowOwner: AnyComponent?
+
+                @MainActor private var _swiflowScheduler: Scheduler?
+
+                @MainActor static let stateCells: [any AnyStateCell] = [
+                    StateCell<Counter>(
+                    name: "count",
+                    snapshot: {
+                        $0.count as Any
+                    },
+                    restore: { c, v in
+                        guard let typed = _hmrCoerce(v, to: Int.self) else {
+                            return false
+                        }
+                        c.count = typed
+                        return true
+                    },
+                    restoreNil: { _ in
+                        false
+                    }
+                    ),
+                ]
+
+                @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
+                }
+            }
+
+            extension Counter: Component, _ComponentRuntime {
+            }
+            """,
+            diagnostics: [],
             macros: ["Component": ComponentMacro.self, "State": StateMacro.self]
         )
     }

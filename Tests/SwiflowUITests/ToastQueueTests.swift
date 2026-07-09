@@ -83,11 +83,21 @@ struct ToastQueueReducerTests {
     }
 }
 
+@MainActor private final class ToastHostStub: Component { var body: VNode { .text("") } }
+
 @Suite("ToastStack(queue:) rendering")
 @MainActor
 struct ToastStackQueueTests {
+    // Wire the runtime like production does (a mounted @Component owns it), so
+    // dispatching through it is faithful and doesn't trip the unwired warning.
+    // The owner is held at suite scope because the runtime's `owner` is `weak`
+    // — a temporary wrapper would deallocate before send() and read as unwired.
+    private let owner = AnyComponent(ToastHostStub())
+    private let scheduler = SyncScheduler { _ in }
     private func handle(_ q: ToastQueue) -> ReducerHandle<ToastQueue> {
-        ReducerHandle(runtime: ReducerRuntime<ToastQueue>(), reducer: q)
+        let rt = ReducerRuntime<ToastQueue>()
+        rt.wire(owner: owner, scheduler: scheduler)
+        return ReducerHandle(runtime: rt, reducer: q)
     }
 
     @Test("renders only visible toasts, and not pending")

@@ -31,11 +31,11 @@ struct QueryKeyConvertibleTests {
         #expect(Priority.high.keyComponents == [.int(2)])
     }
 
-    @Test("_qkc dispatches to keyComponents (the helper @Query's expansion emits)")
+    @Test("_queryKeyComponent dispatches to keyComponents (the helper @Query's expansion emits)")
     func qkcHelper() {
-        #expect(_qkc(5) == [.int(5)])
-        #expect(_qkc("users") == [.string("users")])
-        #expect(_qkc(Window.week) == [.string("week")])
+        #expect(_queryKeyComponent(5) == [.int(5)])
+        #expect(_queryKeyComponent("users") == [.string("users")])
+        #expect(_queryKeyComponent(Window.week) == [.string("week")])
     }
 }
 

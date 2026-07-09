@@ -11,8 +11,8 @@
 @attached(extension, conformances: Component, _ComponentRuntime)
 @attached(member, names:
     named(init),
-    named(runtimeOwner),
-    named(runtimeScheduler),
+    named(_swiflowOwner),
+    named(_swiflowScheduler),
     named(stateCells),
     named(bind),
     named(_swiflowDidMount),
@@ -31,7 +31,7 @@ public macro Component() = #externalMacro(module: "SwiflowMacrosPlugin", type: "
 /// - Requires an explicit type annotation (`@State var count: Int = 0`).
 /// - The host class must be a `@Component final class` (`@Component`
 ///   auto-injects `@MainActor`) — the `@Component` macro emits the runtime
-///   stored properties (`runtimeOwner`, `runtimeScheduler`) that `@State`'s
+///   stored properties (`_swiflowOwner`, `_swiflowScheduler`) that `@State`'s
 ///   `didSet` writes through.
 /// - Cannot declare its own `didSet`. Use a regular `var` and a method
 ///   if you need observation side-effects.

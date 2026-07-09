@@ -25,7 +25,7 @@ final class StateMacroTests: XCTestCase {
                             count = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -63,7 +63,7 @@ final class StateMacroTests: XCTestCase {
                             maybeId = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }
@@ -258,7 +258,7 @@ final class StateMacroTests: XCTestCase {
                             count = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                     }

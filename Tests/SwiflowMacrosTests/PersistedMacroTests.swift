@@ -31,7 +31,7 @@ final class PersistedMacroTests: XCTestCase {
                             magnitude = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                         if !_swiflowIsHydrating {
@@ -75,7 +75,7 @@ final class PersistedMacroTests: XCTestCase {
                             magnitude = oldValue
                             return
                         }
-                        if let s = runtimeScheduler, let o = runtimeOwner {
+                        if let s = _swiflowScheduler, let o = _swiflowOwner {
                             s.markDirty(o)
                         }
                         if !_swiflowIsHydrating {
@@ -132,9 +132,9 @@ final class PersistedMacroTests: XCTestCase {
                 @MainActor
                 init() {}
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Prefs>(
@@ -172,8 +172,8 @@ final class PersistedMacroTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
 
                 static let _swiflowPersistNamespace = "Prefs"

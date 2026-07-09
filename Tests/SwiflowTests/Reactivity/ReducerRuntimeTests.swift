@@ -43,4 +43,35 @@ struct ReducerRuntimeTests {
         #expect(runtime.seededState(reducer).count == 1)
         #expect(marks >= 1)
     }
+
+    @Test("an unwired send still reduces but warns once, naming the missing @Component")
+    func unwiredSendWarnsOnce() {
+        var warnings: [String] = []
+        _swiflowWarnOverride = { warnings.append($0) }
+        defer { _swiflowWarnOverride = nil }
+
+        let runtime = ReducerRuntime<Counter>()   // never wire()d — no @Component
+        let reducer = Counter()
+        runtime.send(reducer, .inc)               // reduces, but no owner to re-render
+        runtime.send(reducer, .inc)
+
+        #expect(runtime.seededState(reducer).count == 2)   // state still changed
+        #expect(warnings.count == 1)                       // warned once, not per-send
+        #expect(warnings.first?.contains("@Component") == true)
+    }
+
+    @Test("a wired send never warns")
+    func wiredSendNeverWarns() {
+        var warnings: [String] = []
+        _swiflowWarnOverride = { warnings.append($0) }
+        defer { _swiflowWarnOverride = nil }
+
+        let scheduler = SyncScheduler { _ in }
+        let owner = AnyComponent(RStub())
+        let runtime = ReducerRuntime<Counter>()
+        runtime.wire(owner: owner, scheduler: scheduler)
+        runtime.send(Counter(), .inc)
+
+        #expect(warnings.isEmpty)
+    }
 }

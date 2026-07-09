@@ -26,6 +26,7 @@ public final class ReducerRuntime<R: Reducer> {
     private var _state: R.State?
     private weak var owner: AnyComponent?
     private var scheduler: (any Scheduler)?
+    private var didWarnUnwired = false
 
     public init() {}
 
@@ -46,7 +47,18 @@ public final class ReducerRuntime<R: Reducer> {
     public func send(_ reducer: R, _ action: R.Action) {
         if _state == nil { _state = reducer.initialState }
         reducer.reduce(into: &_state!, action)
-        if let owner, let scheduler { scheduler.markDirty(owner) }
+        if let owner, let scheduler {
+            scheduler.markDirty(owner)
+        } else if !didWarnUnwired {
+            // Unwired: the reduce ran (state changed) but there is no owner to
+            // mark dirty, so the view will never re-render. In a real app this
+            // means @ReducerState is declared on a class without @Component
+            // (which wires the runtime at mount). Warn, don't trap — a bare
+            // runtime is also the legitimate way to unit-test reduce logic in
+            // isolation, and at this site the two cases are indistinguishable.
+            didWarnUnwired = true
+            swiflowWarn("@ReducerState dispatched an action but its runtime is unwired: the state changed, but the view won't re-render. Is the enclosing class missing @Component? (@Component wires @ReducerState at mount.)")
+        }
     }
 }
 
