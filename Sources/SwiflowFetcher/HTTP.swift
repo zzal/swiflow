@@ -31,6 +31,13 @@ public enum HTTP {
         try await HTTPClient().post(url, json: json, query: query, headers: headers, as: type)
     }
 
+    public static func post<T: Decodable & Sendable>(
+        _ url: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
+    ) async throws -> T {
+        try await HTTPClient().post(url, body: body, query: query, headers: headers, as: type)
+    }
+
     public static func put<T: Decodable & Sendable>(
         _ url: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
         headers: [String: String] = [:], as type: T.Type = T.self
@@ -38,11 +45,25 @@ public enum HTTP {
         try await HTTPClient().put(url, json: json, query: query, headers: headers, as: type)
     }
 
+    public static func put<T: Decodable & Sendable>(
+        _ url: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
+    ) async throws -> T {
+        try await HTTPClient().put(url, body: body, query: query, headers: headers, as: type)
+    }
+
     public static func patch<T: Decodable & Sendable>(
         _ url: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
         headers: [String: String] = [:], as type: T.Type = T.self
     ) async throws -> T {
         try await HTTPClient().patch(url, json: json, query: query, headers: headers, as: type)
+    }
+
+    public static func patch<T: Decodable & Sendable>(
+        _ url: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
+    ) async throws -> T {
+        try await HTTPClient().patch(url, body: body, query: query, headers: headers, as: type)
     }
 
     public static func delete(

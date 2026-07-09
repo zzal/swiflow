@@ -3248,7 +3248,10 @@ struct Todo: Decodable, Equatable, Sendable {
     static var tempSeq = -1
 
     func perform(_ title: String) async throws -> Todo {
-        try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
+        // A local Encodable struct IS the request contract — the typed `body:`
+        // counterpart of hand-building a JSONValue dictionary.
+        struct Body: Encodable { let title: String }
+        return try await api.post("/todos", body: Body(title: title), as: Todo.self)
     }
     // No invalidations override: the default refetches the keys optimistic()
     // declares — here, TodoList. The temp id is allocated inside the transform
@@ -3265,7 +3268,8 @@ struct Todo: Decodable, Equatable, Sendable {
 @Mutation struct ToggleTodo {
     struct Input: Sendable { let id: Int; let done: Bool }
     func perform(_ i: Input) async throws -> Todo {
-        try await api.put("/todos/\(i.id)", json: ["done": .bool(i.done)], as: Todo.self)
+        struct Body: Encodable { let done: Bool }
+        return try await api.put("/todos/\(i.id)", body: Body(done: i.done), as: Todo.self)
     }
     func optimistic(_ i: Input) -> [OptimisticEdit] {
         [.update(TodoList()) { todos in
