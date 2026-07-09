@@ -70,7 +70,8 @@ final class ReducerStateMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@ReducerState requires a `var` (e.g. `@ReducerState var flow: Checkout`).",
-                    line: 1, column: 1, severity: .error
+                    line: 1, column: 1, severity: .error,
+                    fixIts: [FixItSpec(message: "Replace 'let' with 'var'")]
                 ),
             ],
             macros: testMacros

@@ -20,7 +20,8 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
-                message: StateMacroDiagnostic.requiresVar
+                message: StateMacroDiagnostic.requiresVar,
+                fixIts: [MacroFixIt.letToVar(varDecl.bindingSpecifier)]
             ))
             return []
         }
