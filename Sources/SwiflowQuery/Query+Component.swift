@@ -5,9 +5,20 @@ public extension Component {
     /// Observe a query from `body`. Returns the current cached snapshot and
     /// records interest with the active render root's client; the actual
     /// subscribe/fetch happens at the render boundary (`didEvaluate`).
-    /// Outside a render (no active client) returns an optimistic loading state.
+    /// Outside a render (no active client) returns an optimistic loading state
+    /// — a permanently-loading placeholder, warned about in DEBUG since it
+    /// almost always means `query()` ran somewhere it can't work.
     func query<Q: Query>(_ q: Q) -> QueryState<Q.Value> {
-        guard let client = RenderObserverBox.current as? QueryClient else {
+        guard let observer = RenderObserverBox.current else {
+            #if DEBUG
+            QueryAmbientDiagnostics.warnOutsideRender()
+            #endif
+            return QueryState(isLoading: true, isFetching: true)
+        }
+        guard let client = observer as? QueryClient else {
+            #if DEBUG
+            QueryAmbientDiagnostics.warnWrongObserver(observerType: type(of: observer))
+            #endif
             return QueryState(isLoading: true, isFetching: true)
         }
         return client.observe(q)
@@ -45,3 +56,45 @@ public extension Component {
         (RenderObserverBox.current ?? RenderObserverBox.lastRendered) as? QueryClient
     }
 }
+
+#if DEBUG
+/// Once-per-process warners for `query()`'s two silent-placeholder paths
+/// (audit II Wave-3): before this, a `query()` with no usable client returned
+/// a forever-loading snapshot with zero signal. `query()` runs on every body
+/// evaluation, so each situation warns once rather than flooding the console
+/// on every render. Tests reset via `_resetForTests()`.
+@MainActor
+enum QueryAmbientDiagnostics {
+    private(set) static var warnedOutsideRender = false
+    private(set) static var warnedWrongObserver = false
+
+    static func _resetForTests() {
+        warnedOutsideRender = false
+        warnedWrongObserver = false
+    }
+
+    static func warnOutsideRender() {
+        guard !warnedOutsideRender else { return }
+        warnedOutsideRender = true
+        swiflowWarn("""
+        query() was called outside a render pass, so it returned a \
+        permanently-loading QueryState — no fetch starts and no subscription \
+        is made. Call query() from body. For handler-time work, use the \
+        QueryState captured during the last render (e.g. its refetch()) or \
+        Component.invalidate(...).
+        """)
+    }
+
+    static func warnWrongObserver(observerType: Any.Type) {
+        guard !warnedWrongObserver else { return }
+        warnedWrongObserver = true
+        swiflowWarn("""
+        query() found a render observer of type \(observerType) instead of a \
+        QueryClient, so it returned a permanently-loading QueryState — no \
+        fetch starts and no subscription is made. This render root was not \
+        set up for queries: render through Swiflow.render(into:) (which \
+        installs a QueryClient), or construct your test harness with one.
+        """)
+    }
+}
+#endif
