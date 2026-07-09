@@ -127,6 +127,18 @@ input(.prop("value", .string("hello")))
 
 ## Interactions
 
+**Interactions are strict:** if a call dispatches nothing — no element matches
+the selector, the index is out of range, or the matched element has no handler
+for the event — the harness records a test **Issue at the call site**, naming
+the reason and the candidates (tags present in the tree, or handlers present
+on the matched element). A typo'd selector fails loudly on the line that made
+it, not three lines later with a bare "expected non-nil".
+
+When a no-op is *intentional* — e.g. asserting that a control is inert while a
+form is invalid — use the `IfPresent` variants (`clickIfPresent`,
+`inputIfPresent`, `blurIfPresent`, `changeIfPresent`, `checkIfPresent`), which
+take the same arguments and silently do nothing when there is no target.
+
 ### `click(_ tag: text:)`
 
 Fires a `click` event on the first matching element and flushes any state
@@ -136,7 +148,8 @@ mutations synchronously.
 h.click("button", text: "Sign in")
 ```
 
-No-op if no matching element exists or the element has no `click` handler.
+Records an Issue if no matching element exists or the element has no `click`
+handler; `clickIfPresent` is the silent variant.
 
 ### `input(_ tag: at: value:)`
 
@@ -150,8 +163,7 @@ h.input("input", at: 0, value: "user@example.com")
 h.input(value: "World")
 ```
 
-The event's `targetValue` is set to the provided `value` string. No-op if
-out-of-bounds or the element has no `input` handler.
+The event's `targetValue` is set to the provided `value` string.
 
 ### `blur(_ tag: at:)`
 
@@ -180,9 +192,8 @@ h.change("select", value: "opt2")
 h.change(value: "opt2")
 ```
 
-The event's `targetValue` is set to the provided `value` string. No-op if
-out-of-bounds or the element has no `change` handler. For `<input>` elements
-that use `.on(.input)`, use `input(...)` instead.
+The event's `targetValue` is set to the provided `value` string. For
+`<input>` elements that use `.on(.input)`, use `input(...)` instead.
 
 ### `check(_ tag: at: checked:)`
 
@@ -195,6 +206,36 @@ flushes.
 h.check(at: 0, checked: true)     // tick the first checkbox
 h.check(at: 0, checked: false)    // untick it
 ```
+
+### `press(_ tag: key: at:)`
+
+Fires a `keydown` event carrying `key` on the element at `index` among all
+elements matching `tag` (default `"input"`) and flushes. The event's
+`targetValue`/`targetChecked` snapshot the element's current properties, the
+same way the browser driver serializes them.
+
+```swift
+h.press(key: "ArrowDown")             // keydown on the first <input>
+h.press(key: "Enter")
+h.press("div", key: "Escape")         // a keydown handler on a container
+```
+
+Use this for keyboard-navigation specs (autocomplete highlight movement,
+Escape-to-dismiss) instead of digging handlers out of the rendered tree.
+
+### `fire(_ event: on: text: at:)`
+
+The general escape hatch: fires an arbitrary event type on a matching element
+and flushes. `click`/`input`/`press`/… are conveniences over this.
+
+```swift
+h.fire("focusin", on: "input")
+h.fire("pointerenter", on: "li", at: 2)
+```
+
+The payload carries the element's current `value`/`checked` snapshot; events
+needing richer payloads (mouse coordinates, dataTransfer) are outside the
+harness's fidelity boundary — see [Limitations](#limitations).
 
 ### `unmount()`
 
@@ -306,11 +347,32 @@ private final class LocaleHost {
 
 ## Limitations
 
+### The fidelity boundary
+
+The harness runs the **real** diff, lifecycle, handler wiring, and scheduler —
+but nothing is ever applied to a DOM. It asserts what the component tree
+**declares**, never what a browser **does** with the declaration. Everything
+on the far side of the patch stream is invisible here:
+
+- patch serialization and the JS driver's application of it,
+- imperative, JS-gated effects (`showModal()`, focus management, scrolling),
+- CSS — what a style or token *resolves to*,
+- real browser event semantics (bubbling, default actions, `Event` payloads
+  beyond `value`/`checked`/`key`).
+
+A bug in *applying* a correct declaration (the class that shipped the
+`.style()` custom-property miss) cannot be caught at this layer. Assert
+declarations with the harness; verify browser behavior with js-driver tests
+and the Playwright suites.
+
+### Other limitations
+
 - **`TestHarness` is synchronous-only.** Components using `.task` effects or
   SwiflowQuery need `AsyncTestHarness` instead — same query/interaction
   surface plus deterministic async control: `settle()`, `flush()`,
   `advance(by:)`, and `focus()`. See the
   [async tasks guide](async-tasks.md) and the [query guide](query.md).
-- **No keyboard or mouse-position events.** Only `click`, `input`, `blur`,
-  `change`, and `check` are supported. Other DOM events would need direct
-  dispatch through the underlying `HandlerRegistry`.
+- **Event payloads are `value`/`checked`/`key` only.** `press(key:)` covers
+  keyboard events and `fire(_:on:)` covers arbitrary event *types*, but
+  payloads with mouse coordinates, modifiers, or `dataTransfer` aren't
+  representable in `EventInfo`.

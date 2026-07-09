@@ -1,5 +1,6 @@
 // Sources/SwiflowTesting/AsyncTestHarness.swift
 import Swiflow
+import Testing
 import SwiflowQuery
 
 /// A test harness for components that use `.task` async effects. `settle()`
@@ -46,6 +47,11 @@ public struct AsyncTestHarness {
     /// root's `TaskScope` keeps `settle()` from awaiting tasks owned by other
     /// (e.g. concurrently running) test renderers in the same process.
     public func settle(maxRounds: Int = 100) async throws {
+        // Flush FIRST (audit VI Wave-1): a direct @State mutation from test
+        // code queues a dirty mark but starts no task — without this, the
+        // caller had to remember a manual `flush()` before every settle().
+        // An empty flush is a no-op, so this is always safe.
+        renderer.scheduler.flush()
         var rounds = 0
         while true {
             let taskHandles = renderer.taskScope.inFlightTasks()
@@ -100,11 +106,15 @@ public struct AsyncTestHarness {
     public func find(_ tag: String, text: String? = nil) -> TestNode? { harness.find(tag, text: text) }
     public func findAll(_ tag: String, text: String? = nil) -> [TestNode] { harness.findAll(tag, text: text) }
     public func exists(_ tag: String, text: String? = nil) -> Bool { harness.exists(tag, text: text) }
-    public func click(_ tag: String, text: String? = nil) { harness.click(tag, text: text) }
-    public func input(_ tag: String = "input", at index: Int = 0, value: String) { harness.input(tag, at: index, value: value) }
-    public func blur(_ tag: String = "input", at index: Int = 0) { harness.blur(tag, at: index) }
-    public func change(_ tag: String = "select", at index: Int = 0, value: String) { harness.change(tag, at: index, value: value) }
-    public func check(_ tag: String = "input", at index: Int = 0, checked: Bool) { harness.check(tag, at: index, checked: checked) }
+    public func click(_ tag: String, text: String? = nil, sourceLocation: SourceLocation = #_sourceLocation) { harness.click(tag, text: text, sourceLocation: sourceLocation) }
+    public func clickIfPresent(_ tag: String, text: String? = nil) { harness.clickIfPresent(tag, text: text) }
+    public func input(_ tag: String = "input", at index: Int = 0, value: String, sourceLocation: SourceLocation = #_sourceLocation) { harness.input(tag, at: index, value: value, sourceLocation: sourceLocation) }
+    public func inputIfPresent(_ tag: String = "input", at index: Int = 0, value: String) { harness.inputIfPresent(tag, at: index, value: value) }
+    public func blur(_ tag: String = "input", at index: Int = 0, sourceLocation: SourceLocation = #_sourceLocation) { harness.blur(tag, at: index, sourceLocation: sourceLocation) }
+    public func change(_ tag: String = "select", at index: Int = 0, value: String, sourceLocation: SourceLocation = #_sourceLocation) { harness.change(tag, at: index, value: value, sourceLocation: sourceLocation) }
+    public func check(_ tag: String = "input", at index: Int = 0, checked: Bool, sourceLocation: SourceLocation = #_sourceLocation) { harness.check(tag, at: index, checked: checked, sourceLocation: sourceLocation) }
+    public func fire(_ event: String, on tag: String, text: String? = nil, at index: Int = 0, sourceLocation: SourceLocation = #_sourceLocation) { harness.fire(event, on: tag, text: text, at: index, sourceLocation: sourceLocation) }
+    public func press(_ tag: String = "input", key: String, at index: Int = 0, sourceLocation: SourceLocation = #_sourceLocation) { harness.press(tag, key: key, at: index, sourceLocation: sourceLocation) }
     /// Unmounts the rendered tree, firing `onDisappear` parent-first.
     /// See `TestHarness.unmount()`. Calling again is a no-op.
     public func unmount() { harness.unmount() }
