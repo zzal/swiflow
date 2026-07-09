@@ -1,22 +1,6 @@
 // Sources/App/Weather/WeatherQueries.swift
 import SwiflowQuery
 
-#if canImport(JavaScriptKit)
-import JavaScriptKit
-#endif
-
-/// Percent-encode a user-typed query for a URL. Foundation's
-/// `addingPercentEncoding` isn't available under WASM, so this defers to the
-/// browser's `encodeURIComponent`. (Host fallback is identity — the host
-/// build only typechecks, it never fetches.)
-func urlEncoded(_ s: String) -> String {
-    #if canImport(JavaScriptKit)
-    return JSObject.global.encodeURIComponent.function?(s).string ?? s
-    #else
-    return s
-    #endif
-}
-
 /// Current conditions + today's range for one pinned city. Keyed on
 /// (city id, unit) — `latitude`/`longitude` ride along as captured
 /// dependencies, excluded from the key per the `Query` contract.
@@ -33,12 +17,14 @@ func urlEncoded(_ s: String) -> String {
     var refetchInterval: Duration? { .seconds(300) }
 
     func fetch() async throws -> Forecast {
-        try await API.forecast.get(
-            "/v1/forecast?latitude=\(city.latitude)&longitude=\(city.longitude)"
-            + "&current=temperature_2m,weather_code,wind_speed_10m"
-            + "&daily=temperature_2m_max,temperature_2m_min"
-            + "&timezone=auto&temperature_unit=\(unit)"
-        )
+        try await API.forecast.get("/v1/forecast", query: [
+            "latitude": .double(city.latitude),
+            "longitude": .double(city.longitude),
+            "current": "temperature_2m,weather_code,wind_speed_10m",
+            "daily": "temperature_2m_max,temperature_2m_min",
+            "timezone": "auto",
+            "temperature_unit": .string(unit),
+        ])
     }
 }
 

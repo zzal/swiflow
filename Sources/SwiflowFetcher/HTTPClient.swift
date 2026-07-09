@@ -19,9 +19,14 @@ import Foundation // host-only: !arch(wasm32)-gated, never compiled into the was
 /// ```swift
 /// let api = HTTPClient(baseURL: "https://api.example.com", headers: ["Authorization": token])
 /// let todos = try await api.get("/todos", as: [Todo].self)
+/// let hits  = try await api.get("/search", query: ["name": .string(q), "count": 5], as: [Todo].self)
 /// let made  = try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
 /// try await api.delete("/todos/\(id)")
 /// ```
+///
+/// `query:` parameters are percent-encoded and appended for you (keys sorted,
+/// so the same parameters always produce the same URL) — never interpolate
+/// user input into the path by hand.
 ///
 /// For one-off requests against absolute URLs, the static `HTTP` facade wraps a
 /// base-URL-less client. Tests inject a mock `HTTPTransport` (the same seam
@@ -66,33 +71,39 @@ public struct HTTPClient: Sendable {
     // MARK: - Verbs
 
     public func get<T: Decodable & Sendable>(
-        _ path: String, headers: [String: String] = [:], as _: T.Type = T.self
+        _ path: String, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try decode(try await send(.get, path, body: nil, headers: headers))
+        try decode(try await send(.get, path, query: query, body: nil, headers: headers))
     }
 
     public func post<T: Decodable & Sendable>(
-        _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
+        _ path: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try decode(try await send(.post, path, body: json, headers: headers))
+        try decode(try await send(.post, path, query: query, body: json, headers: headers))
     }
 
     public func put<T: Decodable & Sendable>(
-        _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
+        _ path: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try decode(try await send(.put, path, body: json, headers: headers))
+        try decode(try await send(.put, path, query: query, body: json, headers: headers))
     }
 
     public func patch<T: Decodable & Sendable>(
-        _ path: String, json: JSONValue, headers: [String: String] = [:], as _: T.Type = T.self
+        _ path: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
-        try decode(try await send(.patch, path, body: json, headers: headers))
+        try decode(try await send(.patch, path, query: query, body: json, headers: headers))
     }
 
     /// Fire-and-forget DELETE — the response body (if any) is discarded, so a
     /// `204 No Content` is handled without a decode.
-    public func delete(_ path: String, headers: [String: String] = [:]) async throws {
-        _ = try await send(.delete, path, body: nil, headers: headers)
+    public func delete(
+        _ path: String, query: [String: HTTPQueryValue] = [:], headers: [String: String] = [:]
+    ) async throws {
+        _ = try await send(.delete, path, query: query, body: nil, headers: headers)
     }
 
     // MARK: - Core
@@ -109,10 +120,18 @@ public struct HTTPClient: Sendable {
         return base + suffix
     }
 
-    /// Builds the final request (resolved URL, merged headers, serialized
-    /// body), performs it through the transport, and maps a non-2xx status to
-    /// `HTTPError.status` carrying the transport's best-effort body capture.
-    private func send(_ method: Method, _ path: String, body: JSONValue?, headers: [String: String]) async throws -> HTTPResponse {
+    /// Appends the percent-encoded `query` parameters to a resolved URL,
+    /// joining with `?` — or `&` when the path already carries a query string,
+    /// so hand-written and typed parameters compose.
+    private func appendQuery(to url: String, query: [String: HTTPQueryValue]) -> String {
+        guard !query.isEmpty else { return url }
+        return url + (url.contains("?") ? "&" : "?") + QueryStringEncoding.queryString(query)
+    }
+
+    /// Builds the final request (resolved URL + encoded query, merged headers,
+    /// serialized body), performs it through the transport, and maps a non-2xx
+    /// status to `HTTPError.status` carrying the transport's best-effort body capture.
+    private func send(_ method: Method, _ path: String, query: [String: HTTPQueryValue], body: JSONValue?, headers: [String: String]) async throws -> HTTPResponse {
         var merged = defaultHeaders.merging(headers, uniquingKeysWith: { _, perCall in perCall })
         var bodyString: String? = nil
         if let body {
@@ -121,7 +140,7 @@ public struct HTTPClient: Sendable {
             merged["Content-Type"] = "application/json"
             bodyString = body.jsonString
         }
-        let request = HTTPRequest(method: method.rawValue, url: resolve(path), headers: merged, body: bodyString)
+        let request = HTTPRequest(method: method.rawValue, url: appendQuery(to: resolve(path), query: query), headers: merged, body: bodyString)
         let response = try await transport.send(request)
         guard response.ok else {
             throw HTTPError.status(response.status, body: response.body)

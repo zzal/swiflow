@@ -88,7 +88,8 @@ struct ReverseGeocodeResponse: Decodable, Equatable, Sendable {
 /// geocoder returns no usable place name.
 func reverseGeocodedCity(latitude: Double, longitude: Double) async throws -> City {
     let place: ReverseGeocodeResponse = try await API.reverseGeocoding.get(
-        "/data/reverse-geocode-client?latitude=\(latitude)&longitude=\(longitude)&localityLanguage=en"
+        "/data/reverse-geocode-client",
+        query: ["latitude": .double(latitude), "longitude": .double(longitude), "localityLanguage": "en"]
     )
     let name = [place.city, place.locality]
         .compactMap(\.self)
