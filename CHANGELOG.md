@@ -20,6 +20,47 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.12] — 2026-07-09
+
+**Beta.** The testing & data-fetching release: audit Part VI (SwiflowTesting,
+PRs #203–#206) and Part II Wave 3 (SwiflowQuery + SwiflowFetcher, PRs
+#207–#210) are both now complete end-to-end.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
+### Added
+
+- **Typed URL query parameters** — `query:` overloads take `[String: String]`
+  and percent-encode with an owned encoder, so callers stop hand-concatenating
+  and hand-escaping URLs.
+- **`Encodable` request bodies** — mutation/fetch bodies accept any `Encodable`
+  value via a `JSONValue` encoder (JavaScriptKit shipped only a decoder), so
+  request payloads are typed rather than hand-built dictionaries.
+- **`RetryPolicy` fluency** — `baseDelay`/`maxDelay` default to the standard
+  1s-doubling / 30s-cap backoff, so `RetryPolicy(maxRetries: 5)` is enough; a
+  `.retries(n)` copy reads fluently off a base policy (`.default.retries(5)`).
+- **Testing interaction vocabulary** — strict `fire`/`press` interactions
+  (with caller-side `Issue` diagnostics and `IfPresent` opt-outs), `settle()`
+  flush-first semantics, and `find(role:label:class:)` returning a live,
+  actable `TestNode`.
+- **Testing fidelity** — scoped-rerender fidelity, live input snapshots, and
+  `advance(by:)` clock threading in the harness, so component tests observe the
+  same render/clock behavior production does.
+
+### Fixed
+
+- **`query()` silent-degradation diagnostics** — the three paths where
+  `query()` used to fail soft into a perpetual `isLoading` (wrong/absent
+  observer, ambient downcast miss) now emit a DEBUG diagnostic instead of
+  spinning forever with no explanation.
+
+### Internal
+
+- Testing harness plumbing: shared teardown routine, flush batching, and
+  tree-dumping expectation matchers (PR #204).
+
+---
+
 ## [0.4.11] — 2026-07-08
 
 **Beta.** The component composition & guardrails release: the remainder of
