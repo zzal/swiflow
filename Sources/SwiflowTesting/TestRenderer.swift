@@ -41,8 +41,12 @@ final class TestRenderer {
             key: nil,
             factory: { anyComponent }
         )
-        self.scheduler = SyncScheduler { [relay] component in
-            MainActor.assumeIsolated { relay.owner?.rerender(component) }
+        // Batch mode (audit VI Wave-2 #4): ONE render per flush regardless of
+        // how many components marked dirty — RAFScheduler's per-frame
+        // contract. The per-component mode double-diffed and double-fired
+        // onChange whenever one interaction dirtied two components.
+        self.scheduler = SyncScheduler.batching { [relay] dirtyIDs in
+            MainActor.assumeIsolated { relay.owner?.flushDirty(dirtyIDs) }
         }
 
         // Plain calls, not a closure-based bracket: self.mountTree isn't
@@ -65,11 +69,13 @@ final class TestRenderer {
         relay.owner = self
     }
 
-    /// Always re-renders from the root — exactly like the browser Renderer,
-    /// where the RAF flush calls renderOnce() regardless of which component
-    /// marked itself dirty. The diff decides which bodies to re-evaluate.
-    func rerender(_ component: AnyComponent) {
-        _ = component
+    /// One flush batch → one render, mirroring `Renderer.flushDirty(_:)`.
+    /// Always re-renders from the root; the diff decides which bodies to
+    /// re-evaluate. (The browser additionally has a scoped single-dirty fast
+    /// path — `planRerender`/`scopedRerender` — that the harness never takes;
+    /// that fidelity drift is audit VI Wave-3's HeadlessRenderCore item.)
+    func flushDirty(_ dirtyIDs: Set<ObjectIdentifier>) {
+        _ = dirtyIDs
         installRenderContext(handlers: self.handlers, taskScope: taskScope, observer: queryClient)
         defer { uninstallRenderContext() }
         let preExistingIDs = collectComponentIDs(mountTree)
@@ -86,16 +92,14 @@ final class TestRenderer {
 
     /// Tears down the mounted tree: fires `onDisappear` (parent-first), closes
     /// handler scopes, and notifies the query client of component unmounts —
-    /// mirroring SwiflowDOM.Renderer.teardown() minus the JS patches.
+    /// the SAME `teardownMountTree` routine SwiflowDOM.Renderer.teardown()
+    /// runs (audit VI Wave-2 #3), minus shipping the removal patches.
     // destroy() cancels .task effects via each node's stored TaskSlot handle —
     // no task-scope ambient needed here.
     func unmount() {
         guard !isUnmounted else { return }
         isUnmounted = true
-        RenderObserverBox.current = queryClient
-        defer { RenderObserverBox.current = nil }
-        var patches: [Patch] = []
-        destroy(mountTree, into: &patches, handlers: handlers)
+        _ = teardownMountTree(mountTree, handlers: handlers, observer: queryClient)
     }
 
     func textContent(of node: MountNode) -> String {
@@ -215,6 +219,45 @@ final class TestRenderer {
         handlers.dispatch(id: id, event: payload(targetSnapshot(of: node)))
         scheduler.flush()
         return nil
+    }
+
+    /// Human-readable dump of the rendered tree (audit VI Wave-2 #5) — the
+    /// payload for `TestHarness.expect` failures and `TestHarness.debug()`.
+    /// One line per node: elements as `<tag attrs on:[events]>`, text nodes
+    /// quoted, component anchors as `▸ TypeName`. Fragments are invisible in
+    /// the DOM, so they add no line and no indent.
+    func dump() -> String {
+        var lines: [String] = []
+        func walk(_ node: MountNode, depth: Int) {
+            let pad = String(repeating: "  ", count: depth)
+            switch node.vnode {
+            case .text(let s):
+                lines.append("\(pad)\"\(s)\"")
+            case .element(let data):
+                var bits = [data.tag]
+                bits += data.attributes.sorted { $0.key < $1.key }
+                    .map { "\($0.key)=\"\($0.value)\"" }
+                bits += data.properties.sorted { $0.key < $1.key }
+                    .map { "prop:\($0.key)=\"\(flattenProperty($0.value))\"" }
+                let events = node.handlerIds.keys.sorted()
+                if !events.isEmpty { bits.append("on:[\(events.joined(separator: ","))]") }
+                lines.append("\(pad)<\(bits.joined(separator: " "))>")
+                for child in node.children { walk(child, depth: depth + 1) }
+            case .fragment:
+                for child in node.children { walk(child, depth: depth) }
+            case .component, .environmentOverride:
+                var bodyDepth = depth
+                if let any = node.component {
+                    lines.append("\(pad)▸ \(String(describing: type(of: any.instance)))")
+                    bodyDepth += 1
+                }
+                if let body = node.componentBody { walk(body, depth: bodyDepth) }
+            default:
+                break
+            }
+        }
+        walk(mountTree, depth: 0)
+        return lines.joined(separator: "\n")
     }
 
     /// Distinct tags in document order — the candidate list for no-match failures.

@@ -101,6 +101,38 @@ smoke tests where you want to assert "the word `Welcome` appears somewhere".
 #expect(h.allText.contains("Count: 0"))
 ```
 
+### `expect(text:)` / `expect(_ tag: text:)`
+
+`#expect(h.find(...) != nil)` failures say "expected non-nil" and nothing
+else. The `expect` matchers assert the same things but record failures that
+**include the rendered tree**, so the message shows what actually rendered:
+
+```swift
+h.expect(text: "Count: 1")            // allText contains
+h.expect("button", text: "Sign in")   // an element matches
+```
+
+```
+expected text "Count: 1" — not found. Rendered tree:
+▸ Counter
+  <div>
+    <p>
+      "Count: 0"
+    <button on:[click]>
+      "Increment"
+```
+
+### `debug()`
+
+Prints and returns the same tree dump for ad-hoc inspection while writing a
+test: one line per node — elements as `<tag attrs on:[events]>`, quoted text
+nodes, `▸ ComponentName` anchors.
+
+```swift
+let h = render(Counter())
+h.debug()
+```
+
 ## `TestNode` fields
 
 | Field | Type | Description |

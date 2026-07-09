@@ -32,8 +32,20 @@ public protocol Scheduler: AnyObject {
 }
 
 /// Synchronous, no-rAF implementation of `Scheduler`. Used by tests and
-/// any headless context. The `rerenderCallback` is invoked once per dirty
-/// component at flush time, in the order components were first marked.
+/// any headless context. Two callback modes over ONE flush core:
+///
+/// - `batching(onFlushBatch:)` — `RAFScheduler`'s contract: a SINGLE
+///   callback per flush carrying that batch's dirty-instance set, exactly
+///   what the browser delivers per rAF tick. Render roots use this so a
+///   multi-dirty interaction produces one render, not one per component
+///   (audit VI Wave-2 #4 — the harness used to double-diff and double-fire
+///   `onChange` where the browser fired once).
+/// - `init(rerenderCallback:)` — one callback per dirty component, in the
+///   order components were first marked; a thin adapter over the batch
+///   core, kept for observers that want per-component signals (the
+///   QueryClient suites). A factory (not an init overload) provides the
+///   batch mode because two single-closure inits would make the common
+///   `SyncScheduler { _ in }` spelling ambiguous.
 ///
 /// **Reentrancy:** marks made WHILE a callback runs are deferred to the
 /// next flush. The "current batch" snapshot is taken at the start of
@@ -45,11 +57,29 @@ public protocol Scheduler: AnyObject {
 public final class SyncScheduler: Scheduler {
     private var dirty: [ObjectIdentifier: AnyComponent] = [:]
     private var insertionOrder: [ObjectIdentifier] = []
-    private let rerenderCallback: (AnyComponent) -> Void
+    private let flushBatch: ([AnyComponent]) -> Void
     private var isFlushing = false
 
-    public init(rerenderCallback: @escaping (AnyComponent) -> Void) {
-        self.rerenderCallback = rerenderCallback
+    private init(flushBatch: @escaping ([AnyComponent]) -> Void) {
+        self.flushBatch = flushBatch
+    }
+
+    public convenience init(rerenderCallback: @escaping (AnyComponent) -> Void) {
+        self.init(flushBatch: { batch in
+            for component in batch { rerenderCallback(component) }
+        })
+    }
+
+    /// The batch mode: `onFlushBatch` is invoked at most ONCE per `flush()`,
+    /// with the dirty component-instance identities of that batch — the same
+    /// shape `RAFScheduler` hands `Renderer.flushDirty(_:)` each frame, so
+    /// the two schedulers cannot drift. Never invoked for an empty batch.
+    public static func batching(
+        onFlushBatch: @escaping (Set<ObjectIdentifier>) -> Void
+    ) -> SyncScheduler {
+        SyncScheduler(flushBatch: { batch in
+            onFlushBatch(Set(batch.map { ObjectIdentifier($0.instance) }))
+        })
     }
 
     public func markDirty(_ component: AnyComponent) {
@@ -74,11 +104,12 @@ public final class SyncScheduler: Scheduler {
         let batch = batchIDs.compactMap { dirty[$0] }
         dirty.removeAll(keepingCapacity: true)
         insertionOrder.removeAll(keepingCapacity: true)
+        // Mirrors RAFScheduler's empty-set guard: neither callback mode is
+        // ever invoked for a flush with nothing dirty.
+        guard !batch.isEmpty else { return }
 
         isFlushing = true
         defer { isFlushing = false }
-        for component in batch {
-            rerenderCallback(component)
-        }
+        flushBatch(batch)
     }
 }
