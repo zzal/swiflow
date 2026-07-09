@@ -2,16 +2,124 @@
 import Swiflow
 import Testing
 
-/// A snapshot of a single element node. Assert against its fields with `#expect`.
+/// A LIVE handle to a rendered element (audit VI Wave-2 #2). Wraps the
+/// mount-tree node the diff mutates in place, so reads always reflect the
+/// CURRENT tree, actions dispatch on THIS element (never re-queried, never
+/// first-in-document-order), and `find` scopes to its subtree:
+///
+///     h.find(role: "textbox", label: "Email")!.type("x").blur()
+///
+/// A node that a re-render has removed is *detached*: reads return its last
+/// committed state, actions record a test Issue (`isAttached` to check).
+@MainActor
 public struct TestNode {
-    public let tag: String
-    public let text: String
-    public let attributes: [String: String]
+    let node: MountNode
+    let renderer: TestRenderer
+
+    private var elementData: ElementData? {
+        if case .element(let data) = node.vnode { return data }
+        return nil
+    }
+
+    public var tag: String { elementData?.tag ?? "" }
+    /// Subtree text content, current as of the last render.
+    public var text: String { renderer.textContent(of: node) }
+    /// HTML attributes set via `.attr(...)`, `.class(...)`, `.id(...)`.
+    public var attributes: [String: String] { elementData?.attributes ?? [:] }
     /// DOM properties set via `.prop()`, `.value()`, `.checked()`, etc.
     /// Each `PropertyValue` is stringified: `.string(s)` → `s`, `.bool(b)` → `"true"`/`"false"`,
     /// `.int(n)` → decimal string, `.double(d)` → Swift `String(d)` representation.
     /// Use `attributes` for HTML attributes; this field covers typed DOM assignments.
-    public let properties: [String: String]
+    public var properties: [String: String] {
+        (elementData?.properties ?? [:]).mapValues { flattenProperty($0) }
+    }
+    /// Whether this element is still part of the rendered tree.
+    public var isAttached: Bool { renderer.isAttached(node) }
+
+    // MARK: Scoped queries
+
+    /// First element matching `tag` (and `text`) WITHIN this node's subtree.
+    public func find(_ tag: String, text: String? = nil) -> TestNode? {
+        renderer.findElements(tag: tag, text: text, in: node).first
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// All elements matching `tag` (and `text`) within this node's subtree.
+    public func findAll(_ tag: String, text: String? = nil) -> [TestNode] {
+        renderer.findElements(tag: tag, text: text, in: node)
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    // MARK: Actions — strict, chainable
+
+    private func record(_ failure: TestRenderer.InteractionFailure?,
+                        _ action: String, _ sourceLocation: SourceLocation) {
+        guard let failure else { return }
+        Issue.record("\(action) dispatched nothing: \(failure)", sourceLocation: sourceLocation)
+    }
+
+    /// Fires `click` on THIS element.
+    @discardableResult
+    public func click(sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "click", on: node) {
+            EventInfo(type: "click", targetValue: $0.value, targetChecked: $0.checked)
+        }, "click()", sourceLocation)
+        return self
+    }
+
+    /// Fires `input` with `targetValue: value` on THIS element.
+    @discardableResult
+    public func type(_ value: String, sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "input", on: node) {
+            EventInfo(type: "input", targetValue: value, targetChecked: $0.checked)
+        }, "type(\"\(value)\")", sourceLocation)
+        return self
+    }
+
+    /// Fires `blur` on THIS element.
+    @discardableResult
+    public func blur(sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "blur", on: node) {
+            EventInfo(type: "blur", targetValue: $0.value, targetChecked: $0.checked)
+        }, "blur()", sourceLocation)
+        return self
+    }
+
+    /// Fires `change` with `targetValue: value` on THIS element.
+    @discardableResult
+    public func change(value: String, sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "change", on: node) {
+            EventInfo(type: "change", targetValue: value, targetChecked: $0.checked)
+        }, "change(value: \"\(value)\")", sourceLocation)
+        return self
+    }
+
+    /// Fires `change` with `targetChecked: checked` on THIS element.
+    @discardableResult
+    public func check(_ checked: Bool, sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "change", on: node) {
+            EventInfo(type: "change", targetValue: $0.value, targetChecked: checked)
+        }, "check(\(checked))", sourceLocation)
+        return self
+    }
+
+    /// Fires `keydown` carrying `key` on THIS element.
+    @discardableResult
+    public func press(key: String, sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: "keydown", on: node) {
+            EventInfo(type: "keydown", targetValue: $0.value, targetChecked: $0.checked, key: key)
+        }, "press(key: \"\(key)\")", sourceLocation)
+        return self
+    }
+
+    /// Fires an arbitrary event type on THIS element.
+    @discardableResult
+    public func fire(_ event: String, sourceLocation: SourceLocation = #_sourceLocation) -> TestNode {
+        record(renderer.dispatch(event: event, on: node) {
+            EventInfo(type: event, targetValue: $0.value, targetChecked: $0.checked)
+        }, "fire(\"\(event)\")", sourceLocation)
+        return self
+    }
 }
 
 func flattenProperty(_ value: PropertyValue) -> String {
@@ -55,27 +163,58 @@ public struct TestHarness {
     /// Returns the first element matching `tag` (and `text`, if supplied).
     /// `text` matches when the element's subtree text content contains the string.
     public func find(_ tag: String, text: String? = nil) -> TestNode? {
-        guard let (node, data) = renderer.findElements(tag: tag, text: text,
-                                                       in: renderer.mountTree).first
-        else { return nil }
-        return TestNode(
-            tag: data.tag,
-            text: renderer.textContent(of: node),
-            attributes: data.attributes,
-            properties: data.properties.mapValues { flattenProperty($0) }
-        )
+        renderer.findElements(tag: tag, text: text, in: renderer.mountTree).first
+            .map { TestNode(node: $0.0, renderer: renderer) }
     }
 
     /// Returns all elements matching `tag` and optional `text`, in document order.
     public func findAll(_ tag: String, text: String? = nil) -> [TestNode] {
-        renderer.findElements(tag: tag, text: text, in: renderer.mountTree).map { (node, data) in
-            TestNode(
-                tag: data.tag,
-                text: renderer.textContent(of: node),
-                attributes: data.attributes,
-                properties: data.properties.mapValues { flattenProperty($0) }
-            )
-        }
+        renderer.findElements(tag: tag, text: text, in: renderer.mountTree)
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// First element whose effective ARIA role is `role` — the explicit
+    /// `role` attribute, else the implicit WAI-ARIA mapping for the tag
+    /// (`button` → button, `a[href]` → link, `input[type=email]` → textbox,
+    /// `h1`–`h6` → heading, …). `label` filters by accessible label
+    /// (contains-match): `aria-label` → `<label for=id>` → wrapping
+    /// `<label>` → the element's own text.
+    ///
+    ///     h.find(role: "textbox", label: "Email")!.type("x").blur()
+    public func find(role: String, label: String? = nil) -> TestNode? {
+        renderer.findByRole(role, label: label).first
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// All elements with effective role `role` (and `label`), document order.
+    public func findAll(role: String, label: String? = nil) -> [TestNode] {
+        renderer.findByRole(role, label: label)
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// First element whose class LIST contains the token `className`
+    /// (token match, not substring — `sw-err` never matches `sw-error`).
+    public func find(class className: String) -> TestNode? {
+        renderer.findByClass(className).first
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// All elements whose class list contains the token `className`.
+    public func findAll(class className: String) -> [TestNode] {
+        renderer.findByClass(className)
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// First element whose accessible label contains `label`, any role.
+    public func find(label: String) -> TestNode? {
+        renderer.findByLabel(label).first
+            .map { TestNode(node: $0.0, renderer: renderer) }
+    }
+
+    /// All elements whose accessible label contains `label`.
+    public func findAll(label: String) -> [TestNode] {
+        renderer.findByLabel(label)
+            .map { TestNode(node: $0.0, renderer: renderer) }
     }
 
     /// True iff at least one element matches `tag` and optional `text`.

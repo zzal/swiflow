@@ -121,37 +121,18 @@ final class TestRenderer {
 
     var allText: String { textContent(of: mountTree) }
 
+    /// Tag(+text) query, expressed over the one generic walk in
+    /// Queries.swift — same traversal as every role/label/class query.
     func findElements(
         tag: String,
         text: String?,
         in node: MountNode
     ) -> [(MountNode, ElementData)] {
-        var results: [(MountNode, ElementData)] = []
-        switch node.vnode {
-        case .element(let data):
-            if data.tag == tag {
-                let t = textContent(of: node)
-                if let filter = text {
-                    if t.contains(filter) { results.append((node, data)) }
-                } else {
-                    results.append((node, data))
-                }
-            }
-            for child in node.children {
-                results += findElements(tag: tag, text: text, in: child)
-            }
-        case .fragment:
-            for child in node.children {
-                results += findElements(tag: tag, text: text, in: child)
-            }
-        case .component, .environmentOverride:
-            if let body = node.componentBody {
-                results += findElements(tag: tag, text: text, in: body)
-            }
-        default:
-            break
+        findElements(in: node) { n, data in
+            guard data.tag == tag else { return false }
+            guard let filter = text else { return true }
+            return textContent(of: n).contains(filter)
         }
-        return results
     }
 
     /// Mirrors the JS driver's serializeEvent(): snapshot the target's current
@@ -184,6 +165,7 @@ final class TestRenderer {
         case noMatch(tag: String, text: String?, tagsPresent: [String])
         case indexOutOfRange(tag: String, index: Int, matchCount: Int)
         case noHandler(event: String, tag: String, handlersPresent: [String])
+        case detached(tag: String, event: String)
 
         var description: String {
             switch self {
@@ -196,6 +178,9 @@ final class TestRenderer {
             case .noHandler(let event, let tag, let present):
                 let handlers = present.isEmpty ? "none" : present.joined(separator: ", ")
                 return "the matched <\(tag)> has no \"\(event)\" handler — handlers present: \(handlers)"
+            case .detached(let tag, let event):
+                return "cannot \"\(event)\" this <\(tag)>: the node was removed from the tree "
+                    + "by a re-render since it was found — re-query for the current element"
             }
         }
     }
@@ -211,7 +196,21 @@ final class TestRenderer {
         guard index < matches.count else {
             return .indexOutOfRange(tag: tag, index: index, matchCount: matches.count)
         }
-        let (node, data) = matches[index]
+        return dispatch(event: event, on: matches[index].0, payload: payload)
+    }
+
+    /// Node-targeted dispatch — the live-TestNode action path (audit VI
+    /// Wave-2 #2). Fires on THE given element, never re-queried, and refuses
+    /// nodes a re-render has detached (their handler IDs may point at closed
+    /// scopes — firing would be a ghost interaction no browser can perform).
+    func dispatch(event: String, on node: MountNode,
+                  payload: ((value: String?, checked: Bool?)) -> EventInfo) -> InteractionFailure? {
+        guard case .element(let data) = node.vnode else {
+            return .noHandler(event: event, tag: "?", handlersPresent: [])
+        }
+        guard isAttached(node) else {
+            return .detached(tag: data.tag, event: event)
+        }
         guard let id = node.handlerIds[event] else {
             return .noHandler(event: event, tag: data.tag,
                               handlersPresent: node.handlerIds.keys.sorted())

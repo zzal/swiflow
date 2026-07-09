@@ -260,7 +260,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowUITests",
-            dependencies: ["SwiflowUI", "Swiflow", "SwiflowColor"],
+            dependencies: ["SwiflowUI", "Swiflow", "SwiflowColor", "SwiflowTesting"],
             path: "Tests/SwiflowUITests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
