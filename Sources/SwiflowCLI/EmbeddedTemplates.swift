@@ -2867,7 +2867,7 @@ final class Demo {
                           onRowClick: { p in
                               self.$toasts.show("Opening \(p.name)", .success)
                           },
-                          maxHeight: .custom("360px"),
+                          maxHeight: "360px",
                           key: "people-\(roleFilter)-\(shown.count)") {
                     Column("Name", value: \.name)
                     Column("Age", value: \.age).align(.trailing)
@@ -2896,7 +2896,7 @@ final class Demo {
             VStack(spacing: .none, align: .stretch) {
                 DataTable(Demo.bigPeople,
                           sortable: true,
-                          maxHeight: .custom("440px"),
+                          maxHeight: "440px",
                           virtualization: .fixed(rowHeight: 44),
                           columnsTemplate: "2fr 80px 1fr") {
                     Column("Name", value: \.name)

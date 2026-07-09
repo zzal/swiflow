@@ -102,3 +102,36 @@ public extension VNode {
         style(property, token.css)
     }
 }
+
+#if DEBUG
+/// Installs the `.style` value validator (audit V Wave-3): every stringly
+/// style VALUE is scanned for `var(--sw-…)` references; a name outside the
+/// typed vocabulary warns — the silent-typo half the typed overloads can't
+/// reach (composite values, existing string spellings). App-custom props
+/// (non-`--sw-` names) are never checked. Called from `ensureBaseStyles()`,
+/// so any SwiflowUI usage arms it; idempotent.
+@MainActor
+func installStyleTokenValidator() {
+    guard _swiflowStyleValueValidator == nil else { return }
+    let known = Set(Token.all.map(\.name))
+    _swiflowStyleValueValidator = { value in
+        guard value.contains("var(--sw-") else { return }
+        // Extract each var(--sw-…) reference: after "var(", up to ')' , ',' or whitespace.
+        var rest = Substring(value)
+        while let open = rest.firstRange(of: "var(--sw-") {   // stdlib (SE-0343), Foundation-free
+            let nameStart = rest.index(open.lowerBound, offsetBy: 4)   // skip "var("
+            let tail = rest[nameStart...]
+            let nameEnd = tail.firstIndex(where: { $0 == ")" || $0 == "," || $0 == " " }) ?? tail.endIndex
+            let name = String(tail[..<nameEnd])
+            if !known.contains(name) {
+                swiflowWarn(
+                    "Unknown design token '\(name)' in a .style value — a typo'd var() "
+                        + "fails silently in CSS. Use the typed Token spelling "
+                        + "(.style(_:, .surface)) or check the name against the --sw- vocabulary."
+                )
+            }
+            rest = tail[nameEnd...]
+        }
+    }
+}
+#endif

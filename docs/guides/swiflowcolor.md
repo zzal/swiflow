@@ -4,6 +4,13 @@
 **native-only** Swift library (macOS/Linux host tooling, build plugins, design scripts) — it is
 NOT for the browser and is never a dependency of the wasm `SwiflowUI` module.
 
+The flip side of that boundary: **no runtime contrast checking exists**.
+Validation happens at *generation* time (`swiflow theme`, the shipped-sheet
+tests) — a token you re-point at runtime (`Theme { }`, user CSS overrides)
+is trusted as-is. If your app themes dynamically, run the generator or its
+validators over every palette you ship rather than expecting the browser
+bundle to catch a low-contrast override.
+
 Add it to a host tool/target:
 
 ```swift

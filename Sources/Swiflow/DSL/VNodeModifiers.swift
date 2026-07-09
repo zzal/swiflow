@@ -27,7 +27,10 @@ public extension VNode {
 
     /// Adds (or overwrites) an inline-style declaration.
     func style(_ property: String, _ value: String) -> VNode {
-        mergeAttribute(self) { $0.style[property] = value }
+        #if DEBUG
+        _swiflowStyleValueValidator?(value)
+        #endif
+        return mergeAttribute(self) { $0.style[property] = value }
     }
 
     /// Adds (or overwrites) an HTML attribute (string value).
