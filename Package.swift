@@ -42,9 +42,19 @@ let package = Package(
     ],
     targets: [
         // Compiler plugin — runs on the macOS HOST at build time; never in the WASM binary.
+        // Zero-dependency leaf shared by BOTH CSS scope-deciding paths (the
+        // wasm runtime DSL and the host `#css` macro parser) so the scope-escape
+        // rule has exactly one implementation. Keep it dependency-free — it must
+        // compile for both wasm and the host compiler plugin.
+        .target(
+            name: "SwiflowCSSCore",
+            path: "Sources/SwiflowCSSCore",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .macro(
             name: "SwiflowMacrosPlugin",
             dependencies: [
+                "SwiflowCSSCore",
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
             ],
@@ -53,7 +63,7 @@ let package = Package(
         ),
         .target(
             name: "Swiflow",
-            dependencies: ["SwiflowMacrosPlugin"],
+            dependencies: ["SwiflowMacrosPlugin", "SwiflowCSSCore"],
             path: "Sources/Swiflow",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
@@ -172,6 +182,12 @@ let package = Package(
             name: "SwiflowColorTests",
             dependencies: ["SwiflowColor"],
             path: "Tests/SwiflowColorTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "SwiflowCSSCoreTests",
+            dependencies: ["SwiflowCSSCore"],
+            path: "Tests/SwiflowCSSCoreTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(

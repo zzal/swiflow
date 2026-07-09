@@ -8,6 +8,7 @@
 // Design: docs/superpowers/specs/2026-06-12-css-macro-design.md
 
 import Foundation
+import SwiflowCSSCore
 
 enum CSSStructuralParser {
 
@@ -205,9 +206,8 @@ enum CSSStructuralParser {
             let text = String(chars[startIndex..<i]).trimmingCharacters(in: .whitespacesAndNewlines)
             let prelude = String(chars[startIndex..<pe])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            // Parity with the DSL path's shouldScope(): these escape scoping.
-            let escapes = prelude.hasPrefix(":root") || prelude.hasPrefix("html") || prelude.hasPrefix("body")
+            // One rule for both scope-deciding paths (runtime DSL + this parser).
+            let escapes = CSSScopeRules.escapesComponentScoping(prelude)
             segments.append(escapes ? .hoisted(text) : .scoped(text))
         }
 
