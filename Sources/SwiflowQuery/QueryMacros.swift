@@ -8,7 +8,7 @@
 ///
 /// `@Key` is a pure marker: on its own it expands to nothing. The enclosing
 /// `@Query` reads it from the syntax tree, in source order, to derive
-/// `queryKey` as `["<prefix>"] + _qkc(eachKey)`. Apply it to a `let` or `var`
+/// `queryKey` as `["<prefix>"] + _queryKeyComponent(eachKey)`. Apply it to a `let` or `var`
 /// stored property whose type conforms to `QueryKeyConvertible` (`Int`, `String`,
 /// `Bool`, and `RawRepresentable` enums conform out of the box).
 ///

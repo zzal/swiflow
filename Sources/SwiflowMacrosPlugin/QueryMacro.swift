@@ -66,7 +66,7 @@ public struct QueryMacro: ExtensionMacro, MemberMacro {
 
     // MARK: - Helpers
 
-    /// `_qkc(name)` for each `@Key` stored property in source order. Diagnoses an
+    /// `_queryKeyComponent(name)` for each `@Key` stored property in source order. Diagnoses an
     /// unannotated `@Key` (it would be omitted from the init, so the key couldn't
     /// vary across tests) and skips it.
     private static func keyExpressions(
@@ -100,7 +100,7 @@ public struct QueryMacro: ExtensionMacro, MemberMacro {
                         message: QueryDiagnostic.keyNeedsType))
                     continue
                 }
-                exprs.append("_qkc(\(name))")
+                exprs.append("_queryKeyComponent(\(name))")
             }
         }
         return exprs

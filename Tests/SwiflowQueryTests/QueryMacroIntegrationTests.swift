@@ -2,7 +2,7 @@ import Testing
 import SwiflowQuery
 
 // End-to-end exercise of the real `@Query` macro (declaration + plugin +
-// `Query` conformance + `_qkc` + `InitSynthesis`), complementing the
+// `Query` conformance + `_queryKeyComponent` + `InitSynthesis`), complementing the
 // expansion-level golden tests in `Tests/SwiflowMacrosTests/QueryMacroTests`.
 // That this file *compiles* is itself a test: a wrong conformance/init/queryKey
 // synthesis would fail to build.
@@ -38,7 +38,7 @@ import SwiflowQuery
 @Suite("Query integration")
 @MainActor
 struct QueryMacroIntegrationTests {
-    @Test("default prefix = type name; @Key contributes via _qkc")
+    @Test("default prefix = type name; @Key contributes via _queryKeyComponent")
     func defaultPrefix() {
         #expect(ITUserByID(id: 5).queryKey == ["ITUserByID", .int(5)])
     }

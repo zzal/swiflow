@@ -76,7 +76,7 @@ public struct PersistedMacro: AccessorMacro, PeerMacro {
                     \(raw: name) = oldValue
                     return
                 }
-                if let s = runtimeScheduler, let o = runtimeOwner {
+                if let s = _swiflowScheduler, let o = _swiflowOwner {
                     s.markDirty(o)
                 }
                 if !_swiflowIsHydrating {

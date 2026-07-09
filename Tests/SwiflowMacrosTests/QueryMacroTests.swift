@@ -44,7 +44,7 @@ final class QueryMacroTests: XCTestCase {
                 func fetch() async throws -> User { await api.user(id) }
 
                 var queryKey: QueryKey {
-                    ["UserByID"] + _qkc(id)
+                    ["UserByID"] + _queryKeyComponent(id)
                 }
 
                 init(id: Int, api: FakeAPI = FakeAPI()) {
@@ -100,7 +100,7 @@ final class QueryMacroTests: XCTestCase {
                 func fetch() async throws -> [Quake] { [] }
 
                 var queryKey: QueryKey {
-                    ["quakes"] + _qkc(magnitude) + _qkc(window)
+                    ["quakes"] + _queryKeyComponent(magnitude) + _queryKeyComponent(window)
                 }
 
                 init(magnitude: String, window: String) {
@@ -135,7 +135,7 @@ final class QueryMacroTests: XCTestCase {
                 func fetch() async throws -> [Quake] { [] }
 
                 var queryKey: QueryKey {
-                    ["quakes"] + _qkc(window) + _qkc(magnitude)
+                    ["quakes"] + _queryKeyComponent(window) + _queryKeyComponent(magnitude)
                 }
 
                 init(window: String, magnitude: String) {
@@ -196,7 +196,7 @@ final class QueryMacroTests: XCTestCase {
                 func fetch() async throws -> User { await api.user(id) }
 
                 public var queryKey: QueryKey {
-                    ["UserByID"] + _qkc(id)
+                    ["UserByID"] + _queryKeyComponent(id)
                 }
 
                 public init(id: Int, api: FakeAPI = FakeAPI()) {
@@ -228,7 +228,7 @@ final class QueryMacroTests: XCTestCase {
                 func fetch() async throws -> User { await api.user(id) }
 
                 package var queryKey: QueryKey {
-                    ["UserByID"] + _qkc(id)
+                    ["UserByID"] + _queryKeyComponent(id)
                 }
 
                 package init(id: Int, api: FakeAPI = FakeAPI()) {
@@ -268,7 +268,7 @@ final class QueryMacroTests: XCTestCase {
                 private func helper() -> Int { 0 }
 
                 var queryKey: QueryKey {
-                    ["Q"] + _qkc(id)
+                    ["Q"] + _queryKeyComponent(id)
                 }
 
                 init(id: Int) {

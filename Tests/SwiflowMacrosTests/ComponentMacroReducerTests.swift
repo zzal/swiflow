@@ -39,15 +39,15 @@ final class ComponentMacroReducerTests: XCTestCase {
                     self.flow = Checkout()
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = []
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                     _flow_reducerRuntime.wire(owner: owner, scheduler: scheduler)
                 }
             }
@@ -83,9 +83,9 @@ final class ComponentMacroReducerTests: XCTestCase {
                 @MainActor init() {
                 }
 
-                @MainActor private weak var runtimeOwner: AnyComponent?
+                @MainActor private weak var _swiflowOwner: AnyComponent?
 
-                @MainActor private var runtimeScheduler: Scheduler?
+                @MainActor private var _swiflowScheduler: Scheduler?
 
                 @MainActor static let stateCells: [any AnyStateCell] = [
                     StateCell<Counter>(
@@ -107,8 +107,8 @@ final class ComponentMacroReducerTests: XCTestCase {
                 ]
 
                 @MainActor func bind(owner: AnyComponent, scheduler: Scheduler) {
-                    self.runtimeOwner = owner
-                    self.runtimeScheduler = scheduler
+                    self._swiflowOwner = owner
+                    self._swiflowScheduler = scheduler
                 }
             }
 

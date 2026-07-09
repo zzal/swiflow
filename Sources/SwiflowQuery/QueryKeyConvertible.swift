@@ -7,7 +7,7 @@
 /// debuggable, prefix-cascadable). Any type used as a `@Key` in a `@Query`
 /// must therefore project its identity into those two cases.
 ///
-/// `@Query` emits a uniform `_qkc(_:)` dispatch over every `@Key` property in
+/// `@Query` emits a uniform `_queryKeyComponent(_:)` dispatch over every `@Key` property in
 /// source order, so the macro never needs to know a property's concrete type —
 /// the conformance carries that knowledge. Most keys are a single component; the
 /// array return supports composite identities (e.g. a `Coordinate` keying as
@@ -58,6 +58,6 @@ extension RawRepresentable where RawValue: QueryKeyConvertible {
 /// `@inlinable` so the one-line indirection is free in optimized builds (a query
 /// value, and thus its `queryKey`, is constructed on every render).
 @inlinable
-public func _qkc<T: QueryKeyConvertible>(_ value: T) -> [QueryKeyComponent] {
+public func _queryKeyComponent<T: QueryKeyConvertible>(_ value: T) -> [QueryKeyComponent] {
     value.keyComponents
 }
