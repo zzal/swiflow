@@ -97,7 +97,7 @@ final class WeatherPage {
     /// Autocomplete's cancellation already collapses rapid keystrokes.
     private func searchCities(_ q: String) async throws -> [SelectOption] {
         let response: GeoSearchResponse =
-            try await API.geocoding.get("/v1/search?name=\(urlEncoded(q))&count=5")
+            try await API.geocoding.get("/v1/search", query: ["name": .string(q), "count": 5])
         let cities = response.results ?? []
         for city in cities { searchHits[String(city.id)] = city }
         return cities.map { SelectOption(String($0.id), $0.fullName) }

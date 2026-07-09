@@ -18,31 +18,37 @@ import Swiflow
 /// `HTTPClient(baseURL:headers:)` and calling it with relative paths.
 public enum HTTP {
     public static func get<T: Decodable & Sendable>(
-        _ url: String, headers: [String: String] = [:], as type: T.Type = T.self
+        _ url: String, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
     ) async throws -> T {
-        try await HTTPClient().get(url, headers: headers, as: type)
+        try await HTTPClient().get(url, query: query, headers: headers, as: type)
     }
 
     public static func post<T: Decodable & Sendable>(
-        _ url: String, json: JSONValue, headers: [String: String] = [:], as type: T.Type = T.self
+        _ url: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
     ) async throws -> T {
-        try await HTTPClient().post(url, json: json, headers: headers, as: type)
+        try await HTTPClient().post(url, json: json, query: query, headers: headers, as: type)
     }
 
     public static func put<T: Decodable & Sendable>(
-        _ url: String, json: JSONValue, headers: [String: String] = [:], as type: T.Type = T.self
+        _ url: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
     ) async throws -> T {
-        try await HTTPClient().put(url, json: json, headers: headers, as: type)
+        try await HTTPClient().put(url, json: json, query: query, headers: headers, as: type)
     }
 
     public static func patch<T: Decodable & Sendable>(
-        _ url: String, json: JSONValue, headers: [String: String] = [:], as type: T.Type = T.self
+        _ url: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as type: T.Type = T.self
     ) async throws -> T {
-        try await HTTPClient().patch(url, json: json, headers: headers, as: type)
+        try await HTTPClient().patch(url, json: json, query: query, headers: headers, as: type)
     }
 
-    public static func delete(_ url: String, headers: [String: String] = [:]) async throws {
-        try await HTTPClient().delete(url, headers: headers)
+    public static func delete(
+        _ url: String, query: [String: HTTPQueryValue] = [:], headers: [String: String] = [:]
+    ) async throws {
+        try await HTTPClient().delete(url, query: query, headers: headers)
     }
 }
 
