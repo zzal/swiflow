@@ -21,6 +21,7 @@ import Foundation // host-only: !arch(wasm32)-gated, never compiled into the was
 /// let todos = try await api.get("/todos", as: [Todo].self)
 /// let hits  = try await api.get("/search", query: ["name": .string(q), "count": 5], as: [Todo].self)
 /// let made  = try await api.post("/todos", json: ["title": .string(title)], as: Todo.self)
+/// let saved = try await api.put("/todos/\(id)", body: todo, as: Todo.self)   // todo: Encodable
 /// try await api.delete("/todos/\(id)")
 /// ```
 ///
@@ -84,6 +85,18 @@ public struct HTTPClient: Sendable {
         try decode(try await send(.post, path, query: query, body: json, headers: headers))
     }
 
+    /// POST an `Encodable` value as the JSON body — the typed counterpart of
+    /// `json:`, encoded through `JSONValueEncoder` (the same Codable behavior
+    /// on every platform: `encodeIfPresent` omits nil fields, etc.). A body
+    /// whose own `encode(to:)` throws rethrows that error unchanged, before
+    /// any request is sent.
+    public func post<T: Decodable & Sendable>(
+        _ path: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
+    ) async throws -> T {
+        try decode(try await send(.post, path, query: query, body: JSONValueEncoder().encode(body), headers: headers))
+    }
+
     public func put<T: Decodable & Sendable>(
         _ path: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
         headers: [String: String] = [:], as _: T.Type = T.self
@@ -91,11 +104,27 @@ public struct HTTPClient: Sendable {
         try decode(try await send(.put, path, query: query, body: json, headers: headers))
     }
 
+    /// PUT an `Encodable` value as the JSON body. See `post(_:body:)`.
+    public func put<T: Decodable & Sendable>(
+        _ path: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
+    ) async throws -> T {
+        try decode(try await send(.put, path, query: query, body: JSONValueEncoder().encode(body), headers: headers))
+    }
+
     public func patch<T: Decodable & Sendable>(
         _ path: String, json: JSONValue, query: [String: HTTPQueryValue] = [:],
         headers: [String: String] = [:], as _: T.Type = T.self
     ) async throws -> T {
         try decode(try await send(.patch, path, query: query, body: json, headers: headers))
+    }
+
+    /// PATCH an `Encodable` value as the JSON body. See `post(_:body:)`.
+    public func patch<T: Decodable & Sendable>(
+        _ path: String, body: some Encodable & Sendable, query: [String: HTTPQueryValue] = [:],
+        headers: [String: String] = [:], as _: T.Type = T.self
+    ) async throws -> T {
+        try decode(try await send(.patch, path, query: query, body: JSONValueEncoder().encode(body), headers: headers))
     }
 
     /// Fire-and-forget DELETE — the response body (if any) is discarded, so a
