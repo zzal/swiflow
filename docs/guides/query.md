@@ -210,7 +210,11 @@ immediately, the rest refetch lazily the next time something subscribes.)
 ## Testing
 
 Use `AsyncTestHarness` from `SwiflowTesting` with an explicit `QueryClient`
-driven by a `ManualClock`, so time and fetch settling are deterministic:
+driven by a `ManualClock`, so time and fetch settling are deterministic.
+`advance(by:)` works on any harness whose client runs on a `ManualClock` —
+including a shared client passed to several harnesses (the harness drives the
+client's own clock); on a non-manual clock it throws
+`AsyncTestHarness.ClockError` instead of advancing.
 
 ```swift
 import Testing

@@ -10,27 +10,29 @@ import SwiflowQuery
 public struct AsyncTestHarness {
     let renderer: TestRenderer
     let harness: TestHarness
-    let clock: ManualClock
-    /// True only for `init(_:clock:)`, where `clock` actually backs the client.
-    /// `advance(by:)` requires it — the `init(_:queryClient:)` path stores a
-    /// placeholder clock disconnected from the shared client's clock.
-    private let ownsClock: Bool
+    /// The manual clock driving this harness's client, when there is one:
+    /// always for `init(_:clock:)`; for `init(_:queryClient:)` it is the
+    /// shared client's OWN clock when that client was built with a
+    /// `ManualClock` (audit VI Wave-3 — this path used to store a
+    /// disconnected placeholder and `advance(by:)` crashed on a
+    /// precondition). `nil` means the client runs on a non-manual clock and
+    /// `advance(by:)` throws `ClockError`.
+    private let manualClock: ManualClock?
 
     public init<C: Component>(_ component: C, clock: ManualClock = ManualClock()) {
-        self.clock = clock
-        self.ownsClock = true
+        self.manualClock = clock
         let r = TestRenderer(component, queryClient: QueryClient(clock: clock))
         self.renderer = r
         self.harness = TestHarness(r)
     }
 
     /// Use this overload when multiple harnesses must share one `QueryClient`
-    /// (e.g. to verify cross-component invalidation). The harness's `clock`
-    /// property is a no-op placeholder in this path; use `queryClient.tick`
-    /// directly if you need background-revalidation control.
+    /// (e.g. to verify cross-component invalidation). `advance(by:)` works
+    /// whenever the shared client was built with a `ManualClock` — the
+    /// harness drives the client's own clock. With any other clock,
+    /// `advance(by:)` throws `ClockError`.
     public init<C: Component>(_ component: C, queryClient: QueryClient) {
-        self.clock = ManualClock()
-        self.ownsClock = false
+        self.manualClock = queryClient.clock as? ManualClock
         let r = TestRenderer(component, queryClient: queryClient)
         self.renderer = r
         self.harness = TestHarness(r)
@@ -86,11 +88,27 @@ public struct AsyncTestHarness {
     /// before in-flight tasks are awaited.
     public func flush() { renderer.scheduler.flush() }
 
-    /// Advance the test clock, fire one `tick`, and settle resulting refetches.
+    /// Thrown by `advance(by:)` when the harness's client is not driven by a
+    /// `ManualClock` — there is no test clock to advance. Build the shared
+    /// client with `QueryClient(clock: ManualClock())` to keep time control.
+    public enum ClockError: Error, CustomStringConvertible {
+        case clockNotManual
+        public var description: String {
+            "advance(by:) needs a ManualClock behind the query client. This harness's "
+                + "client runs on a non-manual clock — build the shared client with "
+                + "QueryClient(clock: ManualClock()) to keep time control."
+        }
+    }
+
+    /// Advance the test clock, fire one `tick`, and settle resulting
+    /// refetches. Works for `init(_:clock:)` harnesses and for shared-client
+    /// harnesses whose client was built with a `ManualClock`; throws
+    /// `ClockError` otherwise (audit VI Wave-3 — this was a precondition
+    /// crash that killed the whole test process).
     public func advance(by delta: Duration) async throws {
-        precondition(ownsClock, "advance(by:) is unavailable on a harness built with init(_:queryClient:) — its clock is a placeholder disconnected from the shared client. Drive time via queryClient.tick(now:) with the clock that built the shared client.")
-        clock.advance(by: delta)
-        renderer.queryClient.tick(now: clock.now())
+        guard let manualClock else { throw ClockError.clockNotManual }
+        manualClock.advance(by: delta)
+        renderer.queryClient.tick(now: manualClock.now())
         try await settle()
     }
 

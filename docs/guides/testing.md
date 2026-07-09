@@ -436,6 +436,20 @@ private final class LocaleHost {
 - `@State` is wired the same way as in production; mutations trigger
   synchronous re-renders via `SyncScheduler` (the test-only scheduler that
   replaces production's `RAFScheduler`).
+- **Re-renders are scoped exactly like the browser's.** A flush whose only
+  dirty component is a non-root child re-renders just that child's subtree
+  (the same `planRerender`/`scopedRerender` production runs) — the parent's
+  `body` is **not** re-evaluated, so a parent reading shared mutable state a
+  child changed will not refresh until something dirties the parent. If your
+  test relied on that propagation, so did your app: lift the state or pass a
+  callback.
+- **Uncontrolled inputs behave like the DOM.** Typing via `type(_:)`/
+  `input(...)` updates the element's live value even when no render declares
+  a `.value` property and no handler listens; later events (`blur`, `press`)
+  snapshot the typed value, and a render that assigns `.value` overwrites it
+  — the browser's exact write order. For this reason `input`/`change` on a
+  listener-less element is *not* a strict failure (the DOM write is the
+  behavior); every other unhandled event still records an Issue.
 - `text` matching in `find`/`findAll`/`exists`/`click` is a **substring**
   check on the element's full subtree text. Pass a more specific string if
   multiple elements could match.
