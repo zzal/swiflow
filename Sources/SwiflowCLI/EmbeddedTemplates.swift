@@ -2643,6 +2643,9 @@ final class Demo {
                 Button("Secondary", variant: .secondary) {}
                 Button("Ghost", variant: .ghost) {}
                 Button("Danger", variant: .danger) {}
+                // Builder labels: compose icon + text; icon-only needs aria-label.
+                Button(variant: .secondary, action: {}) { span(.attr("aria-hidden", true)) { text("↻") }; text("Retry") }
+                Button(variant: .ghost, .attr("aria-label", "Delete"), action: {}) { span(.attr("aria-hidden", true)) { text("🗑") } }
                 Button("Disabled", disabled: true) {}
             }
             HStack(spacing: .md, align: .center) {
