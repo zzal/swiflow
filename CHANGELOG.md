@@ -18,6 +18,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.4.13] — 2026-07-09
+
+**Beta.** The macro & CLI diagnostics release: audit Part III Wave 3 —
+macros/CLI is now complete end-to-end (PRs #212–#216). Sharper errors when you
+misuse a macro, cleaner CLI failures, and one breaking flag rename.
+
+**Stability:** Stable for pre-1.0 usage. **One breaking change** (below).
+
 ### Breaking
 
 - **`swiflow init` renamed its `--path` flag to `--into`.** `init --path` set
@@ -26,6 +36,36 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   takes `--into <parent>`; `build`/`dev` keep `--path <project-dir>`. Migrate
   `swiflow init demo --path /tmp` → `swiflow init demo --into /tmp`. `--path`
   on `init` is now an unknown-flag error.
+
+### Added
+
+- **Macro misuse names the real cause.** Four silent-misuse guardrails so a
+  mistake points at your code instead of invisible synthesized code: `@State` /
+  `@Persisted` without `@Component` now surfaces a framework-named symbol;
+  `@MutationState` / `@ReducerState` without `@Component` warns/asserts naming
+  the missing attribute; and a `@State` with no default gets a compile-time
+  diagnostic at the property (not an opaque "uninitialized" error on the
+  synthesized init).
+- **Fix-Its on mechanical macro diagnostics** — `@State`/`@MutationState`/
+  `@ReducerState` on a `let` offers "Replace 'let' with 'var'"; `@Component` on
+  a `struct` offers "Replace 'struct' with 'final class'"; a non-`final`
+  component class offers "Add 'final'".
+
+### Fixed
+
+- **`#css` errors point at the offending token.** A structural CSS error now
+  anchors the editor at the exact line/column inside the literal, instead of the
+  start of `#css("…")`.
+- **CLI runtime failures print cleanly.** Build/toolchain failures no longer
+  print the command's usage help after the error — that framing is reserved for
+  actual usage mistakes. Failures are also categorized (toolchain / build /
+  project) so the `swiflow doctor` pointer appears only where it can help.
+
+### Internal
+
+- The CSS scope-escape rule (`:root`/`html`/`body`) now has a single
+  implementation shared by the runtime CSS DSL and the `#css` macro parser
+  (new `SwiflowCSSCore` module), so the two can't drift.
 
 ---
 
