@@ -14,7 +14,7 @@ public struct TestNode {
     public let properties: [String: String]
 }
 
-private func flattenProperty(_ value: PropertyValue) -> String {
+func flattenProperty(_ value: PropertyValue) -> String {
     switch value {
     case .string(let s): return s
     case .bool(let b):   return b ? "true" : "false"
@@ -81,6 +81,45 @@ public struct TestHarness {
     /// True iff at least one element matches `tag` and optional `text`.
     public func exists(_ tag: String, text: String? = nil) -> Bool {
         !renderer.findElements(tag: tag, text: text, in: renderer.mountTree).isEmpty
+    }
+
+    /// Prints and returns a human-readable dump of the rendered tree — one
+    /// line per node: `<tag attrs on:[events]>`, quoted text, `▸ Component`
+    /// anchors. For ad-hoc inspection while writing a test; `expect(...)`
+    /// includes the same dump in its failure messages.
+    @discardableResult
+    public func debug() -> String {
+        let dump = renderer.dump()
+        print(dump)
+        return dump
+    }
+
+    /// Asserts the rendered tree's text contains `text`. On failure records
+    /// an Issue that INCLUDES the rendered tree (audit VI Wave-2 #5 —
+    /// `#expect(h.find(...) != nil)` said "expected non-nil" and nothing else).
+    public func expect(text: String, sourceLocation: SourceLocation = #_sourceLocation) {
+        guard !renderer.allText.contains(text) else { return }
+        Issue.record(
+            """
+            expected text \"\(text)\" — not found. Rendered tree:
+            \(renderer.dump())
+            """,
+            sourceLocation: sourceLocation)
+    }
+
+    /// Asserts an element matching `tag` (and `text`, if supplied) exists.
+    /// On failure records an Issue that includes the rendered tree.
+    public func expect(_ tag: String, text: String? = nil,
+                       sourceLocation: SourceLocation = #_sourceLocation) {
+        guard renderer.findElements(tag: tag, text: text, in: renderer.mountTree).isEmpty
+        else { return }
+        let textPart = text.map { " with text \"\($0)\"" } ?? ""
+        Issue.record(
+            """
+            expected a <\(tag)>\(textPart) — none found. Rendered tree:
+            \(renderer.dump())
+            """,
+            sourceLocation: sourceLocation)
     }
 
     /// Records a test failure at the CALLER's line when an interaction could

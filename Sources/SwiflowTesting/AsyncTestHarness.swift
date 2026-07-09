@@ -115,6 +115,10 @@ public struct AsyncTestHarness {
     public func check(_ tag: String = "input", at index: Int = 0, checked: Bool, sourceLocation: SourceLocation = #_sourceLocation) { harness.check(tag, at: index, checked: checked, sourceLocation: sourceLocation) }
     public func fire(_ event: String, on tag: String, text: String? = nil, at index: Int = 0, sourceLocation: SourceLocation = #_sourceLocation) { harness.fire(event, on: tag, text: text, at: index, sourceLocation: sourceLocation) }
     public func press(_ tag: String = "input", key: String, at index: Int = 0, sourceLocation: SourceLocation = #_sourceLocation) { harness.press(tag, key: key, at: index, sourceLocation: sourceLocation) }
+    @discardableResult
+    public func debug() -> String { harness.debug() }
+    public func expect(text: String, sourceLocation: SourceLocation = #_sourceLocation) { harness.expect(text: text, sourceLocation: sourceLocation) }
+    public func expect(_ tag: String, text: String? = nil, sourceLocation: SourceLocation = #_sourceLocation) { harness.expect(tag, text: text, sourceLocation: sourceLocation) }
     /// Unmounts the rendered tree, firing `onDisappear` parent-first.
     /// See `TestHarness.unmount()`. Calling again is a no-op.
     public func unmount() { harness.unmount() }

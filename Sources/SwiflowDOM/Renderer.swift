@@ -333,8 +333,12 @@ final class Renderer {
     func teardown() {
         guard let tree = mountTree else { return }
 
-        var patches: [Patch] = []
-        destroy(tree, into: &patches, handlers: handlers)
+        // Shared routine with TestRenderer.unmount (audit VI Wave-2 #3):
+        // installing the query client as the observer is what lets destroy()
+        // fire componentDidUnmount — without it, query subscriptions of
+        // unmounted components silently outlived the tree (cleanup fired in
+        // the test harness but never here).
+        let patches = teardownMountTree(tree, handlers: handlers, observer: queryClient)
         driver.applyPatches(patches)
 
         // Stop background revalidation triggers before releasing the scheduler.

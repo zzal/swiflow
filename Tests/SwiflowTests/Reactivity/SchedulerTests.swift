@@ -113,4 +113,45 @@ struct SchedulerTests {
         scheduler.flush()
         #expect(callCount == 1, "Reentrant flush() must not re-invoke callbacks for the current batch")
     }
+
+    // MARK: - Batch mode (audit VI Wave-2 #4) — RAFScheduler's contract
+
+    @Test("batching: ONE callback per flush, carrying the batch's dirty set")
+    func batchModeSingleCallback() {
+        var batches: [Set<ObjectIdentifier>] = []
+        let scheduler = SyncScheduler.batching { batches.append($0) }
+        let a = AnyComponent(StubComponent())
+        let b = AnyComponent(StubComponent())
+        scheduler.markDirty(a)
+        scheduler.markDirty(b)
+        scheduler.flush()
+        #expect(batches.count == 1, "two dirty components, ONE callback")
+        #expect(batches.first == [ObjectIdentifier(a.instance), ObjectIdentifier(b.instance)])
+    }
+
+    @Test("batching: an empty flush never invokes the callback")
+    func batchModeEmptyFlush() {
+        var batches: [Set<ObjectIdentifier>] = []
+        let scheduler = SyncScheduler.batching { batches.append($0) }
+        scheduler.flush()
+        #expect(batches.isEmpty, "mirrors RAFScheduler's empty-set guard")
+    }
+
+    @Test("batching: marks made during the callback form the NEXT batch")
+    func batchModeDeferredMarks() {
+        var batches: [Set<ObjectIdentifier>] = []
+        var scheduler: SyncScheduler!
+        let a = AnyComponent(StubComponent())
+        let b = AnyComponent(StubComponent())
+        scheduler = SyncScheduler.batching { ids in
+            batches.append(ids)
+            if batches.count == 1 { scheduler.markDirty(b) }
+        }
+        scheduler.markDirty(a)
+        scheduler.flush()
+        #expect(batches == [[ObjectIdentifier(a.instance)]])
+        scheduler.flush()
+        #expect(batches.count == 2)
+        #expect(batches.last == [ObjectIdentifier(b.instance)])
+    }
 }
