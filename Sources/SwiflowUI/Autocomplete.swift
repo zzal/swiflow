@@ -393,7 +393,7 @@ final class AutocompleteBox {
             .on(.keydown) { (e: EventInfo) in self.onKeyDown(e) },
             .on(.click) { self.openList() },
         ]
-        if !placeholder.isEmpty { inputBase.append(.attr("placeholder", placeholder)) }
+        if !placeholder.isEmpty { inputBase.append(.placeholder(placeholder)) }
         if open, activeIndex >= 0, activeIndex < visible.count {
             inputBase.append(.attr("aria-activedescendant", optionID(activeIndex)))
         }

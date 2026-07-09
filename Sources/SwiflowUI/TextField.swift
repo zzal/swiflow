@@ -91,7 +91,7 @@ private func fieldControl(
     installFieldStyles()
 
     var base: [Attribute] = [.attr("type", type.attributeValue), .value(binding)]
-    if !placeholder.isEmpty { base.append(.attr("placeholder", placeholder)) }
+    if !placeholder.isEmpty { base.append(.placeholder(placeholder)) }
     let inputAttrs = controlInputAttributes(base, error: error, required: required,
                                             disabled: disabled, onBlur: onBlur, caller: attributes)
 
