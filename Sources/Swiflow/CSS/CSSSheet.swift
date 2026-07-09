@@ -1,3 +1,5 @@
+import SwiflowCSSCore
+
 public struct CSSSheet: Sendable {
     package let entries: [CSSEntry]
 
@@ -72,8 +74,7 @@ public enum CSSEntry: Sendable {
     }
 
     private func shouldScope(_ selector: String) -> Bool {
-        let lower = selector.lowercased()
-        return !(lower.hasPrefix(":root") || lower.hasPrefix("html") || lower.hasPrefix("body"))
+        !CSSScopeRules.escapesComponentScoping(selector)
     }
 
     /// One (already comma-split) selector's scoped form:
