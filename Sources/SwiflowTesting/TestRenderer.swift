@@ -29,6 +29,16 @@ final class TestRenderer {
     /// around each diff so `query()` during `body` reaches it.
     let queryClient: QueryClient
 
+    /// Live DOM-state side-tables (audit VI Wave-3), keyed by MountNode
+    /// handle. The browser's `element.value`/`checked` change on user input
+    /// whether or not any render declares them (uncontrolled inputs), so the
+    /// declared-properties bag alone under-reports what an event snapshot
+    /// would carry. Exactly the real DOM's two writers feed these: user
+    /// input (recorded at input/change dispatch) and committed renders
+    /// (value/checked `setProperty` patches, applied in `applyDOMStatePatches`).
+    private var domValues: [Int: String] = [:]
+    private var domChecked: [Int: Bool] = [:]
+
     init<C: Component>(_ instance: C, queryClient: QueryClient = QueryClient()) {
         let relay = RerenderRelay()
         self.handles = HandleAllocator()
@@ -65,17 +75,63 @@ final class TestRenderer {
             scheduler: self.scheduler
         )
         self.mountTree = result.newMountTree
+        applyDOMStatePatches(result.patches)
         firePostRenderLifecycle(result.newMountTree, preExistingIDs: [])
         relay.owner = self
     }
 
-    /// One flush batch → one render, mirroring `Renderer.flushDirty(_:)`.
-    /// Always re-renders from the root; the diff decides which bodies to
-    /// re-evaluate. (The browser additionally has a scoped single-dirty fast
-    /// path — `planRerender`/`scopedRerender` — that the harness never takes;
-    /// that fidelity drift is audit VI Wave-3's HeadlessRenderCore item.)
+    /// Applies the value/checked slice of a committed patch batch to the
+    /// DOM-state side-tables — the harness's micro-DOM for exactly the two
+    /// properties event snapshots read. A render assigning `element.value`
+    /// overwrites whatever the user "typed", like the real driver.
+    private func applyDOMStatePatches(_ patches: [Patch]) {
+        for patch in patches {
+            switch patch {
+            case .setProperty(let handle, "value", let value):
+                domValues[handle] = flattenProperty(value)
+            case .setProperty(let handle, "checked", let value):
+                if case .bool(let b) = value { domChecked[handle] = b }
+            case .removeProperty(let handle, "value"):
+                domValues.removeValue(forKey: handle)
+            case .removeProperty(let handle, "checked"):
+                domChecked.removeValue(forKey: handle)
+            case .destroyNode(let handle):
+                domValues.removeValue(forKey: handle)
+                domChecked.removeValue(forKey: handle)
+            default:
+                break
+            }
+        }
+    }
+
+    /// One flush batch → one render, running the SAME `planRerender` →
+    /// `scopedRerender`/full flow as `Renderer.flushDirty(_:)` (audit VI
+    /// Wave-3): the common single-dirty case takes the browser's scoped path
+    /// — the parent body is NOT re-evaluated, exactly like production since
+    /// PR #90. The plan decision and both diff paths are the shared package
+    /// core; only patch shipping (browser) vs discarding (here) differs.
     func flushDirty(_ dirtyIDs: Set<ObjectIdentifier>) {
-        _ = dirtyIDs
+        switch planRerender(root: mountTree, dirtyIDs: dirtyIDs) {
+        case .full:
+            renderFullRoot()
+        case .scoped(let anchor):
+            installRenderContext(handlers: handlers, taskScope: taskScope, observer: queryClient)
+            defer { uninstallRenderContext() }
+            let scoped = scopedRerender(
+                anchor: anchor,
+                handles: handles,
+                handlers: handlers,
+                scheduler: scheduler
+            )
+            applyDOMStatePatches(scoped.patches)
+            // The scoped diff mutated the anchor's subtree in place — the
+            // mount tree stays valid, no reassignment (same as the browser).
+            firePostRenderLifecycle(scoped.newMountTree, preExistingIDs: scoped.preExistingIDs)
+        }
+    }
+
+    /// The full-root render — `Renderer.renderOnce()` minus patch shipping.
+    private func renderFullRoot() {
         installRenderContext(handlers: self.handlers, taskScope: taskScope, observer: queryClient)
         defer { uninstallRenderContext() }
         let preExistingIDs = collectComponentIDs(mountTree)
@@ -86,6 +142,7 @@ final class TestRenderer {
             handlers: handlers,
             scheduler: scheduler
         )
+        applyDOMStatePatches(result.patches)
         mountTree = result.newMountTree
         firePostRenderLifecycle(result.newMountTree, preExistingIDs: preExistingIDs)
     }
@@ -136,23 +193,20 @@ final class TestRenderer {
     }
 
     /// Mirrors the JS driver's serializeEvent(): snapshot the target's current
-    /// `value`/`checked` from the mount tree the way the browser snapshots them
-    /// from the live DOM (js-driver/swiflow-driver.js:70-80). Returns nils for
-    /// elements without those properties — same as the driver's `"value" in
-    /// target` / `"checked" in target` guards.
+    /// `value`/`checked` the way the browser snapshots them from the live DOM
+    /// (js-driver/swiflow-driver.js:70-80). Reads the DOM-state side-tables
+    /// first — they carry user input on uncontrolled elements that no render
+    /// ever declares (audit VI Wave-3) — falling back to the declared
+    /// properties bag. Returns nils for elements with neither, same as the
+    /// driver's `"value" in target` / `"checked" in target` guards.
     private func targetSnapshot(of node: MountNode) -> (value: String?, checked: Bool?) {
         guard case .element(let data) = node.vnode else { return (nil, nil) }
-        var value: String? = nil
-        var checked: Bool? = nil
-        if let v = data.properties["value"] {
-            switch v {
-            case .string(let s): value = s
-            case .int(let i): value = String(i)
-            case .double(let d): value = String(d)
-            case .bool(let b): value = String(b)
-            }
+        var value: String? = domValues[node.handle]
+        var checked: Bool? = domChecked[node.handle]
+        if value == nil, let v = data.properties["value"] {
+            value = flattenProperty(v)
         }
-        if case .bool(let b)? = data.properties["checked"] { checked = b }
+        if checked == nil, case .bool(let b)? = data.properties["checked"] { checked = b }
         return (value, checked)
     }
 
@@ -211,11 +265,23 @@ final class TestRenderer {
         guard isAttached(node) else {
             return .detached(tag: data.tag, event: event)
         }
+        let info = payload(targetSnapshot(of: node))
+        // The DOM writes BEFORE any listener runs: typing/toggling changes
+        // element.value/checked whether or not anyone handles the event
+        // (audit VI Wave-3 — uncontrolled inputs).
+        if info.type == "input" || info.type == "change" {
+            if let v = info.targetValue { domValues[node.handle] = v }
+            if let c = info.targetChecked { domChecked[node.handle] = c }
+        }
         guard let id = node.handlerIds[event] else {
+            // input/change without a listener is NOT a no-op — the DOM state
+            // above changed, which is all the browser would do too. Every
+            // other event with no handler stays a strict failure.
+            if event == "input" || event == "change" { return nil }
             return .noHandler(event: event, tag: data.tag,
                               handlersPresent: node.handlerIds.keys.sorted())
         }
-        handlers.dispatch(id: id, event: payload(targetSnapshot(of: node)))
+        handlers.dispatch(id: id, event: info)
         scheduler.flush()
         return nil
     }
