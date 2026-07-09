@@ -81,3 +81,46 @@ private func elementOf(_ node: VNode) -> ElementData? {
     guard case .element(let data) = node else { return nil }
     return data
 }
+
+@Suite("style value token validation", .serialized)
+@MainActor
+struct StyleTokenValidationTests {
+
+    private func captureWarnings(_ body: () -> Void) -> [String] {
+        installStyleTokenValidator()
+        var captured: [String] = []
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { captured.append($0) }
+        defer { _swiflowWarnOverride = prior }
+        body()
+        return captured
+    }
+
+    @Test("a typo'd --sw- token in a stringly .style value warns")
+    func typoWarns() {
+        let warnings = captureWarnings {
+            _ = div(.style("background", "var(--sw-surfce)"))   // the audit's exact typo
+        }
+        #expect(warnings.count == 1)
+        #expect((warnings.first ?? "").contains("--sw-surfce"))
+    }
+
+    @Test("known tokens, composites, and app-custom props stay silent")
+    func validSilent() {
+        let warnings = captureWarnings {
+            _ = div(.style("background", "var(--sw-surface)"))
+            _ = div(.style("border", "var(--sw-border-width) solid var(--sw-border)"))
+            _ = div(.style("color", "var(--my-app-color)"))     // non --sw-: never checked
+            _ = div {}.style("padding", "var(--sw-space-md)")   // the modifier path is hooked too
+        }
+        #expect(warnings.isEmpty)
+    }
+
+    @Test("the modifier path catches typos too")
+    func modifierPathWarns() {
+        let warnings = captureWarnings {
+            _ = div {}.style("gap", "var(--sw-spce-md)")
+        }
+        #expect(warnings.count == 1)
+    }
+}

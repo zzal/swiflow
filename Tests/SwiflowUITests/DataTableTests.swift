@@ -92,7 +92,7 @@ struct DataTableBaseTests {
     }
 
     @Test("table sits inside a scroll container; maxHeight sets max-height") func scrollContainer() {
-        let b = makeDataTableBox(people, id: \.id, maxHeight: .custom("480px")) { Column("Name", value: \.name) }
+        let b = makeDataTableBox(people, id: \.id, maxHeight: "480px") { Column("Name", value: \.name) }
         let root = building { b.body }
         let scroll = allTags(root, "div").first { $0.attributes["class"]?.contains("sw-table__scroll") == true }!
         #expect(scroll.style["max-height"] == "480px")
@@ -184,7 +184,7 @@ struct DataTableSortTests {
     func sortedIndicesCache() {
         let order = Binding<SortOrder?>(get: { SortOrder(columnID: "Age", ascending: true) }, set: { _ in })
         let b = makeDataTableBox(people, id: \.id, sortable: true, sortOrder: order,
-                                 maxHeight: .custom("100px"),
+                                 maxHeight: "100px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
             Column("Age", value: \.age)
@@ -385,7 +385,7 @@ struct DataTableStateTests {
 
     @Test func windowSlicesToViewportPlusOverscan() {
         let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "400px",
                                    virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         // 400px viewport / 40px row = 10 rows in view; overscan 3 each side.
@@ -398,7 +398,7 @@ struct DataTableStateTests {
 
     @Test func windowOffsetsWhenScrolled() {
         let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "400px",
                                    virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         box.setViewportMetrics(scrollTop: 4000, viewportHeight: 400)   // viewport-top row = 100
@@ -410,7 +410,7 @@ struct DataTableStateTests {
 
     @Test func windowClampsAtBottom() {
         let people = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "400px",
                                    virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         box.setViewportMetrics(scrollTop: 39_600, viewportHeight: 400)  // bottom: 1000*40 - 400
@@ -429,7 +429,7 @@ struct DataTableStateTests {
 
     @Test func runwayHeightIsTotalTimesRowHeight() {
         let people = (0..<250).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("400px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "400px",
                                    virtualization: .fixed(rowHeight: 32),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #expect(box.runwayHeightPx() == 250 * 32)
@@ -439,7 +439,7 @@ struct DataTableStateTests {
         let rows = (0..<3).map { Person(id: $0, name: "P\($0)", age: $0) }
         let sel = Binding<Set<Int>>(get: { [] }, set: { _ in })
         let box = makeDataTableBox(rows, id: \.id, selection: sel,
-                                   maxHeight: .custom("300px"), virtualization: .fixed(rowHeight: 40),
+                                   maxHeight: "300px", virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr 80px") {
             Column("Name", value: \.name); Column("Age", value: \.age)
         }
@@ -448,7 +448,7 @@ struct DataTableStateTests {
 
     @Test func gridTemplateDefaultsToRepeatWhenNoTemplate() {
         let rows = (0..<3).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(rows, id: \.id, maxHeight: .custom("300px"),
+        let box = makeDataTableBox(rows, id: \.id, maxHeight: "300px",
                                    virtualization: .fixed(rowHeight: 40)) {
             Column("Name", value: \.name); Column("Age", value: \.age)
         }
@@ -457,7 +457,7 @@ struct DataTableStateTests {
 
     @Test func virtualBodyHasPaddingSpacerAndRows() {
         let rows = (0..<1000).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(rows, id: \.id, maxHeight: .custom("400px"),
+        let box = makeDataTableBox(rows, id: \.id, maxHeight: "400px",
                                    virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         box.setViewportMetrics(scrollTop: 4000, viewportHeight: 400)
@@ -509,7 +509,7 @@ struct DataTableStateTests {
 @Suite struct DataTableVirtualizationTests {
     @Test func boxStoresVirtualizationConfig() {
         let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: 20 + $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "300px",
                                    virtualization: .fixed(rowHeight: 40),
                                    columnsTemplate: "1fr 80px 1fr") {
             Column("Name", value: \.name)
@@ -538,7 +538,7 @@ struct DataTableStateTests {
 
     @Test func virtualizationInactiveWithNonPositiveRowHeight() {
         let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "300px",
                                    virtualization: .fixed(rowHeight: 0),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #if DEBUG
@@ -555,7 +555,7 @@ struct DataTableStateTests {
 
     @Test func virtualizationActiveWithHeightAndRowHeight() {
         let people = (0..<5).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, maxHeight: .custom("300px"),
+        let box = makeDataTableBox(people, id: \.id, maxHeight: "300px",
                                    virtualization: .fixed(rowHeight: 44),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #expect(box.activeRowHeight() == 44)
@@ -563,7 +563,7 @@ struct DataTableStateTests {
 
     @Test func virtualizationSuppressesPager() {
         let people = (0..<50).map { Person(id: $0, name: "P\($0)", age: $0) }
-        let box = makeDataTableBox(people, id: \.id, pageSize: 10, maxHeight: .custom("300px"),
+        let box = makeDataTableBox(people, id: \.id, pageSize: 10, maxHeight: "300px",
                                    virtualization: .fixed(rowHeight: 44),
                                    columnsTemplate: "1fr") { Column("Name", value: \.name) }
         #expect(box.activeRowHeight() == 44)
@@ -655,7 +655,7 @@ extension DataTableStateTests {
     @Test("virtualized tbody uses padding spacer; rows carry no transform")
     func virtualPaddingSpacer() {
         let b = makeDataTableBox(Array(0..<100).map { Person(id: $0, name: "P\($0)", age: $0) },
-                                 id: \.id, maxHeight: .custom("220px"),
+                                 id: \.id, maxHeight: "220px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
         }
@@ -688,7 +688,7 @@ struct DataTableRowCacheTests {
     @Test("scrolling one row rebuilds only the entering row; others are cache hits")
     func rowCacheHitOnScroll() {
         let b = makeDataTableBox(Array(0..<200).map { Person(id: $0, name: "P\($0)", age: $0) },
-                                 id: \.id, maxHeight: .custom("220px"),
+                                 id: \.id, maxHeight: "220px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
         }
@@ -708,7 +708,7 @@ struct DataTableRowCacheTests {
         var selected: Set<Int> = []
         let sel = Binding<Set<Int>>(get: { selected }, set: { selected = $0 })
         let b = makeDataTableBox(Array(0..<200).map { Person(id: $0, name: "P\($0)", age: $0) },
-                                 id: \.id, selection: sel, maxHeight: .custom("220px"),
+                                 id: \.id, selection: sel, maxHeight: "220px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
         }
@@ -722,7 +722,7 @@ struct DataTableRowCacheTests {
     @Test("row cache stays window-sized after scrolling across many windows")
     func rowCacheBounded() {
         let b = makeDataTableBox(Array(0..<2000).map { Person(id: $0, name: "P\($0)", age: $0) },
-                                 id: \.id, maxHeight: .custom("220px"),
+                                 id: \.id, maxHeight: "220px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
         }
@@ -737,7 +737,7 @@ struct DataTableRowCacheTests {
     @Test("one-row window slide emits a minimal patch set (one row created, no moves)")
     func windowSlideMinimalPatches() {
         let b = makeDataTableBox(Array(0..<300).map { Person(id: $0, name: "P\($0)", age: $0) },
-                                 id: \.id, maxHeight: .custom("220px"),
+                                 id: \.id, maxHeight: "220px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)
         }
@@ -769,7 +769,7 @@ struct DataTableVirtualWidthTests {
     @Test("gridTemplate synthesizes tracks from per-column .width (nil → flexible)")
     func synthesizesFromColumnWidths() {
         let b = makeDataTableBox(people, id: \.id,
-                                 maxHeight: .custom("200px"),
+                                 maxHeight: "200px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name)                 // no width → minmax(0, 1fr)
             Column("Age", value: \.age).width(.px(80))    // fixed track
@@ -782,7 +782,7 @@ struct DataTableVirtualWidthTests {
         var sel: Set<Int> = []
         let b = makeDataTableBox(people, id: \.id,
                                  selection: Binding(get: { sel }, set: { sel = $0 }),
-                                 maxHeight: .custom("200px"),
+                                 maxHeight: "200px",
                                  virtualization: .fixed(rowHeight: 20)) {
             Column("Name", value: \.name).width(.px(120))
             Column("Age", value: \.age)
@@ -798,7 +798,7 @@ struct DataTableVirtualWidthTests {
         defer { _swiflowWarnOverride = prior }
 
         let b = makeDataTableBox(people, id: \.id,
-                                 maxHeight: .custom("200px"),
+                                 maxHeight: "200px",
                                  virtualization: .fixed(rowHeight: 20),
                                  columnsTemplate: "2fr 1fr") {
             Column("Name", value: \.name).width(.px(80))  // conflicts with columnsTemplate
@@ -816,7 +816,7 @@ struct DataTableVirtualWidthTests {
         defer { _swiflowWarnOverride = prior }
 
         let b = makeDataTableBox(people, id: \.id,
-                                 maxHeight: .custom("200px"),
+                                 maxHeight: "200px",
                                  virtualization: .fixed(rowHeight: 20),
                                  columnsTemplate: "2fr 1fr") {
             Column("Name", value: \.name)

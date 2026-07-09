@@ -236,4 +236,9 @@ public enum SwiflowUI {
 
 /// Internal trigger called by every primitive constructor. Idempotent.
 @MainActor
-func ensureBaseStyles() { SwiflowUI.installBaseStyles() }
+func ensureBaseStyles() {
+    SwiflowUI.installBaseStyles()
+    #if DEBUG
+    installStyleTokenValidator()   // arms the --sw- typo warn (see Token.swift)
+    #endif
+}

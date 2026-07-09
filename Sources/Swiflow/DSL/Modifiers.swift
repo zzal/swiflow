@@ -2,6 +2,15 @@
 
 /// A single modifier passed to an element factory (e.g. `div(.class("row"))`).
 /// Each case maps directly to one of `ElementData`'s bags.
+#if DEBUG
+/// DEBUG seam (audit V Wave-3): installed by SwiflowUI to validate `--sw-*`
+/// token references inside stringly `.style` VALUES against its typed
+/// vocabulary — a `var(--sw-surfce)` typo otherwise fails SILENT in CSS.
+/// Core stays vocabulary-agnostic; nil (the default) = no validation.
+/// Same single-threaded seam discipline as `_swiflowWarnOverride`.
+nonisolated(unsafe) public var _swiflowStyleValueValidator: ((String) -> Void)?
+#endif
+
 public enum Attribute {
     /// An HTML attribute (`setAttribute`).
     case attribute(name: String, value: String)
@@ -163,7 +172,10 @@ public enum Attribute {
 
     /// Shorthand for `.style(name:value:)`.
     public static func style(_ name: String, _ value: String) -> Attribute {
-        .style(name: name, value: value)
+        #if DEBUG
+        _swiflowStyleValueValidator?(value)
+        #endif
+        return .style(name: name, value: value)
     }
 
     public static func transition(_ value: String) -> Attribute {

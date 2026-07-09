@@ -46,7 +46,8 @@ struct SelectionModel {
 ///     }
 ///
 /// `selection`/`sortOrder`/`page` are opt-in bindings; sort & page otherwise self-manage.
-/// `maxHeight` provides the scroll container the sticky header needs.
+/// `maxHeight` (a CSS length, e.g. `"480px"`) provides the scroll container
+/// the sticky header needs.
 ///
 /// > **Dynamic data — pass a `key:`.** Like every embedded component, the table is reused across
 /// > renders, so `rows` (and `loading`, `pageSize`, the columns) are captured at **first mount** —
@@ -67,7 +68,7 @@ public func DataTable<Row, ID: Hashable>(
     page: Binding<Int>? = nil,
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
-    maxHeight: Spacing? = nil,
+    maxHeight: String? = nil,
     virtualization: Virtualization? = nil,
     columnsTemplate: String? = nil,
     emptyText: String = "No results",
@@ -102,7 +103,7 @@ public func DataTable<Row: Identifiable>(
     page: Binding<Int>? = nil,
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
-    maxHeight: Spacing? = nil,
+    maxHeight: String? = nil,
     virtualization: Virtualization? = nil,
     columnsTemplate: String? = nil,
     emptyText: String = "No results",
@@ -123,6 +124,17 @@ public func DataTable<Row: Identifiable>(
     }
 }
 
+/// Clamp a pixel quantity to a trap-free `Int`. `Int(_:)` on a Double past
+/// ±2^31 TRAPS on wasm32 (host Int is 64-bit and HIDES it — the class that
+/// bit the query clock, PR #154), and raw Int multiplication overflows the
+/// same bound. CSS lengths beyond ~2^31 px are meaningless anyway (browsers
+/// cap element sizes far lower), so clamping identically on EVERY platform
+/// keeps host tests honest about wasm behavior. Non-finite inputs → 0.
+func cssPixelInt(_ value: Double) -> Int {
+    guard !value.isNaN else { return 0 }
+    return Int(max(0, min(value, 2_147_483_000)))   // just under Int32.max; ±∞ clamp naturally
+}
+
 // MARK: - Erasure (also the test seam)
 
 /// Builds the concrete `DataTableBox` from typed inputs. Internal so tests can construct a
@@ -138,7 +150,7 @@ func makeDataTableBox<Row, ID: Hashable>(
     page: Binding<Int>? = nil,
     onRowClick: ((Row) -> Void)? = nil,
     loading: Bool = false,
-    maxHeight: Spacing? = nil,
+    maxHeight: String? = nil,
     virtualization: Virtualization? = nil,
     columnsTemplate: String? = nil,
     emptyText: String = "No results",
@@ -162,7 +174,7 @@ func makeDataTableBox<Row, ID: Hashable>(
     page: Binding<Int>?,
     onRowClick: ((Row) -> Void)?,
     loading: Bool,
-    maxHeight: Spacing?,
+    maxHeight: String?,
     virtualization: Virtualization?,
     columnsTemplate: String?,
     emptyText: String,
@@ -225,7 +237,7 @@ func makeDataTableBox<Row, ID: Hashable>(
         page: page,
         onRowClick: onClick,
         loading: loading,
-        maxHeight: maxHeight?.css,
+        maxHeight: maxHeight,
         virtualization: virtualization,
         columnsTemplate: columnsTemplate,
         emptyText: emptyText,
@@ -367,12 +379,16 @@ final class DataTableBox {
     /// Row at the TOP edge of the viewport (no overscan), clamped to [0, count). 0 when not virtualized.
     func firstVisibleIndex() -> Int {
         guard let rh = activeRowHeight(), rh > 0 else { return 0 }
-        let raw = Int(scrollTop) / rh        // floor for scrollTop ≥ 0; Foundation-free
+        let raw = cssPixelInt(scrollTop) / rh   // clamped floor — see cssPixelInt
         return max(0, min(raw, max(0, rowCount - 1)))
     }
 
     /// Runway height for the sized `<tbody>`: total rows × rowHeight. 0 when not virtualized.
-    func runwayHeightPx() -> Int { activeRowHeight().map { rowCount * $0 } ?? 0 }
+    func runwayHeightPx() -> Int {
+        // Multiply in Double: rowCount × rowHeight overflows 32-bit Int well
+        // inside real dataset sizes (3 rows × 1e9 px, 50M rows × 50 px…).
+        activeRowHeight().map { cssPixelInt(Double(rowCount) * Double($0)) } ?? 0
+    }
 
     /// Resolved row height when virtualization is *active* this render, else nil.
     /// Active requires a positive rowHeight AND a bounded scroll container (`maxHeight`).
@@ -430,7 +446,7 @@ final class DataTableBox {
         if let rh = activeRowHeight(), rh > 0 {
             let total = order.count
             guard total > 0 else { return [] }
-            let rowsInView = viewportHeight > 0 ? (Int(viewportHeight) + rh - 1) / rh : total  // ceil, Foundation-free
+            let rowsInView = viewportHeight > 0 ? (cssPixelInt(viewportHeight) + rh - 1) / rh : total  // clamped ceil
             let first = max(0, firstVisibleIndex() - overscan)
             let end = min(total, first + rowsInView + 2 * overscan)
             return first < end ? Array(order[first..<end]) : []
