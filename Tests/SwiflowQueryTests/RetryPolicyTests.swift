@@ -24,4 +24,23 @@ struct RetryPolicyTests {
         let p = RetryPolicy(maxRetries: 500, baseDelay: .seconds(1), maxDelay: .seconds(Int64.max / 4))
         #expect(p.delay(forAttempt: 500) == .seconds(Int64.max / 4))
     }
+
+    @Test("the defaulted-param init gives the standard backoff, just a different count") func defaultedParamInit() {
+        let p = RetryPolicy(maxRetries: 5)
+        #expect(p.maxRetries == 5)
+        #expect(p.baseDelay == RetryPolicy.default.baseDelay)   // standard 1s doubling…
+        #expect(p.maxDelay == RetryPolicy.default.maxDelay)     // …capped at 30s
+        #expect(p.delay(forAttempt: 2) == .seconds(4))
+    }
+
+    @Test(".retries(n) copies the policy with a new count, keeping the backoff") func retriesFluentCopy() {
+        let custom = RetryPolicy(maxRetries: 3, baseDelay: .milliseconds(250), maxDelay: .seconds(5))
+        let widened = custom.retries(10)
+        #expect(widened.maxRetries == 10)
+        #expect(widened.baseDelay == .milliseconds(250))   // backoff preserved
+        #expect(widened.maxDelay == .seconds(5))
+        // The 90% case reads fluently off .default:
+        #expect(RetryPolicy.default.retries(5).maxRetries == 5)
+        #expect(RetryPolicy.default.retries(5).baseDelay == .seconds(1))
+    }
 }
