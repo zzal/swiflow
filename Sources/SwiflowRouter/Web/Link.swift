@@ -51,7 +51,7 @@ public final class Link: Component {
         capturedNavigate = ambientRouter.navigate
         let href = ambientRouter.href(forPath: path)
         var attributes: [Attribute] = [
-            .attr("href", href),
+            .href(href),
             .refBinding(AnyRefBinding(linkRef)),
         ]
         // The current page's link gets the web's standard "you are here":
