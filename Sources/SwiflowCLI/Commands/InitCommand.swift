@@ -1,11 +1,12 @@
 // Sources/SwiflowCLI/Commands/InitCommand.swift
 //
 // `swiflow init <name>` — scaffolds a new Swiflow project from the embedded
-// templates + driver into a directory of `<name>` underneath `--path`
-// (defaults to CWD). The `--path` flag mirrors what `build` and `dev`
-// accept, so the three commands compose naturally:
+// templates + driver into a directory of `<name>` underneath `--into`
+// (defaults to CWD). `init` takes `--into` (the PARENT to scaffold into),
+// while `build`/`dev` take `--path` (the project directory itself) — the
+// distinct names keep the two meanings from being confused:
 //
-//     swiflow init demo --path /tmp
+//     swiflow init demo --into /tmp
 //     swiflow build --path /tmp/demo
 //     swiflow dev   --path /tmp/demo
 
@@ -28,7 +29,7 @@ enum InitCommandError: Error, Equatable, CustomStringConvertible {
 
 /// Guards `ProjectWriter.writeProject(name:...)` (which does a bare
 /// `parent.appendingPathComponent(name)`) against names that escape the
-/// chosen `--path` parent. Rejects any path separator (so `a/b`, `../evil`,
+/// chosen `--into` parent. Rejects any path separator (so `a/b`, `../evil`,
 /// and absolute-looking names like `/etc/passwd` are all caught by the same
 /// check) and the two dot-directory names that resolve to the parent itself
 /// or its parent. A small pure function so the validation is unit-testable
@@ -44,14 +45,14 @@ struct InitCommand: AsyncParsableCommand {
         abstract: "Scaffold a new Swiflow project."
     )
 
-    @Argument(help: "The project name. A directory of this name will be created under --path (CWD by default).")
+    @Argument(help: "The project name. A directory of this name will be created inside --into (CWD by default).")
     var name: String
 
     @Option(
-        name: .customLong("path"),
-        help: "Parent directory in which to create the project. Defaults to the current working directory."
+        name: .customLong("into"),
+        help: "Parent directory to scaffold the project into. Defaults to the current working directory. (Note: `build`/`dev` take --path — the project directory itself.)"
     )
-    var path: String = "."
+    var into: String = "."
 
     @Option(
         name: .customLong("template"),
@@ -98,7 +99,7 @@ struct InitCommand: AsyncParsableCommand {
 
     func run() async throws {
         // Reject names that would let ProjectWriter's bare
-        // `parent.appendingPathComponent(name)` escape --path (e.g.
+        // `parent.appendingPathComponent(name)` escape --into (e.g.
         // "../../evil") or silently nest (e.g. "a/b/c"). Checked first,
         // before any filesystem work, so a bad name never touches disk.
         guard isValidProjectName(name) else {
@@ -133,11 +134,11 @@ struct InitCommand: AsyncParsableCommand {
             dep = .url(SwiflowDep.officialRepositoryURL, version: SwiflowVersion.current)
         }
 
-        // Resolve --path against CWD when relative (so `--path .` and a bare
+        // Resolve --into against CWD when relative (so `--into .` and a bare
         // invocation both land in the working directory the user expects).
         // standardizedFileURL collapses `..` segments so error messages and
         // the "cd <path>" hint print clean paths instead of "/tmp/foo/./".
-        let parentURL = URL(fileURLWithPath: path).standardizedFileURL
+        let parentURL = URL(fileURLWithPath: into).standardizedFileURL
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: parentURL.path, isDirectory: &isDir), isDir.boolValue else {
             throw ValidationError(String(describing: InitCommandError.parentPathNotFound(parentURL)))

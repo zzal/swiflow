@@ -111,7 +111,7 @@ export function prepareDemo(opts: DemoOptions): string {
     console.log(`[e2e] (re)scaffolding "${opts.key}" demo (${why}) → ${project}`);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    const args = ["init", "demo", "--path", dir, "--swiflow-source", REPO_ROOT];
+    const args = ["init", "demo", "--into", dir, "--swiflow-source", REPO_ROOT];
     if (opts.template) args.splice(2, 0, "--template", opts.template);
     execFileSync(SWIFLOW, args, { stdio: "inherit" });
     writeFileSync(stampFile, stamp);
