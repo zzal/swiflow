@@ -47,7 +47,7 @@ struct CapturingWasmBuildInvocation: Sendable {
     func run(using runner: ProcessRunner) throws -> String {
         let result = try context.run(composeArguments(), using: runner, captureOutput: true)
         if result.exitCode != 0 {
-            throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
+            throw SwiflowRuntimeError.swiftBuildFailed(exitCode: result.exitCode)
         }
         return (result.standardOutput ?? "") + "\n" + (result.standardError ?? "")
     }
@@ -221,7 +221,7 @@ enum CommandReplayer {
             captureOutput: false
         )
         if result.exitCode != 0 {
-            throw BuildCommandError.swiftBuildFailed(exitCode: result.exitCode)
+            throw SwiflowRuntimeError.swiftBuildFailed(exitCode: result.exitCode)
         }
     }
 }

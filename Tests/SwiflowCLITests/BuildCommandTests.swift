@@ -128,7 +128,7 @@ struct BuildCommandArgvTests {
         #expect(stub.calls[0].environment == nil)
     }
 
-    @Test("Surfaces non-zero exit codes via BuildCommandError")
+    @Test("Surfaces non-zero exit codes via SwiflowRuntimeError")
     func nonZeroExit() {
         let stub = StubProcessRunner(stubbedExitCode: 42)
         let composer = BuildInvocation(
@@ -137,23 +137,23 @@ struct BuildCommandArgvTests {
             swiftSDK: "swift-6.3-RELEASE_wasm",
             toolchainBundleID: nil
         )
-        #expect(throws: BuildCommandError.swiftPackageJSFailed(exitCode: 42)) {
+        #expect(throws: SwiflowRuntimeError.swiftPackageJSFailed(exitCode: 42)) {
             _ = try composer.run(using: stub)
         }
     }
 
-    @Test("BuildCommandError.projectPathNotFound has a useful description")
+    @Test("SwiflowRuntimeError.projectPathNotFound has a useful description")
     func projectPathNotFoundDescription() {
         let url = URL(fileURLWithPath: "/does/not/exist")
-        let error = BuildCommandError.projectPathNotFound(url)
+        let error = SwiflowRuntimeError.projectPathNotFound(url)
         let desc = String(describing: error)
         #expect(desc.contains("does not exist"))
         #expect(desc.contains("/does/not/exist"))
     }
 
-    @Test("BuildCommandError.wasmSDKListFailed surfaces exit code and stderr")
+    @Test("SwiflowRuntimeError.wasmSDKListFailed surfaces exit code and stderr")
     func wasmSDKListFailedDescription() {
-        let error = BuildCommandError.wasmSDKListFailed(
+        let error = SwiflowRuntimeError.wasmSDKListFailed(
             exitCode: 2,
             stderr: "error: unknown subcommand 'sdk'\n"
         )
@@ -163,23 +163,23 @@ struct BuildCommandArgvTests {
         #expect(desc.contains("`sdk` subcommand"))
     }
 
-    @Test("BuildCommandError.wasmSDKListFailed renders cleanly when stderr is nil")
+    @Test("SwiflowRuntimeError.wasmSDKListFailed renders cleanly when stderr is nil")
     func wasmSDKListFailedNilStderr() {
-        let error = BuildCommandError.wasmSDKListFailed(exitCode: 1, stderr: nil)
+        let error = SwiflowRuntimeError.wasmSDKListFailed(exitCode: 1, stderr: nil)
         let desc = String(describing: error)
         #expect(desc.contains("exit code 1"))
         // Should not contain the "Details from swift:" trailer when stderr is missing.
         #expect(!desc.contains("Details from swift:"))
     }
 
-    @Test("BuildCommandError.wasmSDKListFailed suppresses trailer when stderr is whitespace-only")
+    @Test("SwiflowRuntimeError.wasmSDKListFailed suppresses trailer when stderr is whitespace-only")
     func wasmSDKListFailedWhitespaceStderr() {
         // The trim+isEmpty check at description time covers a third equivalence
         // class beyond nil and non-empty: stderr that the child captured but
         // that contains nothing actionable (newlines, spaces, tabs). Without
         // trimming, the trailer would render an empty "Details from swift:"
         // block — visual noise with no signal.
-        let error = BuildCommandError.wasmSDKListFailed(exitCode: 1, stderr: "   \n\n  \t  ")
+        let error = SwiflowRuntimeError.wasmSDKListFailed(exitCode: 1, stderr: "   \n\n  \t  ")
         let desc = String(describing: error)
         #expect(desc.contains("exit code 1"))
         #expect(!desc.contains("Details from swift:"))

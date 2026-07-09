@@ -11,7 +11,16 @@
 import ArgumentParser
 import Foundation
 
-enum BuildCommandError: Error, Equatable, CustomStringConvertible {
+/// The CLI's runtime-failure taxonomy — everything that can go wrong while
+/// `build`/`dev` do their work, as opposed to usage errors (a bad flag value,
+/// which stay `ValidationError` so ArgumentParser prints usage help). These are
+/// thrown DIRECTLY, never wrapped in `ValidationError`: ArgumentParser renders a
+/// bare `CustomStringConvertible` error as its message alone (no usage spam),
+/// exits non-zero, and — because the type survives — a caller can still
+/// distinguish, say, a `swift build` compile failure from an internal bug that
+/// merely propagated. (Formerly `BuildCommandError`; thrown from build, dev, and
+/// toolchain resolution alike, so the name now reflects the whole surface.)
+enum SwiflowRuntimeError: Error, Equatable, CustomStringConvertible {
     case swiftNotOnPath
     case noWasmSDKInstalled
     case wasmSDKListFailed(exitCode: Int32, stderr: String?)
@@ -20,12 +29,32 @@ enum BuildCommandError: Error, Equatable, CustomStringConvertible {
     case projectPathNotFound(URL)
     case manifestArtifactMissing(URL)
 
-    /// Appended to toolchain-plausible failures. Doctor probes all four
-    /// dependencies (swift, WASM SDK, macOS toolchain, wasm-opt) with
-    /// actionable hints — the pointer converts a dead-end failure into the
-    /// next command to run. Deliberately NOT appended to non-toolchain
-    /// failures (bad --path, packaging bug): doctor can't diagnose those,
-    /// and pointing at it there would erode the signal.
+    /// Which bucket a failure falls in — the axis that decides remediation:
+    /// - `.toolchain`: swift/SDK setup problems doctor can diagnose → strong
+    ///   doctor pointer.
+    /// - `.build`: `swift build`/`swift package js` exited non-zero. Usually the
+    ///   user's own code failing to compile (the streamed output above is the
+    ///   real error), but a toolchain issue is possible → soft doctor pointer.
+    /// - `.project`: a bad path or a missing post-build artifact — doctor can't
+    ///   help, so no pointer (it would erode the signal).
+    enum Category {
+        case toolchain, build, project
+    }
+
+    var category: Category {
+        switch self {
+        case .swiftNotOnPath, .noWasmSDKInstalled, .wasmSDKListFailed:
+            return .toolchain
+        case .swiftPackageJSFailed, .swiftBuildFailed:
+            return .build
+        case .projectPathNotFound, .manifestArtifactMissing:
+            return .project
+        }
+    }
+
+    /// The doctor pointer, driven by `category` (not guessed per case): a strong
+    /// pointer for toolchain failures, the soft "if this looks like a toolchain
+    /// problem" line for build failures, nothing for project failures.
     private static let doctorHint =
         "If this looks like a toolchain problem, run `swiflow doctor` to check the whole setup."
 
@@ -238,7 +267,7 @@ struct BuildInvocation: Sendable {
     func run(using runner: ProcessRunner) throws -> ProcessResult {
         let result = try context.run(composeArguments(), using: runner, captureOutput: false)
         if result.exitCode != 0 {
-            throw BuildCommandError.swiftPackageJSFailed(exitCode: result.exitCode)
+            throw SwiflowRuntimeError.swiftPackageJSFailed(exitCode: result.exitCode)
         }
         return result
     }
@@ -285,7 +314,7 @@ struct BuildCommand: AsyncParsableCommand {
         let projectURL = URL(fileURLWithPath: path).standardizedFileURL
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: projectURL.path, isDirectory: &isDir), isDir.boolValue else {
-            throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
+            throw SwiflowRuntimeError.projectPathNotFound(projectURL)
         }
 
         // 1-3. Locate swift, resolve the WASM SDK, and detect TOOLCHAINS —
@@ -304,11 +333,11 @@ struct BuildCommand: AsyncParsableCommand {
         let invocation = BuildInvocation(context: context, compileCacheDir: compileCacheDir)
 
         print("swiflow: building with swift-sdk=\(context.sdk)\(context.toolchainBundleID.map { " toolchain=\($0)" } ?? "")")
-        do {
-            _ = try invocation.run(using: runner)
-        } catch let error as BuildCommandError {
-            throw ValidationError(String(describing: error))
-        }
+        // SwiflowRuntimeError (build failed / toolchain / artifact) propagates as
+        // itself — ArgumentParser prints its message alone (no usage help), and
+        // an unexpected internal error stays distinguishable rather than being
+        // disguised as a usage error.
+        _ = try invocation.run(using: runner)
 
         // 5. Ensure the embedded JS driver + service worker are at the project
         //    root for static hosting. `swiflow init` scaffolds them, but a
@@ -355,7 +384,7 @@ struct BuildCommand: AsyncParsableCommand {
 
         let wasmURL = outputDir.appendingPathComponent("App.wasm")
         guard FileManager.default.fileExists(atPath: wasmURL.path) else {
-            throw BuildCommandError.manifestArtifactMissing(wasmURL)
+            throw SwiflowRuntimeError.manifestArtifactMissing(wasmURL)
         }
         let wasmEntry = BundleManifest.Entry.computing(
             url: outputPrefix + "App.wasm",
@@ -366,7 +395,7 @@ struct BuildCommand: AsyncParsableCommand {
         let runtimeEntries: [BundleManifest.Entry] = try runtimeRelPaths.map { rel in
             let artifactURL = outputDir.appendingPathComponent(rel)
             guard FileManager.default.fileExists(atPath: artifactURL.path) else {
-                throw BuildCommandError.manifestArtifactMissing(artifactURL)
+                throw SwiflowRuntimeError.manifestArtifactMissing(artifactURL)
             }
             return BundleManifest.Entry.computing(
                 url: outputPrefix + rel,

@@ -47,7 +47,7 @@ struct CapturingWasmBuildInvocationTests {
             swiftSDK: "swift-6.3-RELEASE_wasm",
             toolchainBundleID: nil
         )
-        #expect(throws: BuildCommandError.swiftBuildFailed(exitCode: 9)) {
+        #expect(throws: SwiflowRuntimeError.swiftBuildFailed(exitCode: 9)) {
             _ = try inv.run(using: stub)
         }
     }
@@ -239,7 +239,7 @@ struct CommandReplayerTests {
     @Test("A non-zero compile exit throws and link does NOT run")
     func compileFailureStopsBeforeLink() {
         let stub = StubProcessRunner(stubbedExitCode: 4)   // first call (compile) fails
-        #expect(throws: BuildCommandError.swiftBuildFailed(exitCode: 4)) {
+        #expect(throws: SwiflowRuntimeError.swiftBuildFailed(exitCode: 4)) {
             try CommandReplayer.replay(sampleCommands(), using: stub, workingDirectory: URL(fileURLWithPath: "/proj"))
         }
         #expect(stub.calls.count == 1)   // link never attempted

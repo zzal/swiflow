@@ -99,7 +99,7 @@ struct DoctorProbeTests {
         let report = DoctorCommand.makeReport(using: runner, macToolchain: nil)
         if case .missing = report.wasmSDK {
             // Correct: the build path would reject this listing too
-            // (BuildCommandError.noWasmSDKInstalled), so doctor must not
+            // (SwiflowRuntimeError.noWasmSDKInstalled), so doctor must not
             // report a green wasm-sdk row.
         } else {
             Issue.record("doctor blessed an SDK the build would reject: \(report.wasmSDK)")

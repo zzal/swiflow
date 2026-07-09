@@ -50,17 +50,15 @@ struct DevCommand: AsyncParsableCommand {
         let projectURL = URL(fileURLWithPath: path).standardizedFileURL
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: projectURL.path, isDirectory: &isDir), isDir.boolValue else {
-            throw ValidationError(String(describing: BuildCommandError.projectPathNotFound(projectURL)))
+            throw SwiflowRuntimeError.projectPathNotFound(projectURL)
         }
 
         // 0.1 Fail fast on a port that's already bound (EADDRINUSE is the most
         //     common first-run failure) instead of letting it surface as a raw
         //     NIO bind error only after paying for the initial build below.
-        do {
-            try PortAvailability.checkAvailable(port: port)
-        } catch let error as PortAvailability.ProbeError {
-            throw ValidationError(String(describing: error))
-        }
+        // ProbeError is a runtime failure (not a usage error), so it propagates
+        // as itself — printed cleanly, no usage help.
+        try PortAvailability.checkAvailable(port: port)
 
         // 0.5 Ensure the embedded JS driver + service worker are on disk before
         //     the server starts serving. Without this, a project that wasn't
@@ -115,11 +113,9 @@ struct DevCommand: AsyncParsableCommand {
         print(Self.initialBuildStatus(cold: coldBuild))
         let buildClock = ContinuousClock()
         let buildStart = buildClock.now
-        do {
-            _ = try invocation.run(using: runner)
-        } catch let error as BuildCommandError {
-            throw ValidationError(String(describing: error))
-        }
+        // A failed initial build (SwiflowRuntimeError) propagates as itself —
+        // clean message, no usage help; an internal error stays distinguishable.
+        _ = try invocation.run(using: runner)
         print(Self.initialBuildCompleted(elapsed: buildClock.now - buildStart))
 
         // 4.5 Build the bypass rebuilder. The dev loop replays SwiftPM's own
