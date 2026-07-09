@@ -8,11 +8,11 @@
 // had already drifted once. This is the single source of truth both
 // commands now call.
 //
-// Throws `ValidationError` directly at each of the three failure sites,
-// matching the two commands' original inline `throw ValidationError(...)`
-// call sites exactly — callers don't need a translation step. Other
-// errors (e.g. a Process launch failure from SwiftExecutableLocator or
-// WasmSDKProbe) propagate unmodified, same as before extraction.
+// Throws the typed `SwiflowRuntimeError` directly at each of the three
+// toolchain failure sites (`.toolchain` category — each carries the doctor
+// pointer). ArgumentParser prints these cleanly, no usage help. Other errors
+// (e.g. a Process launch failure from SwiftExecutableLocator or WasmSDKProbe)
+// propagate unmodified.
 
 import ArgumentParser
 import Foundation
@@ -26,7 +26,7 @@ enum ToolchainResolution {
 
     static func resolve(swiftSDKOverride: String?, using runner: ProcessRunner) throws -> Result {
         guard let swift = try SwiftExecutableLocator.locate(using: runner) else {
-            throw ValidationError(String(describing: BuildCommandError.swiftNotOnPath))
+            throw SwiflowRuntimeError.swiftNotOnPath
         }
 
         let sdk: String
@@ -38,14 +38,12 @@ enum ToolchainResolution {
             do {
                 installed = try probe.list()
             } catch let WasmSDKProbeError.sdkSubcommandFailed(exitCode, stderr) {
-                throw ValidationError(String(describing: BuildCommandError.wasmSDKListFailed(
-                    exitCode: exitCode,
-                    stderr: stderr
-                )))
+                throw SwiflowRuntimeError.wasmSDKListFailed(exitCode: exitCode, stderr: stderr)
             }
             guard let firstInstalled = installed.first else {
-                throw ValidationError(String(describing: BuildCommandError.noWasmSDKInstalled))
+                throw SwiflowRuntimeError.noWasmSDKInstalled
             }
+
             sdk = firstInstalled
         }
 

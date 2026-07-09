@@ -14,32 +14,32 @@ struct DoctorRoutingTests {
 
     @Test("a swift-package-js failure suggests doctor (conditionally — compile errors dominate)")
     func packageJSFailurePointsAtDoctor() {
-        let msg = String(describing: BuildCommandError.swiftPackageJSFailed(exitCode: 1))
+        let msg = String(describing: SwiflowRuntimeError.swiftPackageJSFailed(exitCode: 1))
         #expect(msg.contains("swiflow doctor"))
     }
 
     @Test("a swift-build failure suggests doctor")
     func swiftBuildFailurePointsAtDoctor() {
-        let msg = String(describing: BuildCommandError.swiftBuildFailed(exitCode: 1))
+        let msg = String(describing: SwiflowRuntimeError.swiftBuildFailed(exitCode: 1))
         #expect(msg.contains("swiflow doctor"))
     }
 
     @Test("a missing WASM SDK points at doctor")
     func noWasmSDKPointsAtDoctor() {
-        let msg = String(describing: BuildCommandError.noWasmSDKInstalled)
+        let msg = String(describing: SwiflowRuntimeError.noWasmSDKInstalled)
         #expect(msg.contains("swiflow doctor"))
     }
 
     @Test("a failed `swift sdk list` points at doctor")
     func sdkListFailurePointsAtDoctor() {
-        let msg = String(describing: BuildCommandError.wasmSDKListFailed(exitCode: 2, stderr: "boom"))
+        let msg = String(describing: SwiflowRuntimeError.wasmSDKListFailed(exitCode: 2, stderr: "boom"))
         #expect(msg.contains("swiflow doctor"))
         #expect(msg.contains("boom"), "the stderr detail must survive the added pointer")
     }
 
     @Test("swift-not-on-PATH points at doctor")
     func swiftNotOnPathPointsAtDoctor() {
-        let msg = String(describing: BuildCommandError.swiftNotOnPath)
+        let msg = String(describing: SwiflowRuntimeError.swiftNotOnPath)
         #expect(msg.contains("swiflow doctor"))
     }
 
@@ -50,8 +50,35 @@ struct DoctorRoutingTests {
     @Test("non-toolchain failures do not mention doctor")
     func nonToolchainFailuresStayQuiet() {
         let url = URL(fileURLWithPath: "/tmp/nope")
-        #expect(!String(describing: BuildCommandError.projectPathNotFound(url)).contains("doctor"))
-        #expect(!String(describing: BuildCommandError.manifestArtifactMissing(url)).contains("doctor"))
+        #expect(!String(describing: SwiflowRuntimeError.projectPathNotFound(url)).contains("doctor"))
+        #expect(!String(describing: SwiflowRuntimeError.manifestArtifactMissing(url)).contains("doctor"))
+    }
+
+    // The doctor pointer is now driven by `category`, not per-case guessing —
+    // pin the categorization so the pointer routing can't silently drift.
+    @Test("category groups failures by remediation, and the doctor-hint follows it")
+    func categoryDrivesDoctorHint() {
+        let url = URL(fileURLWithPath: "/tmp/nope")
+        // toolchain → strong pointer
+        let toolchain: [SwiflowRuntimeError] = [
+            .swiftNotOnPath, .noWasmSDKInstalled, .wasmSDKListFailed(exitCode: 2, stderr: nil),
+        ]
+        for e in toolchain {
+            #expect(e.category == .toolchain)
+            #expect(String(describing: e).contains("doctor"))
+        }
+        // build → soft pointer (compile errors dominate, but could be toolchain)
+        let build: [SwiflowRuntimeError] = [.swiftBuildFailed(exitCode: 1), .swiftPackageJSFailed(exitCode: 1)]
+        for e in build {
+            #expect(e.category == .build)
+            #expect(String(describing: e).contains("doctor"))
+        }
+        // project → no pointer (doctor can't help)
+        let project: [SwiflowRuntimeError] = [.projectPathNotFound(url), .manifestArtifactMissing(url)]
+        for e in project {
+            #expect(e.category == .project)
+            #expect(!String(describing: e).contains("doctor"))
+        }
     }
 
     // Init's next steps: doctor is step 0, before dev — a first-timer without
