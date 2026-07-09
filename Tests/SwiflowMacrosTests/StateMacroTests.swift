@@ -182,10 +182,17 @@ final class StateMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@State requires a `var` — state cells must be mutable.",
-                    line: 2, column: 5, severity: .error
+                    line: 2, column: 5, severity: .error,
+                    fixIts: [FixItSpec(message: "Replace 'let' with 'var'")]
                 ),
             ],
-            macros: testMacros
+            macros: testMacros,
+            applyFixIts: ["Replace 'let' with 'var'"],
+            fixedSource: """
+            final class Counter {
+                @State var count: Int = 0
+            }
+            """
         )
     }
 

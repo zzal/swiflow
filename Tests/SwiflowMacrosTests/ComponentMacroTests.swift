@@ -84,7 +84,8 @@ final class ComponentMacroTests: XCTestCase {
                 DiagnosticSpec(
                     message: "@Component requires 'final' — components cannot be subclassed",
                     line: 2,
-                    column: 1
+                    column: 1,
+                    fixIts: [FixItSpec(message: "Add 'final'")]
                 )
             ],
             macros: testMacros
@@ -109,10 +110,75 @@ final class ComponentMacroTests: XCTestCase {
                 DiagnosticSpec(
                     message: "@Component requires a class — components are reference types in Swiflow",
                     line: 2,
-                    column: 1
+                    column: 1,
+                    fixIts: [FixItSpec(message: "Replace 'struct' with 'final class'")]
                 )
             ],
             macros: testMacros
+        )
+    }
+
+    // Applied Fix-It: struct → final class produces valid, correctly-spaced code.
+    func testStructFixItApplies() {
+        assertMacroExpansion(
+            """
+            @Component
+            struct Counter {
+                var body: VNode { .text("hello") }
+            }
+            """,
+            expandedSource: """
+            struct Counter {
+                var body: VNode { .text("hello") }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Component requires a class — components are reference types in Swiflow",
+                    line: 2, column: 1,
+                    fixIts: [FixItSpec(message: "Replace 'struct' with 'final class'")]
+                )
+            ],
+            macros: testMacros,
+            applyFixIts: ["Replace 'struct' with 'final class'"],
+            fixedSource: """
+            @Component
+            final class Counter {
+                var body: VNode { .text("hello") }
+            }
+            """
+        )
+    }
+
+    // Applied Fix-It: add 'final' produces valid, correctly-spaced code.
+    func testFinalFixItApplies() {
+        assertMacroExpansion(
+            """
+            @Component
+            class Counter {
+                var body: VNode { .text("hello") }
+            }
+            """,
+            expandedSource: """
+            class Counter {
+                var body: VNode { .text("hello") }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Component requires 'final' — components cannot be subclassed",
+                    line: 2, column: 1,
+                    fixIts: [FixItSpec(message: "Add 'final'")]
+                )
+            ],
+            macros: testMacros,
+            applyFixIts: ["Add 'final'"],
+            fixedSource: """
+            @Component
+            final class Counter {
+                var body: VNode { .text("hello") }
+            }
+            """
         )
     }
 

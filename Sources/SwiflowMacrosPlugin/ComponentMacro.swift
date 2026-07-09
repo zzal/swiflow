@@ -18,8 +18,13 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
     ) throws -> [ExtensionDeclSyntax] {
         guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
             let typeKeyword: Syntax
+            // A struct is mechanically fixable (struct → final class); the other
+            // type kinds aren't (no single correct rewrite), so only struct
+            // carries a Fix-It.
+            var fixIts: [FixIt] = []
             if let structDecl = declaration.as(StructDeclSyntax.self) {
                 typeKeyword = Syntax(structDecl.structKeyword)
+                fixIts = [MacroFixIt.structToFinalClass(structDecl)]
             } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
                 typeKeyword = Syntax(enumDecl.enumKeyword)
             } else if let actorDecl = declaration.as(ActorDeclSyntax.self) {
@@ -29,14 +34,16 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             }
             context.diagnose(Diagnostic(
                 node: typeKeyword,
-                message: ComponentMacroDiagnostic.requiresClass
+                message: ComponentMacroDiagnostic.requiresClass,
+                fixIts: fixIts
             ))
             return []
         }
         guard classDecl.modifiers.contains(where: { $0.name.text == "final" }) else {
             context.diagnose(Diagnostic(
                 node: Syntax(classDecl.classKeyword),
-                message: ComponentMacroDiagnostic.requiresFinal
+                message: ComponentMacroDiagnostic.requiresFinal,
+                fixIts: [MacroFixIt.addFinal(classDecl)]
             ))
             return []
         }

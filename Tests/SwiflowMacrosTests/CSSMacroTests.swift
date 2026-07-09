@@ -75,7 +75,7 @@ final class CSSMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "CSS error at line 1, column 8: expected 'property: value' — got 'display grid'",
-                    line: 1, column: 18)
+                    line: 1, column: 26)   // anchored at the offending token (CSS col 8), not the literal start
             ],
             macros: testMacros
         )
@@ -129,7 +129,7 @@ final class CSSMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "CSS error at line 1, column 1: @import is not supported in component sheets — load global CSS from index.html",
-                    line: 1, column: 18)
+                    line: 1, column: 19)   // anchored at CSS col 1 (literal content start)
             ],
             macros: testMacros
         )
@@ -154,7 +154,7 @@ final class CSSMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "CSS error at line 1, column 22: unterminated string",
-                    line: 1, column: 18)
+                    line: 1, column: 40)   // anchored at the offending token (CSS col 22)
             ],
             macros: testMacros
         )
@@ -196,7 +196,29 @@ final class CSSMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "CSS error at line 1, column 22: unterminated string",
-                    line: 1, column: 18)
+                    line: 1, column: 40)   // anchored at the offending token (CSS col 22)
+            ],
+            macros: testMacros
+        )
+    }
+
+    // The anchor tracks BOTH line and column into a multi-line literal: the
+    // error is on the third source line, and the gutter lands there.
+    func testDiagnosticAnchorsAtOffendingLineInMultilineLiteral() {
+        assertMacroExpansion(
+            #"""
+            let sheet = #css("""
+            .a { color: red; }
+            .b { display grid; }
+            """)
+            """#,
+            expandedSource: #"""
+            let sheet = CSSSheet(entries: [])
+            """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "CSS error at line 2, column 6: expected 'property: value' — got 'display grid'",
+                    line: 3, column: 6)
             ],
             macros: testMacros
         )

@@ -35,7 +35,8 @@ public struct MutationStateMacro: PeerMacro {
         guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
-                message: MutationStateDiagnostic.requiresVar))
+                message: MutationStateDiagnostic.requiresVar,
+                fixIts: [MacroFixIt.letToVar(varDecl.bindingSpecifier)]))
             return []
         }
         guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {

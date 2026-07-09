@@ -72,7 +72,8 @@ final class MutationStateMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@MutationState requires a `var` (e.g. `@MutationState var create: CreateTodo`).",
-                    line: 1, column: 1, severity: .error
+                    line: 1, column: 1, severity: .error,
+                    fixIts: [FixItSpec(message: "Replace 'let' with 'var'")]
                 ),
             ],
             macros: testMacros

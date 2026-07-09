@@ -38,9 +38,18 @@ public struct CSSMacro: ExpressionMacro {
 
         let result = CSSStructuralParser.parse(text)
         guard result.diagnostics.isEmpty else {
+            // Anchor each diagnostic at the offending token INSIDE the literal
+            // (not the literal's start) so the editor gutter matches the
+            // reported line/column. Interpolation is rejected above, so there is
+            // exactly one plain segment and `text` is its content verbatim.
+            let segment = literal.segments.first?.as(StringSegmentSyntax.self)
             for d in result.diagnostics {
+                let position = segment.map {
+                    $0.position.advanced(by: Self.utf8Offset(in: text, line: d.line, column: d.column))
+                }
                 context.diagnose(Diagnostic(
                     node: Syntax(literal),
+                    position: position,
                     message: CSSMacroDiagnostic.css(d)))
             }
             return empty
@@ -71,6 +80,19 @@ public struct CSSMacro: ExpressionMacro {
             entryExprs[slot] = ".scopedBlock(\(StringLiteralExprSyntax(content: body).description))"
         }
         return "CSSSheet(entries: [\(raw: entryExprs.joined(separator: ", "))])"
+    }
+
+    /// UTF-8 byte offset into `text` of the parser's 1-based (line, column),
+    /// mirroring the parser's own advance: `line` counts `\n`, `column` counts
+    /// grapheme clusters and resets to 1 after a newline. Clamps to end.
+    static func utf8Offset(in text: String, line: Int, column: Int) -> Int {
+        var curLine = 1, curColumn = 1, utf8 = 0
+        for ch in text {
+            if curLine == line && curColumn == column { return utf8 }
+            if ch == "\n" { curLine += 1; curColumn = 1 } else { curColumn += 1 }
+            utf8 += ch.utf8.count
+        }
+        return utf8
     }
 }
 
