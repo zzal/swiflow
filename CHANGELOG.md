@@ -18,6 +18,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Breaking
+
+- **`swiflow init` renamed its `--path` flag to `--into`.** `init --path` set
+  the *parent* directory to scaffold into, while `build --path` / `dev --path`
+  set the *project* directory itself — one flag name, two meanings. `init` now
+  takes `--into <parent>`; `build`/`dev` keep `--path <project-dir>`. Migrate
+  `swiflow init demo --path /tmp` → `swiflow init demo --into /tmp`. `--path`
+  on `init` is now an unknown-flag error.
+
 ---
 
 ## [0.4.12] — 2026-07-09

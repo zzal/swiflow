@@ -196,11 +196,11 @@ struct InitCommandTests {
 @Suite("InitCommand argv")
 struct InitCommandArgvTests {
 
-    @Test("Default: --path is .")
+    @Test("Default: --into is .")
     func defaultPath() throws {
         let parsed = try InitCommand.parse(["demo", "--swiflow-source", "/some/path"])
         #expect(parsed.name == "demo")
-        #expect(parsed.path == ".")
+        #expect(parsed.into == ".")
     }
 
     @Test("Missing --swiflow-source defaults to a versioned URL dep on the official repo")
@@ -220,7 +220,7 @@ struct InitCommandArgvTests {
 
         // No --swiflow-source, no --swiflow-version, no $SWIFLOW_SOURCE → must
         // succeed and pin the generated Package.swift to the CLI's own version.
-        let cmd = try InitCommand.parse(["Demo", "--path", tmp.path])
+        let cmd = try InitCommand.parse(["Demo", "--into", tmp.path])
         try await cmd.run()
 
         let pkg = try String(
@@ -235,15 +235,15 @@ struct InitCommandArgvTests {
                 "expected CLI's own version in generated Package.swift")
     }
 
-    @Test("Flags parse: --path, --swiflow-source")
+    @Test("Flags parse: --into, --swiflow-source")
     func flags() throws {
         let parsed = try InitCommand.parse([
             "demo",
-            "--path", "/tmp/parent",
+            "--into", "/tmp/parent",
             "--swiflow-source", "/abs/swiflow",
         ])
         #expect(parsed.name == "demo")
-        #expect(parsed.path == "/tmp/parent")
+        #expect(parsed.into == "/tmp/parent")
         #expect(parsed.swiflowSource == "/abs/swiflow")
     }
 
@@ -264,19 +264,26 @@ struct InitCommandArgvTests {
         let parsed = try InitCommand.parse(["demo", "--template", "MiniRouter"])
         #expect(parsed.template == "MiniRouter")
     }
+
+    @Test("the old --path flag is gone (renamed to --into): a hard, documented break")
+    func oldPathFlagRejected() {
+        #expect(throws: (any Error).self) {
+            _ = try InitCommand.parse(["demo", "--path", "/tmp/parent"])
+        }
+    }
 }
 
 @Suite("InitCommand run()")
 struct InitCommandRunTests {
 
-    @Test("--path routes the project to that directory")
+    @Test("--into routes the project to that directory")
     func respectsPath() async throws {
         let tmp = try InitCommandTests.makeTempDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
         let cmd = try InitCommand.parse([
             "Demo",
-            "--path", tmp.path,
+            "--into", tmp.path,
             "--swiflow-source", "/abs/path/to/swiflow",
         ])
         try await cmd.run()
@@ -288,11 +295,11 @@ struct InitCommandRunTests {
         #expect(fm.fileExists(atPath: project.appendingPathComponent("swiflow-driver.js").path))
     }
 
-    @Test("--path that doesn't exist surfaces a ValidationError")
+    @Test("--into that doesn't exist surfaces a ValidationError")
     func refusesMissingPath() async throws {
         let cmd = try InitCommand.parse([
             "Demo",
-            "--path", "/does/not/exist/swiflow-test-\(UUID().uuidString)",
+            "--into", "/does/not/exist/swiflow-test-\(UUID().uuidString)",
             "--swiflow-source", "/abs/path/to/swiflow",
         ])
         await #expect(throws: ValidationError.self) {
@@ -315,7 +322,7 @@ struct InitCommandRunTests {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let cmd = try InitCommand.parse([
             "../../evil",
-            "--path", tmp.path,
+            "--into", tmp.path,
             "--swiflow-source", "/abs/path/to/swiflow",
         ])
         await #expect(throws: ValidationError.self) {
@@ -332,7 +339,7 @@ struct InitCommandRunTests {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let cmd = try InitCommand.parse([
             "a/b/c",
-            "--path", tmp.path,
+            "--into", tmp.path,
             "--swiflow-source", "/abs/path/to/swiflow",
         ])
         await #expect(throws: ValidationError.self) {
@@ -371,7 +378,7 @@ struct InitCommandRunTests {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let cmd = try InitCommand.parse([
             "Demo",
-            "--path", tmp.path,
+            "--into", tmp.path,
             "--template", "DoesNotExist",
             "--swiflow-source", "/abs/path/to/swiflow",
         ])
@@ -407,7 +414,7 @@ struct InitCommandIntegrationTests {
         // 1. Invoke the full InitCommand.run() — not just ProjectWriter directly.
         let cmd = try InitCommand.parse([
             "Demo",
-            "--path", tmp.path,
+            "--into", tmp.path,
             "--swiflow-source", Self.swiflowRepoRoot.path,
         ])
         try await cmd.run()
