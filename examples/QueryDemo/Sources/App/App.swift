@@ -26,19 +26,28 @@ struct FakeAPI: Sendable {
 }
 
 @Mutation struct RenameUser {
-    let id: Int
-    let api: FakeAPI
+    // Only the stable dependency lives on the mutation. The VARYING data
+    // (which user, and the new name) travels in `Input` at call time — so the
+    // @MutationState instance is built once and never rebuilt per render. Baking
+    // a changing `let id` into the mutation is the resync trap this demo used to
+    // model: it forced a `self.rename = RenameUser(id: userID, …)` inside `body`
+    // on every render just to keep the captured id current.
+    var api: FakeAPI = FakeAPI()
 
-    func perform(_ newName: String) async throws -> User {
-        try await api.renameUser(id, name: newName)
+    struct Input: Sendable {
+        let id: Int
+        let name: String
+    }
+
+    func perform(_ input: Input) async throws -> User {
+        try await api.renameUser(input.id, name: input.name)
     }
 
     // No invalidations override: the default derives the refetch from the
     // UserByID key that optimistic() declares — one source of truth for
     // "what this mutation touches."
-    func optimistic(_ newName: String) -> [OptimisticEdit] {
-        let id = self.id
-        return [.update(UserByID(id: id)) { _ in User(id: id, name: newName) }]
+    func optimistic(_ input: Input) -> [OptimisticEdit] {
+        [.update(UserByID(id: input.id)) { _ in User(id: input.id, name: input.name) }]
     }
 }
 
@@ -46,16 +55,13 @@ struct FakeAPI: Sendable {
 final class QueryRoot {
     @State var userID: Int = 1
     @State var newName: String = ""
+    // Stable across renders — @Component synthesizes `self.rename = RenameUser()`
+    // (api is defaulted), and it is never reassigned. The current userID reaches
+    // the mutation through `Input` at the call site, not through the instance.
     @MutationState var rename: RenameUser
-
-    init() {
-        self.rename = RenameUser(id: 1, api: FakeAPI())
-    }
 
     var body: VNode {
         let u = query(UserByID(id: userID))
-        // Keep rename mutation in sync with the current userID.
-        self.rename = RenameUser(id: userID, api: FakeAPI())
         return VStack(spacing: .lg, align: .start) {
             h1("Query demo")
             HStack(spacing: .sm, align: .center) {
@@ -75,7 +81,10 @@ final class QueryRoot {
                 h2("Rename user")
                 HStack(spacing: .sm, align: .end) {
                     TextField("New name", text: $newName)
-                    Button("Rename", disabled: $rename.isPending) { self.$rename.mutate(self.newName) }
+                    Button("Rename", disabled: $rename.isPending) {
+                        // Varying data flows in via Input — no per-render resync.
+                        self.$rename.mutate(.init(id: self.userID, name: self.newName))
+                    }
                 }
                 if $rename.isPending { p("Renaming…") }
                 if $rename.isError { p("Error renaming user.") }
