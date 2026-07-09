@@ -52,6 +52,29 @@ public protocol Scheduler: AnyObject {
 /// `flush()` and is consumed monolithically; any `markDirty` during
 /// callback execution populates a fresh dirty set for the next batch.
 /// A reentrant `flush()` is a no-op (guard at the start) so callbacks
+#if DEBUG
+/// Detects the documented `embed(_:refresh:)`-assigns-`@State` footgun. The
+/// refresh closure must target plain stored `var`s: assigning `@State` fires the
+/// scheduler on every render → a render-loop hang. Diff marks which instance's
+/// refresh is running (`activeInstanceID`); if that same instance is marked
+/// dirty while its refresh runs, the closure assigned `@State` — warn once.
+/// `package` so SwiflowDOM's RAFScheduler can report through it too.
+@MainActor
+package enum RefreshReentrancyGuard {
+    package static var activeInstanceID: ObjectIdentifier?
+    private static var warned: Set<ObjectIdentifier> = []
+
+    /// Called at the top of every `markDirty`. Warns once per instance if the
+    /// dirtied component is the one whose `refresh:` closure is currently running.
+    package static func noteDirty(_ component: AnyComponent) {
+        let id = ObjectIdentifier(component.instance)
+        guard activeInstanceID == id, !warned.contains(id) else { return }
+        warned.insert(id)
+        swiflowWarn("embed(_:refresh:) on \(type(of: component.instance)) assigned @State from its refresh closure — target plain stored `var`s only. Assigning @State re-enters the scheduler on every render (a render-loop hang). Give the child a plain `var` prop and push it via refresh:.")
+    }
+}
+#endif
+
 /// can safely chain into other code that might itself flush.
 @MainActor
 public final class SyncScheduler: Scheduler {
@@ -83,6 +106,9 @@ public final class SyncScheduler: Scheduler {
     }
 
     public func markDirty(_ component: AnyComponent) {
+        #if DEBUG
+        RefreshReentrancyGuard.noteDirty(component)
+        #endif
         // Key by component-instance identity (not the outer AnyComponent
         // wrapper, and not the typeID used by the diff). Each live
         // component object is uniquely 1:1 with one AnyComponent wrapper

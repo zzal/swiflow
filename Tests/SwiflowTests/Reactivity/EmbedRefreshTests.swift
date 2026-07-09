@@ -87,6 +87,64 @@ struct EmbedRefreshTests {
         #expect(bodyText(second.newMountTree) == "label=A")
     }
 
+    /// A child whose `stateValue` setter marks the owner dirty — exactly what a
+    /// `@State` didSet does — so we can exercise the refresh-reentrancy guard
+    /// without the full @Component mount wiring.
+    final class StatefulChild: Component {
+        weak var scheduler: SyncScheduler?
+        var label = "A"                                   // plain prop (safe to push)
+        var stateValue: Int = 0 {                         // stands in for @State
+            didSet { scheduler?.markDirty(AnyComponent(self)) }
+        }
+        var body: VNode { .text("v=\(stateValue) label=\(label)") }
+    }
+
+    @Test("refresh: assigning @State is caught — warns once naming the plain-var fix")
+    func refreshAssigningStateWarns() {
+        var warnings: [String] = []
+        _swiflowWarnOverride = { warnings.append($0) }
+        defer { _swiflowWarnOverride = nil }
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let scheduler = SyncScheduler { _ in }
+        let child = StatefulChild()
+        child.scheduler = scheduler
+
+        let v1 = embed("card") { child } refresh: { _ in }
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers, scheduler: scheduler)
+
+        // Re-render whose refresh assigns @State — the documented footgun.
+        let v2 = embed("card") { child } refresh: { c in c.stateValue = 42 }
+        _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers, scheduler: scheduler)
+
+        #expect(warnings.count == 1)
+        #expect(warnings.first?.contains("refresh") == true)
+        #expect(warnings.first?.contains("@State") == true)
+    }
+
+    @Test("refresh: assigning a plain var (the correct usage) never warns")
+    func refreshAssigningPlainVarIsQuiet() {
+        var warnings: [String] = []
+        _swiflowWarnOverride = { warnings.append($0) }
+        defer { _swiflowWarnOverride = nil }
+
+        let handles = HandleAllocator()
+        let handlers = HandlerRegistry()
+        let scheduler = SyncScheduler { _ in }
+        let child = StatefulChild()
+        child.scheduler = scheduler
+
+        let v1 = embed("card") { child } refresh: { _ in }
+        let first = diff(mounted: nil, next: v1, handles: handles, handlers: handlers, scheduler: scheduler)
+
+        let v2 = embed("card") { child } refresh: { c in c.label = "B" }   // plain var — correct
+        _ = diff(mounted: first.newMountTree, next: v2, handles: handles, handlers: handlers, scheduler: scheduler)
+
+        #expect(warnings.isEmpty)
+        #expect(child.label == "B")
+    }
+
     @Test("unkeyed embed(refresh:) pushes props into the reused instance too")
     func unkeyedRefreshPushesProp() {
         let handles = HandleAllocator()
