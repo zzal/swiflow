@@ -20,6 +20,50 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.14] — 2026-07-09
+
+**Beta.** The runtime-guardrails release: audit Part I Wave 3 (Swiflow/DOM,
+PRs #218–#220) plus the QueryDemo rewrite that closes audit Part II end-to-end
+(PR #221). DEBUG builds now name three more silent footguns; no breaking
+changes.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
+### Added
+
+- **Keyed-component diagnostics name the cause.** The mixed-keying trap
+  ("children mix keyed and unkeyed entries") now detects when the keyed child
+  is an embedded *component* — the usual reason, after passing `key:` to force
+  a remount-on-change — and points at the fix: isolate it in its own
+  single-child container, or key every sibling.
+- **The silent `<select>` initial-value trap warns.** `.selection($state)`
+  applies the select's value before its `<option>` children attach at first
+  mount, so the browser silently resets to the first option. DEBUG builds now
+  warn on exactly the broken case, naming the `.attr("selected", "")`
+  workaround; correct usages stay quiet.
+- **Assigning `@State` from `embed(_:refresh:)` is caught.** The refresh
+  closure must target plain stored `var`s — assigning `@State` re-enters the
+  scheduler every render (a render-loop hang). DEBUG builds now warn once,
+  naming the plain-`var` fix, in both host tests and the dev browser.
+
+### Fixed
+
+- **QueryDemo teaches the parameterized-mutation pattern.** The shipped
+  mutation example used to rebuild its mutation on every render to keep a
+  captured `id` current (the per-render resync trap). Varying data now travels
+  in the mutation's `Input` (`$rename.mutate(.init(id:name:))`), the
+  `@MutationState` instance is stable, and comments name the rule. Applies to
+  both `examples/QueryDemo` and the `swiflow init --template QueryDemo`
+  scaffold.
+
+### Internal
+
+- Framework components (`Link`, `TextField`, `Autocomplete`) now use the typed
+  attribute helpers (`.href`/`.placeholder`) instead of stringly
+  `.attr("…", …)` — output unchanged.
+
+---
+
 ## [0.4.13] — 2026-07-09
 
 **Beta.** The macro & CLI diagnostics release: audit Part III Wave 3 —
