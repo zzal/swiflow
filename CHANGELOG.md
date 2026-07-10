@@ -20,6 +20,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.15] — 2026-07-10
+
+**Beta.** A maintenance release — no user-facing or behavioral changes.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
+### Internal
+
+- Removed the vestigial `@MacroState` scan branch from `@Component`'s macro
+  expansion. `@MacroState` was the temporary name `@State` carried during the
+  Phase 15 migration and has not been a real macro since; the removed string
+  checks could never match an attribute, so generated code is unchanged.
+
+---
+
 ## [0.4.14] — 2026-07-09
 
 **Beta.** The runtime-guardrails release: audit Part I Wave 3 (Swiflow/DOM,
