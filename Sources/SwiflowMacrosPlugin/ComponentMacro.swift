@@ -91,10 +91,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             $0.decl.is(InitializerDeclSyntax.self)
         }
 
-        // Scan members for @MacroState or @State. The scanner accepts
-        // both during the Phase 15 migration window (Task 4 introduced
-        // @MacroState; Task 6 normalized to @State). Both forms produce
-        // identical expansion.
+        // Scan members for @State / @Persisted state cells.
         var cellEntries: [String] = []
         for member in classDecl.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
@@ -107,7 +104,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                 // same HMR snapshot/restore contract (hydration re-runs from
                 // the store on remount, but a hot swap preserves the live
                 // value like any @State).
-                return attrName == "MacroState" || attrName == "State" || attrName == "Persisted"
+                return attrName == "State" || attrName == "Persisted"
             }
             guard isState else { continue }
             // Multi-binding @State is rejected by StateMacro's own diagnostic;
@@ -116,7 +113,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             guard let binding = varDecl.bindings.first,
                   let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier,
                   let typeAnno = binding.typeAnnotation else {
-                continue   // diagnosed by @MacroState's own expansion
+                continue   // diagnosed by @State's own expansion
             }
             let name = identifier.text
             let valueType = typeAnno.type.trimmedDescription
@@ -133,7 +130,7 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
             let isPlainState = varDecl.attributes.contains { attr in
                 guard let a = attr.as(AttributeSyntax.self),
                       let n = a.attributeName.as(IdentifierTypeSyntax.self)?.name.text else { return false }
-                return n == "State" || n == "MacroState"
+                return n == "State"
             }
             if isPlainState, !hasUserInit, !isOptional, binding.initializer == nil {
                 context.diagnose(Diagnostic(
