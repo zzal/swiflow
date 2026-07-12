@@ -31,7 +31,7 @@ public func NumberField(
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     numberFieldControl(label: label, valueAttribute: .value(value),
-                       min: min.map(formatNumber), max: max.map(formatNumber), step: step.map(formatNumber),
+                       min: min.map(formatControlNumber), max: max.map(formatControlNumber), step: step.map(formatControlNumber),
                        placeholder: placeholder, error: error, size: size, required: required,
                        disabled: disabled, attributes: attributes, onBlur: onBlur)
 }
@@ -98,11 +98,4 @@ private func numberFieldControl(
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
     return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
                    children: rootChildren)
-}
-
-/// Trims a trailing `.0` off a whole-number `Double` (`0` → `"0"`, not
-/// `"0.0"`), so `min: 0` emits `min="0"`. Falls back to `String(v)` for
-/// fractional values or magnitudes beyond exact `Int` round-tripping.
-private func formatNumber(_ v: Double) -> String {
-    v == v.rounded() && v.magnitude < 1e15 ? String(Int(v)) : String(v)
 }

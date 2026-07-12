@@ -30,6 +30,7 @@ enum Catalog {
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
         StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
         StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
+        StoryEntry(slug: "slider", title: "Slider", category: .controls),
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),

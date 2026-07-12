@@ -2586,6 +2586,9 @@ enum Catalog {
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
         StoryEntry(slug: "button", title: "Button", category: .controls),
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
+        StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
+        StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
+        StoryEntry(slug: "slider", title: "Slider", category: .controls),
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
@@ -2683,6 +2686,9 @@ final class Shell {
                 Route("/component/spacer") { SpacerStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
+                Route("/component/textarea") { TextAreaStory() }
+                Route("/component/numberfield") { NumberFieldStory() }
+                Route("/component/slider") { SliderStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
@@ -3218,6 +3224,43 @@ final class IndexStory {
 }
 
 """##,
+                "Sources/App/Stories/NumberFieldStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class NumberFieldStory {
+    @State var rating: Double = 2.5
+    @State var age: Int = 30
+
+    var body: VNode {
+        storyPage("NumberField",
+                  blurb: "A native <input type=\"number\">: same label/error chrome as TextField, over Int or Double bindings.") {
+            variantSection("Double with range", snippet: """
+            NumberField("Rating", value: $rating, min: 0, max: 10, step: 0.5)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        NumberField("Rating", value: $rating, min: 0, max: 10, step: 0.5)
+                        p("value: \(rating)")
+                    }
+                }
+            }
+            variantSection("Int", snippet: """
+            NumberField("Age", value: $age, min: 0, max: 120, step: 1)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        NumberField("Age", value: $age, min: 0, max: 120, step: 1)
+                        p("value: \(age)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
                 "Sources/App/Stories/OverlaysStory.swift": ##"""
 import Swiflow
 import SwiflowUI
@@ -3380,6 +3423,43 @@ final class SignupWizardView {
 }
 
 """##,
+                "Sources/App/Stories/SliderStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class SliderStory {
+    @State var volume: Double = 0.5
+    @State var rating: Double = 5
+
+    var body: VNode {
+        storyPage("Slider",
+                  blurb: "A native <input type=\"range\">: same label/error chrome as NumberField, styled over the accent token.") {
+            variantSection("Volume", snippet: """
+            Slider("Volume", value: $volume)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        Slider("Volume", value: $volume)
+                        p("value: \(volume)")
+                    }
+                }
+            }
+            variantSection("Stepped 0...10", snippet: """
+            Slider("Rating", value: $rating, in: 0...10, step: 1)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        Slider("Rating", value: $rating, in: 0...10, step: 1)
+                        p("value: \(rating)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
                 "Sources/App/Stories/SpacerStory.swift": ##"""
 import Swiflow
 import SwiflowUI
@@ -3429,6 +3509,47 @@ final class StacksStory {
                         Button("One") {}; Button("Two") {}; Button("Three") {}
                     }
                 }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/TextAreaStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class TextAreaStory {
+    @State var bio: String = ""
+    @State var feedback: String = ""
+    @State var ctrl: FormController = FormController()
+
+    var body: VNode {
+        let feedbackField = Field("feedback", $feedback, $ctrl, .required())
+
+        return storyPage("TextArea",
+                          blurb: "A multi-line text field: same label/error chrome as TextField, over a native <textarea>.") {
+            variantSection("Multi-line input", snippet: """
+            TextArea("Bio", text: $bio, rows: 6, placeholder: "Tell us about you…")
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextArea("Bio", text: $bio, rows: 6, placeholder: "Tell us about you…")
+                        if !bio.isEmpty { p("\(bio.count) characters") }
+                    }
+                }
+            }
+            variantSection("Field-validated", snippet: """
+            let feedbackField = Field("feedback", $feedback, $ctrl, .required())
+            TextArea("Feedback", field: feedbackField, rows: 4, placeholder: "What should we improve?")
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextArea("Feedback", field: feedbackField, rows: 4, placeholder: "What should we improve?")
+                    }
+                }
+                p("Interact then blur to see the role=alert error and aria-invalid.")
             }
         }
     }

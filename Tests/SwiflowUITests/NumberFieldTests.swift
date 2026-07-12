@@ -71,6 +71,16 @@ struct NumberFieldTests {
         #expect(input.attributes["step"] == "0.5")
     }
 
+    @Test("a negative whole number formats without a trailing .0") func negativeWholeNumberFormatted() {
+        let input = inputOf(building { NumberField("Delta", value: unusedDouble, min: -5) })!
+        #expect(input.attributes["min"] == "-5")
+    }
+
+    @Test("a fractional value stays fractional") func fractionalValueStaysFractional() {
+        let input = inputOf(building { NumberField("Quantity", value: unusedDouble, step: 0.25) })!
+        #expect(input.attributes["step"] == "0.25")
+    }
+
     @Test("Int overload compiles and emits integer min/max/step strings") func intOverloadEmitsIntegerStrings() {
         let input = inputOf(building { NumberField("Age", value: unusedInt, min: 0, max: 120, step: 1) })!
         #expect(input.attributes["type"] == "number")

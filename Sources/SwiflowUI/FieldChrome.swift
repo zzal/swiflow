@@ -110,6 +110,15 @@ func fieldGroupAttributes(
 @MainActor
 func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsSheet) }
 
+/// Trims a trailing `.0` off a whole-number `Double` (`0` → `"0"`, not
+/// `"0.0"`), so e.g. `min: 0` emits `min="0"`. Falls back to `String(v)` for
+/// fractional values or magnitudes beyond exact `Int` round-tripping. Shared
+/// by `NumberField` (min/max/step) and `Slider` (range bounds/step) — extracted
+/// here at the second consumer rather than duplicated.
+func formatControlNumber(_ v: Double) -> String {
+    v == v.rounded() && v.magnitude < 1e15 ? String(Int(v)) : String(v)
+}
+
 /// The "expand more" chevron as an inline SVG data-URI, at a given `stroke`. One geometry
 /// (path + width) is the single source of truth for the chevron everywhere it appears.
 /// `swChevronDownSVG` (currentColor) feeds the *masks*: the Select `::picker-icon` and the
@@ -184,6 +193,16 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--md input, .sw-field--md select, .sw-field--md textarea { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
     .sw-field textarea { resize: vertical; min-height: calc(2 * 1em + 2 * var(--sw-space-sm)); }
+
+    /* --- Slider: native range input; the base input chrome doesn't fit a track --- */
+    .sw-field input[type="range"] {
+      padding: 0;
+      border: none;
+      background: none;
+      accent-color: var(--sw-accent);
+      cursor: pointer;
+    }
+    .sw-field input[type="range"]:disabled { cursor: not-allowed; }
 
     /* --- Select: skinnable native <select> --- */
     /* Fallback (all browsers): strip native chrome, draw a chevron. The base
