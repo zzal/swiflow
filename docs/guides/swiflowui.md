@@ -103,7 +103,7 @@ The `<label>` wraps the `<input>` (implicit association). On error the input get
 `aria-invalid` and the message renders with `role="alert"`. `TextFieldType`:
 `text/email/password/number/search/tel/url`.
 
-### Text area
+### TextArea
 
 ```swift
 TextArea("Bio", text: $bio, rows: 6, placeholder: "Tell us about you…")

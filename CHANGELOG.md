@@ -18,6 +18,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Added
+
+- SwiflowUI form completions: `TextArea` (multi-line field, `Field`-integrable),
+  `NumberField` (native number input, `Int`/`Double` bindings, min/max/step), and
+  `Slider` (native range input) — all token-styled via the shared field chrome,
+  each with a catalog story.
+
 ### Changed
 
 - SwiflowUIDemo rebuilt as a routed component catalog: left navbar, one story page
