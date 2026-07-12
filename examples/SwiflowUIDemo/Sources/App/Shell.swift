@@ -79,6 +79,7 @@ final class Shell {
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
+                Route("/component/reducer-wizard") { ReducerWizardStory() }
                 // One Route per story, added as each migrates (Tasks 4–9):
             } notFound: { ctx in
                 NotFoundStory(path: ctx.path)
