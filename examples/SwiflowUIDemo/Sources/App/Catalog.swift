@@ -31,6 +31,8 @@ enum Catalog {
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
+        StoryEntry(slug: "datatable", title: "DataTable", category: .data),
+        StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
     ]
 

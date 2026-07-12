@@ -76,6 +76,8 @@ final class Shell {
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
+                Route("/component/datatable") { DataTableStory() }
+                Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
                 // One Route per story, added as each migrates (Tasks 4–9):
             } notFound: { ctx in

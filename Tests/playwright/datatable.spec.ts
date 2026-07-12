@@ -11,7 +11,7 @@ const PAGED = ".sw-table:not(.sw-table--virtual)";
 
 test.describe("DataTable", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#/component/datatable");
     await expect(page.locator(".sw-table").first()).toBeVisible();
   });
 
@@ -55,6 +55,7 @@ test.describe("DataTable", () => {
   });
 
   test("virtualized table windows rows to the viewport and re-windows on scroll", async ({ page }) => {
+    await page.goto("/#/component/datatable-virtual");
     const vtable = page.locator(".sw-table--virtual");
     await expect(vtable).toBeVisible();
     await expect(vtable).toHaveAttribute("aria-rowcount", "2000");
