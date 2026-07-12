@@ -119,6 +119,22 @@ instead of `<input>`. `rows:` sets the native `rows` attribute (default `3`);
 everything else — `size:`, `required:`, `disabled:`, caller attributes,
 `onBlur:`/`field:` — matches `TextField`.
 
+### NumberField
+
+```swift
+NumberField("Rating", value: $rating, min: 0, max: 10, step: 0.5)   // Binding<Double>
+NumberField("Age", value: $age, min: 0, max: 120, step: 1)          // Binding<Int>
+```
+
+A native `<input type="number">` with the same `.sw-field` chrome as
+`TextField`/`TextArea`. Two overloads share the lowering — one over
+`Binding<Double>`, one over `Binding<Int>` — with `min`/`max`/`step` typed to
+match; each is omitted from the rendered attributes when left `nil`. As with
+`TextField`'s `.value`, a parse failure on the user's typed text leaves the
+binding unchanged (the malformed text just stays in the DOM). There's no
+`Field`-integrated overload: `Field`'s validators are string-typed today, so a
+numeric `Field` has no natural home yet — validate by hand until that lands.
+
 ### Toggle, Checkbox
 
 ```swift
