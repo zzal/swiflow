@@ -15,6 +15,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowUI", package: "Swiflow"),
+                .product(name: "SwiflowRouter", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
