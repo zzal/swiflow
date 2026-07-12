@@ -18,6 +18,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Changed
+
+- SwiflowUIDemo rebuilt as a routed component catalog: left navbar, one story page
+  per component with variant code snippets, a Button knobs playground, and a theme
+  playground (accent/radius/dark mode). Playwright specs follow the story routes.
+
 ---
 
 ## [0.4.15] — 2026-07-10
