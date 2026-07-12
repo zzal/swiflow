@@ -135,6 +135,23 @@ binding unchanged (the malformed text just stays in the DOM). There's no
 `Field`-integrated overload: `Field`'s validators are string-typed today, so a
 numeric `Field` has no natural home yet — validate by hand until that lands.
 
+### Slider
+
+```swift
+Slider("Volume", value: $volume)                       // defaults to 0...1
+Slider("Rating", value: $rating, in: 0...10, step: 1)
+```
+
+A native `<input type="range">` with the same `.sw-field` chrome as
+`NumberField`, over a single `Binding<Double>`. `min`/`max` come from `in:`
+(default `0...1`, formatted with the same trailing-`.0`-trimming rule as
+`NumberField`); `step` is omitted from the rendered attributes when left
+`nil`, leaving the browser's native stepping un-opinionated. There's no
+`required:` (a range input always has a value) and no `Field`-integrated
+overload, mirroring `NumberField`. The track/thumb are the browser's own —
+only `accent-color` is styled, so it follows `--sw-accent` (and dark mode)
+without a custom track/thumb reimplementation.
+
 ### Toggle, Checkbox
 
 ```swift

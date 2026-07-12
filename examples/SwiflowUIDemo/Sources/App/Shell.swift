@@ -81,6 +81,7 @@ final class Shell {
                 Route("/component/forms") { FormControlsStory() }
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
+                Route("/component/slider") { SliderStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
