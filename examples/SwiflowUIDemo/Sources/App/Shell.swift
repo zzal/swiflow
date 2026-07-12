@@ -38,11 +38,7 @@ final class Shell {
             // --- navbar + outlet -----------------------------------------
             HStack(spacing: .none, align: .stretch) {
                 sidebar
-                div(.class("story-outlet")) { themedOutlet }
-                    .padding(.xl)
-                    .style("flex", "1 1 auto")
-                    .style("min-width", "0")
-                    .style("overflow-y", "auto")
+                storyOutlet
             }
             .style("flex", "1 1 auto")
             .style("min-height", "0")
@@ -97,22 +93,32 @@ final class Shell {
         }
     }
 
-    /// Wraps the story outlet in Theme(...) when any playground override is
-    /// active. Theme's overrides are variadic, so the 2×2 combinations are
-    /// enumerated explicitly (no array init on ThemeScope today).
-    private var themedOutlet: VNode {
-        let accent = Shell.accents[accentChoice]
-        let radius = radiusChoice == "Default" ? nil : radiusChoice
-        switch (accent, radius) {
-        case (nil, nil):
-            return outlet
-        case let (a?, nil):
-            return Theme(.accent(a)) { outlet }
-        case let (nil, r?):
-            return Theme(.radius(r)) { outlet }
-        case let (a?, r?):
-            return Theme(.accent(a), .radius(r)) { outlet }
+    /// The always-present outlet wrapper. Playground overrides ride as inline
+    /// `--sw-*` custom properties on THIS div rather than a conditionally
+    /// present `Theme(...)` wrapper: the old approach changed the VNode tree
+    /// shape (outlet vs. Theme-wrapped outlet) whenever an override toggled,
+    /// which remounted the RouterRoot subtree underneath and reset story
+    /// `@State`. Keeping the div itself constant and only diffing its style
+    /// dict is safe — `diffStyle` (Sources/Swiflow/Diff/Diff.swift) emits a
+    /// `removeStyle` patch for any key present in the old render but absent
+    /// from the new one, and the js-driver applies it via
+    /// `style.removeProperty` (swiflow-driver.js, `removeStyle` case), which
+    /// correctly clears `--sw-*` custom properties. So simply omitting the
+    /// key when the choice is "Default" reverts it cleanly — no need for an
+    /// explicit revert value.
+    private var storyOutlet: VNode {
+        var node = div(.class("story-outlet")) { outlet }
+            .padding(.xl)
+            .style("flex", "1 1 auto")
+            .style("min-width", "0")
+            .style("overflow-y", "auto")
+        if let accent = Shell.accents[accentChoice] {
+            node = node.style(Token.accent.name, accent)
         }
+        if radiusChoice != "Default" {
+            node = node.style(Token.radius.name, radiusChoice)
+        }
+        return node
     }
 
     // Dark-mode must sync at the document root (see Global Constraints).
