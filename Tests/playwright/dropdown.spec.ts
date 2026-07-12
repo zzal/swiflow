@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 // Archive (disabled/inert), [divider], Delete. Enabled roving order: Edit, Duplicate, Delete.
 test.describe("Dropdown roving menu", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#/component/overlays");
     await page.getByRole("button", { name: "Actions" }).click();
     await expect(page.getByRole("menu")).toBeVisible();
   });

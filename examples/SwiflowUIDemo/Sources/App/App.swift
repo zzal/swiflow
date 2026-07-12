@@ -8,10 +8,9 @@ import JavaScriptKit
 @Component
 final class Demo {
     @State var isDark: Bool = false
-    @State var confirmDelete: Bool = false
-    @State var deleteResult: String = ""
-    @State var showRename: Bool = false
-    @State var fileName: String = "untitled"
+    // Kept here (not moved with the rest of the Overlays state to OverlaysStory) because
+    // dataTableSection below still fires toasts; it gets its own queue when the DataTable
+    // sections move out to their own stories (Task 8), and this class is retired in Task 9.
     @ReducerState var toasts: ToastQueue
     @State var selectedPeople: Set<Int> = []
     @State var peoplePage: Int = 0
@@ -26,55 +25,6 @@ final class Demo {
                 Spacer()
                 Toggle("Dark mode", isOn: $isDark)
             }
-
-            // --- Overlays ------------------------------------------------
-            h2("Overlays")
-            HStack(spacing: .md, align: .center) {
-                Button("Delete item…", variant: .secondary) { self.confirmDelete = true }
-                Button("Rename \(fileName)…", variant: .secondary) { self.showRename = true }
-                if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
-            }
-            HStack(spacing: .md, align: .center) {
-                Button("Toast: success", variant: .ghost) { self.$toasts.show("Saved successfully", .success) }
-                Button("Toast: info", variant: .ghost) { self.$toasts.show("Heads up — sync running") }
-                Button("Toast: warning", variant: .ghost) { self.$toasts.show("Low disk space", .warning) }
-                Button("Toast: error", variant: .ghost) { self.$toasts.show("Couldn't reach the server", .danger) }
-                Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
-            }
-            HStack(spacing: .md, align: .center) {
-                // Dropdown: a Popover-API menu anchored to its trigger; items close it on
-                // select (popovertargetaction=hide) and fire a toast here.
-                Dropdown("Actions") {
-                    DropdownItem("Edit") { self.$toasts.show("Edit selected") }
-                    DropdownItem("Duplicate") { self.$toasts.show("Duplicated", .success) }
-                    DropdownItem("Archive", disabled: true) {}
-                    DropdownDivider()
-                    DropdownItem("Delete", variant: .danger) { self.$toasts.show("Deleted", .danger) }
-                }
-            }
-            p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
-              + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
-              + "wraps a <form method=\"dialog\">, so Enter submits. The Delete alert demands a "
-              + "deliberate choice (no backdrop dismiss); Rename opts into dismissOnBackdrop, so "
-              + "clicking outside cancels it. Backdrop solidifies under prefers-reduced-transparency "
-              + "and the open animation collapses under prefers-reduced-motion, both via tokens.")
-            // A destructive confirm: backdrop dismiss left OFF (the default) so it's not
-            // closed by accident.
-            Alert("Delete this item?", isPresented: $confirmDelete,
-                  message: "This can't be undone.") {
-                Button("Cancel", variant: .secondary) { self.confirmDelete = false }
-                Button("Delete", variant: .danger) { self.deleteResult = "Item deleted"; self.confirmDelete = false }
-            }
-            // Rename opts into backdrop-to-cancel (clicking outside closes without renaming).
-            Prompt("Rename file", isPresented: $showRename, text: $fileName,
-                   message: "Enter a new name", placeholder: "untitled",
-                   confirmTitle: "Rename", dismissOnBackdrop: true) { newName in
-                // fileName is already bound; this is where an app would persist the change.
-                self.fileName = newName.isEmpty ? "untitled" : newName
-            }
-            // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
-            // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
-            ToastStack(queue: $toasts)
 
             Divider()
 
