@@ -183,6 +183,7 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--sm input, .sw-field--sm select, .sw-field--sm textarea { padding: var(--sw-space-xs) var(--sw-space-sm); font-size: 0.875rem; }
     .sw-field--md input, .sw-field--md select, .sw-field--md textarea { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
+    .sw-field textarea { resize: vertical; min-height: calc(2 * 1em + 2 * var(--sw-space-sm)); }
 
     /* --- Select: skinnable native <select> --- */
     /* Fallback (all browsers): strip native chrome, draw a chevron. The base
