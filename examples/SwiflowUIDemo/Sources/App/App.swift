@@ -463,5 +463,5 @@ final class SignupWizardView {
 
 @main
 struct App {
-    @MainActor static func main() { Swiflow.render(into: "#app") { Demo() } }
+    @MainActor static func main() { Swiflow.render(into: "#app") { Shell() } }
 }
