@@ -26,6 +26,9 @@ enum Catalog {
         StoryEntry(slug: "stacks", title: "Stacks", category: .layout),
         StoryEntry(slug: "grid", title: "Grid", category: .layout),
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
+        StoryEntry(slug: "button", title: "Button", category: .controls),
+        StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
+        StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
     ]
 
     static func entries(in category: StoryCategory) -> [StoryEntry] {

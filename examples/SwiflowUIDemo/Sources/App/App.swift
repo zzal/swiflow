@@ -49,60 +49,6 @@ final class Demo {
                 Toggle("Dark mode", isOn: $isDark)
             }
 
-            // --- Buttons -------------------------------------------------
-            h2("Buttons")
-            HStack(spacing: .md, align: .center) {
-                Button("Primary") {}
-                Button("Secondary", variant: .secondary) {}
-                Button("Ghost", variant: .ghost) {}
-                Button("Danger", variant: .danger) {}
-                // Builder labels: compose icon + text; icon-only needs aria-label.
-                Button(variant: .secondary, action: {}) { span(.attr("aria-hidden", true)) { text("↻") }; text("Retry") }
-                Button(variant: .ghost, .attr("aria-label", "Delete"), action: {}) { span(.attr("aria-hidden", true)) { text("🗑") } }
-                Button("Disabled", disabled: true) {}
-            }
-            HStack(spacing: .md, align: .center) {
-                Button("Small", size: .sm) {}
-                Button("Medium", size: .md) {}
-                Button("Large", size: .lg) {}
-            }
-            p("Variants and sizes are skinned entirely by --sw-* tokens. Toggle your "
-              + "system dark mode / increased contrast / reduced motion to see the "
-              + "@media token layers re-skin them with no code change.")
-
-            Divider()
-
-            // --- Tooltip -------------------------------------------------
-            h2("Tooltip")
-            HStack(spacing: .md, align: .center) {
-                Tooltip("Saved to your library") { Button("Hover or focus me", variant: .secondary) {} }
-                Tooltip("Appears below the trigger", placement: .bottom) { Button("Below") {} }
-            }
-            p("Tooltip wraps any trigger — hover or focus to reveal. Placement defaults to .top; "
-              + "pass placement: .bottom (or .leading / .trailing) to anchor it on another side. "
-              + "Pure CSS — no JS, no z-index juggling.")
-
-            Divider()
-
-            // --- Scoped theming ------------------------------------------
-            h2("Scoped theming")
-            HStack(spacing: .md, align: .center) {
-                Button("Default accent") {}
-                Theme(.accent("#dc2626"), .radius("2px")) {
-                    HStack(spacing: .md, align: .center) {
-                        Button("Branded primary") {}
-                        Button("Branded ghost", variant: .ghost) {}
-                        Badge("Tagged", variant: .accent)
-                    }
-                }
-            }
-            p("The right-hand group is wrapped in Theme(.accent(\"#dc2626\"), .radius(\"2px\")). "
-              + "One override re-points --sw-accent; the whole family (fill, ghost text, badge "
-              + "tint, focus ring) and the radius follow — scoped to that subtree only. The "
-              + "wrapper uses display:contents, so it sits inline in the row with no layout shift.")
-
-            Divider()
-
             // --- Form controls -------------------------------------------
             h2("Form controls")
             VStack(spacing: .md, align: .stretch) {
