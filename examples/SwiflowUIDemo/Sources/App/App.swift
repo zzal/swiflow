@@ -49,42 +49,6 @@ final class Demo {
                 Toggle("Dark mode", isOn: $isDark)
             }
 
-            // --- Stacks --------------------------------------------------
-            h2("Stacks")
-            Card(variant: .plain) {
-                HStack(spacing: .md, align: .center) {
-                    Button("One") {}; Button("Two") {}; Button("Three") {}
-                }
-            }
-
-            p("The row above uses HStack(spacing: .md). Change --sw-space-md "
-              + "in index.html's <style> to reskin every gap at once.")
-
-            Divider()
-
-            // --- Grid ----------------------------------------------------
-            h2("Grid")
-            Grid(columns: 3, spacing: .md) {
-                for n in 1...6 { card("Cell \(n)") }
-            }
-            p("Grid(columns: 3, spacing: .md) — equal columns via "
-              + "repeat(3, minmax(0, 1fr)).")
-
-            Divider()
-
-            // --- Spacer --------------------------------------------------
-            h2("Spacer")
-            Card(variant: .plain) {
-                HStack(align: .center) {
-                    Button("Leading", variant: .secondary) {}
-                    Spacer()
-                    Button("Trailing", variant: .secondary) {}
-                }
-            }
-            p("A Spacer() between the buttons pushes them to opposite ends.")
-
-            Divider()
-
             // --- Buttons -------------------------------------------------
             h2("Buttons")
             HStack(spacing: .md, align: .center) {
@@ -391,18 +355,6 @@ final class Demo {
         }
     }
 
-    /// A small surfaced tile used to fill the grid demo.
-    private func card(_ title: String) -> VNode {
-        // Typed token spellings: single-token values take a Token directly;
-        // composites interpolate .css. A typo'd Token fails at compile time —
-        // a typo'd var() string fails silent.
-        div { text(title) }
-            .padding(.md)
-            .style("background", Token.surface)
-            .style("border", "\(Token.borderWidth.css) solid \(Token.border.css)")
-            .style("border-radius", Token.radius)
-            .style("text-align", "center")
-    }
 }
 
 struct DemoPerson: Identifiable {

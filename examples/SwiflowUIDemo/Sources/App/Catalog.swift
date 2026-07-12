@@ -23,7 +23,9 @@ enum Catalog {
 
     /// Sidebar/index order is array order within each category.
     static let stories: [StoryEntry] = [
-        // Entries land task by task as sections migrate.
+        StoryEntry(slug: "stacks", title: "Stacks", category: .layout),
+        StoryEntry(slug: "grid", title: "Grid", category: .layout),
+        StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
     ]
 
     static func entries(in category: StoryCategory) -> [StoryEntry] {
