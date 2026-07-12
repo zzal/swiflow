@@ -79,6 +79,7 @@ final class Shell {
                 Route("/component/spacer") { SpacerStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
+                Route("/component/textarea") { TextAreaStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
