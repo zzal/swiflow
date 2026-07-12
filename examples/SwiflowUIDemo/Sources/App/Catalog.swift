@@ -27,6 +27,7 @@ enum Catalog {
         StoryEntry(slug: "grid", title: "Grid", category: .layout),
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
         StoryEntry(slug: "button", title: "Button", category: .controls),
+        StoryEntry(slug: "forms", title: "Form controls", category: .controls),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
     ]
