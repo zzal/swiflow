@@ -27,36 +27,6 @@ final class Demo {
                 Toggle("Dark mode", isOn: $isDark)
             }
 
-            // --- Feedback & display --------------------------------------
-            h2("Feedback & display")
-            Grid(columns: 2, spacing: .md) {
-                Card {
-                    h3("Elevated Card")
-                    p("A surfaced container with a token shadow.")
-                    HStack(spacing: .sm, align: .center) {
-                        Spinner()
-                        Badge("New", variant: .accent)
-                        Badge("3")
-                    }
-                }
-                Card(variant: .outlined) {
-                    h3("Outlined Card")
-                    p("Bordered instead of shadowed.")
-                    HStack(spacing: .sm, align: .center) {
-                        Badge("Error", variant: .danger)
-                        Badge("Done", variant: .success)
-                        Badge("Warn", variant: .warning)
-                        Badge("Info", variant: .info)
-                        Badge("Muted")
-                    }
-                }
-            }
-            ProgressView(value: 0.6)
-            p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
-              + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
-
-            Divider()
-
             // --- Overlays ------------------------------------------------
             h2("Overlays")
             HStack(spacing: .md, align: .center) {

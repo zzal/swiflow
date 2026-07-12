@@ -73,6 +73,7 @@ final class Shell {
                 Route("/component/spacer") { SpacerStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
+                Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/theming") { ThemingStory() }
                 // One Route per story, added as each migrates (Tasks 4–9):
