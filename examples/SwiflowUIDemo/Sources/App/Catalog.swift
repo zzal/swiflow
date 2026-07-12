@@ -34,6 +34,7 @@ enum Catalog {
         StoryEntry(slug: "datatable", title: "DataTable", category: .data),
         StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
+        StoryEntry(slug: "reducer-wizard", title: "Reducer wizard", category: .patterns),
     ]
 
     static func entries(in category: StoryCategory) -> [StoryEntry] {
