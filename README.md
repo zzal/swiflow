@@ -140,6 +140,7 @@ Guides live in [`docs/guides/`](docs/guides/): [SwiflowUI](docs/guides/swiflowui
 [forms](docs/guides/forms.md) ·
 [async tasks](docs/guides/async-tasks.md) · [testing](docs/guides/testing.md) ·
 [styling](docs/guides/styling.md) · [environment](docs/guides/environment.md) ·
+[external packages](docs/guides/external-packages.md) ·
 [DevTools](docs/guides/devtools.md) · [debugging WASM](docs/guides/debugging.md).
 
 A read-only **DevTools panel** (live component tree + `@State`) lives in
