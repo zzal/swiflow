@@ -2507,6 +2507,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiflowDOM", package: "Swiflow"),
                 .product(name: "SwiflowUI", package: "Swiflow"),
+                .product(name: "SwiflowRouter", package: "Swiflow"),
             ],
             path: "Sources/App"
         ),
@@ -2547,279 +2548,184 @@ Reload — every `HStack(spacing: .md)` gap widens instantly, with no Swift reco
                 "Sources/App/App.swift": ##"""
 import Swiflow
 import SwiflowDOM
+
+@main
+struct App {
+    @MainActor static func main() { Swiflow.render(into: "#app") { Shell() } }
+}
+
+"""##,
+                "Sources/App/Catalog.swift": ##"""
+// The explicit story registry — drives the navbar and the landing index.
+// No reflection on wasm: adding a story = 1 file + 1 entry here + 1 Route in Shell.
+import Swiflow
+
+enum StoryCategory: String, CaseIterable {
+    case layout = "Layout"
+    case controls = "Controls"
+    case feedback = "Feedback"
+    case overlays = "Overlays"
+    case data = "Data"
+    case theming = "Theming"
+    case patterns = "Patterns"
+}
+
+struct StoryEntry {
+    let slug: String
+    let title: String
+    let category: StoryCategory
+}
+
+enum Catalog {
+    static func path(_ slug: String) -> String { "/component/\(slug)" }
+
+    /// Sidebar/index order is array order within each category.
+    static let stories: [StoryEntry] = [
+        StoryEntry(slug: "stacks", title: "Stacks", category: .layout),
+        StoryEntry(slug: "grid", title: "Grid", category: .layout),
+        StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
+        StoryEntry(slug: "button", title: "Button", category: .controls),
+        StoryEntry(slug: "forms", title: "Form controls", category: .controls),
+        StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
+        StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
+        StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
+        StoryEntry(slug: "datatable", title: "DataTable", category: .data),
+        StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
+        StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
+        StoryEntry(slug: "reducer-wizard", title: "Reducer wizard", category: .patterns),
+    ]
+
+    static func entries(in category: StoryCategory) -> [StoryEntry] {
+        stories.filter { $0.category == category }
+    }
+}
+
+"""##,
+                "Sources/App/Shell.swift": ##"""
+// Root shell: theme-playground header (Task 10 fills it in — starts with just
+// the Dark-mode toggle), left vertical navbar, story outlet. The navbar is a
+// fixed-width, full-height, vertically-scrollable left column; the outlet
+// scrolls independently and fills the remaining width.
+import Swiflow
+import SwiflowDOM
 import SwiflowUI
+import SwiflowRouter
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 #endif
 
 @Component
-final class Demo {
-    @State var name: String = ""
-    @State var email: String = ""
-    @State var subscribed: Bool = false
-    @State var color: String = ""
-    @State var plan: String = "Free"
+final class Shell {
     @State var isDark: Bool = false
-    @State var accepted: Bool = false
-    @State var ctrl: FormController = FormController()
-    @State var confirmDelete: Bool = false
-    @State var deleteResult: String = ""
-    @State var showRename: Bool = false
-    @State var fileName: String = "untitled"
-    @ReducerState var toasts: ToastQueue
-    @State var element: String = ""
-    @State var asyncElement: String = ""
-    @State var selectedPeople: Set<Int> = []
-    @State var peoplePage: Int = 0
-    @State var roleFilter: String = "All"
+    @State var accentChoice: String = "Default"
+    @State var radiusChoice: String = "Default"
 
-    /// Shared by the sync Autocomplete (static options) and the async one (a loader that
-    /// filters the same list behind a simulated network delay).
-    static let periodicElements: [String] = [
-        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon", "Nitrogen", "Oxygen",
-        "Fluorine", "Neon", "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus", "Sulfur",
-        "Chlorine", "Argon", "Potassium", "Calcium", "Titanium", "Chromium", "Iron", "Cobalt",
-        "Nickel", "Copper", "Zinc", "Silver", "Tin", "Iodine", "Gold", "Mercury", "Lead",
-        "Radon", "Uranium", "Plutonium",
+    private static let accents: [String: String] = [
+        "Crimson": "#dc2626", "Violet": "#7c3aed", "Emerald": "#059669",
     ]
 
     var body: VNode {
-        let emailField = Field("email", $email, $ctrl, .required(), .email)
-        let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
-
-        return VStack(spacing: .lg, align: .stretch) {
-            // A Toggle wired to `color-scheme` (synced to <html> in onChange) re-themes the
-            // whole demo: every --sw-* token is light-dark(), so flipping the scheme flips them all.
+        VStack(spacing: .none, align: .stretch) {
+            // --- header -------------------------------------------------
             HStack(align: .center) {
-                h1("SwiflowUI — primitives, controls & feedback")
+                h1("SwiflowUI Catalog").style("font-size", "1.1rem")
                 Spacer()
+                Select("Accent", selection: $accentChoice,
+                       options: ["Default", "Crimson", "Violet", "Emerald"], size: .sm)
+                Select("Radius", selection: $radiusChoice,
+                       options: ["Default", "2px", "8px", "16px"], size: .sm)
                 Toggle("Dark mode", isOn: $isDark)
             }
+            .padding(.md)
+            .style("border-bottom", "\(Token.borderWidth.css) solid \(Token.border.css)")
 
-            // --- Stacks --------------------------------------------------
-            h2("Stacks")
-            Card(variant: .plain) {
-                HStack(spacing: .md, align: .center) {
-                    Button("One") {}; Button("Two") {}; Button("Three") {}
-                }
+            // --- navbar + outlet -----------------------------------------
+            HStack(spacing: .none, align: .stretch) {
+                sidebar
+                storyOutlet
             }
-
-            p("The row above uses HStack(spacing: .md). Change --sw-space-md "
-              + "in index.html's <style> to reskin every gap at once.")
-
-            Divider()
-
-            // --- Grid ----------------------------------------------------
-            h2("Grid")
-            Grid(columns: 3, spacing: .md) {
-                for n in 1...6 { card("Cell \(n)") }
-            }
-            p("Grid(columns: 3, spacing: .md) — equal columns via "
-              + "repeat(3, minmax(0, 1fr)).")
-
-            Divider()
-
-            // --- Spacer --------------------------------------------------
-            h2("Spacer")
-            Card(variant: .plain) {
-                HStack(align: .center) {
-                    Button("Leading", variant: .secondary) {}
-                    Spacer()
-                    Button("Trailing", variant: .secondary) {}
-                }
-            }
-            p("A Spacer() between the buttons pushes them to opposite ends.")
-
-            Divider()
-
-            // --- Buttons -------------------------------------------------
-            h2("Buttons")
-            HStack(spacing: .md, align: .center) {
-                Button("Primary") {}
-                Button("Secondary", variant: .secondary) {}
-                Button("Ghost", variant: .ghost) {}
-                Button("Danger", variant: .danger) {}
-                // Builder labels: compose icon + text; icon-only needs aria-label.
-                Button(variant: .secondary, action: {}) { span(.attr("aria-hidden", true)) { text("↻") }; text("Retry") }
-                Button(variant: .ghost, .attr("aria-label", "Delete"), action: {}) { span(.attr("aria-hidden", true)) { text("🗑") } }
-                Button("Disabled", disabled: true) {}
-            }
-            HStack(spacing: .md, align: .center) {
-                Button("Small", size: .sm) {}
-                Button("Medium", size: .md) {}
-                Button("Large", size: .lg) {}
-            }
-            p("Variants and sizes are skinned entirely by --sw-* tokens. Toggle your "
-              + "system dark mode / increased contrast / reduced motion to see the "
-              + "@media token layers re-skin them with no code change.")
-
-            Divider()
-
-            // --- Tooltip -------------------------------------------------
-            h2("Tooltip")
-            HStack(spacing: .md, align: .center) {
-                Tooltip("Saved to your library") { Button("Hover or focus me", variant: .secondary) {} }
-                Tooltip("Appears below the trigger", placement: .bottom) { Button("Below") {} }
-            }
-            p("Tooltip wraps any trigger — hover or focus to reveal. Placement defaults to .top; "
-              + "pass placement: .bottom (or .leading / .trailing) to anchor it on another side. "
-              + "Pure CSS — no JS, no z-index juggling.")
-
-            Divider()
-
-            // --- Scoped theming ------------------------------------------
-            h2("Scoped theming")
-            HStack(spacing: .md, align: .center) {
-                Button("Default accent") {}
-                Theme(.accent("#dc2626"), .radius("2px")) {
-                    HStack(spacing: .md, align: .center) {
-                        Button("Branded primary") {}
-                        Button("Branded ghost", variant: .ghost) {}
-                        Badge("Tagged", variant: .accent)
-                    }
-                }
-            }
-            p("The right-hand group is wrapped in Theme(.accent(\"#dc2626\"), .radius(\"2px\")). "
-              + "One override re-points --sw-accent; the whole family (fill, ghost text, badge "
-              + "tint, focus ring) and the radius follow — scoped to that subtree only. The "
-              + "wrapper uses display:contents, so it sits inline in the row with no layout shift.")
-
-            Divider()
-
-            // --- Form controls -------------------------------------------
-            h2("Form controls")
-            VStack(spacing: .md, align: .stretch) {
-                TextField("Name", text: $name, placeholder: "Ada Lovelace")
-                TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
-                Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
-                // A non-address domain on purpose: Chrome forces address autofill onto
-                // anything it reads as a "Country" field (ignoring autocomplete="off"),
-                // and that overlay covers the custom listbox.
-                Autocomplete("Element", selection: $element,
-                             options: Demo.periodicElements.map { SelectOption($0) },
-                             placeholder: "Type to search…")
-                // Async/remote variant: the loader filters behind a simulated 350ms delay,
-                // so you see the Searching… state, then results. Debounced (rapid typing
-                // fires one request) and cancellation-safe via .task(rerunOn:).
-                Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
-                    try await Task.sleep(nanoseconds: 350_000_000)
-                    return Demo.periodicElements
-                        .filter { $0.lowercased().contains(query.lowercased()) }
-                        .map { SelectOption($0) }
-                }, placeholder: "Search the periodic table…")
-                RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
-                Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
-                Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
-            }
-            if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
-            p("Toggle is a switch (an immediate setting — like Dark mode, top-right); Checkbox is for "
-              + "confirmation. The email + terms fields use Field(...) + validators — interact then blur "
-              + "to see the role=alert error and aria-invalid.")
-
-            Divider()
-
-            // --- Feedback & display --------------------------------------
-            h2("Feedback & display")
-            Grid(columns: 2, spacing: .md) {
-                Card {
-                    h3("Elevated Card")
-                    p("A surfaced container with a token shadow.")
-                    HStack(spacing: .sm, align: .center) {
-                        Spinner()
-                        Badge("New", variant: .accent)
-                        Badge("3")
-                    }
-                }
-                Card(variant: .outlined) {
-                    h3("Outlined Card")
-                    p("Bordered instead of shadowed.")
-                    HStack(spacing: .sm, align: .center) {
-                        Badge("Error", variant: .danger)
-                        Badge("Done", variant: .success)
-                        Badge("Warn", variant: .warning)
-                        Badge("Info", variant: .info)
-                        Badge("Muted")
-                    }
-                }
-            }
-            ProgressView(value: 0.6)
-            p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
-              + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
-
-            Divider()
-
-            // --- Overlays ------------------------------------------------
-            h2("Overlays")
-            HStack(spacing: .md, align: .center) {
-                Button("Delete item…", variant: .secondary) { self.confirmDelete = true }
-                Button("Rename \(fileName)…", variant: .secondary) { self.showRename = true }
-                if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
-            }
-            HStack(spacing: .md, align: .center) {
-                Button("Toast: success", variant: .ghost) { self.$toasts.show("Saved successfully", .success) }
-                Button("Toast: info", variant: .ghost) { self.$toasts.show("Heads up — sync running") }
-                Button("Toast: warning", variant: .ghost) { self.$toasts.show("Low disk space", .warning) }
-                Button("Toast: error", variant: .ghost) { self.$toasts.show("Couldn't reach the server", .danger) }
-                Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
-            }
-            HStack(spacing: .md, align: .center) {
-                // Dropdown: a Popover-API menu anchored to its trigger; items close it on
-                // select (popovertargetaction=hide) and fire a toast here.
-                Dropdown("Actions") {
-                    DropdownItem("Edit") { self.$toasts.show("Edit selected") }
-                    DropdownItem("Duplicate") { self.$toasts.show("Duplicated", .success) }
-                    DropdownItem("Archive", disabled: true) {}
-                    DropdownDivider()
-                    DropdownItem("Delete", variant: .danger) { self.$toasts.show("Deleted", .danger) }
-                }
-            }
-            p("Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
-              + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
-              + "wraps a <form method=\"dialog\">, so Enter submits. The Delete alert demands a "
-              + "deliberate choice (no backdrop dismiss); Rename opts into dismissOnBackdrop, so "
-              + "clicking outside cancels it. Backdrop solidifies under prefers-reduced-transparency "
-              + "and the open animation collapses under prefers-reduced-motion, both via tokens.")
-            // A destructive confirm: backdrop dismiss left OFF (the default) so it's not
-            // closed by accident.
-            Alert("Delete this item?", isPresented: $confirmDelete,
-                  message: "This can't be undone.") {
-                Button("Cancel", variant: .secondary) { self.confirmDelete = false }
-                Button("Delete", variant: .danger) { self.deleteResult = "Item deleted"; self.confirmDelete = false }
-            }
-            // Rename opts into backdrop-to-cancel (clicking outside closes without renaming).
-            Prompt("Rename file", isPresented: $showRename, text: $fileName,
-                   message: "Enter a new name", placeholder: "untitled",
-                   confirmTitle: "Rename", dismissOnBackdrop: true) { newName in
-                // fileName is already bound; this is where an app would persist the change.
-                self.fileName = newName.isEmpty ? "untitled" : newName
-            }
-            // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
-            // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
-            ToastStack(queue: $toasts)
-
-            Divider()
-
-            // --- Reducer wizard ------------------------------------------
-            reducerWizardSection
-
-            Divider()
-
-            // --- DataTable -----------------------------------------------
-            dataTableSection
-            virtualTableSection
+            .style("flex", "1 1 auto")
+            .style("min-height", "0")
         }
-        .padding(.xl)
-        .style("background", "var(--sw-bg)")   // page/canvas, so the surface cards lift off it
+        .style("height", "100vh")
+        .style("background", "var(--sw-bg)")
         .style("color", "var(--sw-text)")
-        .style("min-height", "100vh")
     }
 
-    // The "Dark mode" Toggle re-themes the demo by forcing `color-scheme` on the *document
-    // root* (`<html>`). It must be `:root`, not a mounted element: the `--sw-*` color tokens are
-    // registered via `@property { syntax: "<color>" }`, so their `light-dark()` resolves at the
-    // element where they're declared (`:root`) — forcing `color-scheme` on an inner div has no
-    // effect on them. Synced imperatively (idempotent read-diff-write) because the app tree can't
-    // style `<html>`. JS-interop is `#if`-gated so the demo still builds on host.
+    private var sidebar: VNode {
+        nav(.class("catalog-nav"), .attr("aria-label", "Components")) {
+            VStack(spacing: .sm, align: .stretch) {
+                embed { Link("/", "Overview") }
+                for category in StoryCategory.allCases
+                where !Catalog.entries(in: category).isEmpty {
+                    h2(category.rawValue).style("font-size", "0.75rem")
+                        .style("text-transform", "uppercase")
+                        .style("opacity", "0.6")
+                        .style("margin", "var(--sw-space-md) 0 0")
+                    for entry in Catalog.entries(in: category) {
+                        embed { Link(Catalog.path(entry.slug), entry.title) }
+                    }
+                }
+            }
+            .padding(.md)
+        }
+        .style("flex", "0 0 220px")
+        .style("overflow-y", "auto")
+        .style("border-right", "\(Token.borderWidth.css) solid \(Token.border.css)")
+    }
+
+    private var outlet: VNode {
+        embed {
+            RouterRoot {
+                Route("/") { IndexStory() }
+                Route("/component/stacks") { StacksStory() }
+                Route("/component/grid") { GridStory() }
+                Route("/component/spacer") { SpacerStory() }
+                Route("/component/button") { ButtonStory() }
+                Route("/component/forms") { FormControlsStory() }
+                Route("/component/feedback") { FeedbackStory() }
+                Route("/component/tooltip") { TooltipStory() }
+                Route("/component/overlays") { OverlaysStory() }
+                Route("/component/datatable") { DataTableStory() }
+                Route("/component/datatable-virtual") { DataTableVirtualStory() }
+                Route("/component/theming") { ThemingStory() }
+                Route("/component/reducer-wizard") { ReducerWizardStory() }
+                // One Route per story:
+            } notFound: { ctx in
+                NotFoundStory(path: ctx.path)
+            }
+        }
+    }
+
+    /// The always-present outlet wrapper. Playground overrides ride as inline
+    /// `--sw-*` custom properties on THIS div rather than a conditionally
+    /// present `Theme(...)` wrapper: the old approach changed the VNode tree
+    /// shape (outlet vs. Theme-wrapped outlet) whenever an override toggled,
+    /// which remounted the RouterRoot subtree underneath and reset story
+    /// `@State`. Keeping the div itself constant and only diffing its style
+    /// dict is safe — `diffStyle` (Sources/Swiflow/Diff/Diff.swift) emits a
+    /// `removeStyle` patch for any key present in the old render but absent
+    /// from the new one, and the js-driver applies it via
+    /// `style.removeProperty` (swiflow-driver.js, `removeStyle` case), which
+    /// correctly clears `--sw-*` custom properties. So simply omitting the
+    /// key when the choice is "Default" reverts it cleanly — no need for an
+    /// explicit revert value.
+    private var storyOutlet: VNode {
+        var node = div(.class("story-outlet")) { outlet }
+            .padding(.xl)
+            .style("flex", "1 1 auto")
+            .style("min-width", "0")
+            .style("overflow-y", "auto")
+        if let accent = Shell.accents[accentChoice] {
+            node = node.style(Token.accent.name, accent)
+        }
+        if radiusChoice != "Default" {
+            node = node.style(Token.radius.name, radiusChoice)
+        }
+        return node
+    }
+
+    // Dark-mode must sync at the document root (see Global Constraints).
     func onAppear() { syncColorScheme() }
     func onChange() { syncColorScheme() }
 
@@ -2831,24 +2737,161 @@ final class Demo {
         if style.colorScheme.string != want { style.colorScheme = .string(want) }
         #endif
     }
+}
+
+@Component
+final class NotFoundStory {
+    var path: String
+
+    init(path: String) {
+        self.path = path
+    }
+
+    var body: VNode {
+        storyPage("Not found", blurb: "No story at \(path).") {
+            embed { Link("/", "Back to overview") }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ButtonStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ButtonStory {
+    // Knobs
+    @State var variantName: String = "primary"
+    @State var sizeName: String = "md"
+    @State var disabled: Bool = false
+    @State var label: String = "Click me"
+
+    private var variant: ButtonVariant {
+        switch variantName {
+        case "secondary": .secondary
+        case "ghost": .ghost
+        case "danger": .danger
+        default: .primary
+        }
+    }
+    private var size: ControlSize {
+        switch sizeName { case "sm": .sm; case "lg": .lg; default: .md }
+    }
+
+    var body: VNode {
+        storyPage("Button",
+                  blurb: "Variants and sizes are skinned entirely by --sw-* tokens.") {
+            variantSection("Variants", snippet: """
+            Button("Primary") {}
+            Button("Secondary", variant: .secondary) {}
+            Button("Ghost", variant: .ghost) {}
+            Button("Danger", variant: .danger) {}
+            Button("Disabled", disabled: true) {}
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Button("Primary") {}
+                        Button("Secondary", variant: .secondary) {}
+                        Button("Ghost", variant: .ghost) {}
+                        Button("Danger", variant: .danger) {}
+                        Button(variant: .secondary, action: {}) { span(.attr("aria-hidden", true)) { text("↻") }; text("Retry") }
+                        Button(variant: .ghost, .attr("aria-label", "Delete"), action: {}) { span(.attr("aria-hidden", true)) { text("🗑") } }
+                        Button("Disabled", disabled: true) {}
+                    }
+                }
+            }
+            variantSection("Sizes", snippet: """
+            Button("Small", size: .sm) {}
+            Button("Medium", size: .md) {}
+            Button("Large", size: .lg) {}
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Button("Small", size: .sm) {}
+                        Button("Medium", size: .md) {}
+                        Button("Large", size: .lg) {}
+                    }
+                }
+            }
+            variantSection("Playground") {
+                Card(variant: .outlined) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Label", text: $label)
+                        Select("Variant", selection: $variantName,
+                               options: ["primary", "secondary", "ghost", "danger"])
+                        RadioGroup("Size", selection: $sizeName,
+                                   options: ["sm", "md", "lg"], size: .sm)
+                        Toggle("Disabled", isOn: $disabled)
+                        Divider()
+                        HStack(align: .center) {
+                            Button(label, variant: variant, size: size, disabled: disabled) {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/DataTableStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class DataTableStory {
+    @State var selectedPeople: Set<Int> = []
+    @State var peoplePage: Int = 0
+    @State var roleFilter: String = "All"
+    @ReducerState var toasts: ToastQueue
+
+    var body: VNode {
+        storyPage("DataTable",
+                  blurb: "DataTable with sortable: true, pageSize: 5, and multi-select checkboxes. "
+                       + "Click a header to cycle ascending → descending → unsorted. The header stays "
+                       + "pinned inside the 360 px scroll container (maxHeight). The role filter changes "
+                       + "rows, so a key: encoding the filter remounts the table with fresh data — embedded "
+                       + "components freeze rows at first mount. Clicking a row \"opens\" it (onRowClick), "
+                       + "while the row checkbox and the in-cell \"Edit\" button do NOT trigger the row "
+                       + "click — container clicks ignore interactive descendants (fromInteractiveDescendant).") {
+            variantSection("Paged, sortable, selectable", snippet: """
+            Select("Filter by role", selection: $roleFilter,
+                   options: ["All", "Engineer", "Researcher", "Inventor", "Designer"])
+            DataTable(shown,
+                      selection: $selectedPeople,
+                      sortable: true,
+                      pageSize: 5,
+                      page: $peoplePage,
+                      onRowClick: { p in self.$toasts.show("Opening \\(p.name)", .success) },
+                      maxHeight: "360px",
+                      key: "people-\\(roleFilter)-\\(shown.count)") {
+                Column("Name", value: \\.name)
+                Column("Age", value: \\.age).align(.trailing)
+                Column("Role") { p in Badge(p.role, variant: .accent) }
+                Column("") { p in
+                    Button("Edit", variant: .secondary, size: .sm) {
+                        self.$toasts.show("Editing \\(p.name)", .info)
+                    }
+                }
+            }
+            """) {
+                dataTableSection
+            }
+            // Mounted once; the row-click and Edit toasts fire into this page's own queue.
+            ToastStack(queue: $toasts)
+        }
+    }
 
     /// The DataTable showcase. Extracted from `body` to keep that single result-builder
     /// expression within the Swift type-checker's budget. Demonstrates the dynamic-data
     /// `key:` contract: the role filter changes `rows`, and the `key:` (encoding the filter)
     /// remounts the reused table so it re-reads fresh rows.
-    var dataTableSection: VNode {
+    private var dataTableSection: VNode {
         let shown = roleFilter == "All"
-            ? Demo.samplePeople
-            : Demo.samplePeople.filter { $0.role == roleFilter }
-        let note = "DataTable with sortable: true, pageSize: 5, and multi-select checkboxes. "
-            + "Click a header to cycle ascending → descending → unsorted. The header stays "
-            + "pinned inside the 360 px scroll container (maxHeight). The role filter changes "
-            + "rows, so a key: encoding the filter remounts the table with fresh data — embedded "
-            + "components freeze rows at first mount. Clicking a row \"opens\" it (onRowClick), "
-            + "while the row checkbox and the in-cell \"Edit\" button do NOT trigger the row "
-            + "click — container clicks ignore interactive descendants (fromInteractiveDescendant)."
+            ? samplePeople
+            : samplePeople.filter { $0.role == roleFilter }
         return VStack(spacing: .md, align: .stretch) {
-            h2("DataTable")
             Select("Filter by role", selection: $roleFilter,
                    options: ["All", "Engineer", "Researcher", "Inventor", "Designer"])
             // A keyed component can't share a parent with unkeyed siblings (Swiflow's
@@ -2875,66 +2918,263 @@ final class Demo {
                     }
                 }
             }
-            p(note)
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/DataTableVirtualStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class DataTableVirtualStory {
+    var body: VNode {
+        storyPage("DataTable — virtualized",
+                  blurb: "Virtualized DataTable over 2,000 rows: only the rows in (and just around) "
+                       + "the 440 px viewport are in the DOM. Scroll to stream rows; sorting reorders the "
+                       + "whole dataset. Columns come from columnsTemplate (per-column .width is ignored "
+                       + "when virtualized).") {
+            variantSection("2,000 rows, fixed row height", snippet: """
+            DataTable(bigPeople,
+                      sortable: true,
+                      maxHeight: "440px",
+                      virtualization: .fixed(rowHeight: 44),
+                      columnsTemplate: "2fr 80px 1fr") {
+                Column("Name", value: \\.name)
+                Column("Age", value: \\.age).align(.trailing)
+                Column("Role") { p in Badge(p.role, variant: .accent) }
+            }
+            """) {
+                virtualTableSection
+            }
         }
     }
 
     /// A 2,000-row virtualized DataTable. `virtualized: .fixed(rowHeight:)` keeps only the
     /// visible window in the DOM; `columnsTemplate` gives the grid its (shared, stable) column
     /// tracks; `maxHeight` is the required scroll container. Static dataset ⇒ no `key:` needed.
-    var virtualTableSection: VNode {
-        let note = "Virtualized DataTable over 2,000 rows: only the rows in (and just around) "
-            + "the 440 px viewport are in the DOM. Scroll to stream rows; sorting reorders the "
-            + "whole dataset. Columns come from columnsTemplate (per-column .width is ignored "
-            + "when virtualized)."
-        return VStack(spacing: .md, align: .stretch) {
-            h2("DataTable — virtualized")
-            VStack(spacing: .none, align: .stretch) {
-                DataTable(Demo.bigPeople,
-                          sortable: true,
-                          maxHeight: "440px",
-                          virtualization: .fixed(rowHeight: 44),
-                          columnsTemplate: "2fr 80px 1fr") {
-                    Column("Name", value: \.name)
-                    Column("Age", value: \.age).align(.trailing)
-                    Column("Role") { p in Badge(p.role, variant: .accent) }
-                }
+    private var virtualTableSection: VNode {
+        VStack(spacing: .none, align: .stretch) {
+            DataTable(bigPeople,
+                      sortable: true,
+                      maxHeight: "440px",
+                      virtualization: .fixed(rowHeight: 44),
+                      columnsTemplate: "2fr 80px 1fr") {
+                Column("Name", value: \.name)
+                Column("Age", value: \.age).align(.trailing)
+                Column("Role") { p in Badge(p.role, variant: .accent) }
             }
-            p(note)
         }
     }
+}
 
-    static let samplePeople: [DemoPerson] = [
-        DemoPerson(id: 1,  name: "Ada Lovelace",      age: 36, role: "Engineer"),
-        DemoPerson(id: 2,  name: "Grace Hopper",       age: 85, role: "Admiral"),
-        DemoPerson(id: 3,  name: "Alan Turing",        age: 41, role: "Researcher"),
-        DemoPerson(id: 4,  name: "Margaret Hamilton",  age: 87, role: "Engineer"),
-        DemoPerson(id: 5,  name: "Linus Torvalds",     age: 55, role: "Maintainer"),
-        DemoPerson(id: 6,  name: "Vint Cerf",          age: 81, role: "Architect"),
-        DemoPerson(id: 7,  name: "Tim Berners-Lee",    age: 70, role: "Inventor"),
-        DemoPerson(id: 8,  name: "Guido van Rossum",   age: 69, role: "Designer"),
-        DemoPerson(id: 9,  name: "Brendan Eich",       age: 63, role: "Engineer"),
-        DemoPerson(id: 10, name: "Barbara Liskov",     age: 83, role: "Researcher"),
-        DemoPerson(id: 11, name: "Katherine Johnson",  age: 101, role: "Mathematician"),
-        DemoPerson(id: 12, name: "Dennis Ritchie",     age: 70, role: "Inventor"),
-        DemoPerson(id: 13, name: "Ken Thompson",       age: 82, role: "Inventor"),
-        DemoPerson(id: 14, name: "Bjarne Stroustrup",  age: 74, role: "Designer"),
+"""##,
+                "Sources/App/Stories/DemoPeople.swift": ##"""
+// Shared sample data for the DataTable stories (paged + virtualized).
+import Swiflow
+
+struct DemoPerson: Identifiable {
+    let id: Int
+    let name: String
+    let age: Int
+    let role: String
+}
+
+let samplePeople: [DemoPerson] = [
+    DemoPerson(id: 1,  name: "Ada Lovelace",      age: 36, role: "Engineer"),
+    DemoPerson(id: 2,  name: "Grace Hopper",       age: 85, role: "Admiral"),
+    DemoPerson(id: 3,  name: "Alan Turing",        age: 41, role: "Researcher"),
+    DemoPerson(id: 4,  name: "Margaret Hamilton",  age: 87, role: "Engineer"),
+    DemoPerson(id: 5,  name: "Linus Torvalds",     age: 55, role: "Maintainer"),
+    DemoPerson(id: 6,  name: "Vint Cerf",          age: 81, role: "Architect"),
+    DemoPerson(id: 7,  name: "Tim Berners-Lee",    age: 70, role: "Inventor"),
+    DemoPerson(id: 8,  name: "Guido van Rossum",   age: 69, role: "Designer"),
+    DemoPerson(id: 9,  name: "Brendan Eich",       age: 63, role: "Engineer"),
+    DemoPerson(id: 10, name: "Barbara Liskov",     age: 83, role: "Researcher"),
+    DemoPerson(id: 11, name: "Katherine Johnson",  age: 101, role: "Mathematician"),
+    DemoPerson(id: 12, name: "Dennis Ritchie",     age: 70, role: "Inventor"),
+    DemoPerson(id: 13, name: "Ken Thompson",       age: 82, role: "Inventor"),
+    DemoPerson(id: 14, name: "Bjarne Stroustrup",  age: 74, role: "Designer"),
+]
+
+let bigPeople: [DemoPerson] = (0..<2000).map { i in
+    DemoPerson(id: 1000 + i, name: "Person \(i)", age: 18 + (i % 70),
+               role: ["Engineer", "Researcher", "Inventor", "Designer"][i % 4])
+}
+
+"""##,
+                "Sources/App/Stories/FeedbackStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class FeedbackStory {
+    var body: VNode {
+        storyPage("Feedback & display",
+                  blurb: "Cards, badges, spinners and progress — all skinned by --sw-* tokens; "
+                       + "flip Dark mode (top-right) to see them re-skin.") {
+            variantSection("Cards & badges", snippet: """
+            Card {
+                h3("Elevated Card")
+                p("A surfaced container with a token shadow.")
+                HStack(spacing: .sm, align: .center) {
+                    Spinner()
+                    Badge("New", variant: .accent)
+                    Badge("3")
+                }
+            }
+            Card(variant: .outlined) {
+                h3("Outlined Card")
+                p("Bordered instead of shadowed.")
+                HStack(spacing: .sm, align: .center) {
+                    Badge("Error", variant: .danger)
+                    Badge("Done", variant: .success)
+                    Badge("Warn", variant: .warning)
+                    Badge("Info", variant: .info)
+                    Badge("Muted")
+                }
+            }
+            """) {
+                Grid(columns: 2, spacing: .md) {
+                    Card {
+                        h3("Elevated Card")
+                        p("A surfaced container with a token shadow.")
+                        HStack(spacing: .sm, align: .center) {
+                            Spinner()
+                            Badge("New", variant: .accent)
+                            Badge("3")
+                        }
+                    }
+                    Card(variant: .outlined) {
+                        h3("Outlined Card")
+                        p("Bordered instead of shadowed.")
+                        HStack(spacing: .sm, align: .center) {
+                            Badge("Error", variant: .danger)
+                            Badge("Done", variant: .success)
+                            Badge("Warn", variant: .warning)
+                            Badge("Info", variant: .info)
+                            Badge("Muted")
+                        }
+                    }
+                }
+            }
+            variantSection("Progress", snippet: """
+            ProgressView(value: 0.6)
+            """) {
+                ProgressView(value: 0.6)
+                p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
+                  + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/FormControlsStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class FormControlsStory {
+    @State var name: String = ""
+    @State var email: String = ""
+    @State var subscribed: Bool = false
+    @State var color: String = ""
+    @State var plan: String = "Free"
+    @State var accepted: Bool = false
+    @State var ctrl: FormController = FormController()
+    @State var element: String = ""
+    @State var asyncElement: String = ""
+
+    /// Shared by the sync Autocomplete (static options) and the async one (a loader that
+    /// filters the same list behind a simulated network delay).
+    static let periodicElements: [String] = [
+        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon", "Nitrogen", "Oxygen",
+        "Fluorine", "Neon", "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus", "Sulfur",
+        "Chlorine", "Argon", "Potassium", "Calcium", "Titanium", "Chromium", "Iron", "Cobalt",
+        "Nickel", "Copper", "Zinc", "Silver", "Tin", "Iodine", "Gold", "Mercury", "Lead",
+        "Radon", "Uranium", "Plutonium",
     ]
 
-    static let bigPeople: [DemoPerson] = (0..<2000).map { i in
-        DemoPerson(id: 1000 + i, name: "Person \(i)", age: 18 + (i % 70),
-                   role: ["Engineer", "Researcher", "Inventor", "Designer"][i % 4])
-    }
+    var body: VNode {
+        let emailField = Field("email", $email, $ctrl, .required(), .email)
+        let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
 
-    /// A two-step wizard backed by `@ReducerState`. Demonstrates sync dispatch
-    /// and a fire-and-forget async effect at the call site (no `async` on the handler).
-    var reducerWizardSection: VNode {
-        VStack(spacing: .md, align: .stretch) {
-            h2("Reducer wizard")
-            p("A @ReducerState-backed two-step wizard. \"Next\" and \"Back\" are sync dispatches; "
-              + "\"Submit\" fires an async effect (300 ms simulated round-trip) then dispatches "
-              + "a second action when it completes. The reducer is pure; all async lives at the call site.")
-            embed { SignupWizardView() }
+        return storyPage("Form controls",
+                          blurb: "Text entry, selection, and choice controls, wired with Field(...) "
+                            + "validators where a value needs to be required/typed.") {
+            variantSection("Text & selection", snippet: """
+            TextField("Name", text: $name, placeholder: "Ada Lovelace")
+            TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+            Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+            Autocomplete("Element", selection: $element, options: periodicElements.map { SelectOption($0) })
+            Autocomplete("Element (async)", selection: $asyncElement, loader: { query in … })
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Name", text: $name, placeholder: "Ada Lovelace")
+                        TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+                        Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+                        // A non-address domain on purpose: Chrome forces address autofill onto
+                        // anything it reads as a "Country" field (ignoring autocomplete="off"),
+                        // and that overlay covers the custom listbox.
+                        Autocomplete("Element", selection: $element,
+                                     options: FormControlsStory.periodicElements.map { SelectOption($0) },
+                                     placeholder: "Type to search…")
+                        // Async/remote variant: the loader filters behind a simulated 350ms delay,
+                        // so you see the Searching… state, then results. Debounced (rapid typing
+                        // fires one request) and cancellation-safe via .task(rerunOn:).
+                        Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
+                            try await Task.sleep(nanoseconds: 350_000_000)
+                            return FormControlsStory.periodicElements
+                                .filter { $0.lowercased().contains(query.lowercased()) }
+                                .map { SelectOption($0) }
+                        }, placeholder: "Search the periodic table…")
+                        if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
+                    }
+                }
+            }
+            variantSection("Choice", snippet: """
+            RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
+            Toggle("Subscribe to updates", isOn: $subscribed)
+            Checkbox("I accept the terms", field: termsField)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
+                        Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
+                        Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
+                    }
+                }
+                p("Toggle is a switch (an immediate setting — like Dark mode, top-right); Checkbox is for "
+                  + "confirmation. The email + terms fields use Field(...) + validators — interact then blur "
+                  + "to see the role=alert error and aria-invalid.")
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/GridStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class GridStory {
+    var body: VNode {
+        storyPage("Grid",
+                  blurb: "Grid(columns: 3, spacing: .md) — equal columns via "
+                       + "repeat(3, minmax(0, 1fr)).") {
+            variantSection("3 equal columns", snippet: """
+            Grid(columns: 3, spacing: .md) {
+                for n in 1...6 { card("Cell \\(n)") }
+            }
+            """) {
+                Grid(columns: 3, spacing: .md) {
+                    for n in 1...6 { card("Cell \(n)") }
+                }
+            }
         }
     }
 
@@ -2952,11 +3192,142 @@ final class Demo {
     }
 }
 
-struct DemoPerson: Identifiable {
-    let id: Int
-    let name: String
-    let age: Int
-    let role: String
+"""##,
+                "Sources/App/Stories/IndexStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+import SwiflowRouter
+
+@Component
+final class IndexStory {
+    var body: VNode {
+        storyPage("SwiflowUI Catalog",
+                  blurb: "Every SwiflowUI component, one page each: live variants, "
+                       + "code snippets, and knobs. Pick a component from the navbar.") {
+            Grid(columns: 3, spacing: .md) {
+                for entry in Catalog.stories {
+                    Card(variant: .outlined) {
+                        h3(entry.title)
+                        p(entry.category.rawValue)
+                        embed { Link(Catalog.path(entry.slug), "Open") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/OverlaysStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class OverlaysStory {
+    @State var confirmDelete: Bool = false
+    @State var deleteResult: String = ""
+    @State var showRename: Bool = false
+    @State var fileName: String = "untitled"
+    @ReducerState var toasts: ToastQueue
+
+    var body: VNode {
+        storyPage("Overlays",
+                  blurb: "Alert and Prompt are native <dialog>.showModal() modals — top layer, backdrop, "
+                       + "focus trap and ESC-to-close all native, sharing one .sw-dialog chrome. Prompt "
+                       + "wraps a <form method=\"dialog\">, so Enter submits. The Delete alert demands a "
+                       + "deliberate choice (no backdrop dismiss); Rename opts into dismissOnBackdrop, so "
+                       + "clicking outside cancels it. Backdrop solidifies under prefers-reduced-transparency "
+                       + "and the open animation collapses under prefers-reduced-motion, both via tokens.") {
+            variantSection("Modal dialogs", snippet: """
+            Alert("Delete this item?", isPresented: $confirmDelete,
+                  message: "This can't be undone.") {
+                Button("Cancel", variant: .secondary) { self.confirmDelete = false }
+                Button("Delete", variant: .danger) { self.deleteResult = "Item deleted"; self.confirmDelete = false }
+            }
+            Prompt("Rename file", isPresented: $showRename, text: $fileName,
+                   message: "Enter a new name", placeholder: "untitled",
+                   confirmTitle: "Rename", dismissOnBackdrop: true) { newName in
+                self.fileName = newName.isEmpty ? "untitled" : newName
+            }
+            """) {
+                HStack(spacing: .md, align: .center) {
+                    Button("Delete item…", variant: .secondary) { self.confirmDelete = true }
+                    Button("Rename \(fileName)…", variant: .secondary) { self.showRename = true }
+                    if !deleteResult.isEmpty { Badge(deleteResult, variant: .success) }
+                }
+                // A destructive confirm: backdrop dismiss left OFF (the default) so it's not
+                // closed by accident.
+                Alert("Delete this item?", isPresented: $confirmDelete,
+                      message: "This can't be undone.") {
+                    Button("Cancel", variant: .secondary) { self.confirmDelete = false }
+                    Button("Delete", variant: .danger) { self.deleteResult = "Item deleted"; self.confirmDelete = false }
+                }
+                // Rename opts into backdrop-to-cancel (clicking outside closes without renaming).
+                Prompt("Rename file", isPresented: $showRename, text: $fileName,
+                       message: "Enter a new name", placeholder: "untitled",
+                       confirmTitle: "Rename", dismissOnBackdrop: true) { newName in
+                    // fileName is already bound; this is where an app would persist the change.
+                    self.fileName = newName.isEmpty ? "untitled" : newName
+                }
+            }
+            variantSection("Toasts", snippet: """
+            Button("Toast: success", variant: .ghost) { self.$toasts.show("Saved successfully", .success) }
+            Button("Toast: info", variant: .ghost) { self.$toasts.show("Heads up — sync running") }
+            Button("Toast: warning", variant: .ghost) { self.$toasts.show("Low disk space", .warning) }
+            Button("Toast: error", variant: .ghost) { self.$toasts.show("Couldn't reach the server", .danger) }
+            Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
+            """) {
+                HStack(spacing: .md, align: .center) {
+                    Button("Toast: success", variant: .ghost) { self.$toasts.show("Saved successfully", .success) }
+                    Button("Toast: info", variant: .ghost) { self.$toasts.show("Heads up — sync running") }
+                    Button("Toast: warning", variant: .ghost) { self.$toasts.show("Low disk space", .warning) }
+                    Button("Toast: error", variant: .ghost) { self.$toasts.show("Couldn't reach the server", .danger) }
+                    Button("Clear all", variant: .ghost) { self.$toasts.send(.dismissAll) }
+                }
+            }
+            variantSection("Dropdown menu", snippet: """
+            Dropdown("Actions") {
+                DropdownItem("Edit") { self.$toasts.show("Edit selected") }
+                DropdownItem("Duplicate") { self.$toasts.show("Duplicated", .success) }
+                DropdownItem("Archive", disabled: true) {}
+                DropdownDivider()
+                DropdownItem("Delete", variant: .danger) { self.$toasts.show("Deleted", .danger) }
+            }
+            """) {
+                HStack(spacing: .md, align: .center) {
+                    // Dropdown: a Popover-API menu anchored to its trigger; items close it on
+                    // select (popovertargetaction=hide) and fire a toast here.
+                    Dropdown("Actions") {
+                        DropdownItem("Edit") { self.$toasts.show("Edit selected") }
+                        DropdownItem("Duplicate") { self.$toasts.show("Duplicated", .success) }
+                        DropdownItem("Archive", disabled: true) {}
+                        DropdownDivider()
+                        DropdownItem("Delete", variant: .danger) { self.$toasts.show("Deleted", .danger) }
+                    }
+                }
+            }
+            // Mounted once; toasts are an app-owned queue ($toasts). They auto-dismiss
+            // (4s) or via ✕, removing themselves. Danger toasts announce assertively.
+            ToastStack(queue: $toasts)
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ReducerWizardStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ReducerWizardStory {
+    var body: VNode {
+        storyPage("Reducer wizard",
+                  blurb: "A @ReducerState-backed two-step wizard. \"Next\" and \"Back\" are sync dispatches; "
+                       + "\"Submit\" fires an async effect (300 ms simulated round-trip) then dispatches "
+                       + "a second action when it completes. The reducer is pure; all async lives at the call site.") {
+            embed { SignupWizardView() }
+        }
+    }
 }
 
 // MARK: - Reducer wizard demo
@@ -3008,9 +3379,165 @@ final class SignupWizardView {
     }
 }
 
-@main
-struct App {
-    @MainActor static func main() { Swiflow.render(into: "#app") { Demo() } }
+"""##,
+                "Sources/App/Stories/SpacerStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class SpacerStory {
+    var body: VNode {
+        storyPage("Spacer",
+                  blurb: "A Spacer() between the buttons pushes them to opposite ends.") {
+            variantSection("Push apart", snippet: """
+            HStack(align: .center) {
+                Button("Leading", variant: .secondary) {}
+                Spacer()
+                Button("Trailing", variant: .secondary) {}
+            }
+            """) {
+                Card(variant: .plain) {
+                    HStack(align: .center) {
+                        Button("Leading", variant: .secondary) {}
+                        Spacer()
+                        Button("Trailing", variant: .secondary) {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/StacksStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class StacksStory {
+    var body: VNode {
+        storyPage("Stacks",
+                  blurb: "HStack/VStack with token spacing. Change --sw-space-md "
+                       + "in index.html's <style> to reskin every gap at once.") {
+            variantSection("Horizontal, .md spacing", snippet: """
+            HStack(spacing: .md, align: .center) {
+                Button("One") {}; Button("Two") {}; Button("Three") {}
+            }
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Button("One") {}; Button("Two") {}; Button("Three") {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ThemingStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ThemingStory {
+    var body: VNode {
+        storyPage("Scoped theming",
+                  blurb: "The right-hand group is wrapped in Theme(.accent(\"#dc2626\"), .radius(\"2px\")). "
+                       + "One override re-points --sw-accent; the whole family (fill, ghost text, badge "
+                       + "tint, focus ring) and the radius follow — scoped to that subtree only. The "
+                       + "wrapper uses display:contents, so it sits inline in the row with no layout shift.") {
+            variantSection("Theme(.accent, .radius)", snippet: """
+            Button("Default accent") {}
+            Theme(.accent("#dc2626"), .radius("2px")) {
+                HStack(spacing: .md, align: .center) {
+                    Button("Branded primary") {}
+                    Button("Branded ghost", variant: .ghost) {}
+                    Badge("Tagged", variant: .accent)
+                }
+            }
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Button("Default accent") {}
+                        Theme(.accent("#dc2626"), .radius("2px")) {
+                            HStack(spacing: .md, align: .center) {
+                                Button("Branded primary") {}
+                                Button("Branded ghost", variant: .ghost) {}
+                                Badge("Tagged", variant: .accent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/TooltipStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class TooltipStory {
+    var body: VNode {
+        storyPage("Tooltip",
+                  blurb: "Tooltip wraps any trigger — hover or focus to reveal. Placement defaults to .top; "
+                       + "pass placement: .bottom (or .leading / .trailing) to anchor it on another side. "
+                       + "Pure CSS — no JS, no z-index juggling.") {
+            variantSection("Placement", snippet: """
+            Tooltip("Saved to your library") { Button("Hover or focus me", variant: .secondary) {} }
+            Tooltip("Appears below the trigger", placement: .bottom) { Button("Below") {} }
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Tooltip("Saved to your library") { Button("Hover or focus me", variant: .secondary) {} }
+                        Tooltip("Appears below the trigger", placement: .bottom) { Button("Below") {} }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/StoryHelpers.swift": ##"""
+// Shared page/variant chrome for story pages: a titled page, and per-variant
+// sections showing live output above a collapsible hand-maintained code snippet.
+import Swiflow
+import SwiflowUI
+
+/// A story page: h1 + optional blurb + content.
+@MainActor
+func storyPage(_ title: String, blurb: String? = nil,
+               @ChildrenBuilder content: () -> [VNode]) -> VNode {
+    VStack(spacing: .lg, align: .stretch) {
+        h1(title)
+        if let blurb { p(blurb) }
+        for node in content() { node }
+    }
+}
+
+/// A variant section: titled live output, with the Swift snippet underneath
+/// in a native <details> (collapsed by default).
+///
+/// Parameter named `snippet` (not `code`): the DSL's `<code>` element factory
+/// is literally named `code`, so `code` would collide with the parameter name.
+@MainActor
+func variantSection(_ title: String, snippet: String? = nil,
+                    @ChildrenBuilder content: () -> [VNode]) -> VNode {
+    VStack(spacing: .md, align: .stretch) {
+        h2(title)
+        for node in content() { node }
+        if let snippet {
+            details(.class("story-code")) {
+                summary("Swift")
+                pre { code(snippet) }
+            }
+        }
+        Divider()
+    }
 }
 
 """##,
