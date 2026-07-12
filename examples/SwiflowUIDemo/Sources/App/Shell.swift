@@ -71,6 +71,9 @@ final class Shell {
                 Route("/component/stacks") { StacksStory() }
                 Route("/component/grid") { GridStory() }
                 Route("/component/spacer") { SpacerStory() }
+                Route("/component/button") { ButtonStory() }
+                Route("/component/tooltip") { TooltipStory() }
+                Route("/component/theming") { ThemingStory() }
                 // One Route per story, added as each migrates (Tasks 4–9):
             } notFound: { ctx in
                 NotFoundStory(path: ctx.path)
