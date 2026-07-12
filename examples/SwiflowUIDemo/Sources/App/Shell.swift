@@ -13,6 +13,12 @@ import JavaScriptKit
 @Component
 final class Shell {
     @State var isDark: Bool = false
+    @State var accentChoice: String = "Default"
+    @State var radiusChoice: String = "Default"
+
+    private static let accents: [String: String] = [
+        "Crimson": "#dc2626", "Violet": "#7c3aed", "Emerald": "#059669",
+    ]
 
     var body: VNode {
         VStack(spacing: .none, align: .stretch) {
@@ -20,6 +26,10 @@ final class Shell {
             HStack(align: .center) {
                 h1("SwiflowUI Catalog").style("font-size", "1.1rem")
                 Spacer()
+                Select("Accent", selection: $accentChoice,
+                       options: ["Default", "Crimson", "Violet", "Emerald"], size: .sm)
+                Select("Radius", selection: $radiusChoice,
+                       options: ["Default", "2px", "8px", "16px"], size: .sm)
                 Toggle("Dark mode", isOn: $isDark)
             }
             .padding(.md)
@@ -28,7 +38,7 @@ final class Shell {
             // --- navbar + outlet -----------------------------------------
             HStack(spacing: .none, align: .stretch) {
                 sidebar
-                div(.class("story-outlet")) { outlet }
+                div(.class("story-outlet")) { themedOutlet }
                     .padding(.xl)
                     .style("flex", "1 1 auto")
                     .style("min-width", "0")
@@ -80,10 +90,28 @@ final class Shell {
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
                 Route("/component/reducer-wizard") { ReducerWizardStory() }
-                // One Route per story, added as each migrates (Tasks 4–9):
+                // One Route per story:
             } notFound: { ctx in
                 NotFoundStory(path: ctx.path)
             }
+        }
+    }
+
+    /// Wraps the story outlet in Theme(...) when any playground override is
+    /// active. Theme's overrides are variadic, so the 2×2 combinations are
+    /// enumerated explicitly (no array init on ThemeScope today).
+    private var themedOutlet: VNode {
+        let accent = Shell.accents[accentChoice]
+        let radius = radiusChoice == "Default" ? nil : radiusChoice
+        switch (accent, radius) {
+        case (nil, nil):
+            return outlet
+        case let (a?, nil):
+            return Theme(.accent(a)) { outlet }
+        case let (nil, r?):
+            return Theme(.radius(r)) { outlet }
+        case let (a?, r?):
+            return Theme(.accent(a), .radius(r)) { outlet }
         }
     }
 
