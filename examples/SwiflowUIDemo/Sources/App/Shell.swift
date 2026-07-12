@@ -68,8 +68,10 @@ final class Shell {
         embed {
             RouterRoot {
                 Route("/") { IndexStory() }
-                // One Route per story, added as each migrates (Tasks 3–9):
-                // Route("/component/stacks") { StacksStory() } …
+                Route("/component/stacks") { StacksStory() }
+                Route("/component/grid") { GridStory() }
+                Route("/component/spacer") { SpacerStory() }
+                // One Route per story, added as each migrates (Tasks 4–9):
             } notFound: { ctx in
                 NotFoundStory(path: ctx.path)
             }
