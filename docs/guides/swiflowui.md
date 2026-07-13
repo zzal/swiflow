@@ -290,6 +290,24 @@ exactly like `ToastVariant`: `.danger` is assertive (`role="alert"`,
 `aria-live="assertive"`), the other three are polite (`role="status"`,
 `aria-live="polite"`). Pair it with `Icon` (above) for an icon in the banner.
 
+### Skeleton
+
+```swift
+Skeleton(width: "2.5em", height: "2.5em", radius: "50%")   // avatar circle
+Skeleton(height: "1.25em")                                  // a title-sized bar
+Skeleton(lines: 3)                                          // paragraph placeholder; last line shortens
+```
+
+A stateless shimmering placeholder — Badge's shape (a skinned `<span>`) — for
+content that hasn't loaded yet. Purely decorative: both variants render
+`aria-hidden="true"`, since the real content supplies the accessible
+semantics once it mounts. `radius` overrides the sheet's default
+`border-radius` inline (e.g. `"50%"` for an avatar); omit it to inherit the
+token-driven default. The shimmer animation gates on `animation-play-state:
+var(--sw-anim-play)` — the exact `Spinner` precedent — so
+`prefers-reduced-motion` freezes it into a static block for free, no
+per-component code required.
+
 ## Typed tokens
 
 Reference `--sw-*` tokens by name and a typo fails at compile time — a
