@@ -20,6 +20,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- SwiflowUI indicators & composites: `Skeleton` (reduced-motion-aware shimmer
+  placeholder, with a multi-line text variant), `Avatar` (image with initials
+  fallback; size/shape variants), `Accordion` (native `<details>` disclosure with
+  optional exclusive grouping), `ToggleButtonGroup` (single/multi `aria-pressed`
+  segmented control), and `Pagination` (extracted from DataTable's pager into a
+  shared control that DataTable now consumes) — each with a catalog story.
 - SwiflowUI typography & structure: a registered type-scale/line-height/container
   token set (`--sw-font-size-*`, `--sw-font-weight-*`, `--sw-line-height*`,
   `--sw-container-*`), plus `Text` (variant-mapped typography primitive),
