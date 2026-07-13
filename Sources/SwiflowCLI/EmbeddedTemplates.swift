@@ -2786,6 +2786,12 @@ final class Shell {
             .style("overflow-y", "auto")
         if let accent = Shell.accents[accentChoice] {
             node = node.style(Token.accent.name, accent)
+            // Re-derive the accent family (focus ring, focused borders, hover/active)
+            // from the overridden accent. Those tokens are declared at :root, so a
+            // scoped --sw-accent override doesn't re-resolve them without this — same
+            // set Theme(.accent:) applies. (Inline here, not a Theme wrapper, to keep
+            // the stable-div structure that avoids remounting the routed subtree.)
+            for d in swAccentFamilyDerivations { node = node.style(d.name, d.value) }
         }
         if radiusChoice != "Default" {
             node = node.style(Token.radius.name, radiusChoice)

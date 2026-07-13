@@ -55,6 +55,24 @@ struct ThemeComponentTests {
         #expect(styleOf(Theme { text("x") })["display"] == "contents")
     }
 
+    @Test("Theme(.accent:) re-derives the accent family so focus ring / borders follow") func accentReDerives() {
+        let s = styleOf(Theme(.accent("#dc2626")) { text("x") })
+        #expect(s["--sw-accent"] == "#dc2626")
+        #expect(s["--sw-focus-ring"] == "var(--sw-accent)")     // focused borders + the ring follow
+        #expect(s["--sw-accent-hover"]?.contains("oklch(from var(--sw-accent)") == true)
+        #expect(s["--sw-accent-strong"]?.contains("oklch(from var(--sw-accent)") == true)
+        // Not re-derived when accent isn't overridden.
+        #expect(styleOf(Theme(.radius("4px")) { text("x") })["--sw-focus-ring"] == nil)
+    }
+
+    @Test("the re-derivation constant stays in lockstep with baseStyleSheet's :root") func derivationsMatchRoot() {
+        let root = SwiflowUI.baseStyleSheet.cssString(scopeClass: "")
+        for d in swAccentFamilyDerivations {
+            #expect(root.contains("\(d.name): \(d.value)"),
+                    "\(d.name) derivation drifted from :root — update swAccentFamilyDerivations or Theme.swift together")
+        }
+    }
+
     @Test("Nesting renders nested themed divs, each with its own override")
     func nesting() {
         let outer = Theme(.accent("#7c3aed")) { Theme(.radius("4px")) { text("x") } }
