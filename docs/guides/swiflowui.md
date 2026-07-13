@@ -295,6 +295,33 @@ assertively). `ToastPlacement` defaults to `.bottomTrailing`.
 > a sibling of that element — a query container is a containing block for the fixed
 > stack.
 
+### Popover — an anchored panel
+
+```swift
+Popover(placement: .bottom) {
+    Button("Details…", variant: .secondary) {}
+} content: {
+    p("Extra information about this row.")
+    embed { Link("/docs", "Learn more") }   // Link is a Component — embed it, like anywhere else
+}
+```
+
+The general-purpose sibling of `Dropdown`: same native Popover-API recipe
+(`popover="auto"` + CSS anchor positioning — top layer, native ESC + light-dismiss), but
+no baked-in menu-item shape — any single trigger element reveals any caller content.
+`placement` (`.top`/`.bottom`/`.leading`/`.trailing`) sets the panel's `position-area`
+relative to the trigger. The `trigger` builder must yield exactly one element — Popover
+wires `popovertarget`/`anchor-name` onto it, preserving its own classes/attrs untouched
+(pass a styled `Button`, and its `sw-btn` skin survives). Caller `Attribute...`/`.class`
+land on the panel.
+
+> Light-dismiss and ESC-to-close are native (the Popover API), same as `Dropdown` — no
+> handler wiring required.
+
+> Anchor positioning is Baseline-newer (Chromium/Safari; not yet Firefox). Where it's
+> unsupported the panel still opens (a centered popover), just not anchored to the
+> trigger.
+
 ## Forms
 
 The controls integrate with the framework's `Field`/`Form` (see the
