@@ -20,6 +20,54 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.18] — 2026-07-13
+
+**Beta.** A SwiflowUI polish round from a pass of design-review feedback on the
+component catalog: a redesigned focus treatment, softer default corners, a new
+extra-small size across the kit, and a handful of layout/indicator additions. No
+public function or type was removed; the changes are additive or refine visual
+defaults.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
+### Added
+
+- **A macOS-style focus ring across the whole kit.** `:focus-visible` now draws a
+  3px, half-opaque, accent-colored ring via `box-shadow` (new `--sw-focus-shadow` /
+  `--sw-focus-ring-width` tokens) that hugs each control's border and its
+  `border-radius`, and animates on focus/blur — replacing the old offset `outline`
+  that floated in a gap outside the border. Applied to Button and every form control,
+  then rolled out to the non-form controls (TextLink, Breadcrumbs, Dropdown items,
+  Tabs, Toast close, ToggleButtonGroup, Pagination, DataTable sort headers, and the
+  Accordion summary — which uses an *inset* ring because its item clips overflow). A
+  transparent `outline` stays underneath as the forced-colors fallback.
+- **The accent override now cascades to borders and the focus ring.** Switching the
+  catalog's accent (e.g. Crimson/Emerald) re-derives the accent family — including
+  `--sw-focus-ring` — so borders and rings follow the chosen accent instead of staying
+  the default blue.
+- **`Grid` item span modifiers:** `.colSpan(_:)` / `.rowSpan(_:)` for multi-cell
+  placement, with a catalog example.
+- **An extra-small `.xs` size** added to the shared `ControlSize` scale, styled
+  kit-wide (Button, form controls, Spinner, Avatar, Badge).
+- **`Badge` gains a `size:`** parameter (`.xs`/`.sm`/`.md`/`.lg`, default `.md`) on the
+  shared `ControlSize` scale.
+- **`Container` gains an `.xl` size** (`--sw-container-xl`).
+- **`Accordion` animates open/close**, CSS-native (`::details-content` +
+  `interpolate-size`), reading `--sw-duration` so reduced-motion makes it instant — no
+  JavaScript; the native `<details>` stays native.
+
+### Changed
+
+- **`Container` widths are now `ch`-measured** for readable line lengths —
+  `sm: 30ch`, `md: 60ch`, `lg: 90ch`, `xl: 120ch` — and the default size is now `.lg`.
+- **Softer default corner radius:** `--sw-radius` `8px → 6px` and `--sw-radius-sm`
+  `→ 4px`.
+- **`ControlSize` gained a `.xs` case.** If you exhaustively `switch` over it in your
+  own code you'll need a new branch (it's the library's own size enum; most code reads
+  it via the components).
+
+---
+
 ## [0.4.17] — 2026-07-13
 
 **Beta.** A bug-fix release: the SwiflowUIDemo catalog's sidebar navigation now works.
