@@ -385,6 +385,39 @@ app that wants in-app (SPA) navigation for its crumbs supplies its own wrapper
 itself stays framework-agnostic. Caller `Attribute...`/`.class` merge onto the
 `<nav>`.
 
+### Tabs
+
+```swift
+@State var tab = "overview"
+…
+Tabs(selection: $tab) {
+    Tab("Overview", id: "overview") { p("...") }
+    Tab("Details", id: "details") { p("...") }
+    Tab("Settings", id: "settings") { p("...") }
+}
+```
+
+A WAI-ARIA `role="tablist"` bound to a `Binding<ID>` selection — `ID` can be any
+`Hashable & Sendable` value (a `String`, an `enum`, whatever identifies your tabs).
+Each `Tab(_:id:content:)` supplies a label, its id, and its panel content.
+
+**Keyboard (automatic activation, horizontal only):** ←/→ move between tabs and
+wrap; Home/End jump to the first/last. Moving focus IMMEDIATELY selects the
+target tab — its panel swaps and focus follows in the same step, the APG
+"automatic activation" pattern (as opposed to "manual activation", where focus
+moves and a separate Enter/Space commits the selection). Tab is deliberately
+NOT handled by the roving logic: it leaves the tablist for the next tabbable
+element, same as everywhere else in Swiflow (handlers can't `preventDefault`,
+so hijacking Tab isn't an option regardless).
+
+**All tabs' panels render up front**, always — the inactive ones are simply
+`hidden`, not omitted, so panel-local state and ARIA wiring (`aria-labelledby`,
+`aria-controls`) stay stable across selection changes instead of being torn
+down and rebuilt on every switch.
+
+Caller `Attribute...`/`.class` merge onto the root `.sw-tabs` container. A
+`.vertical` orientation variant is deferred to a future release.
+
 ## Forms
 
 The controls integrate with the framework's `Field`/`Form` (see the

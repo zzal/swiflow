@@ -2598,6 +2598,7 @@ enum Catalog {
         StoryEntry(slug: "popover", title: "Popover", category: .overlays),
         StoryEntry(slug: "textlink", title: "TextLink", category: .navigation),
         StoryEntry(slug: "breadcrumbs", title: "Breadcrumbs", category: .navigation),
+        StoryEntry(slug: "tabs", title: "Tabs", category: .navigation),
         StoryEntry(slug: "datatable", title: "DataTable", category: .data),
         StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
@@ -2703,6 +2704,7 @@ final class Shell {
                 Route("/component/popover") { PopoverStory() }
                 Route("/component/textlink") { TextLinkStory() }
                 Route("/component/breadcrumbs") { BreadcrumbsStory() }
+                Route("/component/tabs") { TabsStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
@@ -3689,6 +3691,57 @@ final class StacksStory {
                 Card(variant: .plain) {
                     HStack(spacing: .md, align: .center) {
                         Button("One") {}; Button("Two") {}; Button("Three") {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/TabsStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class TabsStory {
+    @State var tab: String = "overview"
+
+    var body: VNode {
+        storyPage("Tabs",
+                  blurb: "A WAI-ARIA tablist bound to a Binding<ID> selection. Automatic "
+                       + "activation: ←/→ move between tabs and wrap, Home/End jump to the "
+                       + "ends, and moving focus immediately selects the target tab (its "
+                       + "panel swaps and focus follows) — Tab itself is left alone, so it "
+                       + "still leaves the tablist for the next element. All tabs' panels "
+                       + "render up front (render-all); the inactive ones are simply hidden, "
+                       + "so panel state/ARIA stay stable across selection changes.") {
+            variantSection("Three tabs", snippet: """
+            @State var tab = "overview"
+            …
+            Tabs(selection: $tab) {
+                Tab("Overview", id: "overview") {
+                    p("A quick summary of the project.")
+                }
+                Tab("Details", id: "details") {
+                    p("Everything the overview left out.")
+                }
+                Tab("Settings", id: "settings") {
+                    p("Preferences that affect this view.")
+                }
+            }
+            """) {
+                Card(variant: .plain) {
+                    Tabs(selection: $tab) {
+                        Tab("Overview", id: "overview") {
+                            p("A quick summary of the project.")
+                        }
+                        Tab("Details", id: "details") {
+                            p("Everything the overview left out.")
+                        }
+                        Tab("Settings", id: "settings") {
+                            p("Preferences that affect this view.")
+                        }
                     }
                 }
             }
