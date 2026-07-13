@@ -209,11 +209,12 @@ let buttonStyleSheet: CSSSheet = css {
       cursor: pointer;
       transition: background-color var(--sw-duration) var(--sw-ease),
                   border-color var(--sw-duration) var(--sw-ease),
-                  color var(--sw-duration) var(--sw-ease);
+                  color var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-btn:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;   /* keeps a visible focus under forced-colors */
+      box-shadow: var(--sw-focus-shadow);
     }
     .sw-btn:disabled {
       opacity: var(--sw-disabled-opacity);

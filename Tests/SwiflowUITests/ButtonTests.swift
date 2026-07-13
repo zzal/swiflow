@@ -101,7 +101,7 @@ struct ButtonTests {
         #expect(css.contains("var(--sw-accent)"))
         #expect(css.contains("var(--sw-accent-hover)"))  // hover reads a token, not in-component color-mix
         #expect(css.contains("var(--sw-duration)"))      // transition honors reduced-motion
-        #expect(css.contains("var(--sw-focus-ring)"))    // focus ring honors prefers-contrast
+        #expect(css.contains("var(--sw-focus-shadow)"))  // animated box-shadow focus ring (contrast-adaptive token)
         #expect(css.contains("var(--sw-disabled-opacity)"))
         #expect(css.contains(":focus-visible"))
         #expect(css.contains(":disabled"))
