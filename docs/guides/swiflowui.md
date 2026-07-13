@@ -70,6 +70,45 @@ accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 `trailing` follow text direction). Chained calls compose per-edge, e.g.
 `.padding(.md, .horizontal).padding(.sm, .vertical)` for 16px-horizontal / 8px-vertical.
 
+## Typography
+
+### Text
+
+```swift
+Text("Page title", variant: .title)          // <h1>
+Text("Section heading", variant: .heading)    // <h2>
+Text("Subsection", variant: .subheading)      // <h3>
+Text("Body copy", variant: .body)             // <p> (the default variant)
+Text("Fine print", variant: .caption, color: .muted)   // <p>, smaller
+Text("Field label", variant: .label)          // <span>
+```
+
+`TextVariant` picks both the size/weight from the type scale and the semantic
+tag rendered by default: `.title`→`h1`, `.heading`→`h2`, `.subheading`→`h3`,
+`.body`/`.caption`→`p`, `.label`→`span`. Pass `tag:` to keep a variant's
+styling but render a different element — e.g. a `.heading`-styled `Text` that
+still needs to be the page's only `<h1>`:
+
+```swift
+Text("Styled as a heading, rendered as the page's h1", variant: .heading, tag: "h1")
+```
+
+`weight:` (`TextWeight`: `.regular`/`.medium`/`.semibold`) overrides the
+variant's own weight when set; leave it `nil` (the default) to inherit the
+variant's weight. `color:` (`TextColor`: `.standard`/`.muted`/`.accent`/
+`.danger`/`.success`/`.warning`) tints the text with the matching token's
+`-strong` variant; `.standard` (the default) emits no extra class and just
+takes the base `--sw-text` color.
+
+Named `Text` (capitalized) — the DSL's text-node factory is the lowercase
+`text(_:)`, so there's no collision, and there's no SwiftUI/Foundation `Text`
+on wasm to shadow.
+
+The sizes, weights, and line-heights all come from tokens, so an app can
+re-point the whole type scale: `--sw-font-size-xs/sm/md/lg/xl/2xl`,
+`--sw-font-weight-regular/medium/semibold`, and `--sw-line-height` /
+`--sw-line-height-tight`.
+
 ## Controls
 
 ### Button

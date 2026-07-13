@@ -4,6 +4,7 @@ import Swiflow
 
 enum StoryCategory: String, CaseIterable {
     case layout = "Layout"
+    case typography = "Typography"
     case controls = "Controls"
     case feedback = "Feedback"
     case overlays = "Overlays"
@@ -27,6 +28,7 @@ enum Catalog {
         StoryEntry(slug: "stacks", title: "Stacks", category: .layout),
         StoryEntry(slug: "grid", title: "Grid", category: .layout),
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
+        StoryEntry(slug: "text", title: "Text", category: .typography),
         StoryEntry(slug: "button", title: "Button", category: .controls),
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
         StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
