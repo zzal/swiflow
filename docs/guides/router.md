@@ -136,6 +136,23 @@ embed { Link("/about") { span { text("About Us") } } }
 `Link` renders an `<a>` element and intercepts the click to call
 `router.navigate(path)` without a full-page reload.
 
+> **`Link` must render inside `RouterRoot`.** It reads the active router from the
+> environment (`@Environment(\.router)`), which is only provided to `RouterRoot`'s
+> routed subtree. A `Link` placed in *persistent chrome outside* the outlet — a
+> sidebar or header that is a sibling of `RouterRoot`, not part of a routed page —
+> captures the no-op default router: its click `preventDefault`s the navigation and
+> then does nothing (a DEBUG warning names the cause). For such chrome in the default
+> **hash mode**, a plain anchor navigates natively with no router dependency — the
+> hash change drives `RouterRoot` on its own:
+>
+> ```swift
+> // persistent sidebar OUTSIDE RouterRoot, hash mode:
+> element("a", attributes: [.href("#/about")], children: [text("About")])
+> ```
+>
+> (In history mode there is no native equivalent — keep such navigation inside the
+> routed subtree so `Link` has a live router.)
+
 ### Active state
 
 When a `Link`'s destination matches the current path, it emits
