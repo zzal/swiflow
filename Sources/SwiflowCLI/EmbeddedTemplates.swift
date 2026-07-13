@@ -2592,6 +2592,7 @@ enum Catalog {
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
+        StoryEntry(slug: "modal", title: "Modal", category: .overlays),
         StoryEntry(slug: "datatable", title: "DataTable", category: .data),
         StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
@@ -2692,6 +2693,7 @@ final class Shell {
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
+                Route("/component/modal") { ModalStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
@@ -3216,6 +3218,47 @@ final class IndexStory {
                         h3(entry.title)
                         p(entry.category.rawValue)
                         embed { Link(Catalog.path(entry.slug), "Open") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ModalStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ModalStory {
+    @State var showSettings: Bool = false
+    @State var notifyByEmail: Bool = true
+
+    var body: VNode {
+        storyPage("Modal",
+                  blurb: "Modal is the general-purpose sibling of Alert/Prompt: same native "
+                       + "<dialog>.showModal() machinery (top layer, backdrop, focus trap, ESC-to-close), "
+                       + "but no baked-in title-required/actions-slot opinion — an optional title, a "
+                       + "size (.sm/.md/.lg), and arbitrary content. Unlike Alert, dismissOnBackdrop "
+                       + "defaults to true: a generic modal is a casual overlay, so clicking outside "
+                       + "to leave is the expected affordance. Reach for Alert/Prompt instead when you "
+                       + "specifically need a confirm dialog or a single text-input prompt.") {
+            variantSection("A settings modal", snippet: """
+            Modal(isPresented: $showSettings, title: "Settings", size: .lg) {
+                Toggle("Notify me by email", isOn: self.$notifyByEmail)
+                HStack(spacing: .md, align: .center) {
+                    Spacer()
+                    Button("Close") { self.showSettings = false }
+                }
+            }
+            """) {
+                Button("Settings…", variant: .secondary) { self.showSettings = true }
+                Modal(isPresented: $showSettings, title: "Settings", size: .lg) {
+                    Toggle("Notify me by email", isOn: self.$notifyByEmail)
+                    HStack(spacing: .md, align: .center) {
+                        Spacer()
+                        Button("Close") { self.showSettings = false }
                     }
                 }
             }
