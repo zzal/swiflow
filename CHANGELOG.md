@@ -20,6 +20,26 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.17] — 2026-07-13
+
+**Beta.** A bug-fix release: the SwiflowUIDemo catalog's sidebar navigation now works.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
+### Fixed
+
+- **The `SwiflowUIDemo` catalog's left-sidebar links did nothing when clicked.** The
+  sidebar sits *outside* the `RouterRoot` (it's a sibling of the story outlet), so its
+  `SwiflowRouter.Link`s captured the no-op default router — each click cancelled the
+  native hash navigation and then no-op'd, leaving the links dead. The sidebar now uses
+  plain `#`-hash anchors (which navigate natively in the default hash mode) with
+  active-link marking, and a Playwright spec clicks the links so the path can't regress
+  untested again. The [router guide](docs/guides/router.md) documents the "`Link` must
+  render inside `RouterRoot`" rule. Library code is unchanged — this affects only the
+  scaffolded demo template, so the fix ships in the embedded template of this CLI.
+
+---
+
 ## [0.4.16] — 2026-07-13
 
 **Beta.** The SwiflowUI component round: 17 new Tier-1/2 components across six

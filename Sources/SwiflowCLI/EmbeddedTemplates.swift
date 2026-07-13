@@ -2638,10 +2638,18 @@ final class Shell {
     @State var isDark: Bool = false
     @State var accentChoice: String = "Default"
     @State var radiusChoice: String = "Default"
+    /// The current hash route, mirrored from `location.hash` so the sidebar can
+    /// mark the active link. The Shell sits ABOVE `RouterRoot`, so it doesn't
+    /// re-render on navigation on its own — a `hashchange` listener drives this.
+    @State var currentPath: String = "/"
 
     private static let accents: [String: String] = [
         "Crimson": "#dc2626", "Violet": "#7c3aed", "Emerald": "#059669",
     ]
+
+    #if canImport(JavaScriptKit)
+    private var hashListener: JSClosure? = nil
+    #endif
 
     var body: VNode {
         VStack(spacing: .none, align: .stretch) {
@@ -2674,7 +2682,7 @@ final class Shell {
     private var sidebar: VNode {
         nav(.class("catalog-nav"), .attr("aria-label", "Components")) {
             VStack(spacing: .sm, align: .stretch) {
-                embed { Link("/", "Overview") }
+                navLink("/", "Overview")
                 for category in StoryCategory.allCases
                 where !Catalog.entries(in: category).isEmpty {
                     h2(category.rawValue).style("font-size", "0.75rem")
@@ -2682,7 +2690,7 @@ final class Shell {
                         .style("opacity", "0.6")
                         .style("margin", "var(--sw-space-md) 0 0")
                     for entry in Catalog.entries(in: category) {
-                        embed { Link(Catalog.path(entry.slug), entry.title) }
+                        navLink(Catalog.path(entry.slug), entry.title)
                     }
                 }
             }
@@ -2691,6 +2699,30 @@ final class Shell {
         .style("flex", "0 0 220px")
         .style("overflow-y", "auto")
         .style("border-right", "\(Token.borderWidth.css) solid \(Token.border.css)")
+    }
+
+    /// A sidebar nav link. A PLAIN hash anchor, deliberately NOT `SwiflowRouter.Link`:
+    /// the sidebar sits outside `RouterRoot` (a sibling of the outlet), so a Router
+    /// `Link` here would capture the no-op default router — its click handler would
+    /// `preventDefault()` the native hash navigation and then no-op, giving dead links.
+    /// A plain `#/…` anchor navigates natively; `RouterRoot`'s own `hashchange` listener
+    /// picks it up. Active state is marked from `currentPath` (mirrored via the listener).
+    private func navLink(_ path: String, _ label: String) -> VNode {
+        let active = currentPath == path
+        var attrs: [Attribute] = [
+            .href("#" + path),
+            .style("display", "block"),
+            .style("padding", "var(--sw-space-xs) var(--sw-space-sm)"),
+            .style("border-radius", "var(--sw-radius-sm)"),
+            .style("text-decoration", "none"),
+            .style("font-size", "0.875rem"),
+            .style("color", active ? "var(--sw-accent-strong)" : "var(--sw-text)"),
+            .style("background", active
+                ? "color-mix(in oklab, var(--sw-accent) 12%, transparent)" : "transparent"),
+            .style("font-weight", active ? "600" : "400"),
+        ]
+        if active { attrs.append(.attr("aria-current", "page")) }
+        return element("a", attributes: attrs, children: [text(label)])
     }
 
     private var outlet: VNode {
@@ -2762,8 +2794,52 @@ final class Shell {
     }
 
     // Dark-mode must sync at the document root (see Global Constraints).
-    func onAppear() { syncColorScheme() }
+    func onAppear() {
+        syncColorScheme()
+        syncCurrentPath()
+        startHashListener()
+    }
     func onChange() { syncColorScheme() }
+    func onDisappear() { stopHashListener() }
+
+    /// Read `location.hash` (`"#/component/x"`) into `currentPath` (`"/component/x"`);
+    /// empty hash → `"/"`. Idempotent read-diff-write, so it's cheap to call often.
+    private func syncCurrentPath() {
+        #if canImport(JavaScriptKit)
+        // Subscript access (not `.location`/`.hash` dot-members, which collide with
+        // Swift's own `hash`), mirroring SwiflowRouter's BrowserNavigator.
+        guard let window = JSObject.global.window.object,
+              let location = window["location"].object else { return }
+        let raw = location["hash"].string ?? ""
+        let stripped = raw.hasPrefix("#") ? String(raw.dropFirst()) : raw
+        let next = stripped.isEmpty ? "/" : stripped
+        if currentPath != next { currentPath = next }
+        #endif
+    }
+
+    /// Mirror hash navigations into `currentPath` so the active nav link updates.
+    /// The Shell is above `RouterRoot`, so it doesn't re-render on route change by
+    /// itself — this window listener (the same mechanism `RouterRoot` uses) drives it.
+    private func startHashListener() {
+        #if canImport(JavaScriptKit)
+        guard hashListener == nil, let window = JSObject.global.window.object else { return }
+        let closure = JSClosure { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncCurrentPath() }
+            return .undefined
+        }
+        _ = window.addEventListener!("hashchange", closure)
+        hashListener = closure
+        #endif
+    }
+
+    private func stopHashListener() {
+        #if canImport(JavaScriptKit)
+        if let window = JSObject.global.window.object, let closure = hashListener {
+            _ = window.removeEventListener!("hashchange", closure)
+        }
+        hashListener = nil
+        #endif
+    }
 
     private func syncColorScheme() {
         #if canImport(JavaScriptKit)
