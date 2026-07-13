@@ -90,9 +90,10 @@ public enum SwiflowUI {
         @property --sw-font-weight-semibold { syntax: "<number>"; inherits: true; initial-value: 600; }
         @property --sw-line-height { syntax: "<number>"; inherits: true; initial-value: 1.5; }
         @property --sw-line-height-tight { syntax: "<number>"; inherits: true; initial-value: 1.25; }
-        @property --sw-container-sm { syntax: "<length>"; inherits: true; initial-value: 40rem; }
-        @property --sw-container-md { syntax: "<length>"; inherits: true; initial-value: 60rem; }
-        @property --sw-container-lg { syntax: "<length>"; inherits: true; initial-value: 80rem; }
+        @property --sw-container-sm { syntax: "<length>"; inherits: true; initial-value: 30ch; }
+        @property --sw-container-md { syntax: "<length>"; inherits: true; initial-value: 60ch; }
+        @property --sw-container-lg { syntax: "<length>"; inherits: true; initial-value: 90ch; }
+        @property --sw-container-xl { syntax: "<length>"; inherits: true; initial-value: 120ch; }
 
         @layer swiflow.base {
         :root {
@@ -119,9 +120,10 @@ public enum SwiflowUI {
           --sw-line-height-tight: 1.25;
 
           /* container widths (M14) */
-          --sw-container-sm: 40rem;
-          --sw-container-md: 60rem;
-          --sw-container-lg: 80rem;
+          --sw-container-sm: 30ch;
+          --sw-container-md: 60ch;
+          --sw-container-lg: 90ch;
+          --sw-container-xl: 120ch;
 
           /* radii */
           --sw-radius-sm: 4px;

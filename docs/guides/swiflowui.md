@@ -73,16 +73,18 @@ accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 ### Container
 
 ```swift
-Container { … }              // centered, max-width: --sw-container-md (60rem)
-Container(size: .sm) { … }   // --sw-container-sm (40rem)
-Container(size: .lg) { … }   // --sw-container-lg (80rem)
+Container { … }              // centered, max-width: --sw-container-lg (90ch, default)
+Container(size: .sm) { … }   // --sw-container-sm (30ch)
+Container(size: .md) { … }   // --sw-container-md (60ch)
+Container(size: .xl) { … }   // --sw-container-xl (120ch)
 ```
 
 The page shell most apps wrap their content in: a stateless `<div>` that centers
 itself (`margin-inline: auto`) once it hits its `max-width`, with `padding-inline:
 --sw-space-md` keeping content off the viewport edge below that width. `size` maps
-to one of the `--sw-container-{sm,md,lg}` tokens (`Theme.swift`; 40/60/80rem by
-default) — re-point those tokens to retheme every `Container` in an app at once.
+to one of the `--sw-container-{sm,md,lg,xl}` tokens (`Theme.swift`; 30/60/90/120ch by
+default — `ch` units so the band tracks a readable line length) — re-point those
+tokens to retheme every `Container` in an app at once. The default is `.lg`.
 
 ### Accordion
 

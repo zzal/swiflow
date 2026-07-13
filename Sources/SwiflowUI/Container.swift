@@ -1,17 +1,19 @@
 // Sources/SwiflowUI/Container.swift
 import Swiflow
 
-/// Max-width band of a `Container`: `.sm`/`.md`/`.lg` map onto the
-/// `--sw-container-{sm,md,lg}` tokens (Theme.swift; 40/60/80rem by default —
-/// re-point them to retheme every `Container` in an app at once). Maps to a
-/// `sw-container--<variant>` class (Badge's shape).
+/// Max-width band of a `Container`: `.sm`/`.md`/`.lg`/`.xl` map onto the
+/// `--sw-container-{sm,md,lg,xl}` tokens (Theme.swift; 30/60/90/120ch by default,
+/// i.e. character-measure widths for readable line lengths — re-point them to
+/// retheme every `Container` in an app at once). Maps to a `sw-container--<variant>`
+/// class (Badge's shape).
 public enum ContainerSize: Equatable {
-    case sm, md, lg
+    case sm, md, lg, xl
     var modifierClass: String {
         switch self {
         case .sm: return "sm"
         case .md: return "md"
         case .lg: return "lg"
+        case .xl: return "xl"
         }
     }
 }
@@ -21,11 +23,11 @@ public enum ContainerSize: Equatable {
 /// once it hits its `max-width`; `padding-inline` keeps content off the viewport
 /// edge below that width. Caller `Attribute...`/`.class` merge onto the root.
 ///
-///     Container { Text("Page content") }
+///     Container { Text("Page content") }        // .lg by default
 ///     Container(size: .sm) { LoginForm() }
 @MainActor
 public func Container(
-    size: ContainerSize = .md,
+    size: ContainerSize = .lg,
     _ attributes: Attribute...,
     @ChildrenBuilder content: () -> [VNode]
 ) -> VNode {
@@ -44,5 +46,6 @@ let containerStyleSheet: CSSSheet = css {
     .sw-container--sm { max-width: var(--sw-container-sm); }
     .sw-container--md { max-width: var(--sw-container-md); }
     .sw-container--lg { max-width: var(--sw-container-lg); }
+    .sw-container--xl { max-width: var(--sw-container-xl); }
     """)
 }
