@@ -221,11 +221,13 @@ let tabsStyleSheet: CSSSheet = css {
       font: inherit;
       cursor: pointer;
       margin-bottom: -1px;
+      border-radius: var(--sw-radius-sm) var(--sw-radius-sm) 0 0;
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-tabs__tab:hover { color: var(--sw-text); }
     .sw-tabs__tab:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: -2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     .sw-tabs__tab[aria-selected="true"] {
       color: var(--sw-accent);
@@ -234,10 +236,12 @@ let tabsStyleSheet: CSSSheet = css {
 
     .sw-tabs__panel {
       padding-block: var(--sw-space-md);
+      border-radius: var(--sw-radius-sm);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-tabs__panel:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     """)
 }

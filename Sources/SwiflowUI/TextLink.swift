@@ -46,12 +46,13 @@ let textLinkStyleSheet: CSSSheet = css {
       text-underline-offset: 0.15em;
       text-decoration-thickness: from-font;
       border-radius: var(--sw-radius-sm);
-      transition: color var(--sw-duration) var(--sw-ease);
+      transition: color var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-link:hover { color: var(--sw-accent-hover); }
     .sw-link:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     """)
 }
