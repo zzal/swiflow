@@ -18,6 +18,22 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.4.16] — 2026-07-13
+
+**Beta.** The SwiflowUI component round: 17 new Tier-1/2 components across six
+milestones — form controls (`TextArea`/`NumberField`/`Slider`), overlays
+(`Modal`/`Popover`), navigation & content (`TextLink`/`Callout`/`Breadcrumbs`/
+`Tabs`), typography & structure (a registered type-scale token layer plus
+`Text`/`Container`/`Icon`), and indicators & composites (`Skeleton`/`Avatar`/
+`Accordion`/`ToggleButtonGroup`/`Pagination`) — plus a rebuilt, Storybook-style
+component catalog. `Pagination` is factored out of `DataTable`'s pager, which now
+consumes it; the `--sw-*` class it renders changed but the `DataTable` public API
+did not.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
 ### Added
 
 - SwiflowUI indicators & composites: `Skeleton` (reduced-motion-aware shimmer
