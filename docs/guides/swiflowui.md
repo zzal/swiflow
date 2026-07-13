@@ -256,6 +256,22 @@ supported, with a native fallback. `RadioGroup` is a `<fieldset>`/`<legend>` wit
 roving focus. `options` take `SelectOption`s (string-literal-convertible). Both have
 `field:` forms.
 
+### ToggleButtonGroup
+
+```swift
+ToggleButtonGroup(selection: $align, options: ["left", "center", "right"])          // single: exactly one pressed
+ToggleButtonGroup(selection: $formats, options: ["bold", "italic", "underline"])    // multi: toggles Set membership
+```
+
+A segmented control: `role="group"` of native `<button type="button"
+aria-pressed>`, String-keyed like `RadioGroup`/`Select` (`options: [String]`, id ==
+label). Two overloads — `Binding<String>` (single-select: exactly one button
+pressed) and `Binding<Set<String>>` (multi-select: tapping toggles membership) —
+share one private lowering. `aria-pressed` is the WAI-ARIA toggle-button pattern,
+valid for both one and several simultaneously-pressed buttons. **No roving
+focus** — each button keeps its own place in Tab order; for strict single-select
+*with* roving, use `RadioGroup` (radio roving) or `Tabs` (tablist roving) instead.
+
 ## Feedback & display
 
 ```swift

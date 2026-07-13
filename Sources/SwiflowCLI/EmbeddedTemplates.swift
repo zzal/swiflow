@@ -2591,6 +2591,7 @@ enum Catalog {
         StoryEntry(slug: "text", title: "Text", category: .typography),
         StoryEntry(slug: "button", title: "Button", category: .controls),
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
+        StoryEntry(slug: "toggle-button-group", title: "ToggleButtonGroup", category: .controls),
         StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
         StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
         StoryEntry(slug: "slider", title: "Slider", category: .controls),
@@ -2703,6 +2704,7 @@ final class Shell {
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
+                Route("/component/toggle-button-group") { ToggleButtonGroupStory() }
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
                 Route("/component/slider") { SliderStory() }
@@ -4202,6 +4204,46 @@ final class ThemingStory {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ToggleButtonGroupStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ToggleButtonGroupStory {
+    @State var align: String = "left"
+    @State var formats: Set<String> = ["bold"]
+
+    var body: VNode {
+        storyPage("ToggleButtonGroup",
+                  blurb: "A segmented control of role=group buttons (aria-pressed) — String-keyed "
+                       + "like RadioGroup/Select, in single- and multi-select flavors sharing one "
+                       + "lowering. No roving focus: buttons are independently tabbable — for strict "
+                       + "single-select with roving, use RadioGroup or Tabs instead.") {
+            variantSection("Single-select", snippet: """
+            @State var align = "left"
+            …
+            ToggleButtonGroup(selection: $align, options: ["left", "center", "right"])
+            """) {
+                VStack(spacing: .md, align: .stretch) {
+                    ToggleButtonGroup(selection: $align, options: ["left", "center", "right"])
+                    p("Aligned: \(align)")
+                }
+            }
+            variantSection("Multi-select", snippet: """
+            @State var formats: Set<String> = ["bold"]
+            …
+            ToggleButtonGroup(selection: $formats, options: ["bold", "italic", "underline"])
+            """) {
+                VStack(spacing: .md, align: .stretch) {
+                    ToggleButtonGroup(selection: $formats, options: ["bold", "italic", "underline"])
+                    p("Active: \(formats.sorted().joined(separator: ", "))")
                 }
             }
         }

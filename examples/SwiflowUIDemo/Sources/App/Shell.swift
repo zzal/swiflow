@@ -82,6 +82,7 @@ final class Shell {
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
+                Route("/component/toggle-button-group") { ToggleButtonGroupStory() }
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
                 Route("/component/slider") { SliderStory() }
