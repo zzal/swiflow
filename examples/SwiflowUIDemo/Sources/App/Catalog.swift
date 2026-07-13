@@ -37,6 +37,7 @@ enum Catalog {
         StoryEntry(slug: "slider", title: "Slider", category: .controls),
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "skeleton", title: "Skeleton", category: .feedback),
+        StoryEntry(slug: "avatar", title: "Avatar", category: .feedback),
         StoryEntry(slug: "icon", title: "Icon", category: .feedback),
         StoryEntry(slug: "callout", title: "Callout", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),

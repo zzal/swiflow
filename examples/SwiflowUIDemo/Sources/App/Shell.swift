@@ -86,6 +86,7 @@ final class Shell {
                 Route("/component/slider") { SliderStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/skeleton") { SkeletonStory() }
+                Route("/component/avatar") { AvatarStory() }
                 Route("/component/icon") { IconStory() }
                 Route("/component/callout") { CalloutStory() }
                 Route("/component/tooltip") { TooltipStory() }

@@ -308,6 +308,28 @@ var(--sw-anim-play)` — the exact `Spinner` precedent — so
 `prefers-reduced-motion` freezes it into a static block for free, no
 per-component code required.
 
+### Avatar
+
+```swift
+Avatar("Ada Lovelace", src: "https://example.com/ada.png")   // <img>, sanitized src + alt=name
+Avatar("Ada Lovelace")                                        // no src → "AL" initials
+Avatar("Grace Hopper", size: .lg, shape: .rounded)             // ControlSize + AvatarShape
+```
+
+A user/entity picture — Badge's shape, sized via the shared `ControlSize`
+(`.sm`/`.md`/`.lg`) scale. With `src`, renders an `<img>` — the URL folds
+through `URLSanitizer` via `.src`, exactly like `TextLink`'s `href` (a
+`javascript:` src is neutralized). Without `src`, renders a `<span role="img"
+aria-label=name>` filled with `avatarInitials(name)` — the first letter of the
+first up to two whitespace-separated words in `name`, uppercased (an
+empty/whitespace-only `name` shows "?" rather than a blank label);
+`role`/`aria-label` stand in for the `alt` text an `<img>` would otherwise
+carry. `AvatarShape` (`.circle`/`.rounded`/`.square`) maps to a
+`sw-avatar--<shape>` class. There's no automatic image-load-error fallback
+(e.g. swapping to initials when `src` 404s) — that would need a load-failure
+signal this stateless free function has no seam for; an app that needs it can
+track the failure itself and re-render with a different `src`/`name`.
+
 ## Typed tokens
 
 Reference `--sw-*` tokens by name and a typo fails at compile time — a
