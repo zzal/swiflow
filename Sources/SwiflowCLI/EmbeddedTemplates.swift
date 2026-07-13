@@ -3153,17 +3153,20 @@ final class ContainerStory {
     var body: VNode {
         storyPage("Container",
                   blurb: "The simplest layout primitive: a stateless centered max-width div over the "
-                       + "--sw-container-{sm,md,lg} tokens — the page shell most apps wrap their content "
-                       + "in. margin-inline: auto centers it once it hits its max-width.") {
+                       + "--sw-container-{sm,md,lg,xl} tokens (character-measure widths for readable "
+                       + "line lengths) — the page shell most apps wrap their content in. margin-inline: "
+                       + "auto centers it once it hits its max-width. Default size is .lg.") {
             variantSection("Widths", snippet: """
-            Container(size: .sm) { tintedCard("sm — 40rem") }
-            Container(size: .md) { tintedCard("md — 60rem (default)") }
-            Container(size: .lg) { tintedCard("lg — 80rem") }
+            Container(size: .sm) { tintedCard("sm — 30ch") }
+            Container(size: .md) { tintedCard("md — 60ch") }
+            Container(size: .lg) { tintedCard("lg — 90ch (default)") }
+            Container(size: .xl) { tintedCard("xl — 120ch") }
             """) {
                 VStack(spacing: .md, align: .stretch) {
-                    Container(size: .sm) { tintedCard("sm — 40rem") }
-                    Container(size: .md) { tintedCard("md — 60rem (default)") }
-                    Container(size: .lg) { tintedCard("lg — 80rem") }
+                    Container(size: .sm) { tintedCard("sm — 30ch") }
+                    Container(size: .md) { tintedCard("md — 60ch") }
+                    Container(size: .lg) { tintedCard("lg — 90ch (default)") }
+                    Container(size: .xl) { tintedCard("xl — 120ch") }
                 }
             }
         }

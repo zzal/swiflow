@@ -90,6 +90,7 @@ public struct Token: Sendable, Equatable {
     public static let containerSm = Token("--sw-container-sm")
     public static let containerMd = Token("--sw-container-md")
     public static let containerLg = Token("--sw-container-lg")
+    public static let containerXl = Token("--sw-container-xl")
 
     /// The whole vocabulary — powers the TokenTests anti-drift sweep.
     static let all: [Token] = [
@@ -104,7 +105,7 @@ public struct Token: Sendable, Equatable {
         .fontSizeXs, .fontSizeSm, .fontSizeMd, .fontSizeLg, .fontSizeXl, .fontSize2xl,
         .fontWeightRegular, .fontWeightMedium, .fontWeightSemibold,
         .lineHeight, .lineHeightTight,
-        .containerSm, .containerMd, .containerLg,
+        .containerSm, .containerMd, .containerLg, .containerXl,
     ]
 }
 

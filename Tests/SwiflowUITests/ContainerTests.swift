@@ -1,7 +1,8 @@
 // Tests/SwiflowUITests/ContainerTests.swift
 // Container is the simplest layout primitive: a stateless centered max-width
-// <div> over the --sw-container-{sm,md,lg} tokens (Badge's shape — variant enum
+// <div> over the --sw-container-{sm,md,lg,xl} tokens (Badge's shape — variant enum
 // with a modifierClass → sw-container--<variant>, caller attrs/.class merge).
+// Default size is .lg.
 import Testing
 import Swiflow
 @testable import SwiflowUI
@@ -14,15 +15,16 @@ import Swiflow
 @Suite("Container")
 @MainActor
 struct ContainerTests {
-    @Test("renders a div with the default md variant class") func renders() {
+    @Test("renders a div with the default lg variant class") func renders() {
         let c = el(Container { text("x") })!
         #expect(c.tag == "div")
-        #expect(c.attributes["class"] == "sw-container sw-container--md")
+        #expect(c.attributes["class"] == "sw-container sw-container--lg")
     }
 
-    @Test("sm/lg variants map to the modifier class") func variants() {
+    @Test("sm/md/xl variants map to the modifier class") func variants() {
         #expect(el(Container(size: .sm) { text("x") })!.attributes["class"] == "sw-container sw-container--sm")
-        #expect(el(Container(size: .lg) { text("x") })!.attributes["class"] == "sw-container sw-container--lg")
+        #expect(el(Container(size: .md) { text("x") })!.attributes["class"] == "sw-container sw-container--md")
+        #expect(el(Container(size: .xl) { text("x") })!.attributes["class"] == "sw-container sw-container--xl")
     }
 
     @Test("children render in order") func childrenOrder() {
@@ -33,7 +35,7 @@ struct ContainerTests {
 
     @Test("caller attributes and class merge onto the container") func callerMerge() {
         let c = el(Container(.class("hero"), .attr("id", "page-shell")) { text("x") })!
-        #expect(c.attributes["class"] == "sw-container sw-container--md hero")
+        #expect(c.attributes["class"] == "sw-container sw-container--lg hero")
         #expect(c.attributes["id"] == "page-shell")
     }
 }
