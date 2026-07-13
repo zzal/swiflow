@@ -239,6 +239,39 @@ Card(variant: .plain) { … }                  // the bare padded surface — no
 Badge("New", variant: .accent)               // pill; .neutral/.accent/.info/.success/.warning/.danger
 ```
 
+### Icon — a bring-your-own-SVG seam
+
+```swift
+Icon(checkSVG)                                       // decorative — aria-hidden, no role
+Icon(checkSVG, size: .lg)                            // .sm 0.875em / .md 1em (default) / .lg 1.5em
+Icon(checkSVG, .style("color", Token.accent.css))    // tinted — see below
+Icon(closeSVG, label: "Close")                        // the icon IS the accessible name
+```
+
+There's no bundled icon set — apps bring their own `<svg>…</svg>` markup as a
+trusted, hand-authored (or hand-copied) Swift string constant, not user input.
+The js-driver builds every DOM node via `document.createElement`, which has no
+SVG namespace, so an `element("svg")` VNode would render a dead
+`HTMLUnknownElement`. `Icon` sidesteps that: it renders a `<span>`, sized in
+`em`s so it tracks the surrounding text, filled with `background-color:
+currentColor`, and clipped to the caller's SVG shape via CSS `mask`/
+`-webkit-mask` on a percent-encoded data URI — the same technique the library
+already uses for `.sw-dropdown__caret` and Select's `::picker-icon`.
+
+Because a mask only carries alpha, the rendered icon is always exactly the
+current text color — **single-color art only**. Tint an `Icon` with
+`.style("color", Token.accent.css)`, or nest it under a colored parent; for
+genuinely multi-color art (a two-tone logo, a colored illustration), render
+the SVG directly via `rawHTML(_:)` instead — that escape hatch injects
+trusted markup via `innerHTML`, bypassing both the mask and the
+DOM-namespace limitation.
+
+`label: nil` (the default) renders the icon as purely decorative
+(`aria-hidden="true"`, no role) — use this when adjacent visible text already
+conveys the meaning (a checkmark beside "Saved"). Pass `label:` when the icon
+is the *only* conveyor of meaning, e.g. an icon-only button — it then renders
+`role="img"` + `aria-label`, with no `aria-hidden`.
+
 ### Callout — a status banner
 
 ```swift
@@ -255,7 +288,7 @@ item). `title` is optional; the `actions` slot is only rendered when non-empty.
 `CalloutVariant` (`.info`/`.success`/`.warning`/`.danger`) maps to `role`/`aria-live`
 exactly like `ToastVariant`: `.danger` is assertive (`role="alert"`,
 `aria-live="assertive"`), the other three are polite (`role="status"`,
-`aria-live="polite"`). No icon — that lands in M14.
+`aria-live="polite"`). Pair it with `Icon` (above) for an icon in the banner.
 
 ## Typed tokens
 
