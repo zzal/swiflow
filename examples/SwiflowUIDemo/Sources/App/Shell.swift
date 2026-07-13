@@ -89,6 +89,7 @@ final class Shell {
                 Route("/component/modal") { ModalStory() }
                 Route("/component/popover") { PopoverStory() }
                 Route("/component/textlink") { TextLinkStory() }
+                Route("/component/breadcrumbs") { BreadcrumbsStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }

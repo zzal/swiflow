@@ -2597,6 +2597,7 @@ enum Catalog {
         StoryEntry(slug: "modal", title: "Modal", category: .overlays),
         StoryEntry(slug: "popover", title: "Popover", category: .overlays),
         StoryEntry(slug: "textlink", title: "TextLink", category: .navigation),
+        StoryEntry(slug: "breadcrumbs", title: "Breadcrumbs", category: .navigation),
         StoryEntry(slug: "datatable", title: "DataTable", category: .data),
         StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
@@ -2701,6 +2702,7 @@ final class Shell {
                 Route("/component/modal") { ModalStory() }
                 Route("/component/popover") { PopoverStory() }
                 Route("/component/textlink") { TextLinkStory() }
+                Route("/component/breadcrumbs") { BreadcrumbsStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
@@ -2765,6 +2767,40 @@ final class NotFoundStory {
     var body: VNode {
         storyPage("Not found", blurb: "No story at \(path).") {
             embed { Link("/", "Back to overview") }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/BreadcrumbsStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class BreadcrumbsStory {
+    var body: VNode {
+        storyPage("Breadcrumbs",
+                  blurb: "A stateless <nav aria-label=\"Breadcrumb\"> + <ol> trail. The last crumb is "
+                       + "always the current page — plain text with aria-current=\"page\", never a link, "
+                       + "even if given an href. Renders plain sanitized <a> anchors (never SwiflowRouter "
+                       + "Link), so it stays usable with or without a router.") {
+            variantSection("Trail", snippet: """
+            Breadcrumbs([
+                Crumb("Home", href: "/"),
+                Crumb("Products", href: "/products"),
+                Crumb("Widgets", href: "/products/widgets"),
+                Crumb("Blue Widget"),
+            ])
+            """) {
+                Card(variant: .plain) {
+                    Breadcrumbs([
+                        Crumb("Home", href: "/"),
+                        Crumb("Products", href: "/products"),
+                        Crumb("Widgets", href: "/products/widgets"),
+                        Crumb("Blue Widget"),
+                    ])
+                }
+            }
         }
     }
 }
