@@ -221,6 +221,7 @@ let buttonStyleSheet: CSSSheet = css {
     }
 
     /* sizes */
+    .sw-btn--xs { padding: 0.125rem var(--sw-space-xs); font-size: 0.8125rem; }
     .sw-btn--sm { padding: var(--sw-space-xs) var(--sw-space-sm); font-size: 0.875rem; }
     .sw-btn--md { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-btn--lg { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }

@@ -18,7 +18,7 @@ final class ButtonStory {
         }
     }
     private var size: ControlSize {
-        switch sizeName { case "sm": .sm; case "lg": .lg; default: .md }
+        switch sizeName { case "xs": .xs; case "sm": .sm; case "lg": .lg; default: .md }
     }
 
     var body: VNode {
@@ -44,12 +44,14 @@ final class ButtonStory {
                 }
             }
             variantSection("Sizes", snippet: """
+            Button("X-Small", size: .xs) {}
             Button("Small", size: .sm) {}
             Button("Medium", size: .md) {}
             Button("Large", size: .lg) {}
             """) {
                 Card(variant: .plain) {
                     HStack(spacing: .md, align: .center) {
+                        Button("X-Small", size: .xs) {}
                         Button("Small", size: .sm) {}
                         Button("Medium", size: .md) {}
                         Button("Large", size: .lg) {}
@@ -63,7 +65,7 @@ final class ButtonStory {
                         Select("Variant", selection: $variantName,
                                options: ["primary", "secondary", "ghost", "danger"])
                         RadioGroup("Size", selection: $sizeName,
-                                   options: ["sm", "md", "lg"], size: .sm)
+                                   options: ["xs", "sm", "md", "lg"], size: .sm)
                         Toggle("Disabled", isOn: $disabled)
                         Divider()
                         HStack(align: .center) {

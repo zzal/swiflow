@@ -68,11 +68,12 @@ public enum CrossAlign: Equatable {
 /// concrete padding / font-size live in each control's stylesheet, so sizing
 /// stays token-driven and reskinnable.
 public enum ControlSize: Equatable {
-    case sm, md, lg
+    case xs, sm, md, lg
     /// The `--<control>--<size>` modifier-class token (e.g. `sw-btn--sm`).
     /// Internal: an implementation detail of the `.sw-*` stylesheet, not API.
     var modifierClass: String {
         switch self {
+        case .xs: return "xs"
         case .sm: return "sm"
         case .md: return "md"
         case .lg: return "lg"
