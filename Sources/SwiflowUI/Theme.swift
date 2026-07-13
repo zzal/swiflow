@@ -79,6 +79,20 @@ public enum SwiflowUI {
         @property --sw-info-strong { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
         @property --sw-border { syntax: "<color>"; inherits: true; initial-value: #e5e7eb; }
         @property --sw-focus-ring { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
+        @property --sw-font-size-xs { syntax: "<length>"; inherits: true; initial-value: 0.75rem; }
+        @property --sw-font-size-sm { syntax: "<length>"; inherits: true; initial-value: 0.875rem; }
+        @property --sw-font-size-md { syntax: "<length>"; inherits: true; initial-value: 1rem; }
+        @property --sw-font-size-lg { syntax: "<length>"; inherits: true; initial-value: 1.125rem; }
+        @property --sw-font-size-xl { syntax: "<length>"; inherits: true; initial-value: 1.5rem; }
+        @property --sw-font-size-2xl { syntax: "<length>"; inherits: true; initial-value: 2rem; }
+        @property --sw-font-weight-regular { syntax: "<number>"; inherits: true; initial-value: 400; }
+        @property --sw-font-weight-medium { syntax: "<number>"; inherits: true; initial-value: 500; }
+        @property --sw-font-weight-semibold { syntax: "<number>"; inherits: true; initial-value: 600; }
+        @property --sw-line-height { syntax: "<number>"; inherits: true; initial-value: 1.5; }
+        @property --sw-line-height-tight { syntax: "<number>"; inherits: true; initial-value: 1.25; }
+        @property --sw-container-sm { syntax: "<length>"; inherits: true; initial-value: 40rem; }
+        @property --sw-container-md { syntax: "<length>"; inherits: true; initial-value: 60rem; }
+        @property --sw-container-lg { syntax: "<length>"; inherits: true; initial-value: 80rem; }
 
         @layer swiflow.base {
         :root {
@@ -90,6 +104,24 @@ public enum SwiflowUI {
           --sw-space-md: 0.75rem;
           --sw-space-lg: 1.25rem;
           --sw-space-xl: 2rem;
+
+          /* type scale (M14) */
+          --sw-font-size-xs: 0.75rem;
+          --sw-font-size-sm: 0.875rem;
+          --sw-font-size-md: 1rem;
+          --sw-font-size-lg: 1.125rem;
+          --sw-font-size-xl: 1.5rem;
+          --sw-font-size-2xl: 2rem;
+          --sw-font-weight-regular: 400;
+          --sw-font-weight-medium: 500;
+          --sw-font-weight-semibold: 600;
+          --sw-line-height: 1.5;
+          --sw-line-height-tight: 1.25;
+
+          /* container widths (M14) */
+          --sw-container-sm: 40rem;
+          --sw-container-md: 60rem;
+          --sw-container-lg: 80rem;
 
           /* radii */
           --sw-radius-sm: 4px;
