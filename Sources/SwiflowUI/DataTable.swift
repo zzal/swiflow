@@ -756,8 +756,10 @@ let dataTableSheet: CSSSheet = css {
     .sw-table__sort {
       all: unset; cursor: pointer; font: inherit; font-weight: inherit;
       display: inline-flex; align-items: center; gap: 0.25em; width: 100%;
+      border-radius: var(--sw-radius-sm);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
-    .sw-table__sort:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .sw-table__sort:focus-visible { outline: 2px solid transparent; box-shadow: var(--sw-focus-shadow); }
     .sw-table__select { width: 1px; white-space: nowrap; text-align: center; }
     .sw-table__empty, .sw-table__loading {
       padding: var(--sw-space-lg); text-align: center; color: var(--sw-text-muted);

@@ -139,11 +139,15 @@ let accordionStyleSheet: CSSSheet = css {
       list-style: none;
       font-weight: var(--sw-font-weight-medium);
       color: var(--sw-text);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-accordion__summary::-webkit-details-marker { display: none; }
+    /* Inset ring: the item's `overflow: hidden` (for the panel-slide clip) would
+       clip an outset box-shadow, so hug the summary from the inside instead. Same
+       half-opaque accent color as --sw-focus-shadow, animated + accent-following. */
     .sw-accordion__summary:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: -2px;
+      outline: 2px solid transparent;
+      box-shadow: inset 0 0 0 var(--sw-focus-ring-width) color-mix(in oklab, var(--sw-focus-ring) 50%, transparent);
     }
     /* The same chevron as Select/Dropdown (shared SVG mask), rotating on the
        <details>'s native [open] attribute — no JS. */

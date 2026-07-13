@@ -342,11 +342,12 @@ let dropdownStyleSheet: CSSSheet = css {
       border-radius: var(--sw-radius-sm);
       font: inherit;
       cursor: pointer;
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-dropdown__item:hover:not([inert]) { background-color: var(--sw-surface-2); }
     .sw-dropdown__item:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: -2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     .sw-dropdown__item--danger { color: var(--sw-danger-strong); }
     .sw-dropdown__item[inert] { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }

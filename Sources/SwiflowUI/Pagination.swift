@@ -79,8 +79,9 @@ let paginationSheet: CSSSheet = css {
       all: unset; cursor: pointer; font: inherit;
       padding: var(--sw-space-xs) var(--sw-space-sm);
       border: 1px solid var(--sw-border); border-radius: var(--sw-radius);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-pagination__btn[inert] { opacity: 0.5; cursor: default; }
-    .sw-pagination__btn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
+    .sw-pagination__btn:focus-visible { outline: 2px solid transparent; box-shadow: var(--sw-focus-shadow); }
     """)
 }

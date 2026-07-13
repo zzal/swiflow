@@ -87,10 +87,11 @@ let toggleButtonGroupStyleSheet: CSSSheet = css {
       background-color: var(--sw-surface); color: var(--sw-text);
       border: var(--sw-border-width) solid var(--sw-border);
       border-inline-start-width: 0;
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-togglegroup__btn:first-child { border-inline-start-width: var(--sw-border-width); border-start-start-radius: var(--sw-radius); border-end-start-radius: var(--sw-radius); }
     .sw-togglegroup__btn:last-child  { border-start-end-radius: var(--sw-radius); border-end-end-radius: var(--sw-radius); }
     .sw-togglegroup__btn[aria-pressed="true"] { background-color: var(--sw-accent); color: var(--sw-accent-text); border-color: var(--sw-accent); }
-    .sw-togglegroup__btn:focus-visible { outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring); outline-offset: -1px; z-index: 1; }
+    .sw-togglegroup__btn:focus-visible { outline: 2px solid transparent; box-shadow: var(--sw-focus-shadow); z-index: 1; }
     """)
 }
