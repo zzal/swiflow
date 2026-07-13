@@ -2587,6 +2587,7 @@ enum Catalog {
         StoryEntry(slug: "grid", title: "Grid", category: .layout),
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
         StoryEntry(slug: "container", title: "Container", category: .layout),
+        StoryEntry(slug: "accordion", title: "Accordion", category: .layout),
         StoryEntry(slug: "text", title: "Text", category: .typography),
         StoryEntry(slug: "button", title: "Button", category: .controls),
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
@@ -2698,6 +2699,7 @@ final class Shell {
                 Route("/component/grid") { GridStory() }
                 Route("/component/spacer") { SpacerStory() }
                 Route("/component/container") { ContainerStory() }
+                Route("/component/accordion") { AccordionStory() }
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
@@ -2780,6 +2782,74 @@ final class NotFoundStory {
     var body: VNode {
         storyPage("Not found", blurb: "No story at \(path).") {
             embed { Link("/", "Back to overview") }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/AccordionStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class AccordionStory {
+    var body: VNode {
+        storyPage("Accordion",
+                  blurb: "Native <details>/<summary> disclosure — no JS. AccordionItem is a stateless "
+                       + "free function; Accordion is a thin @Component facade that exists purely to keep "
+                       + "a stable group name across re-renders. exclusive: true groups every item under "
+                       + "the same native <details name> value, so the browser enforces one-open-at-a-time "
+                       + "(Baseline 2024) with no wiring on your end.") {
+            variantSection("Independent (default)", snippet: """
+            Accordion {
+                AccordionItem("Shipping", open: true) {
+                    p("Ships within two business days.")
+                }
+                AccordionItem("Returns") {
+                    p("Returns are accepted within 30 days of delivery.")
+                }
+                AccordionItem("Warranty") {
+                    p("Covers manufacturing defects for one year.")
+                }
+            }
+            """) {
+                Accordion {
+                    AccordionItem("Shipping", open: true) {
+                        p("Ships within two business days.")
+                    }
+                    AccordionItem("Returns") {
+                        p("Returns are accepted within 30 days of delivery.")
+                    }
+                    AccordionItem("Warranty") {
+                        p("Covers manufacturing defects for one year.")
+                    }
+                }
+            }
+            variantSection("Exclusive — one open at a time", snippet: """
+            Accordion(exclusive: true) {
+                AccordionItem("What is Swiflow?", open: true) {
+                    p("A Swift-native framework for building web UIs that compile to WebAssembly.")
+                }
+                AccordionItem("Does it need JavaScript?") {
+                    p("Not for this — <details name> grouping is a native platform feature.")
+                }
+                AccordionItem("Is it accessible?") {
+                    p("Yes — <details>/<summary> carry disclosure semantics to assistive tech for free.")
+                }
+            }
+            """) {
+                Accordion(exclusive: true) {
+                    AccordionItem("What is Swiflow?", open: true) {
+                        p("A Swift-native framework for building web UIs that compile to WebAssembly.")
+                    }
+                    AccordionItem("Does it need JavaScript?") {
+                        p("Not for this — <details name> grouping is a native platform feature.")
+                    }
+                    AccordionItem("Is it accessible?") {
+                        p("Yes — <details>/<summary> carry disclosure semantics to assistive tech for free.")
+                    }
+                }
+            }
         }
     }
 }
