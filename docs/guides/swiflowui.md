@@ -588,6 +588,29 @@ down and rebuilt on every switch.
 Caller `Attribute...`/`.class` merge onto the root `.sw-tabs` container. A
 `.vertical` orientation variant is deferred to a future release.
 
+### Pagination
+
+```swift
+@State var page = 0
+…
+Pagination(page: $page, pageCount: 5)
+```
+
+Previous/Next buttons flanking a "Page X of N" indicator, bound to a 0-based
+page index — the same control `DataTable` renders for its own pager, pulled
+out so any paginated view can share it. Two overloads: `Pagination(page:
+pageCount:)` takes a `Binding<Int>`; the core `Pagination(currentPage:
+pageCount:onChange:)` takes a plain `Int` and a change callback (what the
+`Binding` overload delegates to).
+
+Previous is `inert` when `currentPage <= 0`; Next is `inert` when
+`currentPage >= pageCount - 1` (project rule: `inert`, not `disabled`) — and,
+like every other disabled control in this library, an inert button carries
+NO click handler at all. The page indicator always displays 1-based
+(`"Page \(currentPage + 1) of \(pageCount)"`) over the 0-based index used
+everywhere else. Caller `Attribute...`/`.class` merge onto the root
+`.sw-pagination` container.
+
 ## Forms
 
 The controls integrate with the framework's `Field`/`Form` (see the

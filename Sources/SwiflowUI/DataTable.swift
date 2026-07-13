@@ -721,20 +721,10 @@ final class DataTableBox {
 
     // MARK: pager
 
+    /// Extracted to the standalone `Pagination` component (same markup/behavior, now
+    /// `.sw-pagination`-classed) — see `Pagination.swift`.
     private func pager(page: Int) -> VNode {
-        let count = pageCount()
-        func navBtn(_ label: String, _ target: Int, disabled: Bool) -> VNode {
-            var attrs: [Attribute] = [.class("sw-table__pagebtn"), .attr("type", "button"), .attr("aria-label", label)]
-            if disabled { attrs.append(.attr("inert", true)) }     // project rule: inert, not disabled
-            else { attrs.append(.on(.click) { self.setPage(target) }) }
-            return element("button", attributes: attrs, children: [text(label)])
-        }
-        return element("div", attributes: [.class("sw-table__pager")], children: [
-            navBtn("Previous", page - 1, disabled: page <= 0),
-            element("span", attributes: [.class("sw-table__pageinfo")],
-                    children: [text("Page \(page + 1) of \(count)")]),
-            navBtn("Next", page + 1, disabled: page >= count - 1),
-        ])
+        Pagination(currentPage: page, pageCount: pageCount(), onChange: { self.setPage($0) })
     }
 }
 
@@ -772,15 +762,6 @@ let dataTableSheet: CSSSheet = css {
     .sw-table__empty, .sw-table__loading {
       padding: var(--sw-space-lg); text-align: center; color: var(--sw-text-muted);
     }
-    .sw-table__pager { display: flex; align-items: center; justify-content: flex-end; gap: var(--sw-space-sm); }
-    .sw-table__pageinfo { color: var(--sw-text-muted); font-size: 0.875rem; }
-    .sw-table__pagebtn {
-      all: unset; cursor: pointer; font: inherit;
-      padding: var(--sw-space-xs) var(--sw-space-sm);
-      border: 1px solid var(--sw-border); border-radius: var(--sw-radius);
-    }
-    .sw-table__pagebtn[inert] { opacity: 0.5; cursor: default; }
-    .sw-table__pagebtn:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
     .sw-table--virtual { display: block; }
     .sw-table--virtual thead,
     .sw-table--virtual tbody { display: block; }

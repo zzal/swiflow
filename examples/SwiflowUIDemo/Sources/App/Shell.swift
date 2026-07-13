@@ -98,6 +98,7 @@ final class Shell {
                 Route("/component/textlink") { TextLinkStory() }
                 Route("/component/breadcrumbs") { BreadcrumbsStory() }
                 Route("/component/tabs") { TabsStory() }
+                Route("/component/pagination") { PaginationStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
