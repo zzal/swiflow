@@ -297,7 +297,7 @@ struct DataTablePaginationTests {
         allTags(.element(allTags(root, "tbody").first!), "tr").map { $0.key ?? "" }
     }
     private func pagerButtons(_ root: VNode) -> [ElementData] {
-        guard let pager = allTags(root, "div").first(where: { $0.attributes["class"] == "sw-table__pager" }) else { return [] }
+        guard let pager = allTags(root, "div").first(where: { $0.attributes["class"] == "sw-pagination" }) else { return [] }
         return allTags(.element(pager), "button")
     }
 

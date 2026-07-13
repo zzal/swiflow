@@ -48,9 +48,10 @@ test.describe("DataTable", () => {
     const before = await firstName.innerText();
     // Scope to the paged table's own pager: the demo page also has a wizard
     // `Button("Next")`, so an unscoped getByRole("button", {name:"Next"}) is
-    // ambiguous. `.sw-table__pager` is a sibling of the <table>, not inside it,
-    // so it can't be reached through the PAGED (table) locator.
-    await page.locator(".sw-table__pager").getByRole("button", { name: "Next" }).click();
+    // ambiguous. `.sw-pagination` (the standalone Pagination component DataTable
+    // renders) is a sibling of the <table>, not inside it, so it can't be reached
+    // through the PAGED (table) locator.
+    await page.locator(".sw-pagination").getByRole("button", { name: "Next" }).click();
     await expect(firstName).not.toHaveText(before);
   });
 
