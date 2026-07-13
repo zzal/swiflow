@@ -118,22 +118,29 @@ struct CardTests {
 @Suite("Badge")
 @MainActor
 struct BadgeTests {
-    @Test("renders a span pill with the label and default neutral variant") func renders() {
+    @Test("renders a span pill with the label and default neutral/md variant") func renders() {
         let node = Badge("New")
         let b = el(node)!
         #expect(b.tag == "span")
-        #expect(b.attributes["class"] == "sw-badge sw-badge--neutral")
+        #expect(b.attributes["class"] == "sw-badge sw-badge--neutral sw-badge--md")
         #expect(allText(node) == "New")
     }
 
     @Test("variant maps to the modifier class") func variant() {
-        #expect(el(Badge("3", variant: .accent))!.attributes["class"] == "sw-badge sw-badge--accent")
-        #expect(el(Badge("!", variant: .danger))!.attributes["class"] == "sw-badge sw-badge--danger")
+        #expect(el(Badge("3", variant: .accent))!.attributes["class"] == "sw-badge sw-badge--accent sw-badge--md")
+        #expect(el(Badge("!", variant: .danger))!.attributes["class"] == "sw-badge sw-badge--danger sw-badge--md")
+    }
+
+    @Test("size maps to a sw-badge--<size> class, styled by the sheet") func size() {
+        #expect(el(Badge("s", size: .sm))!.attributes["class"] == "sw-badge sw-badge--neutral sw-badge--sm")
+        #expect(el(Badge("l", variant: .accent, size: .lg))!.attributes["class"] == "sw-badge sw-badge--accent sw-badge--lg")
+        let sheet = badgeStyleSheet.cssString(scopeClass: "")
+        #expect(sheet.contains(".sw-badge--sm") && sheet.contains(".sw-badge--lg"))
     }
 
     @Test("caller attributes and class merge onto the badge") func callerMerge() {
         let b = el(Badge("X", .class("pill"), .attr("title", "info")))!
-        #expect(b.attributes["class"] == "sw-badge sw-badge--neutral pill")
+        #expect(b.attributes["class"] == "sw-badge sw-badge--neutral sw-badge--md pill")
         #expect(b.attributes["title"] == "info")
     }
 
@@ -145,8 +152,8 @@ struct BadgeTests {
     }
 
     @Test("info and warning variants map to their modifier classes") func infoWarningVariants() {
-        #expect(el(Badge("i", variant: .info))!.attributes["class"] == "sw-badge sw-badge--info")
-        #expect(el(Badge("w", variant: .warning))!.attributes["class"] == "sw-badge sw-badge--warning")
+        #expect(el(Badge("i", variant: .info))!.attributes["class"] == "sw-badge sw-badge--info sw-badge--md")
+        #expect(el(Badge("w", variant: .warning))!.attributes["class"] == "sw-badge sw-badge--warning sw-badge--md")
     }
 
     @Test("info/warning stylesheet rules use the matching token tint + -strong text") func infoWarningStylesheet() {
