@@ -20,6 +20,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- SwiflowUI overlay generalization: `Modal` — a public general-purpose native
+  `<dialog>` (sizes, optional title, backdrop dismiss by default) sharing
+  Alert/Prompt's chrome — and `Popover` — an anchored top-layer panel on the
+  Popover API with native light-dismiss; both with catalog stories and e2e specs.
 - SwiflowUI form completions: `TextArea` (multi-line field, `Field`-integrable),
   `NumberField` (native number input, `Int`/`Double` bindings, min/max/step), and
   `Slider` (native range input) — all token-styled via the shared field chrome,
