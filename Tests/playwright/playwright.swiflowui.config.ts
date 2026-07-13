@@ -13,7 +13,7 @@ ensureCli();
 
 export default defineConfig({
   testDir: ".",
-  testMatch: ["dropdown.spec.ts", "datatable.spec.ts"],
+  testMatch: ["dropdown.spec.ts", "datatable.spec.ts", "overlay.spec.ts"],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: "http://127.0.0.1:3005", trace: "on-first-retry" },
