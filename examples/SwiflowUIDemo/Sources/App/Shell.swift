@@ -83,6 +83,7 @@ final class Shell {
                 Route("/component/numberfield") { NumberFieldStory() }
                 Route("/component/slider") { SliderStory() }
                 Route("/component/feedback") { FeedbackStory() }
+                Route("/component/callout") { CalloutStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
                 Route("/component/modal") { ModalStory() }

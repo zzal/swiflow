@@ -186,6 +186,24 @@ Card(variant: .plain) { … }                  // the bare padded surface — no
 Badge("New", variant: .accent)               // pill; .neutral/.accent/.info/.success/.warning/.danger
 ```
 
+### Callout — a status banner
+
+```swift
+Callout("Changes saved.", variant: .success)
+Callout("Your session will expire soon.", variant: .warning, title: "Heads up")
+Callout("Couldn't reach the server.", variant: .danger) {
+    Button("Retry") { retry() }
+}
+```
+
+A stateless semantic banner — a bordered, soft-tinted `<div>` for a standing
+in-page notice (unlike `Badge`'s compact pill or `Toast`'s transient queue
+item). `title` is optional; the `actions` slot is only rendered when non-empty.
+`CalloutVariant` (`.info`/`.success`/`.warning`/`.danger`) maps to `role`/`aria-live`
+exactly like `ToastVariant`: `.danger` is assertive (`role="alert"`,
+`aria-live="assertive"`), the other three are polite (`role="status"`,
+`aria-live="polite"`). No icon — that lands in M14.
+
 ## Typed tokens
 
 Reference `--sw-*` tokens by name and a typo fails at compile time — a
