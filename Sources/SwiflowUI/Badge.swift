@@ -24,14 +24,16 @@ public enum BadgeVariant: Equatable {
 ///
 ///     Badge("New", variant: .accent)
 ///     Badge("3")
+///     Badge("beta", size: .sm)              // shared ControlSize scale (.xs/.sm/.md/.lg)
 @MainActor
-public func Badge(_ label: String, variant: BadgeVariant = .neutral, _ attributes: Attribute...) -> VNode {
+public func Badge(_ label: String, variant: BadgeVariant = .neutral,
+                  size: ControlSize = .md, _ attributes: Attribute...) -> VNode {
     ensureBaseStyles()
     installControlSheet(id: "sw-badge", badgeStyleSheet)
 
     let (callerClasses, callerRest) = splitClasses(attributes)
-    let classValue = (["sw-badge", "sw-badge--\(variant.modifierClass)"] + callerClasses)
-        .joined(separator: " ")
+    let classValue = (["sw-badge", "sw-badge--\(variant.modifierClass)", "sw-badge--\(size.modifierClass)"]
+        + callerClasses).joined(separator: " ")
     return element("span", attributes: [.class(classValue)] + callerRest, children: [text(label)])
 }
 
@@ -43,11 +45,15 @@ let badgeStyleSheet: CSSSheet = css {
       gap: var(--sw-space-xs);
       padding: 0.15em 0.6em;
       border-radius: 1em;
-      font-size: 0.8125rem;
       font-weight: 500;
       line-height: 1.4;
       white-space: nowrap;
     }
+    /* Size = font-size only; padding/radius are em-based, so the whole pill scales. */
+    .sw-badge--xs { font-size: 0.6875rem; }
+    .sw-badge--sm { font-size: 0.75rem; }
+    .sw-badge--md { font-size: 0.8125rem; }
+    .sw-badge--lg { font-size: 0.9375rem; }
     /* Soft tint bg + the "-strong" text token: the base token is mid-tone in light
        mode and would fail WCAG on the pale tint; -strong darkens it there. */
     .sw-badge--neutral { background-color: var(--sw-surface-2); color: var(--sw-text-muted); }

@@ -3409,6 +3409,19 @@ final class FeedbackStory {
                     }
                 }
             }
+            variantSection("Badge sizes", snippet: """
+            Badge("xs", size: .xs)
+            Badge("sm", size: .sm)
+            Badge("md")            // default
+            Badge("lg", size: .lg)
+            """) {
+                HStack(spacing: .sm, align: .center) {
+                    Badge("xs", variant: .accent, size: .xs)
+                    Badge("sm", variant: .accent, size: .sm)
+                    Badge("md", variant: .accent)
+                    Badge("lg", variant: .accent, size: .lg)
+                }
+            }
             variantSection("Progress", snippet: """
             ProgressView(value: 0.6)
             """) {

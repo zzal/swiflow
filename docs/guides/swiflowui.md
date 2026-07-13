@@ -290,6 +290,7 @@ Card { h3("Title"); p("Body") }              // elevated surface (shadow)
 Card(variant: .outlined) { … }               // bordered
 Card(variant: .plain) { … }                  // the bare padded surface — no shadow, no border
 Badge("New", variant: .accent)               // pill; .neutral/.accent/.info/.success/.warning/.danger
+Badge("beta", size: .sm)                      // size: .xs/.sm/.md(default)/.lg — the shared ControlSize scale
 ```
 
 ### Icon — a bring-your-own-SVG seam
