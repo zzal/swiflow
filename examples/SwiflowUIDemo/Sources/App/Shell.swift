@@ -87,6 +87,7 @@ final class Shell {
                 Route("/component/overlays") { OverlaysStory() }
                 Route("/component/modal") { ModalStory() }
                 Route("/component/popover") { PopoverStory() }
+                Route("/component/textlink") { TextLinkStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }

@@ -2565,6 +2565,7 @@ enum StoryCategory: String, CaseIterable {
     case controls = "Controls"
     case feedback = "Feedback"
     case overlays = "Overlays"
+    case navigation = "Navigation"
     case data = "Data"
     case theming = "Theming"
     case patterns = "Patterns"
@@ -2594,6 +2595,7 @@ enum Catalog {
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
         StoryEntry(slug: "modal", title: "Modal", category: .overlays),
         StoryEntry(slug: "popover", title: "Popover", category: .overlays),
+        StoryEntry(slug: "textlink", title: "TextLink", category: .navigation),
         StoryEntry(slug: "datatable", title: "DataTable", category: .data),
         StoryEntry(slug: "datatable-virtual", title: "DataTable — virtualized", category: .data),
         StoryEntry(slug: "theming", title: "Scoped theming", category: .theming),
@@ -2696,6 +2698,7 @@ final class Shell {
                 Route("/component/overlays") { OverlaysStory() }
                 Route("/component/modal") { ModalStory() }
                 Route("/component/popover") { PopoverStory() }
+                Route("/component/textlink") { TextLinkStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }
@@ -3650,6 +3653,41 @@ final class TextAreaStory {
                     }
                 }
                 p("Interact then blur to see the role=alert error and aria-invalid.")
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/TextLinkStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class TextLinkStory {
+    var body: VNode {
+        storyPage("TextLink",
+                  blurb: "A token-styled inline hyperlink — a plain <a>, not in-app routing. Named TextLink "
+                       + "(not Link) because SwiflowRouter.Link already owns in-app navigation; reach for "
+                       + "TextLink for external or non-routed destinations. The href is sanitized "
+                       + "automatically via URLSanitizer.") {
+            variantSection("Inline", snippet: """
+            p { text("Read the "); TextLink("documentation", href: "https://example.com/docs"); text(" before you start.") }
+            """) {
+                Card(variant: .plain) {
+                    p {
+                        text("Read the ")
+                        TextLink("documentation", href: "https://example.com/docs")
+                        text(" before you start.")
+                    }
+                }
+            }
+            variantSection("External", snippet: """
+            TextLink("View on GitHub", href: "https://github.com", external: true)
+            """) {
+                Card(variant: .plain) {
+                    TextLink("View on GitHub", href: "https://github.com", external: true)
+                }
             }
         }
     }
