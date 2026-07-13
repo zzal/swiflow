@@ -173,7 +173,8 @@ Button("Submit", type: .submit)        // form button — renders type=submit, N
 ```
 
 `ButtonVariant`: `.primary` / `.secondary` / `.ghost` / `.danger` (destructive
-solid fill — delete/remove confirms). `ControlSize`: `.sm/.md/.lg`.
+solid fill — delete/remove confirms). `ControlSize`: `.xs/.sm/.md/.lg` — the
+shared size scale for every sized control (`.xs` is the compact toolbar/row size).
 The `type:` overload (`.submit`/`.reset`) is for a button the enclosing `<form>`
 drives — it takes no action closure.
 

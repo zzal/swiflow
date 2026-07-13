@@ -43,6 +43,7 @@ let spinnerStyleSheet: CSSSheet = css {
       animation: sw-spin 0.7s linear infinite;
       animation-play-state: var(--sw-anim-play);   /* prefers-reduced-motion → paused */
     }
+    .sw-spinner--xs { width: 0.75em; height: 0.75em; }
     .sw-spinner--sm { width: 1em; height: 1em; }
     .sw-spinner--md { width: 1.5em; height: 1.5em; }
     .sw-spinner--lg { width: 2.25em; height: 2.25em; border-width: 3px; }

@@ -189,6 +189,7 @@ let formControlsSheet: CSSSheet = css {
     .sw-field textarea[aria-invalid="true"] {
       border-color: var(--sw-danger);
     }
+    .sw-field--xs input, .sw-field--xs select, .sw-field--xs textarea { padding: 0.125rem var(--sw-space-xs); font-size: 0.8125rem; }
     .sw-field--sm input, .sw-field--sm select, .sw-field--sm textarea { padding: var(--sw-space-xs) var(--sw-space-sm); font-size: 0.875rem; }
     .sw-field--md input, .sw-field--md select, .sw-field--md textarea { padding: var(--sw-space-sm) var(--sw-space-md); font-size: 1rem; }
     .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
@@ -293,6 +294,7 @@ let formControlsSheet: CSSSheet = css {
       cursor: not-allowed;
     }
     /* Size scale: the box (1.1em) and label scale with the root font-size. */
+    .sw-check--xs { font-size: 0.8125rem; }
     .sw-check--sm { font-size: 0.875rem; }
     .sw-check--md { font-size: 1rem; }
     .sw-check--lg { font-size: 1.125rem; }
@@ -354,6 +356,7 @@ let formControlsSheet: CSSSheet = css {
     /* Dim the whole row when disabled (matches .sw-check), not just the track. */
     .sw-switch__row--disabled { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
     /* Size scale: the track (2.25em), thumb, and label scale with the root font-size. */
+    .sw-switch--xs { font-size: 0.8125rem; }
     .sw-switch--sm { font-size: 0.875rem; }
     .sw-switch--md { font-size: 1rem; }
     .sw-switch--lg { font-size: 1.125rem; }
@@ -401,6 +404,7 @@ let formControlsSheet: CSSSheet = css {
       cursor: not-allowed;
     }
     /* Size scale: the dot (1.1em) and label scale with the root font-size. */
+    .sw-radio--xs { font-size: 0.8125rem; }
     .sw-radio--sm { font-size: 0.875rem; }
     .sw-radio--md { font-size: 1rem; }
     .sw-radio--lg { font-size: 1.125rem; }

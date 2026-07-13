@@ -67,6 +67,7 @@ let avatarStyleSheet: CSSSheet = css {
       background-color: var(--sw-surface-2); color: var(--sw-text-muted);
       font-weight: var(--sw-font-weight-medium); user-select: none;
     }
+    .sw-avatar--xs { width: 1.5rem; height: 1.5rem; font-size: 0.625rem; }
     .sw-avatar--sm { width: 2rem;   height: 2rem;   font-size: 0.75rem; }
     .sw-avatar--md { width: 2.5rem; height: 2.5rem; font-size: 0.875rem; }
     .sw-avatar--lg { width: 3rem;   height: 3rem;   font-size: 1rem; }

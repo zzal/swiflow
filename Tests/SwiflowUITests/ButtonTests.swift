@@ -36,6 +36,12 @@ struct ButtonTests {
         #expect(b.attributes["class"] == "sw-btn sw-btn--ghost sw-btn--lg")
     }
 
+    @Test("the compact .xs size maps to sw-btn--xs and the sheet styles it") func xsSize() {
+        let b = elementOf(building { Button("X", size: .xs) {} })!
+        #expect(b.attributes["class"] == "sw-btn sw-btn--primary sw-btn--xs")
+        #expect(buttonStyleSheet.cssString(scopeClass: "").contains(".sw-btn--xs"))
+    }
+
     @Test(".danger is a destructive solid fill on the danger token family") func dangerVariant() {
         let b = elementOf(building { Button("Delete", variant: .danger) {} })!
         #expect(b.attributes["class"] == "sw-btn sw-btn--danger sw-btn--md")
