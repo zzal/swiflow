@@ -77,6 +77,7 @@ final class Shell {
                 Route("/component/stacks") { StacksStory() }
                 Route("/component/grid") { GridStory() }
                 Route("/component/spacer") { SpacerStory() }
+                Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
                 Route("/component/textarea") { TextAreaStory() }
