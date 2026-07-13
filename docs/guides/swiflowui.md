@@ -358,6 +358,33 @@ opens the link in a new tab and adds `rel="noopener noreferrer"` (reverse-tabnab
 guard); `external: false` (the default) adds neither. Caller `Attribute...`/`.class`
 merge onto the `<a>`, same convention as every other stateless control.
 
+### Breadcrumbs
+
+```swift
+Breadcrumbs([
+    Crumb("Home", href: "/"),
+    Crumb("Products", href: "/products"),
+    Crumb("Widgets", href: "/products/widgets"),
+    Crumb("Blue Widget"),
+])
+```
+
+A stateless `<nav aria-label="Breadcrumb">` wrapping an `<ol>` trail, one `<li>` per
+`Crumb`. The LAST crumb is always the current page: it renders as plain text with
+`aria-current="page"`, never a link — even if it was given an `href`, since the
+current page shouldn't link to itself. A middle crumb with `href == nil` also
+renders as plain text, but WITHOUT `aria-current` (only the last crumb is
+"current"). Every other crumb renders a plain sanitized `<a>` (the `href` folds
+through `URLSanitizer`, same as `TextLink`). Separators are pure CSS (an `::before`
+on every non-first `<li>`), not DOM nodes.
+
+Breadcrumbs deliberately does NOT depend on `SwiflowRouter` — it never renders a
+Router `Link`, only plain anchors, so SwiflowUI stays usable without a router. An
+app that wants in-app (SPA) navigation for its crumbs supplies its own wrapper
+(its own `<a>`, or `SwiflowRouter.Link`) around the crumb data; `Breadcrumbs`
+itself stays framework-agnostic. Caller `Attribute...`/`.class` merge onto the
+`<nav>`.
+
 ## Forms
 
 The controls integrate with the framework's `Field`/`Form` (see the
