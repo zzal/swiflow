@@ -85,6 +85,7 @@ final class Shell {
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/tooltip") { TooltipStory() }
                 Route("/component/overlays") { OverlaysStory() }
+                Route("/component/modal") { ModalStory() }
                 Route("/component/datatable") { DataTableStory() }
                 Route("/component/datatable-virtual") { DataTableVirtualStory() }
                 Route("/component/theming") { ThemingStory() }

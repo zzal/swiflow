@@ -31,6 +31,10 @@ let dialogChromeSheet: CSSSheet = css {
       padding: 0;
       box-shadow: var(--sw-shadow);
     }
+    /* Modal size variants (see ModalSize) — `.sw-modal--md` emits no rule of its
+       own, inheriting the `28rem` default above. */
+    .sw-modal--sm { max-width: min(90vw, 22rem); }
+    .sw-modal--lg { max-width: min(90vw, 40rem); }
     /* entry/exit animation — the shared quartet (see PopoverTransition.swift) */
     \(popoverTransitionCSS(
         base: ".sw-dialog", open: ".sw-dialog[open]",

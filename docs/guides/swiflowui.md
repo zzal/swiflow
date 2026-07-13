@@ -211,6 +211,27 @@ All three are accessible, token-driven, and animate via `@starting-style` /
 explicit controls; `Alert` can additionally close on a backdrop click — opt in
 with `dismissOnBackdrop: true` (detected via `EventInfo.isSelfTarget`).
 
+### Modal — a general-purpose dialog
+
+```swift
+@State var showSettings = false
+
+Button("Settings…") { showSettings = true }
+Modal(isPresented: $showSettings, title: "Settings", size: .lg) {
+    // any content — fields, sections, whatever the caller needs
+    Button("Close") { showSettings = false }
+}
+```
+
+The general-purpose sibling of `Alert`/`Prompt`: same native `<dialog>.showModal()`
+machinery, but no baked-in title-required/actions-slot shape — just an optional
+`title` and arbitrary `content`. `size` (`.sm`/`.md`/`.lg`) controls the card's
+max-width (`.md` is the shared chrome default, `28rem`). Unlike Alert/Prompt,
+`dismissOnBackdrop` defaults to `true` — a generic modal is a casual overlay, so
+clicking outside to leave is the expected affordance; pass `false` when the modal
+guards unsaved work or otherwise needs a deliberate exit. Reach for `Alert` when you
+need a confirm dialog, or `Prompt` for a single text-input dialog — both below.
+
 ### Alert — a modal `<dialog>`
 
 ```swift
