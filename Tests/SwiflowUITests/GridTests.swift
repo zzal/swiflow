@@ -41,6 +41,18 @@ struct GridTests {
         #expect(styleOf(Grid(columns: 2, .style("display", "flex")) { text("x") })["display"] == "flex")
     }
 
+    @Test("colSpan sets grid-column: span N, clamped to ≥ 1") func colSpanSetsSpan() {
+        #expect(styleOf(div {}.colSpan(2))["grid-column"] == "span 2")
+        #expect(styleOf(div {}.colSpan(1))["grid-column"] == "span 1")
+        #expect(styleOf(div {}.colSpan(0))["grid-column"] == "span 1")   // clamp
+        #expect(styleOf(div {}.colSpan(-4))["grid-column"] == "span 1")  // clamp
+    }
+
+    @Test("rowSpan sets grid-row: span N, clamped to ≥ 1") func rowSpanSetsSpan() {
+        #expect(styleOf(div {}.rowSpan(3))["grid-row"] == "span 3")
+        #expect(styleOf(div {}.rowSpan(0))["grid-row"] == "span 1")      // clamp
+    }
+
     @Test("Grid renders as a div keeping its children intact") func preservesChildren() {
         let node = Grid(columns: 2) { text("a"); text("b") }
         guard case .element(let data) = node else { Issue.record("not element"); return }

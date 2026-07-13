@@ -3520,6 +3520,22 @@ final class GridStory {
                     for n in 1...6 { card("Cell \(n)") }
                 }
             }
+
+            variantSection("Column & row spans", snippet: """
+            Grid(columns: 3, spacing: .md) {
+                card("colSpan(2)").colSpan(2)
+                card("1")
+                card("rowSpan(2)").rowSpan(2)
+                card("2"); card("3"); card("4"); card("5")
+            }
+            """) {
+                Grid(columns: 3, spacing: .md) {
+                    card("colSpan(2)").colSpan(2)
+                    card("1")
+                    card("rowSpan(2)").rowSpan(2)
+                    card("2"); card("3"); card("4"); card("5")
+                }
+            }
         }
     }
 
