@@ -20,6 +20,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- SwiflowUI navigation & content: `TextLink` (sanitized token-styled hyperlink),
+  `Callout` (semantic status banner with polite/assertive live regions),
+  `Breadcrumbs` (nav/ol trail with `aria-current`), and `Tabs` (WAI-ARIA tablist
+  with roving arrow-key focus and `Binding` selection) — each with a catalog story;
+  Tabs adds a Playwright interaction spec.
 - SwiflowUI overlay generalization: `Modal` — a public general-purpose native
   `<dialog>` (sizes, optional title, backdrop dismiss by default) sharing
   Alert/Prompt's chrome — and `Popover` — an anchored top-layer panel on the
