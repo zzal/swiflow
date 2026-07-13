@@ -69,6 +69,19 @@ import Testing
 @Suite("Accordion")
 @MainActor
 struct AccordionTests {
+    @Test("the sheet animates open/close via ::details-content, gated on --sw-duration")
+    func animatesOpenClose() {
+        let sheet = accordionStyleSheet.cssString(scopeClass: "")
+        #expect(sheet.contains(".sw-accordion__item::details-content"))
+        #expect(sheet.contains(".sw-accordion__item[open]::details-content"))
+        // The Chromium height slide, scoped to the accordion subtree.
+        #expect(sheet.contains("interpolate-size: allow-keywords"))
+        // content-visibility rides `allow-discrete` so content stays painted while collapsing.
+        #expect(sheet.contains("content-visibility var(--sw-duration) var(--sw-ease) allow-discrete"))
+        // Every duration reads --sw-duration → prefers-reduced-motion (→ 0s) turns it off.
+        #expect(sheet.contains("block-size var(--sw-duration)"))
+    }
+
     // MARK: - AccordionItem (stateless free function)
 
     @Test("renders a <details class=sw-accordion__item> wrapping a <summary> label + a panel <div>")

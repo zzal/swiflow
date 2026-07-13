@@ -108,6 +108,12 @@ uncontrolled, ongoing) expanded state. `Accordion` groups items in a
 keep a stable id across re-renders (the `Tabs`/`Dropdown` `nextSwID`-in-`init`
 precedent), not for any lifecycle of its own.
 
+Open/close **animates** with no JS: the panel (`::details-content`) slides and fades
+via `--sw-duration`-timed transitions, so `prefers-reduced-motion` collapses it to an
+instant toggle for free. `::details-content` + `allow-discrete` are Baseline across
+engines; the height *slide* uses `interpolate-size` (Chromium today) — elsewhere the
+panel fades and snaps to height, a clean progressive enhancement.
+
 `exclusive: true` assigns every `<details>` child the SAME native `name` attribute,
 so the platform enforces one-open-at-a-time — opening one closes the others, no
 wiring on your end (`<details name>` grouping is Baseline 2024; unsupported browsers

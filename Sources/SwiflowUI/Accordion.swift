@@ -116,6 +116,11 @@ let accordionStyleSheet: CSSSheet = css {
       display: flex;
       flex-direction: column;
       gap: var(--sw-space-sm);
+      /* Enables the block-size 0 → auto interpolation on ::details-content below.
+         Chromium-only today; a no-op elsewhere (the panel fades/snaps instead of
+         sliding). Scoped here — it inherits to the accordion subtree only, and is
+         opt-in per transition, so it affects nothing that doesn't animate to auto. */
+      interpolate-size: allow-keywords;
     }
 
     .sw-accordion__item {
@@ -157,6 +162,29 @@ let accordionStyleSheet: CSSSheet = css {
 
     .sw-accordion__panel {
       padding: var(--sw-space-sm) var(--sw-space-md) var(--sw-space-md);
+    }
+
+    /* Animated open/close — CSS-native, no JS: native <details> stays native.
+       `::details-content` is the browser-generated wrapper around everything but the
+       <summary> (i.e. the panel). Transitioning its block-size (0 → auto), its
+       content-visibility (allow-discrete, so the content stays painted through the
+       collapse), and opacity gives a slide + fade. Every duration reads --sw-duration,
+       so prefers-reduced-motion collapses the whole thing to an instant toggle with no
+       per-component code. `::details-content` + `allow-discrete` are Baseline 2025
+       (Chrome/Firefox/Safari); the height *slide* needs `interpolate-size` (Chromium)
+       — where it's unsupported the panel simply fades and snaps to height instead. */
+    .sw-accordion__item::details-content {
+      block-size: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition:
+        block-size var(--sw-duration) var(--sw-ease),
+        content-visibility var(--sw-duration) var(--sw-ease) allow-discrete,
+        opacity var(--sw-duration) var(--sw-ease);
+    }
+    .sw-accordion__item[open]::details-content {
+      block-size: auto;
+      opacity: 1;
     }
     """)
 }
