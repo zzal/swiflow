@@ -84,6 +84,34 @@ itself (`margin-inline: auto`) once it hits its `max-width`, with `padding-inlin
 to one of the `--sw-container-{sm,md,lg}` tokens (`Theme.swift`; 40/60/80rem by
 default) — re-point those tokens to retheme every `Container` in an app at once.
 
+### Accordion
+
+```swift
+Accordion {
+    AccordionItem("Shipping", open: true) { p("...") }
+    AccordionItem("Returns") { p("...") }
+}
+
+Accordion(exclusive: true) {   // one open at a time — native <details name>
+    AccordionItem("What is Swiflow?", open: true) { p("...") }
+    AccordionItem("Is it accessible?") { p("...") }
+}
+```
+
+Native `<details>`/`<summary>` disclosure — no JS. `AccordionItem` is a stateless
+free function: a `<details class="sw-accordion__item">` wrapping a `<summary>` label
+and a panel `<div>`; `open: true` sets its initial (and, since `<details>` is
+uncontrolled, ongoing) expanded state. `Accordion` groups items in a
+`.sw-accordion` container and is a thin `@Component` facade — it exists purely to
+keep a stable id across re-renders (the `Tabs`/`Dropdown` `nextSwID`-in-`init`
+precedent), not for any lifecycle of its own.
+
+`exclusive: true` assigns every `<details>` child the SAME native `name` attribute,
+so the platform enforces one-open-at-a-time — opening one closes the others, no
+wiring on your end (`<details name>` grouping is Baseline 2024; unsupported browsers
+just allow all items open together). Two `Accordion(exclusive: true)` instances
+never share a group — each gets its own generated name.
+
 ## Typography
 
 ### Text
