@@ -33,6 +33,7 @@ enum Catalog {
         StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
         StoryEntry(slug: "slider", title: "Slider", category: .controls),
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
+        StoryEntry(slug: "callout", title: "Callout", category: .feedback),
         StoryEntry(slug: "tooltip", title: "Tooltip", category: .feedback),
         StoryEntry(slug: "overlays", title: "Overlays", category: .overlays),
         StoryEntry(slug: "modal", title: "Modal", category: .overlays),
