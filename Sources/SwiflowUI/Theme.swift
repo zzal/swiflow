@@ -46,7 +46,7 @@ public enum SwiflowUI {
         @property --sw-space-lg { syntax: "<length>"; inherits: true; initial-value: 1.25rem; }
         @property --sw-space-xl { syntax: "<length>"; inherits: true; initial-value: 2rem; }
         @property --sw-radius-sm { syntax: "<length>"; inherits: true; initial-value: 4px; }
-        @property --sw-radius { syntax: "<length>"; inherits: true; initial-value: 8px; }
+        @property --sw-radius { syntax: "<length>"; inherits: true; initial-value: 6px; }
         @property --sw-border-width { syntax: "<length>"; inherits: true; initial-value: 1px; }
         @property --sw-focus-ring-width { syntax: "<length>"; inherits: true; initial-value: 2px; }
         @property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }
@@ -127,7 +127,7 @@ public enum SwiflowUI {
 
           /* radii */
           --sw-radius-sm: 4px;
-          --sw-radius: 8px;
+          --sw-radius: 6px;
 
           /* surfaces & text */
           --sw-bg: light-dark(#f6f7f9, #0d0d0d);        /* page/canvas — surfaces lift off this */
