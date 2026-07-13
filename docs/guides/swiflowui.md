@@ -322,6 +322,24 @@ land on the panel.
 > unsupported the panel still opens (a centered popover), just not anchored to the
 > trigger.
 
+## Navigation
+
+### TextLink
+
+```swift
+p { text("Read the "); TextLink("documentation", href: "https://example.com/docs"); text(" before you start.") }
+TextLink("View on GitHub", href: "https://github.com", external: true)
+```
+
+A token-styled inline hyperlink — a plain `<a>`, not in-app routing. Named `TextLink`,
+not `Link`: `SwiflowRouter.Link` already owns in-app (SPA) navigation, so a bare `Link`
+would collide in any file importing both modules. `href` is sanitized automatically
+(it folds through `URLSanitizer`, same as any other `.href`/`.src` DSL modifier), so a
+`javascript:`/`data:` URL is neutralized rather than reaching the DOM. `external: true`
+opens the link in a new tab and adds `rel="noopener noreferrer"` (reverse-tabnabbing
+guard); `external: false` (the default) adds neither. Caller `Attribute...`/`.class`
+merge onto the `<a>`, same convention as every other stateless control.
+
 ## Forms
 
 The controls integrate with the framework's `Field`/`Form` (see the
