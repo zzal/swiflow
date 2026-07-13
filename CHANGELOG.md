@@ -20,6 +20,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- SwiflowUI typography & structure: a registered type-scale/line-height/container
+  token set (`--sw-font-size-*`, `--sw-font-weight-*`, `--sw-line-height*`,
+  `--sw-container-*`), plus `Text` (variant-mapped typography primitive),
+  `Container` (centered max-width shell), and `Icon` (a single-color, mask-based
+  bring-your-own-SVG seam) — each with a catalog story.
 - SwiflowUI navigation & content: `TextLink` (sanitized token-styled hyperlink),
   `Callout` (semantic status banner with polite/assertive live regions),
   `Breadcrumbs` (nav/ol trail with `aria-current`), and `Tabs` (WAI-ARIA tablist
