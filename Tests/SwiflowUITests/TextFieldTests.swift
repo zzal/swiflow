@@ -148,6 +148,7 @@ struct TextFieldTests {
         #expect(css.contains(".sw-field"))
         #expect(css.contains("var(--sw-border)"))
         #expect(css.contains("var(--sw-focus-ring)"))   // focus honors prefers-contrast
+        #expect(css.contains("box-shadow: var(--sw-focus-shadow)"))  // animated macOS-style ring
         #expect(css.contains("var(--sw-duration)"))     // transition honors reduced-motion
         #expect(css.contains("var(--sw-danger)"))
         #expect(css.contains("[aria-invalid=\"true\"]"))

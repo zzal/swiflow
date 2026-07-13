@@ -48,7 +48,7 @@ public enum SwiflowUI {
         @property --sw-radius-sm { syntax: "<length>"; inherits: true; initial-value: 4px; }
         @property --sw-radius { syntax: "<length>"; inherits: true; initial-value: 6px; }
         @property --sw-border-width { syntax: "<length>"; inherits: true; initial-value: 1px; }
-        @property --sw-focus-ring-width { syntax: "<length>"; inherits: true; initial-value: 2px; }
+        @property --sw-focus-ring-width { syntax: "<length>"; inherits: true; initial-value: 3px; }
         @property --sw-duration { syntax: "<time>"; inherits: true; initial-value: 150ms; }
         @property --sw-disabled-opacity { syntax: "<number>"; inherits: true; initial-value: 0.5; }
         /* Color tokens registered as <color>. initial-value must be computation-independent
@@ -183,7 +183,12 @@ public enum SwiflowUI {
           --sw-border: light-dark(#e5e7eb, #333333);
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
-          --sw-focus-ring-width: 2px;
+          --sw-focus-ring-width: 3px;
+          /* macOS-style focus ring: a half-opaque halo hugging the control's border,
+             following its border-radius. Controls transition box-shadow to this on
+             focus and back on blur (both read --sw-duration → reduced-motion collapses
+             it). Overridden to opaque under prefers-contrast: more, below. */
+          --sw-focus-shadow: 0 0 0 var(--sw-focus-ring-width) color-mix(in oklab, var(--sw-focus-ring) 50%, transparent);
           /* light-dark() is COLOR-only, so it wraps just the shadow color (not the whole
              value — lengths can't ride light-dark()). Keeping it in color position lets the
              shadow flip with `color-scheme` like every other token; the dark arm leans on a
@@ -213,7 +218,8 @@ public enum SwiflowUI {
             --sw-text-muted: light-dark(#1f2937, #e5e7eb);
             --sw-border: light-dark(#000000, #ffffff);
             --sw-border-width: 2px;
-            --sw-focus-ring-width: 3px;
+            --sw-focus-ring-width: 4px;
+            --sw-focus-shadow: 0 0 0 var(--sw-focus-ring-width) var(--sw-focus-ring);  /* opaque + thicker for contrast */
             --sw-shadow: 0 0 0 var(--sw-border-width) var(--sw-border);  /* solid ring, not a soft shadow */
             /* -strong pushed to WCAG 7 on the tint (proven by ThemeContrastTests). */
             --sw-accent-strong: light-dark(oklch(from var(--sw-accent) 0.30 c h), oklch(from var(--sw-accent) 0.88 c h));

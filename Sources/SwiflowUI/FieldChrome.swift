@@ -169,13 +169,14 @@ let formControlsSheet: CSSSheet = css {
       border-radius: var(--sw-radius);
       background-color: var(--sw-surface);
       color: var(--sw-text);
-      transition: border-color var(--sw-duration) var(--sw-ease);
+      transition: border-color var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-field input:focus-visible,
     .sw-field select:focus-visible,
     .sw-field textarea:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;   /* keeps a visible focus under forced-colors */
+      box-shadow: var(--sw-focus-shadow);
       border-color: var(--sw-focus-ring);
     }
     .sw-field input:disabled,
@@ -280,10 +281,12 @@ let formControlsSheet: CSSSheet = css {
       height: 1.1em;
       accent-color: var(--sw-accent);
       cursor: pointer;
+      border-radius: var(--sw-radius-sm);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-check input:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     .sw-check input[aria-invalid="true"] {
       outline: var(--sw-border-width) solid var(--sw-danger);
@@ -333,7 +336,8 @@ let formControlsSheet: CSSSheet = css {
       height: 1.25em;
       border-radius: 1em;
       background-color: var(--sw-border);
-      transition: background-color var(--sw-duration) var(--sw-ease);
+      transition: background-color var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-switch__thumb {
       position: absolute;
@@ -350,8 +354,8 @@ let formControlsSheet: CSSSheet = css {
     .sw-switch input:checked + .sw-switch__track .sw-switch__thumb { transform: translate(1em, -50%); }
     [dir="rtl"] .sw-switch input:checked + .sw-switch__track .sw-switch__thumb { transform: translate(-1em, -50%); }
     .sw-switch input:focus-visible + .sw-switch__track {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     /* Dim the whole row when disabled (matches .sw-check), not just the track. */
     .sw-switch__row--disabled { opacity: var(--sw-disabled-opacity); cursor: not-allowed; }
@@ -392,10 +396,11 @@ let formControlsSheet: CSSSheet = css {
       height: 1.1em;
       accent-color: var(--sw-accent);
       cursor: pointer;
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
     .sw-radio input:focus-visible {
-      outline: var(--sw-focus-ring-width) solid var(--sw-focus-ring);
-      outline-offset: 2px;
+      outline: 2px solid transparent;
+      box-shadow: var(--sw-focus-shadow);
     }
     /* The group has no single input to mark, so signal the error on the legend. */
     .sw-radio[aria-invalid="true"] .sw-radio__legend { color: var(--sw-danger); }
