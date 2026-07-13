@@ -29,6 +29,12 @@ struct TokenTests {
         #expect(Token.dangerText.css == "var(--sw-danger-text)")
     }
 
+    @Test(".css renders the var() reference for M14 type-scale & structure tokens")
+    func cssRendersVarM14() {
+        #expect(Token.fontSizeMd.css == "var(--sw-font-size-md)")
+        #expect(Token.containerLg.css == "var(--sw-container-lg)")
+    }
+
     @Test("the typed .style overload emits exactly what the stringly spelling does")
     func styleOverloadIdentical() {
         let typed = elementOf(div(.style("background", Token.surface)))!

@@ -73,6 +73,24 @@ public struct Token: Sendable, Equatable {
     public static let ease = Token("--sw-ease")
     public static let animPlay = Token("--sw-anim-play")
 
+    // Typography
+    public static let fontSizeXs = Token("--sw-font-size-xs")
+    public static let fontSizeSm = Token("--sw-font-size-sm")
+    public static let fontSizeMd = Token("--sw-font-size-md")
+    public static let fontSizeLg = Token("--sw-font-size-lg")
+    public static let fontSizeXl = Token("--sw-font-size-xl")
+    public static let fontSize2xl = Token("--sw-font-size-2xl")
+    public static let fontWeightRegular = Token("--sw-font-weight-regular")
+    public static let fontWeightMedium = Token("--sw-font-weight-medium")
+    public static let fontWeightSemibold = Token("--sw-font-weight-semibold")
+    public static let lineHeight = Token("--sw-line-height")
+    public static let lineHeightTight = Token("--sw-line-height-tight")
+
+    // Structure
+    public static let containerSm = Token("--sw-container-sm")
+    public static let containerMd = Token("--sw-container-md")
+    public static let containerLg = Token("--sw-container-lg")
+
     /// The whole vocabulary — powers the TokenTests anti-drift sweep.
     static let all: [Token] = [
         .bg, .surface, .surface2, .text, .textMuted,
@@ -83,6 +101,10 @@ public struct Token: Sendable, Equatable {
         .radiusSm, .radius, .shadow, .overlayBg, .backdrop, .disabledOpacity,
         .spaceXs, .spaceSm, .spaceMd, .spaceLg, .spaceXl,
         .duration, .ease, .animPlay,
+        .fontSizeXs, .fontSizeSm, .fontSizeMd, .fontSizeLg, .fontSizeXl, .fontSize2xl,
+        .fontWeightRegular, .fontWeightMedium, .fontWeightSemibold,
+        .lineHeight, .lineHeightTight,
+        .containerSm, .containerMd, .containerLg,
     ]
 }
 
