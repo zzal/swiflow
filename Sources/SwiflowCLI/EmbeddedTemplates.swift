@@ -2586,6 +2586,7 @@ enum Catalog {
         StoryEntry(slug: "stacks", title: "Stacks", category: .layout),
         StoryEntry(slug: "grid", title: "Grid", category: .layout),
         StoryEntry(slug: "spacer", title: "Spacer", category: .layout),
+        StoryEntry(slug: "container", title: "Container", category: .layout),
         StoryEntry(slug: "text", title: "Text", category: .typography),
         StoryEntry(slug: "button", title: "Button", category: .controls),
         StoryEntry(slug: "forms", title: "Form controls", category: .controls),
@@ -2693,6 +2694,7 @@ final class Shell {
                 Route("/component/stacks") { StacksStory() }
                 Route("/component/grid") { GridStory() }
                 Route("/component/spacer") { SpacerStory() }
+                Route("/component/container") { ContainerStory() }
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
                 Route("/component/forms") { FormControlsStory() }
@@ -2927,6 +2929,42 @@ final class CalloutStory {
                     TextLink("Contact support", href: "https://example.com/support")
                 }
             }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ContainerStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ContainerStory {
+    var body: VNode {
+        storyPage("Container",
+                  blurb: "The simplest layout primitive: a stateless centered max-width div over the "
+                       + "--sw-container-{sm,md,lg} tokens — the page shell most apps wrap their content "
+                       + "in. margin-inline: auto centers it once it hits its max-width.") {
+            variantSection("Widths", snippet: """
+            Container(size: .sm) { tintedCard("sm — 40rem") }
+            Container(size: .md) { tintedCard("md — 60rem (default)") }
+            Container(size: .lg) { tintedCard("lg — 80rem") }
+            """) {
+                VStack(spacing: .md, align: .stretch) {
+                    Container(size: .sm) { tintedCard("sm — 40rem") }
+                    Container(size: .md) { tintedCard("md — 60rem (default)") }
+                    Container(size: .lg) { tintedCard("lg — 80rem") }
+                }
+            }
+        }
+    }
+
+    /// A Card tinted with the accent color (rather than its default plain surface)
+    /// so it visibly fills the Container's width — makes the max-width read at a
+    /// glance against the story page (which is itself unconstrained width).
+    private func tintedCard(_ label: String) -> VNode {
+        Card(variant: .outlined, .style("background-color", "color-mix(in oklab, var(--sw-accent) 8%, var(--sw-surface))")) {
+            Text(label)
         }
     }
 }
