@@ -70,6 +70,20 @@ accepts any `grid-template-columns` value. Spacing is the `Spacing` scale
 `trailing` follow text direction). Chained calls compose per-edge, e.g.
 `.padding(.md, .horizontal).padding(.sm, .vertical)` for 16px-horizontal / 8px-vertical.
 
+### Container
+
+```swift
+Container { … }              // centered, max-width: --sw-container-md (60rem)
+Container(size: .sm) { … }   // --sw-container-sm (40rem)
+Container(size: .lg) { … }   // --sw-container-lg (80rem)
+```
+
+The page shell most apps wrap their content in: a stateless `<div>` that centers
+itself (`margin-inline: auto`) once it hits its `max-width`, with `padding-inline:
+--sw-space-md` keeping content off the viewport edge below that width. `size` maps
+to one of the `--sw-container-{sm,md,lg}` tokens (`Theme.swift`; 40/60/80rem by
+default) — re-point those tokens to retheme every `Container` in an app at once.
+
 ## Typography
 
 ### Text
