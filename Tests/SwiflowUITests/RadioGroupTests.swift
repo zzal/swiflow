@@ -130,8 +130,16 @@ struct RadioGroupTests {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-radio"))
         #expect(css.contains(".sw-radio__legend"))
-        #expect(css.contains("input[type=\"radio\"]"))
-        #expect(css.contains("accent-color: var(--sw-accent)"))
+        // Drawn control (cross-browser identical), not the UA's native rendering:
+        // hidden input + decorator circle, checked fills accent. The inner dot is a
+        // radial-gradient ON the decorator (single raster pass → concentric at
+        // fractional em sizes; a pseudo-element pixel-snaps independently and
+        // drifts off-center) taking the contrast token, popped in via
+        // background-size.
+        #expect(css.contains(".sw-radio__dot"))
+        #expect(css.contains(".sw-radio input:checked + .sw-radio__dot"))
+        #expect(css.contains("radial-gradient(circle closest-side"))
+        #expect(css.contains("background-size: 0.5em 0.5em"))
         #expect(css.contains(".sw-radio[aria-invalid=\"true\"]"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }

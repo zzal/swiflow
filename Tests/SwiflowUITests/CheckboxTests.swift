@@ -117,11 +117,17 @@ struct CheckboxTests {
         #expect(el(node)!.attributes["class"] == "sw-check sw-check--lg")
     }
 
-    @Test("checkbox stylesheet uses accent-color, the error outline, and the size scale") func stylesheet() {
+    @Test("checkbox stylesheet draws the box (not native accent-color) with token glyph + size scale") func stylesheet() {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-check"))
-        #expect(css.contains("accent-color: var(--sw-accent)"))
-        #expect(css.contains(".sw-check input[aria-invalid=\"true\"]"))
+        // Drawn control (cross-browser identical), not the UA's native rendering:
+        // hidden input + decorator box, checked fills accent, masked checkmark takes
+        // the contrast token (never a baked color).
+        #expect(css.contains(".sw-check__box"))
+        #expect(css.contains(".sw-check input:checked + .sw-check__box"))
+        #expect(css.contains(".sw-check__box::after"))
+        #expect(css.contains("background-color: var(--sw-accent-text)"))
+        #expect(css.contains(".sw-check input[aria-invalid=\"true\"] + .sw-check__box"))
         #expect(css.contains(".sw-check--lg"))
     }
 }
