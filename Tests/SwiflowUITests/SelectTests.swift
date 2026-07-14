@@ -158,6 +158,11 @@ struct SelectTests {
         // align-items: normal, which pins the fixed-height icon to the cross-axis
         // start (visually above the text's center) — the icon must self-center.
         #expect(css.contains("align-self: center"))
+        // Picker open/close animation: the shared top-layer quartet (drop 10px + fade),
+        // keyed on select:open so it reverses on close; @starting-style drives entry.
+        #expect(css.contains("select:open::picker(select)"))
+        #expect(css.contains("@starting-style"))
+        #expect(css.contains("translateY(-10px)"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }
