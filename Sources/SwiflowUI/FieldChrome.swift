@@ -203,15 +203,74 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--lg input, .sw-field--lg select, .sw-field--lg textarea { padding: var(--sw-space-md) var(--sw-space-lg); font-size: 1.125rem; }
     .sw-field textarea { resize: vertical; min-height: calc(2 * 1em + 2 * var(--sw-space-sm)); }
 
-    /* --- Slider: native range input; the base input chrome doesn't fit a track --- */
+    /* --- Slider: custom-drawn range (Reshaped geometry, cross-browser identical) ---
+       Borderless 0.25em pill track with a left-anchored accent fill, and a 1em accent
+       thumb ringed by 2px of --sw-surface (Reshaped's "white border", surface-toned so
+       dark mode adapts). The fill is a gradient layer sized by --sw-slider-fill, which
+       Slider emits inline per render — the .value binding fires per input event, so it
+       tracks the drag live. Webkit and Gecko each get their own pseudo pair. */
     .sw-field input[type="range"] {
+      appearance: none;
+      -webkit-appearance: none;
       padding: 0;
       border: none;
+      height: 1.25em;              /* comfortable hit area; the track centers inside */
       background: none;
-      accent-color: var(--sw-accent);
       cursor: pointer;
     }
     .sw-field input[type="range"]:disabled { cursor: not-allowed; }
+    .sw-field input[type="range"]::-webkit-slider-runnable-track {
+      height: 0.25em;
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(var(--sw-accent), var(--sw-accent))
+                  0 0 / var(--sw-slider-fill, 0%) 100% no-repeat var(--sw-border);
+    }
+    .sw-field input[type="range"]::-moz-range-track {
+      height: 0.25em;
+      border: none;
+      border-radius: 999px;
+      background: var(--sw-border);
+    }
+    .sw-field input[type="range"]::-moz-range-progress {
+      height: 0.25em;
+      border-radius: 999px;
+      background: var(--sw-accent);
+    }
+    /* Knob: a 1.25em accent dot with a real 2px stroke — white in light mode,
+       black in dark (explicitly light-dark, NOT --sw-surface: dark surface is
+       gray and reads as no stroke). box-sizing keeps the stroke inside the
+       1.25em footprint (16px dot + 2px ring @ md, Reshaped's proportions). */
+    .sw-field input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      box-sizing: border-box;
+      width: 1.25em;
+      height: 1.25em;
+      border: 2px solid light-dark(#fff, #000);
+      border-radius: 50%;
+      background-color: var(--sw-accent);
+      margin-top: -0.5em;          /* (0.25em track − 1.25em thumb) / 2 */
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
+    }
+    .sw-field input[type="range"]::-moz-range-thumb {
+      box-sizing: border-box;
+      width: 1.25em;
+      height: 1.25em;
+      border: 2px solid light-dark(#fff, #000);
+      border-radius: 50%;
+      background-color: var(--sw-accent);
+      transition: box-shadow var(--sw-duration) var(--sw-ease);
+    }
+    /* The shared .sw-field input:focus-visible ring would wrap the whole input's
+       box — move it onto the thumb. */
+    .sw-field input[type="range"]:focus-visible { box-shadow: none; }
+    .sw-field input[type="range"]:focus-visible::-webkit-slider-thumb {
+      box-shadow: var(--sw-focus-shadow);
+    }
+    .sw-field input[type="range"]:focus-visible::-moz-range-thumb {
+      box-shadow: var(--sw-focus-shadow);
+    }
 
     /* --- Select: skinnable native <select> --- */
     /* Fallback (all browsers): strip native chrome, draw a chevron. The base
