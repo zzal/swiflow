@@ -154,6 +154,10 @@ struct SelectTests {
         #expect(css.contains("background-color: var(--sw-text-muted)"))   // masked, token-colored
         #expect(css.contains("mask: url("))                               // not content:url (which bakes black)
         #expect(css.contains("background-image: light-dark("))            // fallback adapts to scheme
+        // Chrome's base-select UA styles make the <select> a flex container with
+        // align-items: normal, which pins the fixed-height icon to the cross-axis
+        // start (visually above the text's center) — the icon must self-center.
+        #expect(css.contains("align-self: center"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
 }

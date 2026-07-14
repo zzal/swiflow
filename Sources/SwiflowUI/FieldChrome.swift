@@ -240,6 +240,10 @@ let formControlsSheet: CSSSheet = css {
         content: "";
         width: 1em;
         height: 1em;
+        /* Chrome's base-select UA styles make the <select> a flex container with
+           align-items: normal, so this fixed-height pseudo pins to the cross-axis
+           START — visually a few px above the text's center. Center it explicitly. */
+        align-self: center;
         background-color: var(--sw-text-muted);
         -webkit-mask: url("\(swChevronDownSVG)") center / contain no-repeat;
         mask: url("\(swChevronDownSVG)") center / contain no-repeat;
