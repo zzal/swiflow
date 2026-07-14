@@ -73,6 +73,33 @@ struct SliderTests {
         #expect(input.attributes["step"] == nil)
     }
 
+    @Test("the drawn track's fill var reflects the value's position in the range, clamped") func fillVarTracksValue() {
+        let at25 = Binding<Double>(get: { 2.5 }, set: { _ in })
+        let input = inputOf(building { Slider("Volume", value: at25, in: 0...10) })!
+        #expect(input.style["--sw-slider-fill"] == "25%")
+        // Clamped: a bound value outside the range must not paint outside the track.
+        let over = Binding<Double>(get: { 42 }, set: { _ in })
+        #expect(inputOf(building { Slider("Volume", value: over, in: 0...10) })!.style["--sw-slider-fill"] == "100%")
+        let under = Binding<Double>(get: { -1 }, set: { _ in })
+        #expect(inputOf(building { Slider("Volume", value: under, in: 0...10) })!.style["--sw-slider-fill"] == "0%")
+    }
+
+    @Test("stylesheet draws the range (not native accent-color): borderless track, surface-ringed thumb") func stylesheet() {
+        let css = formControlsSheet.cssString(scopeClass: "")
+        // Reshaped geometry: borderless pill track with a --sw-slider-fill accent
+        // layer (webkit) / ::-moz-range-progress (gecko); 1.25em accent knob with a
+        // real 2px stroke — white in light, black in dark (explicit light-dark, not
+        // --sw-surface: dark surface is gray and reads as no stroke).
+        #expect(css.contains("::-webkit-slider-runnable-track"))
+        #expect(css.contains("::-moz-range-track"))
+        #expect(css.contains("::-moz-range-progress"))
+        #expect(css.contains("var(--sw-slider-fill, 0%)"))
+        #expect(css.contains("::-webkit-slider-thumb"))
+        #expect(css.contains("::-moz-range-thumb"))
+        #expect(css.contains("border: 2px solid light-dark(#fff, #000)"))
+        #expect(!css.contains("accent-color:"))   // fully drawn — no native tinting left
+    }
+
     @Test("step lowers to a formatted attribute when given") func stepFormatted() {
         let input = inputOf(building { Slider("Volume", value: unused, in: 0...10, step: 1) })!
         #expect(input.attributes["step"] == "1")

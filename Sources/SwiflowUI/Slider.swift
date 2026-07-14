@@ -35,10 +35,19 @@ public func Slider(
     let inputAttrs = controlInputAttributes(base, error: error, required: false,
                                             disabled: disabled, onBlur: onBlur, caller: attributes)
 
+    // Fill fraction for the drawn track (see the range rules in FieldChrome): the
+    // webkit track paints its accent fill at this width. Re-computed every render —
+    // the .value binding fires per input event, so it tracks the drag live. Clamped
+    // (a bound value outside the range shouldn't paint outside the track); a
+    // degenerate range (lower == upper) pins the fill to 0.
+    let span = range.upperBound - range.lowerBound
+    let fraction = span > 0 ? min(max((value.get() - range.lowerBound) / span, 0), 1) : 0
+    let fillPercent = "\(formatControlNumber((fraction * 1000).rounded() / 10))%"
+
     var rootChildren: [VNode] = [
         element("label", attributes: [.class("sw-field__label")], children: [
             element("span", attributes: [.class("sw-field__label-text")], children: [text(label)]),
-            element("input", attributes: inputAttrs),
+            element("input", attributes: inputAttrs).style("--sw-slider-fill", fillPercent),
         ]),
     ]
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
