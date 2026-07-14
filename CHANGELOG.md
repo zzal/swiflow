@@ -20,6 +20,46 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.19] — 2026-07-14
+
+**Beta.** A second SwiflowUI design-review round, focused on the form controls:
+Checkbox, Radio, and Slider are now fully custom-drawn (Reshaped-styled geometry,
+identical pixels in Chrome and Safari — native rendering diverged per browser), and
+the Select got two polish fixes. Public APIs are unchanged; the controls' internal
+DOM and visual defaults changed as described below.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes.
+
+### Added
+
+- **`Select` picker open/close animation** (Customizable Select browsers): the option
+  list drops 10px into place while fading in, and reverses on close — the shared
+  top-layer transition quartet, reading `--sw-duration` (reduced-motion → instant).
+  Fallback browsers keep their native popup.
+
+### Changed
+
+- **`Checkbox` and `RadioGroup` are custom-drawn** instead of native
+  `accent-color`-tinted: a token-bordered 1.25em box (`--sw-radius-sm` corners) /
+  circle that fills with `--sw-accent` when checked and animates in the glyph — a
+  masked checkmark / an inner dot colored by `--sw-accent-text` (dark-mode- and
+  accent-cascade-correct). The radio's dot is painted as a radial-gradient on the
+  decorator itself (single raster pass) so ring and dot stay pixel-concentric at any
+  size. Internals: the native input remains for state/keyboard/AT but is now an
+  invisible full-row overlay, and a presentational decorator `<span>` was added —
+  clicks (and test-tooling clicks, e.g. Playwright's `.check()`) hit the input
+  natively. The `Toggle` input follows the same overlay contract.
+- **`Slider` is custom-drawn**: borderless 0.25em pill track in `--sw-border` with a
+  live accent fill (a `--sw-slider-fill` gradient layer emitted per render; Gecko
+  uses `::-moz-range-progress`), and a 1.25em accent knob with a real 2px stroke —
+  white in light mode, black in dark (`light-dark(#fff, #000)`). The focus ring
+  moved from the input's box onto the knob.
+- **`Select` chevron is vertically centered** under Chrome's Customizable Select
+  (the UA's flex layout pinned the fixed-height `::picker-icon` to the top —
+  `align-self: center`).
+
+---
+
 ## [0.4.18] — 2026-07-13
 
 **Beta.** A SwiflowUI polish round from a pass of design-review feedback on the
