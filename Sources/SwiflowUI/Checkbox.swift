@@ -70,6 +70,9 @@ private func checkboxControl(
     var rootChildren: [VNode] = [
         element("label", attributes: [.class(rowClass)], children: [
             element("input", attributes: inputAttrs),
+            // The drawn box (the input is sr-only-hidden; see .sw-check in FieldChrome).
+            // Presentational only — state/AT live on the input.
+            element("span", attributes: [.class("sw-check__box"), .attr("aria-hidden", "true")], children: []),
             element("span", attributes: [.class("sw-check__label-text")], children: [text(labelText)]),
         ]),
     ]

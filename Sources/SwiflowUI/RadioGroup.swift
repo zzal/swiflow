@@ -106,6 +106,9 @@ private func radioGroupControl(
         children.append(
             element("label", attributes: [.class("sw-radio__option")], children: [
                 element("input", attributes: [.attr("type", "radio"), .attr("name", name), .checked(optionBinding)]),
+                // The drawn dot (the input is sr-only-hidden; see .sw-radio in FieldChrome).
+                // Presentational only — state/AT live on the input.
+                element("span", attributes: [.class("sw-radio__dot"), .attr("aria-hidden", "true")], children: []),
                 element("span", attributes: [.class("sw-radio__option-label")], children: [text(option.label)]),
             ])
         )

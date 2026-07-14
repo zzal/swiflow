@@ -130,6 +130,13 @@ func chevronDownSVG(stroke: String) -> String {
 }
 let swChevronDownSVG = chevronDownSVG(stroke: "currentColor")
 
+/// The Checkbox checkmark as an inline SVG data-URI (Reshaped's polyline geometry:
+/// 24-unit viewBox, stroke 2, round caps). Consumed only as a *mask*, so the baked
+/// stroke color is irrelevant — the glyph is filled by the pseudo-element's
+/// token-driven `background-color` (the picker-icon/Dropdown-caret technique).
+let swCheckmarkSVG =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E"
+
 /// The one stylesheet for all form controls: the column-input chrome
 /// (TextField/Select), the Checkbox row, the Toggle switch (track + thumb), the
 /// RadioGroup fieldset, and the shared error message. Every value reads a `--sw-*`
@@ -275,9 +282,16 @@ let formControlsSheet: CSSSheet = css {
       .sw-field option::checkmark { color: var(--sw-accent); }
     }
 
-    /* --- Checkbox: native checkbox with the label BESIDE it (selection/confirm) --- */
+    /* --- Checkbox: custom-drawn box (Reshaped geometry) over a hidden native input --- */
+    /* The native input keeps state/keyboard/AT but is sr-only-hidden (same recipe as
+       .sw-switch); the .sw-check__box span is the visual. Drawn — not accent-color'd —
+       so Chrome and Safari render identical pixels (native checkboxes diverge per UA).
+       Box: 1.25em (20px @ md), token border, --sw-radius-sm corners; checked fills
+       with the accent and scale+fades in a masked checkmark colored by
+       --sw-accent-text (token-driven, dark-adaptive, accent-cascade-compatible). */
     .sw-check { display: flex; flex-direction: column; gap: var(--sw-space-xs); }
     .sw-check__row {
+      position: relative;            /* containing block for the hidden input */
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -285,22 +299,66 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .sw-check input[type="checkbox"] {
-      flex: none;
-      width: 1.1em;
-      height: 1.1em;
-      accent-color: var(--sw-accent);
+    /* The real input invisibly covers the whole row (not sr-only-clipped): clicks —
+       the user's AND test tooling's — hit the input itself natively, so no
+       label-forwarding is involved. (Playwright's .check() click-points the input;
+       a clip-hidden 1px input gets "intercepted" by whatever paints there and
+       times out. opacity: 0 keeps it hit-testable.) */
+    .sw-check input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
       cursor: pointer;
-      border-radius: var(--sw-radius-sm);
-      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
-    .sw-check input:focus-visible {
+    .sw-check__box {
+      flex: none;
+      position: relative;
+      /* Clicks fall through to the wrapping <label> (which activates the input
+         natively). Also load-bearing for test tooling: Playwright's .check() on
+         the hidden input is click-intercepted by this span unless it's
+         pointer-transparent — interception by the associated label is allowed. */
+      pointer-events: none;
+      width: 1.25em;
+      height: 1.25em;
+      box-sizing: border-box;
+      border: var(--sw-border-width) solid var(--sw-border);
+      border-radius: var(--sw-radius-sm);
+      background-color: var(--sw-surface);
+      transition: background-color var(--sw-duration) var(--sw-ease),
+                  border-color var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
+    }
+    .sw-check__box::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-color: var(--sw-accent-text);
+      -webkit-mask: url("\(swCheckmarkSVG)") center / 80% no-repeat;
+      mask: url("\(swCheckmarkSVG)") center / 80% no-repeat;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity var(--sw-duration) var(--sw-ease),
+                  transform var(--sw-duration) var(--sw-ease);
+    }
+    .sw-check input:checked + .sw-check__box {
+      background-color: var(--sw-accent);
+      border-color: var(--sw-accent);
+    }
+    .sw-check input:checked + .sw-check__box::after {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .sw-check input:focus-visible + .sw-check__box {
       outline: 2px solid transparent;
       box-shadow: var(--sw-focus-shadow);
     }
-    .sw-check input[aria-invalid="true"] {
-      outline: var(--sw-border-width) solid var(--sw-danger);
-      outline-offset: 2px;
+    .sw-check input[aria-invalid="true"] + .sw-check__box {
+      border-color: var(--sw-danger);
     }
     .sw-check__row--disabled {
       opacity: var(--sw-disabled-opacity);
@@ -323,25 +381,24 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       cursor: pointer;
     }
-    /* The native checkbox drives state/keyboard but is visually hidden via the
-       standard clip-based sr-only recipe (focusable, but takes no layout/scroll —
-       a plain 1px+opacity:0 box could nudge page scroll). The track + thumb are
-       the visual; the wrapping <label> forwards clicks to the input. */
+    /* The native checkbox drives state/keyboard; visually it's a full-row
+       invisible overlay (see .sw-check input — same testability rationale),
+       so clicks hit the input natively. The track + thumb are the visual. */
     .sw-switch input {
       position: absolute;
-      width: 1px;
-      height: 1px;
-      margin: -1px;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
       padding: 0;
       border: 0;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      clip-path: inset(50%);
-      white-space: nowrap;
+      opacity: 0;
+      cursor: pointer;
     }
     .sw-switch__track {
       flex: none;
       position: relative;
+      pointer-events: none;   /* clicks fall through to the label (see .sw-check__box) */
       width: 2.25em;
       height: 1.25em;
       border-radius: 1em;
@@ -392,7 +449,11 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       margin-bottom: var(--sw-space-xs);
     }
+    /* Custom-drawn dot over a hidden native radio — the same Reshaped-geometry
+       treatment as .sw-check__box (see the Checkbox comment above): 1.25em circle,
+       checked fills with the accent and pops in a 0.5em --sw-accent-text dot. */
     .sw-radio__option {
+      position: relative;            /* containing block for the hidden input */
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -400,15 +461,53 @@ let formControlsSheet: CSSSheet = css {
       color: var(--sw-text);
       cursor: pointer;
     }
-    .sw-radio input[type="radio"] {
-      flex: none;
-      width: 1.1em;
-      height: 1.1em;
-      accent-color: var(--sw-accent);
+    .sw-radio input {
+      position: absolute;   /* full-row invisible overlay (see .sw-check input) */
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
       cursor: pointer;
-      transition: box-shadow var(--sw-duration) var(--sw-ease);
     }
-    .sw-radio input:focus-visible {
+    .sw-radio__dot {
+      flex: none;
+      pointer-events: none;   /* clicks fall through to the label (see .sw-check__box) */
+      width: 1.25em;
+      height: 1.25em;
+      box-sizing: border-box;
+      border: var(--sw-border-width) solid var(--sw-border);
+      border-radius: 50%;
+      background-color: var(--sw-surface);
+      /* The inner dot is a radial-gradient painted ON this element — NOT a child/
+         pseudo. A separate element rasterizes in its own pass, so at fractional
+         em sizes (17.5px box at sm) the browser pixel-snaps ring and dot
+         independently and they drift visibly off-center (a pseudo + transform
+         centering wasn't enough). One element = one raster pass = concentric by
+         construction; gradients resolve var(), so the dot keeps the contrast
+         token (SVG would bake the color and break the accent cascade).
+         background-origin: border-box centers the dot on the same box the
+         visible disk is drawn in; the 8% transparent ramp anti-aliases the edge.
+         The pop animates via background-size (0 → 0.5em). */
+      background-image: radial-gradient(circle closest-side,
+                          var(--sw-accent-text) 92%, transparent 100%);
+      background-origin: border-box;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 0px 0px;
+      transition: background-color var(--sw-duration) var(--sw-ease),
+                  border-color var(--sw-duration) var(--sw-ease),
+                  background-size var(--sw-duration) var(--sw-ease),
+                  box-shadow var(--sw-duration) var(--sw-ease);
+    }
+    .sw-radio input:checked + .sw-radio__dot {
+      background-color: var(--sw-accent);
+      border-color: var(--sw-accent);
+      background-size: 0.5em 0.5em;
+    }
+    .sw-radio input:focus-visible + .sw-radio__dot {
       outline: 2px solid transparent;
       box-shadow: var(--sw-focus-shadow);
     }
