@@ -257,6 +257,12 @@ let formControlsSheet: CSSSheet = css {
         padding: var(--sw-space-xs);
         box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
       }
+      /* entry/exit animation — the shared quartet (see PopoverTransition.swift):
+         the option list drops 10px into place while fading in, reverses on close.
+         Durations read --sw-duration, so reduced-motion makes it instant. */
+      \(popoverTransitionCSS(
+          base: ".sw-field ::picker(select)", open: ".sw-field select:open::picker(select)",
+          closedTransform: "translateY(-10px)", openTransform: "translateY(0)"))
       .sw-field option {
         display: flex;
         align-items: center;
