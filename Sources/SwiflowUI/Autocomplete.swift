@@ -39,6 +39,9 @@ public func Autocomplete(
     required: Bool = false,
     disabled: Bool = false,
     filter: ((_ query: String, _ option: SelectOption) -> Bool)? = nil,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     key: String? = nil,
     onBlur: (@MainActor () -> Void)? = nil
@@ -48,6 +51,7 @@ public func Autocomplete(
         AutocompleteBox(label: label, selection: selection, options: options,
                         placeholder: placeholder, error: error, size: size,
                         required: required, disabled: disabled, filter: filter,
+                        layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                         caller: caller, onBlur: onBlur)
     }
 }
@@ -64,6 +68,9 @@ public func Autocomplete(
     required: Bool = false,
     disabled: Bool = false,
     filter: ((_ query: String, _ option: SelectOption) -> Bool)? = nil,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     key: String? = nil
 ) -> VNode {
@@ -74,6 +81,7 @@ public func Autocomplete(
         AutocompleteBox(label: label, selection: field.binding, options: options,
                         placeholder: placeholder, error: field.error, size: size,
                         required: required, disabled: disabled, filter: filter,
+                        layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                         caller: caller, onBlur: { field.markTouched() })
     }
 }
@@ -105,6 +113,9 @@ public func Autocomplete(
     disabled: Bool = false,
     debounce: Double = 0.25,
     minChars: Int = 1,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     key: String? = nil,
     onBlur: (@MainActor () -> Void)? = nil
@@ -114,6 +125,7 @@ public func Autocomplete(
         AutocompleteBox(label: label, selection: selection, options: [],
                         placeholder: placeholder, error: error, size: size,
                         required: required, disabled: disabled, filter: nil,
+                        layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                         caller: caller, onBlur: onBlur,
                         loader: loader, debounce: debounce, minChars: minChars)
     }
@@ -132,6 +144,9 @@ public func Autocomplete(
     disabled: Bool = false,
     debounce: Double = 0.25,
     minChars: Int = 1,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     key: String? = nil
 ) -> VNode {
@@ -140,6 +155,7 @@ public func Autocomplete(
         AutocompleteBox(label: label, selection: field.binding, options: [],
                         placeholder: placeholder, error: field.error, size: size,
                         required: required, disabled: disabled, filter: nil,
+                        layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                         caller: caller, onBlur: { field.markTouched() },
                         loader: loader, debounce: debounce, minChars: minChars)
     }
@@ -162,6 +178,9 @@ final class AutocompleteBox {
     private let required: Bool
     private let disabled: Bool
     private let filter: ((String, SelectOption) -> Bool)?
+    private let layout: FieldLayout
+    private let labelPrefix: VNode?
+    private let labelSuffix: VNode?
     private let caller: [Attribute]
     private let onBlur: (@MainActor () -> Void)?
     // Async mode: when `loader` is non-nil the panel is fed by remote results
@@ -196,7 +215,9 @@ final class AutocompleteBox {
 
     init(label: String, selection: Binding<String>, options: [SelectOption], placeholder: String,
          error: String?, size: ControlSize, required: Bool, disabled: Bool,
-         filter: ((String, SelectOption) -> Bool)?, caller: [Attribute],
+         filter: ((String, SelectOption) -> Bool)?,
+         layout: FieldLayout = .vertical, labelPrefix: VNode? = nil, labelSuffix: VNode? = nil,
+         caller: [Attribute],
          onBlur: (@MainActor () -> Void)?,
          loader: ((String) async throws -> [SelectOption])? = nil,
          debounce: Double = 0.25, minChars: Int = 1) {
@@ -209,6 +230,9 @@ final class AutocompleteBox {
         self.required = required
         self.disabled = disabled
         self.filter = filter
+        self.layout = layout
+        self.labelPrefix = labelPrefix
+        self.labelSuffix = labelSuffix
         self.caller = caller
         self.onBlur = onBlur
         self.loader = loader
@@ -421,7 +445,7 @@ final class AutocompleteBox {
         // Label is `for`-associated (not wrapping) so the input's accessible name is just the
         // label text — the trailing ✕ button, a sibling of the input, doesn't pollute it.
         let labelNode = element("label", attributes: [.class("sw-field__label"), .attr("for", controlID)], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(label)]),
+            fieldLabelLine(label, prefix: labelPrefix, suffix: labelSuffix),
         ])
 
         // --- listbox popover ---
@@ -482,7 +506,9 @@ final class AutocompleteBox {
         var rootChildren: [VNode] = [labelNode, fieldWrap]
         if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
         rootChildren.append(listbox)
-        let root = element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass) sw-ac")],
+        var rootClasses = ["sw-field", "sw-field--\(size.modifierClass)", "sw-ac"]
+        if let modifier = layout.rootModifierClass { rootClasses.append(modifier) }
+        let root = element("div", attributes: [.class(rootClasses.joined(separator: " "))],
                            children: rootChildren)
         // Async: one stable `.task` whose `rerunOn: query` cancels+restarts the debounced
         // search on every keystroke. Sync mode attaches nothing (stable .task count per

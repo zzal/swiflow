@@ -52,10 +52,14 @@ import Testing
     placeholder: String = "Search…",
     error: String? = nil,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> AutocompleteBox {
     AutocompleteBox(label: "Country", selection: selection, options: options, placeholder: placeholder,
                     error: error, size: .md, required: false, disabled: disabled, filter: nil,
+                    layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                     caller: [], onBlur: onBlur)
 }
 
@@ -131,6 +135,16 @@ struct AutocompleteTests {
         HandlerAmbient.current = HandlerRegistry(); defer { HandlerAmbient.current = nil }
         let node = Autocomplete("Country", selection: Cell("").binding, options: ["A", "B"])
         if case .component = node {} else { Issue.record("expected a component node, got \(node)") }
+    }
+
+    @Test("layout adds --h to the root; adornments render in the for-associated label") func chromeParams() {
+        HandlerAmbient.current = HandlerRegistry(); defer { HandlerAmbient.current = nil }
+        let root = el(makeBox(selection: Cell("").binding, layout: .horizontal, labelPrefix: text("P")).body)!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+        let label = firstTag(root, "label")!
+        let line = el(label.children[0])!
+        #expect(line.attributes["class"] == "sw-field__label-line")
+        #expect(el(line.children[0])!.attributes["class"] == "sw-field__label-prefix")
     }
 
     // MARK: filtering
