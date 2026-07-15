@@ -67,10 +67,13 @@ final class FeedbackStory {
             }
             variantSection("Progress", snippet: """
             ProgressView(value: 0.6)
+            ProgressView(value: 0.6, animated: true)   // macOS-style sheen sweep
             """) {
                 ProgressView(value: 0.6)
-                p("The Spinner pauses under prefers-reduced-motion (via --sw-anim-play); "
-                  + "cards/badges/progress re-skin with the theme — flip Dark mode to see it.")
+                ProgressView(value: 0.6, animated: true)
+                p("The Spinner and the animated progress sheen pause under "
+                  + "prefers-reduced-motion (via --sw-anim-play); cards/badges/progress "
+                  + "re-skin with the theme — flip Dark mode to see it.")
             }
         }
     }
