@@ -99,5 +99,10 @@ struct AvatarTests {
         #expect(css.contains(".sw-avatar--rounded"))
         #expect(css.contains(".sw-avatar--square"))
         #expect(css.contains("var(--sw-radius)"))
+        // Initials fallback wears Badge's accent-soft recipe (tint bg + -strong
+        // text) — surface-2 on a surface card was near-invisible.
+        #expect(css.contains(".sw-avatar--initials"))
+        #expect(css.contains("color-mix(in oklab, var(--sw-accent) 15%, var(--sw-surface))"))
+        #expect(css.contains("var(--sw-accent-strong)"))
     }
 }
