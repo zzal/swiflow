@@ -27,13 +27,17 @@ public func NumberField(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     numberFieldControl(label: label, valueAttribute: .value(value),
                        min: min.map(formatControlNumber), max: max.map(formatControlNumber), step: step.map(formatControlNumber),
                        placeholder: placeholder, error: error, size: size, required: required,
-                       disabled: disabled, attributes: attributes, onBlur: onBlur)
+                       disabled: disabled, layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                       attributes: attributes, onBlur: onBlur)
 }
 
 /// `Int`-valued overload, mirroring the `Double` one above.
@@ -51,13 +55,17 @@ public func NumberField(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     numberFieldControl(label: label, valueAttribute: .value(value),
                        min: min.map(String.init), max: max.map(String.init), step: step.map(String.init),
                        placeholder: placeholder, error: error, size: size, required: required,
-                       disabled: disabled, attributes: attributes, onBlur: onBlur)
+                       disabled: disabled, layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                       attributes: attributes, onBlur: onBlur)
 }
 
 /// Shared field-chrome lowering for both overloads: takes the pre-built
@@ -75,6 +83,9 @@ private func numberFieldControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
+    layout: FieldLayout,
+    labelPrefix: VNode?,
+    labelSuffix: VNode?,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
@@ -89,13 +100,7 @@ private func numberFieldControl(
     let inputAttrs = controlInputAttributes(base, error: error, required: required,
                                             disabled: disabled, onBlur: onBlur, caller: attributes)
 
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-field__label")], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(labelText)]),
-            element("input", attributes: inputAttrs),
-        ]),
-    ]
-    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
-                   children: rootChildren)
+    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
+                              suffix: labelSuffix, error: error, size: size,
+                              controls: [element("input", attributes: inputAttrs)])
 }

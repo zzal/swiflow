@@ -19,11 +19,15 @@ public func TextArea(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     textAreaControl(label: label, binding: text, rows: rows, placeholder: placeholder,
                     error: error, size: size, required: required, disabled: disabled,
+                    layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                     attributes: attributes, onBlur: onBlur)
 }
 
@@ -37,10 +41,14 @@ public func TextArea(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...
 ) -> VNode {
     textAreaControl(label: label, binding: field.binding, rows: rows, placeholder: placeholder,
                     error: field.error, size: size, required: required, disabled: disabled,
+                    layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                     attributes: attributes, onBlur: { field.markTouched() })
 }
 
@@ -55,6 +63,9 @@ private func textAreaControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
+    layout: FieldLayout,
+    labelPrefix: VNode?,
+    labelSuffix: VNode?,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
@@ -66,13 +77,7 @@ private func textAreaControl(
     let controlAttrs = controlInputAttributes(base, error: error, required: required,
                                               disabled: disabled, onBlur: onBlur, caller: attributes)
 
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-field__label")], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(labelText)]),
-            element("textarea", attributes: controlAttrs),
-        ]),
-    ]
-    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
-                   children: rootChildren)
+    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
+                              suffix: labelSuffix, error: error, size: size,
+                              controls: [element("textarea", attributes: controlAttrs)])
 }
