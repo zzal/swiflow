@@ -87,6 +87,19 @@ struct ProgressViewTests {
         #expect(css.contains("var(--sw-accent)"))
         #expect(css.contains("var(--sw-surface-2)"))
     }
+
+    @Test("animated: adds the modifier class; off by default") func animatedClass() {
+        #expect(el(ProgressView(value: 0.5))!.attributes["class"] == "sw-progress")
+        #expect(el(ProgressView(value: 0.5, animated: true))!.attributes["class"] == "sw-progress sw-progress--animated")
+    }
+
+    @Test("stylesheet: the sheen sweeps the fill on both engines, reduced-motion-gated") func animatedSheet() {
+        let css = progressStyleSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-progress--animated::-webkit-progress-value"))
+        #expect(css.contains(".sw-progress--animated::-moz-progress-bar"))
+        #expect(css.contains("@keyframes sw-progress-sheen"))
+        #expect(css.contains("animation-play-state: var(--sw-anim-play)"))   // reduced-motion freezes
+    }
 }
 
 @Suite("Card")
