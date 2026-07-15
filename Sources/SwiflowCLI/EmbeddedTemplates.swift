@@ -3928,6 +3928,26 @@ final class PopoverStory {
                     }
                 }
             }
+            variantSection("Offset — a standoff from the trigger", snippet: """
+            Popover(placement: .bottom, offset: 3) {
+                Button("3px off", variant: .secondary) {}
+            } content: {
+                p("Opens with a small gap to the trigger (Tooltip's standoff).")
+            }
+            """) {
+                HStack(spacing: .md, align: .center) {
+                    Popover(placement: .bottom, offset: 3) {
+                        Button("3px off", variant: .secondary) {}
+                    } content: {
+                        p("Opens with a small gap to the trigger (Tooltip's standoff).")
+                    }
+                    Popover(placement: .bottom, offset: 8) {
+                        Button("8px off", variant: .secondary) {}
+                    } content: {
+                        p("Any distance works — offset is just pixels.")
+                    }
+                }
+            }
         }
     }
 }

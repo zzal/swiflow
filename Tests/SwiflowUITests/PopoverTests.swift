@@ -56,11 +56,13 @@ import Testing
 // The PopoverPanel @Component body (what the Popover free fn embeds).
 @MainActor private func pop(
     placement: PopoverPlacement = .bottom,
+    offset: Double = 0,
     panelAttrs: [Attribute] = [],
     trigger: @escaping () -> [VNode],
     content: @escaping () -> [VNode]
 ) -> VNode {
-    PopoverPanel(placement: placement, panelAttrs: panelAttrs, trigger: trigger, content: content).body
+    PopoverPanel(placement: placement, offset: offset, panelAttrs: panelAttrs,
+                 trigger: trigger, content: content).body
 }
 
 @Suite("Popover")
@@ -85,7 +87,7 @@ struct PopoverTests {
     }
 
     @Test("the panel id is stable across re-renders (the reason it's a @Component)") func stableID() {
-        let panel = PopoverPanel(placement: .bottom, panelAttrs: [], trigger: { [Button("Open") {}] }, content: { [text("x")] })
+        let panel = PopoverPanel(placement: .bottom, offset: 0, panelAttrs: [], trigger: { [Button("Open") {}] }, content: { [text("x")] })
         let id1 = building { firstWithClass(el(panel.body)!, "sw-popover")!.attributes["id"]! }
         let id2 = building { firstWithClass(el(panel.body)!, "sw-popover")!.attributes["id"]! }
         #expect(id1 == id2)   // same instance → same id across body() calls
@@ -107,6 +109,22 @@ struct PopoverTests {
         #expect(area(.bottom) == "bottom")
         #expect(area(.leading) == "inline-start")
         #expect(area(.trailing) == "inline-end")
+    }
+
+    @Test("offset lowers to a placement-axis margin; 0 (default) stays flush") func offsetMargin() {
+        func panel(_ p: PopoverPlacement, _ off: Double) -> ElementData {
+            firstWithClass(el(building { pop(placement: p, offset: off, trigger: { [Button("Open") {}] }, content: { [text("x")] }) })!, "sw-popover")!
+        }
+        // default flush: no inline margin at all
+        let flush = panel(.bottom, 0)
+        #expect(flush.style["margin-top"] == nil)
+        // each placement pushes AWAY from the anchor on its own axis
+        #expect(panel(.top, 3).style["margin-bottom"] == "3px")
+        #expect(panel(.bottom, 3).style["margin-top"] == "3px")
+        #expect(panel(.leading, 3).style["margin-inline-end"] == "3px")
+        #expect(panel(.trailing, 3).style["margin-inline-start"] == "3px")
+        // whole-number Doubles format trimmed (the formatControlNumber convention)
+        #expect(panel(.bottom, 6.5).style["margin-top"] == "6.5px")
     }
 
     @Test("caller panel attributes apply") func panelAttributes() {
