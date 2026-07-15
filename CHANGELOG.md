@@ -20,6 +20,42 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.20] — 2026-07-15
+
+**Beta.** A third SwiflowUI design-review round: overlay/indicator polish. Skeleton
+blends with its backdrop, Tooltip gets an arrow + inverted colors + a standoff,
+Popover gets an offset option, Breadcrumbs accepts a custom SVG separator, and the
+Tabs underline animates to the selected tab. All additive; no public API removed.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes.
+
+### Added
+
+- **`Tooltip(…, arrow: true)`** draws a small triangle on the bubble's target-facing
+  edge (CSS border trick, colored by the bubble token, RTL-correct per placement).
+- **`Popover(…, offset:)`** (px, default 0 — flush) pushes the panel away from its
+  trigger along the placement axis, e.g. `offset: 3` for Tooltip's standoff.
+- **`Breadcrumbs(…, separator: "<svg …>")`** replaces the default `/` with a
+  caller-supplied SVG glyph via the `Icon` mask seam — token-colored (`--sw-text-muted`),
+  dark-adaptive, still pure CSS (no separator DOM nodes).
+
+### Changed
+
+- **`Skeleton` blends with its backdrop** — `mix-blend-mode: multiply` in light mode,
+  `screen` in dark — so placeholders harmonize with tinted surfaces instead of painting
+  flat gray. Implemented as two constant-keyword layers whose paint self-neutralizes in
+  the wrong scheme (multiply×white = screen×black = identity), so it follows both the
+  OS scheme and a forced root `color-scheme`.
+- **`Tooltip` is inverted**: white text on dark gray in BOTH schemes, via new
+  `--sw-tooltip-bg`/`--sw-tooltip-text` tokens (themable; deliberately not
+  `light-dark()`), borderless; and every placement gains a 3px standoff so an
+  arrowless bubble no longer sits flush against its trigger.
+- **The `Tabs` underline slides** to the newly selected tab with ease-out easing
+  (CSS Anchor Positioning: an indicator anchored to the selected tab; no JS).
+  Browsers without anchor positioning keep the static accent underline.
+
+---
+
 ## [0.4.19] — 2026-07-14
 
 **Beta.** A second SwiflowUI design-review round, focused on the form controls:
