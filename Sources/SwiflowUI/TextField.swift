@@ -42,11 +42,15 @@ public func TextField(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     fieldControl(label: label, binding: text, type: type, placeholder: placeholder,
                  error: error, size: size, required: required, disabled: disabled,
+                 layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                  attributes: attributes, onBlur: onBlur)
 }
 
@@ -65,10 +69,14 @@ public func TextField(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...
 ) -> VNode {
     fieldControl(label: label, binding: field.binding, type: type, placeholder: placeholder,
                  error: field.error, size: size, required: required, disabled: disabled,
+                 layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                  attributes: attributes, onBlur: { field.markTouched() })
 }
 
@@ -84,6 +92,9 @@ private func fieldControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
+    layout: FieldLayout,
+    labelPrefix: VNode?,
+    labelSuffix: VNode?,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
@@ -95,13 +106,7 @@ private func fieldControl(
     let inputAttrs = controlInputAttributes(base, error: error, required: required,
                                             disabled: disabled, onBlur: onBlur, caller: attributes)
 
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-field__label")], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(labelText)]),
-            element("input", attributes: inputAttrs),
-        ]),
-    ]
-    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
-                   children: rootChildren)
+    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
+                              suffix: labelSuffix, error: error, size: size,
+                              controls: [element("input", attributes: inputAttrs)])
 }

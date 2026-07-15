@@ -143,6 +143,16 @@ struct TextFieldTests {
         #expect(inputOf(building { TextField("X", text: unused) })!.attributes["aria-required"] == nil)
     }
 
+    @Test("layout/labelPrefix/labelSuffix thread into the shared chrome") func labeledFieldParams() {
+        let node = building { TextField("Name", text: unused, layout: .horizontal,
+                                        labelPrefix: text("P"), labelSuffix: text("S")) }
+        let root = el(node)!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+        let line = el(el(root.children[0])!.children[0])!
+        #expect(el(line.children[0])!.attributes["class"] == "sw-field__label-prefix")
+        #expect(el(line.children[2])!.attributes["class"] == "sw-field__label-suffix")
+    }
+
     @Test("field stylesheet is token-driven, error-aware, and brace-balanced") func stylesheet() {
         let css = formControlsSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-field"))
