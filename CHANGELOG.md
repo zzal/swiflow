@@ -20,6 +20,42 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.21] — 2026-07-15
+
+**Beta.** A fourth SwiflowUI design-review round: a Slider correctness fix, a
+ProgressView animation option, Avatar polish, and a catalog restructure giving every
+form control its own story page.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes.
+
+### Added
+
+- **`ProgressView(…, animated: true)`** sweeps a bright sheen band across the filled
+  portion (the macOS copy-dialog look). Purely decorative, off by default, frozen
+  under `prefers-reduced-motion` (via `--sw-anim-play`).
+
+### Fixed
+
+- **`Slider` without a `step:` no longer desyncs its knob from its fill.** Range
+  inputs sanitize their value to the step, and the implicit HTML default step is 1 —
+  so an unstepped `0...1` slider snapped a bound `0.5` to `1` in the DOM (knob at the
+  end, fill at 50%). `step: nil` now emits `step="any"` (continuous).
+- **The catalog's Avatar image renders.** Its placeholder was a `data:` URI, which
+  `URLSanitizer` strips from `src` by default (`allowDataURLs` is an opt-in startup
+  knob) — the story now ships a real `avatar.svg` and documents the gotcha.
+
+### Changed
+
+- **`Avatar` initials are visibly tinted**: the fallback now wears Badge's
+  accent-soft recipe (15% accent `color-mix` background + `--sw-accent-strong`
+  initials) instead of near-invisible `--sw-surface-2` on a surface card, and follows
+  the accent cascade.
+- **Catalog: every form control has its own page** — TextField, Select, Autocomplete,
+  Checkbox, RadioGroup, and Toggle each get a dedicated story (content from the
+  combined "Form controls" page, which is removed along with its route).
+
+---
+
 ## [0.4.20] — 2026-07-15
 
 **Beta.** A third SwiflowUI design-review round: overlay/indicator polish. Skeleton
