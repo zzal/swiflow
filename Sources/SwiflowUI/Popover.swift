@@ -15,6 +15,16 @@ public enum PopoverPlacement: Equatable {
         case .trailing: return "inline-end"
         }
     }
+    /// The margin property that pushes the panel AWAY from its anchor for this
+    /// placement — how `offset:` lowers (a margin insets within the position-area).
+    var offsetMarginProperty: String {
+        switch self {
+        case .top:      return "margin-bottom"
+        case .bottom:   return "margin-top"
+        case .leading:  return "margin-inline-end"
+        case .trailing: return "margin-inline-start"
+        }
+    }
 }
 
 /// A general-purpose **anchored panel**: any caller trigger reveals any caller content
@@ -30,6 +40,9 @@ public enum PopoverPlacement: Equatable {
 ///         p("Extra information about this row.")
 ///         Link("/docs", "Learn more")
 ///     }
+///
+/// `offset:` (px, default 0 — flush) pushes the panel away from its trigger along the
+/// placement axis, e.g. `offset: 3` for the same small standoff Tooltip uses.
 ///
 /// Caller `Attribute...`/`.class` land on the PANEL (applied last, after the panel's own
 /// classes/attrs) — for the trigger's own styling, style the element you pass to
@@ -49,17 +62,20 @@ public enum PopoverPlacement: Equatable {
 @MainActor
 public func Popover(
     placement: PopoverPlacement = .bottom,
+    offset: Double = 0,
     _ attributes: Attribute...,
     key: String? = nil,
     @ChildrenBuilder trigger: @escaping () -> [VNode],
     @ChildrenBuilder content: @escaping () -> [VNode]
 ) -> VNode {
     embedKeyed(key, {
-        PopoverPanel(placement: placement, panelAttrs: attributes, trigger: trigger, content: content)
+        PopoverPanel(placement: placement, offset: offset, panelAttrs: attributes,
+                     trigger: trigger, content: content)
     }, refresh: { panel in
         // Thread the display props LIVE into the reused instance, mirroring
         // Alert/Modal (audit V Wave-2 #6).
         panel.placement = placement
+        panel.offset = offset
         panel.panelAttrs = attributes
         panel.trigger = trigger
         panel.content = content
@@ -75,14 +91,16 @@ public func Popover(
 @Component
 final class PopoverPanel {
     var placement: PopoverPlacement
+    var offset: Double
     var panelAttrs: [Attribute]
     var trigger: () -> [VNode]
     var content: () -> [VNode]
     private let panelID: String
 
-    init(placement: PopoverPlacement, panelAttrs: [Attribute],
+    init(placement: PopoverPlacement, offset: Double, panelAttrs: [Attribute],
          trigger: @escaping () -> [VNode], content: @escaping () -> [VNode]) {
         self.placement = placement
+        self.offset = offset
         self.panelAttrs = panelAttrs
         self.trigger = trigger
         self.content = content
@@ -97,13 +115,21 @@ final class PopoverPanel {
 
         let triggerNodes = wiredTrigger(trigger(), panelID: panelID, anchor: anchor)
 
+        var panelStyles: [Attribute] = [
+            .style("position-anchor", anchor),
+            .style("position-area", placement.positionArea),
+        ]
+        // offset: push away from the anchor along the placement axis (the sheet's
+        // `margin: 0` stays for the other three sides; inline wins for this one).
+        if offset > 0 {
+            panelStyles.append(.style(placement.offsetMarginProperty, "\(formatControlNumber(offset))px"))
+        }
+
         let panel = element("div", attributes: [
             .class("sw-popover"),
             .attr("popover", "auto"),
             .attr("id", panelID),
-            .style("position-anchor", anchor),
-            .style("position-area", placement.positionArea),
-        ] + panelAttrs, children: content())
+        ] + panelStyles + panelAttrs, children: content())
 
         return element("div", attributes: [.class("sw-popover-root")], children: triggerNodes + [panel])
     }
