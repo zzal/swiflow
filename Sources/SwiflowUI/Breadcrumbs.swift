@@ -32,8 +32,21 @@ public struct Crumb {
 /// `Attribute...`/`.class` merge onto the `<nav>`.
 ///
 ///     Breadcrumbs([Crumb("Home", href: "/"), Crumb("Products", href: "/products"), Crumb("Widget")])
+///
+/// `separator:` replaces the default `/` with your own SVG glyph — pass raw
+/// `<svg>` markup (e.g. a chevron-right). It renders through the `Icon` mask
+/// seam: a 1em box filled with `--sw-text-muted` and clipped to the SVG's
+/// shape, so it's token-colored and dark-adaptive. Same contract as `Icon`:
+/// single-color by construction (the paint is the token, not the SVG's own
+/// fills). Still pure CSS — the glyph rides the same `::before`, keyed off a
+/// per-instance custom property, so no DOM nodes are added.
+///
+///     Breadcrumbs(crumbs, separator: """
+///         <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' \
+///         stroke='currentColor' stroke-width='1.75'><path d='M6 4l4 4-4 4'/></svg>
+///         """)
 @MainActor
-public func Breadcrumbs(_ crumbs: [Crumb], _ attributes: Attribute...) -> VNode {
+public func Breadcrumbs(_ crumbs: [Crumb], separator: String? = nil, _ attributes: Attribute...) -> VNode {
     ensureBaseStyles()
     installControlSheet(id: "sw-breadcrumbs", breadcrumbsStyleSheet)
 
@@ -53,7 +66,14 @@ public func Breadcrumbs(_ crumbs: [Crumb], _ attributes: Attribute...) -> VNode 
         }
         return element("li", attributes: [.class("sw-breadcrumbs__item")], children: [content])
     }
-    let ol = element("ol", attributes: [.class("sw-breadcrumbs")], children: items)
+    // Custom SVG separator: flag the list with the modifier class and carry the
+    // encoded glyph in a per-instance custom property — the sheet's --svg-sep
+    // branch masks the ::before with it (custom props inherit into pseudos).
+    var olAttrs: [Attribute] = [.class(separator == nil ? "sw-breadcrumbs" : "sw-breadcrumbs sw-breadcrumbs--svg-sep")]
+    if let separator {
+        olAttrs.append(.style("--sw-breadcrumbs-sep", svgMaskURI(separator)))
+    }
+    let ol = element("ol", attributes: olAttrs, children: items)
 
     let navAttrs: [Attribute] = [.attr("aria-label", "Breadcrumb")] + attributes
     return element("nav", attributes: navAttrs, children: [ol])
@@ -79,6 +99,17 @@ let breadcrumbsStyleSheet: CSSSheet = css {
     .sw-breadcrumbs__item + .sw-breadcrumbs__item::before {
       content: "/";
       color: var(--sw-text-muted);
+    }
+    /* Custom SVG separator (the Icon mask seam): the caller's glyph arrives as a
+       per-instance --sw-breadcrumbs-sep data-URI on the <ol>; the ::before swaps
+       its text content for a 1em token-colored box clipped to the glyph. */
+    .sw-breadcrumbs--svg-sep .sw-breadcrumbs__item + .sw-breadcrumbs__item::before {
+      content: "";
+      width: 1em;
+      height: 1em;
+      background-color: var(--sw-text-muted);
+      -webkit-mask: var(--sw-breadcrumbs-sep) center / contain no-repeat;
+      mask: var(--sw-breadcrumbs-sep) center / contain no-repeat;
     }
     .sw-breadcrumbs__link {
       color: var(--sw-accent);

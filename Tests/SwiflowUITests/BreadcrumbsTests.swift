@@ -94,4 +94,29 @@ struct BreadcrumbsTests {
         #expect(ol.tag == "ol")
         #expect(ol.children.isEmpty)
     }
+
+    @Test("default separator: no --svg-sep modifier, no custom property") func defaultSeparatorIsSlash() {
+        let ol = elementOf(elementOf(Breadcrumbs([Crumb("A", href: "/"), Crumb("B")]))!.children[0])!
+        #expect(ol.attributes["class"] == "sw-breadcrumbs")
+        #expect(ol.style["--sw-breadcrumbs-sep"] == nil)
+    }
+
+    @Test("separator: SVG lowers to the modifier class + an encoded mask data-URI on the <ol>")
+    func svgSeparator() {
+        let chevron = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M6 4l4 4-4 4'/></svg>"
+        let nav = elementOf(Breadcrumbs([Crumb("A", href: "/"), Crumb("B")], separator: chevron))!
+        let ol = elementOf(nav.children[0])!
+        #expect(ol.attributes["class"] == "sw-breadcrumbs sw-breadcrumbs--svg-sep")
+        let sep = ol.style["--sw-breadcrumbs-sep"]
+        #expect(sep?.hasPrefix("url(\"data:image/svg+xml,") == true)
+        #expect(sep?.contains("%3Csvg") == true)   // svgMaskURI-encoded (the Icon seam)
+    }
+
+    @Test("stylesheet has the --svg-sep branch: token-filled 1em mask over the per-instance glyph")
+    func svgSeparatorSheet() {
+        let css = breadcrumbsStyleSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-breadcrumbs--svg-sep .sw-breadcrumbs__item + .sw-breadcrumbs__item::before"))
+        #expect(css.contains("mask: var(--sw-breadcrumbs-sep) center / contain no-repeat"))
+        #expect(css.contains("background-color: var(--sw-text-muted)"))
+    }
 }
