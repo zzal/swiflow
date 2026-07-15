@@ -123,11 +123,16 @@ final class TabsView {
         ensureBaseStyles()
         installControlSheet(id: "sw-tabs", tabsStyleSheet)
 
+        // Per-instance anchor for the sliding underline: the SELECTED tab carries the
+        // anchor-name, so the indicator (anchored to it) follows selection — and its
+        // inset transition animates the slide. idPrefix-derived: stable + collision-free.
+        let anchorName = "--\(idPrefix)-active"
+
         let tabNodes: [VNode] = labels.indices.map { i in
             let tabID = "\(idPrefix)-tab-\(i)"
             let panelID = "\(idPrefix)-panel-\(i)"
             let selected = (i == selectedIndex)
-            return element("button", attributes: [
+            var tabAttrs: [Attribute] = [
                 .class("sw-tabs__tab"),
                 .attr("type", "button"),
                 .attr("role", "tab"),
@@ -137,14 +142,24 @@ final class TabsView {
                 .attr("tabindex", selected ? 0 : -1),
                 .on(.click) { self.selectIndex(i) },
                 .on(.keydown) { e in self.handleRove(e, current: i) },
-            ], children: [text(labels[i])])
+            ]
+            if selected { tabAttrs.append(.style("anchor-name", anchorName)) }
+            return element("button", attributes: tabAttrs, children: [text(labels[i])])
         }
+
+        // The sliding underline (anchor-positioning browsers only; see the sheet).
+        // Decorative — the selection semantics live on aria-selected.
+        let indicator = element("span", attributes: [
+            .class("sw-tabs__indicator"),
+            .attr("aria-hidden", "true"),
+            .style("position-anchor", anchorName),
+        ], children: [])
 
         let tablist = element("div", attributes: [
             .class("sw-tabs__list"),
             .attr("role", "tablist"),
             .attr("aria-orientation", "horizontal"),
-        ], children: tabNodes)
+        ], children: tabNodes + [indicator])
 
         let panelNodes: [VNode] = panels.indices.map { i in
             let tabID = "\(idPrefix)-tab-\(i)"
@@ -204,6 +219,7 @@ final class TabsView {
 let tabsStyleSheet: CSSSheet = css {
     raw("""
     .sw-tabs__list {
+      position: relative;              /* containing block for the sliding indicator */
       display: flex;
       flex-direction: row;
       gap: var(--sw-space-sm);
@@ -232,6 +248,30 @@ let tabsStyleSheet: CSSSheet = css {
     .sw-tabs__tab[aria-selected="true"] {
       color: var(--sw-accent);
       border-bottom-color: var(--sw-accent);
+    }
+
+    /* Animated underline (the Reshaped slide): one indicator span, anchored to
+       whichever tab carries the per-instance anchor-name (the selected one — the
+       component moves it on selection). When the anchor moves, the indicator's
+       resolved left/right change and the transition slides it, ease-out per the
+       design ask; --sw-duration keeps reduced-motion instant. Gated on anchor
+       positioning: unsupported browsers (Firefox) keep the static accent
+       underline above; supported ones hand it off to the slider. */
+    .sw-tabs__indicator { display: none; }
+    @supports (anchor-name: --sw-probe) {
+      .sw-tabs__indicator {
+        display: block;
+        position: absolute;
+        left: anchor(left);
+        right: anchor(right);
+        bottom: calc(-1 * var(--sw-border-width));   /* sit on the rail, like the tab underline */
+        height: 2px;
+        background-color: var(--sw-accent);
+        pointer-events: none;
+        transition: left var(--sw-duration) ease-out,
+                    right var(--sw-duration) ease-out;
+      }
+      .sw-tabs__tab[aria-selected="true"] { border-bottom-color: transparent; }
     }
 
     .sw-tabs__panel {

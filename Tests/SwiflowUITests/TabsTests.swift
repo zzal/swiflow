@@ -262,4 +262,39 @@ struct TabsTests {
         #expect(css.contains("aria-selected"))
         #expect(css.contains("var(--sw-accent)"))
     }
+
+    @Test("the SELECTED tab carries the per-instance anchor-name; the tablist ends with the aria-hidden indicator anchored to it")
+    func slidingIndicatorWiring() {
+        var sel = "b"
+        let binding = Binding<String>(get: { sel }, set: { sel = $0 })
+        let body = building { tabsBody(selection: binding) {
+            Tab("A", id: "a") { text("pa") }
+            Tab("B", id: "b") { text("pb") }
+        } }
+        let list = firstWithClass(el(body)!, "sw-tabs__list")!
+        let tabs = list.children.compactMap(el).filter { $0.attributes["role"] == "tab" }
+        // only the selected tab anchors
+        #expect(tabs[0].style["anchor-name"] == nil)
+        let anchor = tabs[1].style["anchor-name"]
+        #expect(anchor?.hasPrefix("--sw-tabs") == true)
+        // the indicator is the tablist's last child, decorative, anchored to the same name
+        let indicator = el(list.children.last!)!
+        #expect(indicator.attributes["class"] == "sw-tabs__indicator")
+        #expect(indicator.attributes["aria-hidden"] == "true")
+        #expect(indicator.style["position-anchor"] == anchor)
+    }
+
+    @Test("stylesheet: the underline slides ease-out via anchored insets, gated on anchor positioning")
+    func slidingIndicatorSheet() {
+        let css = tabsStyleSheet.cssString(scopeClass: "")
+        #expect(css.contains("@supports (anchor-name: --sw-probe)"))
+        #expect(css.contains(".sw-tabs__indicator"))
+        #expect(css.contains("left: anchor(left)"))
+        #expect(css.contains("right: anchor(right)"))
+        // THE review ask: animated with ease-out (duration stays on the token so
+        // reduced-motion collapses it)
+        #expect(css.contains("transition: left var(--sw-duration) ease-out"))
+        // supported browsers hand the static underline off to the slider
+        #expect(css.contains(".sw-tabs__tab[aria-selected=\"true\"] { border-bottom-color: transparent; }"))
+    }
 }
