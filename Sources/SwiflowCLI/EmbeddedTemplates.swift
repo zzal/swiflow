@@ -2600,6 +2600,7 @@ enum Catalog {
         StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
         StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
         StoryEntry(slug: "slider", title: "Slider", category: .controls),
+        StoryEntry(slug: "labeledfield", title: "LabeledField", category: .controls),
         StoryEntry(slug: "feedback", title: "Feedback & display", category: .feedback),
         StoryEntry(slug: "skeleton", title: "Skeleton", category: .feedback),
         StoryEntry(slug: "avatar", title: "Avatar", category: .feedback),
@@ -2751,6 +2752,7 @@ final class Shell {
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
                 Route("/component/slider") { SliderStory() }
+                Route("/component/labeledfield") { LabeledFieldStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/skeleton") { SkeletonStory() }
                 Route("/component/avatar") { AvatarStory() }
@@ -3719,6 +3721,67 @@ final class IndexStory {
 }
 
 """##,
+                "Sources/App/Stories/LabeledFieldStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class LabeledFieldStory {
+    @State var host: String = ""
+    @State var port: String = ""
+    @State var token: String = ""
+
+    private static let infoIcon =
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' " +
+        "stroke='currentColor' stroke-width='1.5'><circle cx='8' cy='8' r='6.5'/>" +
+        "<path d='M8 7.5v3.5'/><circle cx='8' cy='5' r='0.5' fill='currentColor'/></svg>"
+
+    var body: VNode {
+        storyPage("LabeledField",
+                  blurb: "The shared field chrome, public: label line (with optional subtle "
+                       + "prefix/suffix adornments), your control, and the standard error — plus "
+                       + "a horizontal layout with a fixed label column (--sw-field-label-width) "
+                       + "so stacked fields align. The built-in controls render this internally; "
+                       + "use it directly for custom controls.") {
+            variantSection("Horizontal settings form", snippet: """
+            TextField("Host", text: $host, layout: .horizontal)
+            TextField("Port", text: $port, layout: .horizontal)
+            TextField("API token", text: $token, layout: .horizontal, labelSuffix: text("optional"))
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Host", text: $host, placeholder: "example.com", layout: .horizontal)
+                        TextField("Port", text: $port, placeholder: "443", layout: .horizontal)
+                        TextField("API token", text: $token, layout: .horizontal,
+                                  labelSuffix: text("optional"))
+                    }
+                }
+            }
+            variantSection("Label adornments", snippet: """
+            TextField("Endpoint", text: $host, labelPrefix: Icon(infoIcon), labelSuffix: text("optional"))
+            """) {
+                Card(variant: .plain) {
+                    TextField("Endpoint", text: $host,
+                              labelPrefix: Icon(LabeledFieldStory.infoIcon),
+                              labelSuffix: text("optional"))
+                }
+            }
+            variantSection("Custom control", snippet: """
+            LabeledField("Favorite hue", layout: .horizontal) {
+                element("input", attributes: [.attr("type", "color")])
+            }
+            """) {
+                Card(variant: .plain) {
+                    LabeledField("Favorite hue", layout: .horizontal) {
+                        element("input", attributes: [.attr("type", "color")])
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
                 "Sources/App/Stories/ModalStory.swift": ##"""
 import Swiflow
 import SwiflowUI
@@ -4382,6 +4445,13 @@ final class TextFieldStory {
                 }
                 p("Type something invalid, then blur: the field turns aria-invalid and a "
                   + "role=alert message appears.")
+            }
+            variantSection("Horizontal layout", snippet: """
+            TextField("Name", text: $name, layout: .horizontal)
+            """) {
+                Card(variant: .plain) {
+                    TextField("Name", text: $name, placeholder: "Ada Lovelace", layout: .horizontal)
+                }
             }
         }
     }
