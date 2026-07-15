@@ -84,5 +84,13 @@ struct SkeletonTests {
         #expect(css.contains(".sw-skeleton-text"))
         #expect(css.contains(".sw-skeleton-text > .sw-skeleton:last-child"))
         #expect(css.contains("var(--sw-surface-2)"))
+        // Backdrop blending: two stacked layers with CONSTANT keywords whose paint
+        // self-neutralizes in the wrong scheme (multiply×white = screen×black =
+        // identity) — mix-blend-mode can't ride light-dark() and a media query
+        // wouldn't follow a forced root color-scheme.
+        #expect(css.contains("mix-blend-mode: multiply"))
+        #expect(css.contains("mix-blend-mode: screen"))
+        #expect(css.contains("light-dark(var(--sw-surface-2), #fff)"))
+        #expect(css.contains("light-dark(#000, var(--sw-surface-2))"))
     }
 }
