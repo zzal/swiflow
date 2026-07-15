@@ -2590,7 +2590,12 @@ enum Catalog {
         StoryEntry(slug: "accordion", title: "Accordion", category: .layout),
         StoryEntry(slug: "text", title: "Text", category: .typography),
         StoryEntry(slug: "button", title: "Button", category: .controls),
-        StoryEntry(slug: "forms", title: "Form controls", category: .controls),
+        StoryEntry(slug: "textfield", title: "TextField", category: .controls),
+        StoryEntry(slug: "select", title: "Select", category: .controls),
+        StoryEntry(slug: "autocomplete", title: "Autocomplete", category: .controls),
+        StoryEntry(slug: "checkbox", title: "Checkbox", category: .controls),
+        StoryEntry(slug: "radiogroup", title: "RadioGroup", category: .controls),
+        StoryEntry(slug: "toggle", title: "Toggle", category: .controls),
         StoryEntry(slug: "toggle-button-group", title: "ToggleButtonGroup", category: .controls),
         StoryEntry(slug: "textarea", title: "TextArea", category: .controls),
         StoryEntry(slug: "numberfield", title: "NumberField", category: .controls),
@@ -2736,7 +2741,12 @@ final class Shell {
                 Route("/component/accordion") { AccordionStory() }
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
-                Route("/component/forms") { FormControlsStory() }
+                Route("/component/textfield") { TextFieldStory() }
+                Route("/component/select") { SelectStory() }
+                Route("/component/autocomplete") { AutocompleteStory() }
+                Route("/component/checkbox") { CheckboxStory() }
+                Route("/component/radiogroup") { RadioGroupStory() }
+                Route("/component/toggle") { ToggleStory() }
                 Route("/component/toggle-button-group") { ToggleButtonGroupStory() }
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
@@ -2934,6 +2944,67 @@ final class AccordionStory {
                     AccordionItem("Is it accessible?") {
                         p("Yes — <details>/<summary> carry disclosure semantics to assistive tech for free.")
                     }
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/AutocompleteStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class AutocompleteStory {
+    @State var element: String = ""
+    @State var asyncElement: String = ""
+
+    /// Shared by the sync Autocomplete (static options) and the async one (a loader that
+    /// filters the same list behind a simulated network delay).
+    static let periodicElements: [String] = [
+        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon", "Nitrogen", "Oxygen",
+        "Fluorine", "Neon", "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus", "Sulfur",
+        "Chlorine", "Argon", "Potassium", "Calcium", "Titanium", "Chromium", "Iron", "Cobalt",
+        "Nickel", "Copper", "Zinc", "Silver", "Tin", "Iodine", "Gold", "Mercury", "Lead",
+        "Radon", "Uranium", "Plutonium",
+    ]
+
+    var body: VNode {
+        storyPage("Autocomplete",
+                  blurb: "A type-to-filter combobox over a Binding<String> — static options, or an "
+                       + "async loader for remote data (debounced, cancellation-safe, with a "
+                       + "Searching… state).") {
+            variantSection("Static options", snippet: """
+            Autocomplete("Element", selection: $element, options: periodicElements.map { SelectOption($0) })
+            """) {
+                Card(variant: .plain) {
+                    // A non-address domain on purpose: Chrome forces address autofill onto
+                    // anything it reads as a "Country" field (ignoring autocomplete="off"),
+                    // and that overlay covers the custom listbox.
+                    Autocomplete("Element", selection: $element,
+                                 options: AutocompleteStory.periodicElements.map { SelectOption($0) },
+                                 placeholder: "Type to search…")
+                }
+            }
+            variantSection("Async loader", snippet: """
+            Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
+                try await Task.sleep(nanoseconds: 350_000_000)   // simulated network
+                return periodicElements
+                    .filter { $0.lowercased().contains(query.lowercased()) }
+                    .map { SelectOption($0) }
+            })
+            """) {
+                Card(variant: .plain) {
+                    // Async/remote variant: the loader filters behind a simulated 350ms delay,
+                    // so you see the Searching… state, then results. Debounced (rapid typing
+                    // fires one request) and cancellation-safe via .task(rerunOn:).
+                    Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
+                        try await Task.sleep(nanoseconds: 350_000_000)
+                        return AutocompleteStory.periodicElements
+                            .filter { $0.lowercased().contains(query.lowercased()) }
+                            .map { SelectOption($0) }
+                    }, placeholder: "Search the periodic table…")
                 }
             }
         }
@@ -3164,6 +3235,45 @@ final class CalloutStory {
                     Button("Retry") {}
                     TextLink("Contact support", href: "https://example.com/support")
                 }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/CheckboxStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class CheckboxStory {
+    @State var accepted: Bool = false
+    @State var simple: Bool = true
+    @State var ctrl: FormController = FormController()
+
+    var body: VNode {
+        let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
+
+        return storyPage("Checkbox",
+                          blurb: "A custom-drawn checkbox (identical pixels in every browser) over a "
+                            + "Binding<Bool>. Checkbox is for confirmation — a value submitted with a "
+                            + "form; for an immediate on/off setting reach for Toggle instead.") {
+            variantSection("Binding", snippet: """
+            Checkbox("Email me a receipt", isOn: $simple)
+            """) {
+                Card(variant: .plain) {
+                    Checkbox("Email me a receipt", isOn: $simple)
+                }
+            }
+            variantSection("Field-validated", snippet: """
+            let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
+            Checkbox("I accept the terms", field: termsField)
+            """) {
+                Card(variant: .plain) {
+                    Checkbox("I accept the terms", field: termsField)
+                }
+                p("Check then uncheck (or blur unchecked): the box turns aria-invalid and a "
+                  + "role=alert message appears.")
             }
         }
     }
@@ -3455,91 +3565,6 @@ final class FeedbackStory {
                 p("The Spinner and the animated progress sheen pause under "
                   + "prefers-reduced-motion (via --sw-anim-play); cards/badges/progress "
                   + "re-skin with the theme — flip Dark mode to see it.")
-            }
-        }
-    }
-}
-
-"""##,
-                "Sources/App/Stories/FormControlsStory.swift": ##"""
-import Swiflow
-import SwiflowUI
-
-@Component
-final class FormControlsStory {
-    @State var name: String = ""
-    @State var email: String = ""
-    @State var subscribed: Bool = false
-    @State var color: String = ""
-    @State var plan: String = "Free"
-    @State var accepted: Bool = false
-    @State var ctrl: FormController = FormController()
-    @State var element: String = ""
-    @State var asyncElement: String = ""
-
-    /// Shared by the sync Autocomplete (static options) and the async one (a loader that
-    /// filters the same list behind a simulated network delay).
-    static let periodicElements: [String] = [
-        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon", "Nitrogen", "Oxygen",
-        "Fluorine", "Neon", "Sodium", "Magnesium", "Aluminium", "Silicon", "Phosphorus", "Sulfur",
-        "Chlorine", "Argon", "Potassium", "Calcium", "Titanium", "Chromium", "Iron", "Cobalt",
-        "Nickel", "Copper", "Zinc", "Silver", "Tin", "Iodine", "Gold", "Mercury", "Lead",
-        "Radon", "Uranium", "Plutonium",
-    ]
-
-    var body: VNode {
-        let emailField = Field("email", $email, $ctrl, .required(), .email)
-        let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
-
-        return storyPage("Form controls",
-                          blurb: "Text entry, selection, and choice controls, wired with Field(...) "
-                            + "validators where a value needs to be required/typed.") {
-            variantSection("Text & selection", snippet: """
-            TextField("Name", text: $name, placeholder: "Ada Lovelace")
-            TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
-            Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
-            Autocomplete("Element", selection: $element, options: periodicElements.map { SelectOption($0) })
-            Autocomplete("Element (async)", selection: $asyncElement, loader: { query in … })
-            """) {
-                Card(variant: .plain) {
-                    VStack(spacing: .md, align: .stretch) {
-                        TextField("Name", text: $name, placeholder: "Ada Lovelace")
-                        TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
-                        Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
-                        // A non-address domain on purpose: Chrome forces address autofill onto
-                        // anything it reads as a "Country" field (ignoring autocomplete="off"),
-                        // and that overlay covers the custom listbox.
-                        Autocomplete("Element", selection: $element,
-                                     options: FormControlsStory.periodicElements.map { SelectOption($0) },
-                                     placeholder: "Type to search…")
-                        // Async/remote variant: the loader filters behind a simulated 350ms delay,
-                        // so you see the Searching… state, then results. Debounced (rapid typing
-                        // fires one request) and cancellation-safe via .task(rerunOn:).
-                        Autocomplete("Element (async)", selection: $asyncElement, loader: { query in
-                            try await Task.sleep(nanoseconds: 350_000_000)
-                            return FormControlsStory.periodicElements
-                                .filter { $0.lowercased().contains(query.lowercased()) }
-                                .map { SelectOption($0) }
-                        }, placeholder: "Search the periodic table…")
-                        if !name.isEmpty { p("Hello, \(name)!\(subscribed ? " (subscribed)" : "")") }
-                    }
-                }
-            }
-            variantSection("Choice", snippet: """
-            RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
-            Toggle("Subscribe to updates", isOn: $subscribed)
-            Checkbox("I accept the terms", field: termsField)
-            """) {
-                Card(variant: .plain) {
-                    VStack(spacing: .md, align: .stretch) {
-                        RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
-                        Toggle("Subscribe to updates", isOn: $subscribed)   // switch: an immediate on/off setting
-                        Checkbox("I accept the terms", field: termsField)   // checkbox: confirmation, submitted with a form
-                    }
-                }
-                p("Toggle is a switch (an immediate setting — like Dark mode, top-right); Checkbox is for "
-                  + "confirmation. The email + terms fields use Field(...) + validators — interact then blur "
-                  + "to see the role=alert error and aria-invalid.")
             }
         }
     }
@@ -3974,6 +3999,34 @@ final class PopoverStory {
 }
 
 """##,
+                "Sources/App/Stories/RadioGroupStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class RadioGroupStory {
+    @State var plan: String = "Free"
+
+    var body: VNode {
+        storyPage("RadioGroup",
+                  blurb: "A <fieldset>/<legend> group of custom-drawn radios (identical pixels in "
+                       + "every browser) over a Binding<String> — the native shared name gives "
+                       + "roving keyboard focus for free.") {
+            variantSection("Selection", snippet: """
+            RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
+                        p("Selected plan: \(plan)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+"""##,
                 "Sources/App/Stories/ReducerWizardStory.swift": ##"""
 import Swiflow
 import SwiflowUI
@@ -4036,6 +4089,35 @@ final class SignupWizardView {
         .padding(.md)
         .style("background", Token.surface)
         .style("border-radius", Token.radius)
+    }
+}
+
+"""##,
+                "Sources/App/Stories/SelectStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class SelectStory {
+    @State var color: String = ""
+
+    var body: VNode {
+        storyPage("Select",
+                  blurb: "A labelled native <select> over a Binding<String>. Skinned end-to-end where "
+                       + "Customizable Select is available (Chrome/Safari) — including the option "
+                       + "picker and its drop-and-fade open animation — with a styled-trigger "
+                       + "fallback elsewhere.") {
+            variantSection("Selection", snippet: """
+            Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        Select("Favorite color", selection: $color, options: ["Red", "Green", "Blue"], placeholder: "Choose…")
+                        if !color.isEmpty { p("Picked: \(color)") }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -4264,6 +4346,48 @@ final class TextAreaStory {
 }
 
 """##,
+                "Sources/App/Stories/TextFieldStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class TextFieldStory {
+    @State var name: String = ""
+    @State var email: String = ""
+    @State var ctrl: FormController = FormController()
+
+    var body: VNode {
+        let emailField = Field("email", $email, $ctrl, .required(), .email)
+
+        return storyPage("TextField",
+                          blurb: "A labelled text input over a Binding<String>. The Field(...) overload wires "
+                            + "FormController validators — interact then blur to see the role=alert error "
+                            + "and aria-invalid.") {
+            variantSection("Plain binding", snippet: """
+            TextField("Name", text: $name, placeholder: "Ada Lovelace")
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Name", text: $name, placeholder: "Ada Lovelace")
+                        if !name.isEmpty { p("Hello, \(name)!") }
+                    }
+                }
+            }
+            variantSection("Field-validated", snippet: """
+            let emailField = Field("email", $email, $ctrl, .required(), .email)
+            TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+            """) {
+                Card(variant: .plain) {
+                    TextField("Email", field: emailField, type: .email, placeholder: "you@example.com")
+                }
+                p("Type something invalid, then blur: the field turns aria-invalid and a "
+                  + "role=alert message appears.")
+            }
+        }
+    }
+}
+
+"""##,
                 "Sources/App/Stories/TextLinkStory.swift": ##"""
 import Swiflow
 import SwiflowUI
@@ -4434,6 +4558,34 @@ final class ToggleButtonGroupStory {
                 VStack(spacing: .md, align: .stretch) {
                     ToggleButtonGroup(selection: $formats, options: ["bold", "italic", "underline"])
                     p("Active: \(formats.sorted().joined(separator: ", "))")
+                }
+            }
+        }
+    }
+}
+
+"""##,
+                "Sources/App/Stories/ToggleStory.swift": ##"""
+import Swiflow
+import SwiflowUI
+
+@Component
+final class ToggleStory {
+    @State var subscribed: Bool = false
+
+    var body: VNode {
+        storyPage("Toggle",
+                  blurb: "A switch — an IMMEDIATE on/off setting (like Dark mode, top-right), applied "
+                       + "the moment it flips. For a value that's confirmed/submitted with a form, "
+                       + "use Checkbox instead.") {
+            variantSection("Switch", snippet: """
+            Toggle("Subscribe to updates", isOn: $subscribed)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        Toggle("Subscribe to updates", isOn: $subscribed)
+                        p(subscribed ? "Subscribed — you'll hear from us." : "Not subscribed.")
+                    }
                 }
             }
         }

@@ -113,7 +113,12 @@ final class Shell {
                 Route("/component/accordion") { AccordionStory() }
                 Route("/component/text") { TextStory() }
                 Route("/component/button") { ButtonStory() }
-                Route("/component/forms") { FormControlsStory() }
+                Route("/component/textfield") { TextFieldStory() }
+                Route("/component/select") { SelectStory() }
+                Route("/component/autocomplete") { AutocompleteStory() }
+                Route("/component/checkbox") { CheckboxStory() }
+                Route("/component/radiogroup") { RadioGroupStory() }
+                Route("/component/toggle") { ToggleStory() }
                 Route("/component/toggle-button-group") { ToggleButtonGroupStory() }
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
