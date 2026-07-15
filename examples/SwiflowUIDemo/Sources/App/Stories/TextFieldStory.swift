@@ -34,6 +34,13 @@ final class TextFieldStory {
                 p("Type something invalid, then blur: the field turns aria-invalid and a "
                   + "role=alert message appears.")
             }
+            variantSection("Horizontal layout", snippet: """
+            TextField("Name", text: $name, layout: .horizontal)
+            """) {
+                Card(variant: .plain) {
+                    TextField("Name", text: $name, placeholder: "Ada Lovelace", layout: .horizontal)
+                }
+            }
         }
     }
 }

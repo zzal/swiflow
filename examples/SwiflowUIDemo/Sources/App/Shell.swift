@@ -123,6 +123,7 @@ final class Shell {
                 Route("/component/textarea") { TextAreaStory() }
                 Route("/component/numberfield") { NumberFieldStory() }
                 Route("/component/slider") { SliderStory() }
+                Route("/component/labeledfield") { LabeledFieldStory() }
                 Route("/component/feedback") { FeedbackStory() }
                 Route("/component/skeleton") { SkeletonStory() }
                 Route("/component/avatar") { AvatarStory() }
