@@ -22,6 +22,9 @@ public func Slider(
     error: String? = nil,
     size: ControlSize = .md,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
@@ -49,13 +52,7 @@ public func Slider(
     let fraction = span > 0 ? min(max((value.get() - range.lowerBound) / span, 0), 1) : 0
     let fillPercent = "\(formatControlNumber((fraction * 1000).rounded() / 10))%"
 
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-field__label")], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(label)]),
-            element("input", attributes: inputAttrs).style("--sw-slider-fill", fillPercent),
-        ]),
-    ]
-    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
-                   children: rootChildren)
+    return labeledFieldChrome(label: label, layout: layout, prefix: labelPrefix,
+                              suffix: labelSuffix, error: error, size: size,
+                              controls: [element("input", attributes: inputAttrs).style("--sw-slider-fill", fillPercent)])
 }
