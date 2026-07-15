@@ -63,6 +63,7 @@ public enum SwiflowUI {
         @property --sw-text-muted { syntax: "<color>"; inherits: true; initial-value: #5b616b; }
         @property --sw-tooltip-bg { syntax: "<color>"; inherits: true; initial-value: #374151; }
         @property --sw-tooltip-text { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+        @property --sw-field-label-width { syntax: "<length>"; inherits: true; initial-value: 10rem; }
         @property --sw-accent { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
         @property --sw-accent-hover { syntax: "<color>"; inherits: true; initial-value: #2563eb; }
         @property --sw-accent-active { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
@@ -142,6 +143,9 @@ public enum SwiflowUI {
              over any backdrop; 8.4:1 on the gray). Tokens so themes can re-skin it. */
           --sw-tooltip-bg: #374151;
           --sw-tooltip-text: #ffffff;
+
+          /* Horizontal-field label column (LabeledField layout: .horizontal). */
+          --sw-field-label-width: 10rem;
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);

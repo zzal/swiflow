@@ -164,6 +164,48 @@ let formControlsSheet: CSSSheet = css {
       font-weight: 500;
       color: var(--sw-text);
     }
+
+    .sw-field__label-line {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-space-xs);
+    }
+    .sw-field__label-prefix,
+    .sw-field__label-suffix {
+      display: inline-flex;
+      align-items: center;
+      color: var(--sw-text-muted);
+      font-size: 0.8125rem;
+      font-weight: normal;
+    }
+
+    /* --- Horizontal field layout (LabeledField layout: .horizontal) --- */
+    /* Fixed label column so stacked fields align (the settings-form look);
+       re-declare --sw-field-label-width on a scope to retune it. */
+    .sw-field--h .sw-field__label {
+      display: grid;
+      grid-template-columns: var(--sw-field-label-width) 1fr;
+      align-items: center;
+      gap: var(--sw-space-sm);
+    }
+    /* Error aligns under the CONTROL column, not the label column. */
+    .sw-field--h .sw-field-error {
+      margin-inline-start: calc(var(--sw-field-label-width) + var(--sw-space-sm));
+    }
+    /* Autocomplete's label is for-associated (a SIBLING of the control wrap, not
+       wrapping it), so horizontal lays out the ROOT as the two-column grid and
+       undoes the wrapping-label grid above. The listbox popover is top-layer
+       (anchor-positioned) — grid placement doesn't affect it. */
+    .sw-field--h.sw-ac {
+      display: grid;
+      grid-template-columns: var(--sw-field-label-width) 1fr;
+      align-items: center;
+      column-gap: var(--sw-space-sm);
+      row-gap: var(--sw-space-xs);
+    }
+    .sw-field--h.sw-ac .sw-field__label { display: block; }
+    .sw-field--h.sw-ac .sw-field-error { grid-column: 2; margin-inline-start: 0; }
+
     .sw-field input,
     .sw-field select,
     .sw-field textarea {

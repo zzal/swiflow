@@ -28,6 +28,7 @@ public struct Token: Sendable, Equatable {
     public static let textMuted = Token("--sw-text-muted")
     public static let tooltipBg = Token("--sw-tooltip-bg")
     public static let tooltipText = Token("--sw-tooltip-text")
+    public static let fieldLabelWidth = Token("--sw-field-label-width")
 
     // Accent family
     public static let accent = Token("--sw-accent")
@@ -96,7 +97,7 @@ public struct Token: Sendable, Equatable {
 
     /// The whole vocabulary — powers the TokenTests anti-drift sweep.
     static let all: [Token] = [
-        .bg, .surface, .surface2, .text, .textMuted, .tooltipBg, .tooltipText,
+        .bg, .surface, .surface2, .text, .textMuted, .tooltipBg, .tooltipText, .fieldLabelWidth,
         .accent, .accentHover, .accentActive, .accentText, .accentStrong,
         .danger, .dangerHover, .dangerActive, .dangerText, .dangerStrong,
         .success, .successStrong, .warning, .warningStrong, .info, .infoStrong,
