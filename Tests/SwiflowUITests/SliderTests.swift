@@ -68,9 +68,10 @@ struct SliderTests {
         #expect(input.attributes["max"] == "10")
     }
 
-    @Test("step is omitted when nil") func stepOmittedWhenNil() {
+    @Test("step: nil emits step=\"any\" — never omitted (the implicit default step of 1 makes range inputs SNAP the value, desyncing knob from fill)")
+    func stepNilEmitsAny() {
         let input = inputOf(building { Slider("Volume", value: unused) })!
-        #expect(input.attributes["step"] == nil)
+        #expect(input.attributes["step"] == "any")
     }
 
     @Test("the drawn track's fill var reflects the value's position in the range, clamped") func fillVarTracksValue() {

@@ -4,9 +4,12 @@ import Swiflow
 /// A labelled, token-styled range slider: a native `<input type="range">` plus
 /// the same label/error chrome as `TextField`/`NumberField`, over a
 /// `Binding<Double>`. `min`/`max` come from `range` (default `0...1`) and
-/// `step` is omitted entirely when `nil`, leaving the browser's native
-/// stepping un-opinionated. There's no `required:` (a range input always has
-/// a value) and no `Field`-integrated overload, mirroring `NumberField`.
+/// `step: nil` (the default) emits `step="any"` — a continuous slider. It must
+/// NOT be omitted: a range input's implicit default step is 1, and range inputs
+/// SANITIZE their value to the step, so an unstepped `0...1` slider would snap a
+/// bound 0.5 to 1 in the DOM while the binding (and the drawn fill) stayed 0.5 —
+/// rail at 50%, knob at the end. There's no `required:` (a range input always
+/// has a value) and no `Field`-integrated overload, mirroring `NumberField`.
 ///
 ///     Slider("Volume", value: $volume)
 ///     Slider("Rating", value: $rating, in: 0...10, step: 1)
@@ -31,7 +34,9 @@ public func Slider(
         .attr("max", formatControlNumber(range.upperBound)),
         .value(value),
     ]
-    if let step { base.append(.attr("step", formatControlNumber(step))) }
+    // step="any" when unspecified — never omit (see the doc comment: the implicit
+    // default step of 1 makes the browser SNAP the value, desyncing knob from fill).
+    base.append(.attr("step", step.map(formatControlNumber) ?? "any"))
     let inputAttrs = controlInputAttributes(base, error: error, required: false,
                                             disabled: disabled, onBlur: onBlur, caller: attributes)
 
