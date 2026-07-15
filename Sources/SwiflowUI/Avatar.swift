@@ -67,6 +67,14 @@ let avatarStyleSheet: CSSSheet = css {
       background-color: var(--sw-surface-2); color: var(--sw-text-muted);
       font-weight: var(--sw-font-weight-medium); user-select: none;
     }
+    /* Initials fallback: surface-2 on a surface card is near-invisible — use
+       Badge's accent-soft recipe verbatim (tint bg + -strong text, the kit's
+       soft-tint contrast rule), so the fallback reads as a deliberate chip and
+       follows the accent cascade. Images keep the muted surface-2 behind them. */
+    .sw-avatar--initials {
+      background-color: color-mix(in oklab, var(--sw-accent) 15%, var(--sw-surface));
+      color: var(--sw-accent-strong);
+    }
     .sw-avatar--xs { width: 1.5rem; height: 1.5rem; font-size: 0.625rem; }
     .sw-avatar--sm { width: 2rem;   height: 2rem;   font-size: 0.75rem; }
     .sw-avatar--md { width: 2.5rem; height: 2.5rem; font-size: 0.875rem; }

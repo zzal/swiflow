@@ -3,11 +3,10 @@ import SwiflowUI
 
 @Component
 final class AvatarStory {
-    // A tiny inline SVG data URI so the "with src" variant renders without a
-    // network fetch — the same percent-encoded-data-URI technique Icon uses.
-    private let placeholderSrc =
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E" +
-        "%3Crect width='64' height='64' fill='%236366f1'/%3E%3C/svg%3E"
+    // A real relative URL, served from the example root. NOT a data: URI — the
+    // previous data:-based placeholder rendered a broken image: URLSanitizer
+    // strips data: srcs by default (allowDataURLs is an opt-in startup knob).
+    private let placeholderSrc = "avatar.svg"
 
     var body: VNode {
         storyPage("Avatar",
@@ -42,7 +41,9 @@ final class AvatarStory {
                 }
             }
             variantSection("With an image", snippet: """
-            Avatar("Ada Lovelace", src: imageURL)   // renders <img>; falls back to "AL" if src is nil
+            Avatar("Ada Lovelace", src: "avatar.svg")   // renders <img>; initials when src is nil
+            // NB: data: srcs are stripped by URLSanitizer unless you opt in at startup
+            // (URLSanitizer.allowDataURLs = true) — use real URLs for avatar images.
             """) {
                 Avatar("Ada Lovelace", src: placeholderSrc)
             }
