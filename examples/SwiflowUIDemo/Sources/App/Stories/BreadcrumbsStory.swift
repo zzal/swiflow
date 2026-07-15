@@ -26,6 +26,23 @@ final class BreadcrumbsStory {
                     ])
                 }
             }
+            variantSection("Custom SVG separator", snippet: """
+            let chevronRight = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' "
+                             + "fill='none' stroke='currentColor' stroke-width='1.75' "
+                             + "stroke-linecap='round' stroke-linejoin='round'><path d='M6 4l4 4-4 4'/></svg>"
+            Breadcrumbs([...], separator: chevronRight)
+            """) {
+                Card(variant: .plain) {
+                    Breadcrumbs([
+                        Crumb("Home", href: "/"),
+                        Crumb("Products", href: "/products"),
+                        Crumb("Widgets", href: "/products/widgets"),
+                        Crumb("Blue Widget"),
+                    ], separator: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' "
+                                + "fill='none' stroke='currentColor' stroke-width='1.75' "
+                                + "stroke-linecap='round' stroke-linejoin='round'><path d='M6 4l4 4-4 4'/></svg>")
+                }
+            }
         }
     }
 }
