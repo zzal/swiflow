@@ -37,11 +37,15 @@ public func Select(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     selectControl(label: label, selection: selection, options: options, placeholder: placeholder,
                   error: error, size: size, required: required, disabled: disabled,
+                  layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                   attributes: attributes, onBlur: onBlur)
 }
 
@@ -56,10 +60,14 @@ public func Select(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     _ attributes: Attribute...
 ) -> VNode {
     selectControl(label: label, selection: field.binding, options: options, placeholder: placeholder,
                   error: field.error, size: size, required: required, disabled: disabled,
+                  layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
                   attributes: attributes, onBlur: { field.markTouched() })
 }
 
@@ -73,6 +81,9 @@ private func selectControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
+    layout: FieldLayout,
+    labelPrefix: VNode?,
+    labelSuffix: VNode?,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
@@ -101,13 +112,7 @@ private func selectControl(
         optionNodes.append(element("option", attributes: attrs, children: [text(option.label)]))
     }
 
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class("sw-field__label")], children: [
-            element("span", attributes: [.class("sw-field__label-text")], children: [text(labelText)]),
-            element("select", attributes: selectAttrs, children: optionNodes),
-        ]),
-    ]
-    if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-field sw-field--\(size.modifierClass)")],
-                   children: rootChildren)
+    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
+                              suffix: labelSuffix, error: error, size: size,
+                              controls: [element("select", attributes: selectAttrs, children: optionNodes)])
 }
