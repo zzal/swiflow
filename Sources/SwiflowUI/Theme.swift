@@ -61,6 +61,8 @@ public enum SwiflowUI {
         @property --sw-surface-2 { syntax: "<color>"; inherits: true; initial-value: #f3f4f6; }
         @property --sw-text { syntax: "<color>"; inherits: true; initial-value: #111111; }
         @property --sw-text-muted { syntax: "<color>"; inherits: true; initial-value: #5b616b; }
+        @property --sw-tooltip-bg { syntax: "<color>"; inherits: true; initial-value: #374151; }
+        @property --sw-tooltip-text { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
         @property --sw-accent { syntax: "<color>"; inherits: true; initial-value: #3b82f6; }
         @property --sw-accent-hover { syntax: "<color>"; inherits: true; initial-value: #2563eb; }
         @property --sw-accent-active { syntax: "<color>"; inherits: true; initial-value: #1d4ed8; }
@@ -135,6 +137,11 @@ public enum SwiflowUI {
           --sw-surface-2: light-dark(#f3f4f6, #242424);
           --sw-text: light-dark(#111111, #f5f5f5);
           --sw-text-muted: light-dark(#5b616b, #9ca3af);
+          /* Tooltip bubble: white-on-dark-gray in BOTH schemes (deliberately NOT
+             light-dark — an inverted bubble is the tooltip idiom and stays readable
+             over any backdrop; 8.4:1 on the gray). Tokens so themes can re-skin it. */
+          --sw-tooltip-bg: #374151;
+          --sw-tooltip-text: #ffffff;
 
           /* accent & semantic colors */
           --sw-accent: light-dark(#3b82f6, #60a5fa);

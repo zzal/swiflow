@@ -30,10 +30,12 @@ import Swiflow
 @MainActor private func tip(
     _ message: String,
     placement: TooltipPlacement = .top,
+    arrow: Bool = false,
     attributes: [Attribute] = [],
     content: @escaping () -> VNode
 ) -> VNode {
-    TooltipView(message: message, placement: placement, attributes: attributes, content: content).body
+    TooltipView(message: message, placement: placement, arrow: arrow,
+                attributes: attributes, content: content).body
 }
 
 @MainActor
@@ -66,14 +68,38 @@ struct TooltipTests {
         #expect(el(kids[1])?.attributes["role"] == "tooltip")
     }
 
+    @Test("arrow: false by default (no modifier class); arrow: true adds it") func arrowClass() {
+        let plain = el(el(building { tip("hi") { Button("x") {} } })?.children[1])
+        #expect(plain?.attributes["class"]?.contains("sw-tooltip--arrow") == false)
+        let arrowed = el(el(building { tip("hi", arrow: true) { Button("x") {} } })?.children[1])
+        #expect(arrowed?.attributes["class"]?.contains("sw-tooltip--arrow") == true)
+    }
+
     @Test("emitted sheet has reveal selectors + token styling + all placements") func sheet() {
         let css = tooltipStyleSheet.cssString(scopeClass: "")
         #expect(css.contains(".sw-tooltip-wrap:hover .sw-tooltip"))
         #expect(css.contains(":focus-within"))
-        #expect(css.contains("var(--sw-surface)"))
+        // Inverted bubble: white-on-dark-gray in BOTH schemes via the dedicated
+        // tokens (not surface/text, which flip per scheme); borderless.
+        #expect(css.contains("color: var(--sw-tooltip-text)"))
+        #expect(css.contains("background: var(--sw-tooltip-bg)"))
+        #expect(!css.contains("var(--sw-surface)"))
         #expect(css.contains(".sw-tooltip--top"))
         #expect(css.contains(".sw-tooltip--bottom"))
         #expect(css.contains(".sw-tooltip--leading"))
         #expect(css.contains(".sw-tooltip--trailing"))
+        // 3px standoff on every placement (arrowless bubbles never sit flush);
+        // the --arrow variants override the same property with the arrow height.
+        #expect(css.contains("margin-bottom: 3px"))
+        #expect(css.contains("margin-top: 3px"))
+        #expect(css.contains("margin-inline-end: 3px"))
+        #expect(css.contains("margin-inline-start: 3px"))
+        // Arrow: a border-triangle per placement, colored by the bubble token, with
+        // the gap margin so the triangle touches the trigger.
+        #expect(css.contains(".sw-tooltip--arrow::after"))
+        #expect(css.contains("border-top-color: var(--sw-tooltip-bg)"))
+        #expect(css.contains("border-bottom-color: var(--sw-tooltip-bg)"))
+        #expect(css.contains("border-inline-start-color: var(--sw-tooltip-bg)"))
+        #expect(css.contains("border-inline-end-color: var(--sw-tooltip-bg)"))
     }
 }

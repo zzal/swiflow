@@ -19,6 +19,19 @@ final class TooltipStory {
                     }
                 }
             }
+            variantSection("Arrow", snippet: """
+            Tooltip("Points at the trigger", arrow: true) { Button("Arrow on top", variant: .secondary) {} }
+            Tooltip("From below", placement: .bottom, arrow: true) { Button("Arrow below") {} }
+            Tooltip("Sideways too", placement: .trailing, arrow: true) { Button("Trailing") {} }
+            """) {
+                Card(variant: .plain) {
+                    HStack(spacing: .md, align: .center) {
+                        Tooltip("Points at the trigger", arrow: true) { Button("Arrow on top", variant: .secondary) {} }
+                        Tooltip("From below", placement: .bottom, arrow: true) { Button("Arrow below") {} }
+                        Tooltip("Sideways too", placement: .trailing, arrow: true) { Button("Trailing") {} }
+                    }
+                }
+            }
         }
     }
 }
