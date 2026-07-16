@@ -198,6 +198,33 @@ describe("dev-mode HMR swap", () => {
     );
   });
 
+  test("a namespace with hmrSnapshot but NO hmrTeardown still swaps (old-wasm compat)", async () => {
+    const env = makeEnv();
+
+    // A wasm module built before the teardown hook existed installs only
+    // hmrSnapshot. The driver's typeof guard must skip the missing hook —
+    // and an install-order regression that left teardown out would
+    // otherwise only surface as a mid-swap TypeError → full-reload fallback.
+    let snapshotCalled = false;
+    env.dom.window.__swiflow = {
+      hmrSnapshot: () => { snapshotCalled = true; return []; },
+    };
+
+    let initArg = null;
+    env.dom.window.swiflow.__importOverride = async () => ({
+      init: async (opts) => { initArg = opts; },
+    });
+
+    env.fireSwap({ wasmURL: "/p/App.wasm?h=9", jsURL: "/p/index.js?h=9" });
+    for (let i = 0; i < 100 && initArg === null && !env.reloaded; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    assert.equal(env.reloaded, false, "missing hmrTeardown must not trigger the full-reload fallback");
+    assert.ok(snapshotCalled, "the snapshot must still be taken");
+    assert.ok(initArg !== null, "the new module must still be imported and init()ed");
+  });
+
   test("a throwing hmrTeardown does not abort the swap", async () => {
     const env = makeEnv();
 
