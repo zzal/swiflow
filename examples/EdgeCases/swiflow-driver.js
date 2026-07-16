@@ -681,6 +681,28 @@
             : null;
         window.__swiflowPendingSnapshot = snapshot;
 
+        // Deactivate the OLD module instance — AFTER the snapshot (teardown
+        // destroys the @State the snapshot just captured), BEFORE the map
+        // clears below. The old wasm is never unloaded, and until this hook
+        // existed it kept running: its query-revalidation interval, router
+        // hashchange listeners, and RAF scheduler all stayed live. Any
+        // wake-up made it re-render against the cleared maps; the patch
+        // failure then routed into its full RESYNC REMOUNT, repainting the
+        // old UI over the new module's DOM — and its destroyNode patches
+        // deleted the new module's entries from the shared `nodes` map
+        // (both modules allocate handles from the same numeric base), so
+        // the two instances stomped each other in an endless remount war.
+        // hmrTeardown unmounts every live root, which stops all of those
+        // triggers permanently. try/catch: a failing teardown must not
+        // block the swap — the clears below still neuter the DOM side.
+        try {
+          if (window.__swiflow && typeof window.__swiflow.hmrTeardown === "function") {
+            window.__swiflow.hmrTeardown();
+          }
+        } catch (e) {
+          console.warn("[swiflow] hmr teardown of previous module failed:", e);
+        }
+
         // Drop maps + clear DOM mount target via replaceChildren()
         // (no HTML-property writes — matches the driver's XSS-safe
         // contract: setRawHTML is the only intentional HTML-writing

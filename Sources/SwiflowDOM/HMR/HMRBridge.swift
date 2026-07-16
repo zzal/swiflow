@@ -85,6 +85,51 @@ package enum HMRBridge {
         snapshotClosure = snapshotFn
     }
 
+    // MARK: - Teardown hook (Swift → JS)
+
+    /// Same retention/idempotency role as `snapshotClosure` above.
+    @MainActor private static var teardownClosure: JSClosure?
+
+    /// Install `window.__swiflow.hmrTeardown = () => …` exactly once per
+    /// module instance. The JS driver calls it during a hot swap — after
+    /// taking the state snapshot, before clearing its node/listener maps —
+    /// to deactivate THIS (about-to-be-orphaned) module: `unmountAll` tears
+    /// down every live root, which stops the query-revalidation interval,
+    /// removes window/document listeners via each component's
+    /// `onDisappear`, and nils the RAF scheduler. Without this, the old
+    /// module kept re-rendering after the swap; its patch failures against
+    /// the cleared maps triggered full resync remounts that repainted the
+    /// old UI over the new module's DOM (and destroyed the new module's
+    /// driver-map entries, since both modules allocate handles from the
+    /// same numeric base) — an endless multi-instance remount war.
+    @MainActor
+    package static func installTeardownHook(unmountAll: @escaping @MainActor () -> Void) {
+        // Same runtime gate as `installSnapshotExporter`: hot swaps only
+        // happen under `swiflow dev`, which injects SWIFLOW_DEV.
+        guard JSObject.global.SWIFLOW_DEV.boolean == true else { return }
+        // Idempotent per module instance; a fresh module after a hot swap
+        // starts with `teardownClosure == nil` and installs its own hook
+        // over the (now-dead) previous module's.
+        guard teardownClosure == nil else { return }
+
+        let teardownFn = JSClosure { _ in
+            unmountAll()
+            return .undefined
+        }
+
+        let existing = JSObject.global.__swiflow
+        let ns: JSObject
+        if let obj = existing.object {
+            ns = obj
+        } else {
+            ns = JSObject.global.Object.function!.new()
+            JSObject.global.__swiflow = .object(ns)
+        }
+        ns.hmrTeardown = .object(teardownFn)
+
+        teardownClosure = teardownFn
+    }
+
     // MARK: - Pending snapshot consumer (JS → Swift)
 
     /// Parsed pending-restore index for THIS module instance. A fresh module

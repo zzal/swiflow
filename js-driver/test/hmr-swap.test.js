@@ -163,6 +163,63 @@ describe("dev-mode HMR swap", () => {
     );
   });
 
+  test("hmr-swap tears down the old module: snapshot first, then hmrTeardown, then import", async () => {
+    const env = makeEnv();
+
+    // The wasm-installed dev namespace. Order matters and is the contract:
+    //   1. hmrSnapshot  — capture @State while the old tree is still alive
+    //   2. hmrTeardown  — unmount every root (stops the revalidation interval,
+    //                     router listeners, RAF scheduler) so the orphaned
+    //                     module can never wake up and resync-remount its old
+    //                     UI over the new module's DOM
+    //   3. import/init  — boot the new module
+    const events = [];
+    env.dom.window.__swiflow = {
+      hmrSnapshot: () => { events.push("snapshot"); return []; },
+      hmrTeardown: () => { events.push("teardown"); },
+    };
+
+    let initArg = null;
+    env.dom.window.swiflow.__importOverride = async (url) => {
+      events.push("import");
+      return { init: async (opts) => { initArg = opts; } };
+    };
+
+    env.fireSwap({ wasmURL: "/p/App.wasm?h=7", jsURL: "/p/index.js?h=7" });
+    for (let i = 0; i < 100 && initArg === null && !env.reloaded; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    assert.equal(env.reloaded, false, "swap must succeed without falling back to full reload");
+    assert.deepEqual(
+      events,
+      ["snapshot", "teardown", "import"],
+      "old module must be torn down AFTER the state snapshot and BEFORE the new module boots"
+    );
+  });
+
+  test("a throwing hmrTeardown does not abort the swap", async () => {
+    const env = makeEnv();
+
+    env.dom.window.__swiflow = {
+      hmrSnapshot: () => [],
+      hmrTeardown: () => { throw new Error("teardown exploded"); },
+    };
+
+    let initArg = null;
+    env.dom.window.swiflow.__importOverride = async () => ({
+      init: async (opts) => { initArg = opts; },
+    });
+
+    env.fireSwap({ wasmURL: "/p/App.wasm?h=8", jsURL: "/p/index.js?h=8" });
+    for (let i = 0; i < 100 && initArg === null && !env.reloaded; i++) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    assert.equal(env.reloaded, false, "teardown failure must not trigger the full-reload fallback");
+    assert.ok(initArg !== null, "the new module must still be imported and init()ed");
+  });
+
   test("a second hmr-swap during an in-flight swap is coalesced, not interleaved", async () => {
     const env = makeEnv();
 
