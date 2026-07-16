@@ -20,6 +20,31 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.23] — 2026-07-16
+
+**Beta.** One dev-mode bug fix: HMR now deactivates the previous wasm module
+before booting the new one. Previously the orphaned module kept running after
+a hot swap (query-revalidation interval, router `hashchange` listeners, RAF
+scheduler); any wake-up made it resync-remount its stale UI over the new
+module's DOM — edits appeared to never take, and a navigation after several
+saves ignited an endless multi-instance remount loop flooding the console
+with `patch failed` errors.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes; the change
+is dev-only (release builds have no hot swap).
+
+### Fixed
+
+- **HMR: stale-module remount war.** The dev driver's `hmrSwap` now calls a
+  new dev-only `window.__swiflow.hmrTeardown` hook — installed by the wasm
+  runtime next to `hmrSnapshot` — which unmounts every live root of the
+  about-to-be-orphaned module (stopping its revalidation interval, window/
+  document listeners, and scheduler) after the `@State` snapshot is taken and
+  before the driver clears its node/listener maps. Old wasm without the hook
+  is tolerated, and a throwing teardown still falls through to the swap.
+
+---
+
 ## [0.4.22] — 2026-07-16
 
 **Beta.** A fifth SwiflowUI design-review round, one feature: `LabeledField` — the
