@@ -35,7 +35,7 @@ final class NavBar: Component {
 
     var body: VNode {
         nav {
-            span(.class("brand")) { text("🌍 Mission Control") }
+            span(.class("brand")) { text("📡 Mission Control") }
             embed { Link("/", "Weather") }
             embed { Link("/quakes", "Quakes") }
         }
