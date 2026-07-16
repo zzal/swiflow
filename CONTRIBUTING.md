@@ -6,7 +6,9 @@ Thank you for considering a contribution.
 
 - **Swift 6.3+** (CI pins 6.3.2). Tests use the Swift Testing framework
   (`import Testing`).
-- **WebAssembly Swift SDK** matching your toolchain, plus **binaryen**
+- **WebAssembly Swift SDK** matching your toolchain (the exact
+  `swift sdk install …` command, with its per-release checksum, is in
+  [README → Quick start](README.md#quick-start)), plus **binaryen**
   (`wasm-opt`) for release builds.
 - **Node 20+** if you touch the JS driver or the Playwright suites.
 
@@ -26,9 +28,10 @@ cd js-driver && npm ci && npm test     # JS driver unit tests (jsdom)
 
 End-to-end Playwright suites live in `Tests/playwright`, one config per
 example app (`npm run test:counter`, or `npx playwright test
---config=playwright.<demo>.config.ts`). Build the release CLI first
-(`swift build -c release --product swiflow`) — the harness scaffolds demos
-with it, and a stale binary scaffolds stale code.
+--config=playwright.<demo>.config.ts`). One-time setup:
+`cd Tests/playwright && npm ci && npm run install-browsers`. Build the
+release CLI first (`swift build -c release --product swiflow`) — the harness
+scaffolds demos with it, and a stale binary scaffolds stale code.
 
 ## Generated code
 
@@ -53,7 +56,10 @@ and tell you exactly this.
 Note that CI does **not** compile most example apps. If your change touches
 one, build it locally (`swift build --package-path examples/<Name>` for a
 host type-check, or `swiflow build --path examples/<Name>` for the real
-wasm build) before opening the PR.
+wasm build) before opening the PR. Gotcha: after adding a **new file** to a
+shared target, an example's build can fail with "cannot find X in scope"
+until you run `swift package clean --package-path examples/<Name>` — it's a
+SwiftPM cache artifact, not your code.
 
 ## Troubleshooting
 
@@ -83,7 +89,9 @@ one ever occurs.
   budget.
 - The Playwright E2E jobs are opt-in (they burn CI minutes): a maintainer adds
   the `run-e2e` label when a PR touches the driver, the service worker, or an
-  e2e-covered example. Run the relevant suite locally either way.
+  e2e-covered example — and the separate `run-e2e-backend` label for changes
+  touching TodoCRUD or the fetcher/backend path (it spins up the real
+  Bun + SQLite backend). Run the relevant suite locally either way.
 - User-facing changes get a bullet under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Reporting issues
@@ -92,7 +100,10 @@ Before filing, **search existing issues** (including closed ones) — add a
 comment or a 👍 to an existing report instead of duplicating it. Keep it to
 **one problem per issue**.
 
-### Bug reports must include
+### What a bug report needs
+
+Include what you can — a **minimal reproduction** and the **versions** are
+the two that matter most; the rest speeds up triage:
 
 - **Versions** — the output of `swiflow --version` and `swift --version`, and
   the Swiflow version your project's `Package.swift` pins (they can differ —
