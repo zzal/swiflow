@@ -20,6 +20,31 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.24] — 2026-07-16
+
+**Beta.** A maintenance release folding in the post-merge review of the
+v0.4.23 HMR fix, plus a refreshed contributor guide.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes; runtime
+changes are dev-only.
+
+### Changed
+
+- **HMR teardown internals** (dev-only): the hot-swap teardown hook no longer
+  re-installs the DevAPI namespace commands once per root on the module being
+  orphaned; the `window.__swiflow` namespace creation is now a single shared
+  helper; and the driver's teardown/GC comments state the actual guarantees
+  (framework-owned triggers stop; expect roughly one pinned dead module per
+  swap until a full reload).
+- **`swiflow doctor`**: the wasm-sdk hint now points at the README section
+  that exists ("Quick start", not "Prerequisites").
+- **CONTRIBUTING.md**: rewritten to match the current toolchain and CI
+  (`swift run swiflow-codegen all`, Linux-only CI, `run-e2e` /
+  `run-e2e-backend` labels, Playwright setup, CI-skips-examples caveat) and
+  now includes issue-reporting guidelines.
+
+---
+
 ## [0.4.23] — 2026-07-16
 
 **Beta.** One dev-mode bug fix: HMR now deactivates the previous wasm module
