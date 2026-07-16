@@ -702,9 +702,16 @@ enum EmbeddedDriver {
         // deleted the new module's entries from the shared `nodes` map
         // (both modules allocate handles from the same numeric base), so
         // the two instances stomped each other in an endless remount war.
-        // hmrTeardown unmounts every live root, which stops all of those
-        // triggers permanently. try/catch: a failing teardown must not
-        // block the swap — the clears below still neuter the DOM side.
+        // hmrTeardown unmounts every live root, which stops every
+        // FRAMEWORK-owned trigger (revalidation interval, router
+        // listeners, RAF scheduler) permanently. Activity the framework
+        // doesn't own — a raw setInterval/addEventListener in user
+        // component code, an in-flight Task continuation — can still wake
+        // the orphaned module afterwards, but teardown nils its scheduler
+        // and empties its root registry, so a woken orphan's @State
+        // mutations and rerender() calls are no-ops rather than renders.
+        // try/catch: a failing teardown must not block the swap — the
+        // clears below still neuter the DOM side.
         try {
           if (window.__swiflow && typeof window.__swiflow.hmrTeardown === "function") {
             window.__swiflow.hmrTeardown();
@@ -751,10 +758,12 @@ enum EmbeddedDriver {
           ((u) => import(u));
         const { init } = await importEntry(payload.jsURL);
         await init({ module: fetchWithProgress(payload.wasmURL) });
-        // NOTE: The previous WASM module's heap (old ambientRenderer,
-        // old JSClosures) is not explicitly freed — the browser GC
-        // reclaims it eventually. This is acceptable for a dev-only
-        // code path. A page reload always clears everything cleanly.
+        // NOTE: The previous WASM module's heap is not explicitly freed,
+        // and nothing in the framework ever release()s a JSClosure — the
+        // old module's closures stay registered in its own JavaScriptKit
+        // table, pinning that instance. Expect heap growth of roughly one
+        // module per swap until the next full page load. Acceptable for a
+        // dev-only code path; a reload always clears everything cleanly.
 
         const dt = (performance.now() - t0).toFixed(1);
         console.log("[swiflow] hmr-swap took " + dt + "ms");

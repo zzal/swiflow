@@ -66,18 +66,7 @@ package enum HMRBridge {
             return encodeToJS(snaps)
         }
 
-        // Place the function under the existing `window.__swiflow`
-        // namespace. Create the namespace object if it doesn't exist
-        // yet (the very first render after a fresh page load).
-        let existing = JSObject.global.__swiflow
-        let ns: JSObject
-        if let obj = existing.object {
-            ns = obj
-        } else {
-            ns = JSObject.global.Object.function!.new()
-            JSObject.global.__swiflow = .object(ns)
-        }
-        ns.hmrSnapshot = .object(snapshotFn)
+        swiflowDevNamespace().hmrSnapshot = .object(snapshotFn)
 
         // Held for ownership clarity / the idempotency guard above — the
         // JSClosure itself is already kept invocable by JavaScriptKit's
@@ -117,15 +106,7 @@ package enum HMRBridge {
             return .undefined
         }
 
-        let existing = JSObject.global.__swiflow
-        let ns: JSObject
-        if let obj = existing.object {
-            ns = obj
-        } else {
-            ns = JSObject.global.Object.function!.new()
-            JSObject.global.__swiflow = .object(ns)
-        }
-        ns.hmrTeardown = .object(teardownFn)
+        swiflowDevNamespace().hmrTeardown = .object(teardownFn)
 
         teardownClosure = teardownFn
     }

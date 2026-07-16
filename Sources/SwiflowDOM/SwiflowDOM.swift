@@ -91,9 +91,13 @@ public extension Swiflow {
         // `unmount(into:)` teardown, applied to a snapshot of the keys
         // (unmount mutates `renderers`).
         HMRBridge.installTeardownHook {
-            for selector in Array(renderers.keys) {
-                unmount(into: selector)
-            }
+            // Tear down each root directly rather than via unmount(into:):
+            // that public path re-installs the DevAPI namespace commands
+            // (~5 fresh JSClosures) after EVERY root — pure churn on a
+            // module that is being orphaned. The incoming module installs
+            // its own commands when it mounts.
+            for renderer in renderers.values { renderer.teardown() }
+            renderers.removeAll()
         }
 #endif
 

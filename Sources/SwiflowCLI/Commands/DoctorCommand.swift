@@ -49,7 +49,7 @@ struct DoctorReport {
         lines.append(row(name: "swift", status: swift,
                          hint: "Install Swift 6.3 from https://swift.org/install/"))
         lines.append(row(name: "wasm-sdk", status: wasmSDK,
-                         hint: "Install the WebAssembly Swift SDK 6.3. See README.md → Prerequisites for the current `swift sdk install …` command (the checksum changes per release)."))
+                         hint: "Install the WebAssembly Swift SDK 6.3. See README.md → Quick start for the current `swift sdk install …` command (the checksum changes per release)."))
         if let macToolchain {
             lines.append(row(name: "mac-toolchain", status: macToolchain,
                              hint: "Install the swift.org toolchain (https://swift.org/install/) — Xcode's default clang has no WASM backend, so `swiflow build` fails with \"No available targets are compatible with triple 'wasm32-unknown-wasip1'\" without it."))

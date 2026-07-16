@@ -4,6 +4,21 @@
 import JavaScriptKit
 import Swiflow
 
+#if !SWIFLOW_RELEASE
+/// The `window.__swiflow` dev namespace object, created on first use.
+/// Single home for the read-or-create dance previously copy-pasted by every
+/// installer (DevAPI commands, HMR snapshot exporter, HMR teardown hook) —
+/// the JSValue-vs-callable subtlety of `JSObject.global.__swiflow` lives in
+/// exactly one place.
+@MainActor
+func swiflowDevNamespace() -> JSObject {
+    if let obj = JSObject.global.__swiflow.object { return obj }
+    let ns = JSObject.global.Object.function!.new()
+    JSObject.global.__swiflow = .object(ns)
+    return ns
+}
+#endif
+
 enum DevAPI {
 
 #if !SWIFLOW_RELEASE
@@ -27,14 +42,7 @@ enum DevAPI {
     static func installAll() {
         guard JSObject.global.SWIFLOW_DEV.boolean == true else { return }
 
-        let existing = JSObject.global.__swiflow
-        let ns: JSObject
-        if let obj = existing.object {
-            ns = obj
-        } else {
-            ns = JSObject.global.Object.function!.new()
-            JSObject.global.__swiflow = .object(ns)
-        }
+        let ns = swiflowDevNamespace()
 
         // tree() — component tree per selector
         let tree = JSClosure { _ -> JSValue in
