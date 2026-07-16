@@ -83,6 +83,18 @@ public extension Swiflow {
         // `renderers`, not a single root, so every live root — including ones
         // mounted after this call — contributes to a hot-swap snapshot.
         HMRBridge.installSnapshotExporter { renderers.values.compactMap(\.mountTree) }
+        // The driver invokes this during a hot swap (after the snapshot) so
+        // this module goes permanently quiet before the next one boots —
+        // otherwise its revalidation interval / router listeners keep firing
+        // and its resync-remount path repaints the stale UI over the new
+        // module's DOM. Unmounting every root is exactly the public
+        // `unmount(into:)` teardown, applied to a snapshot of the keys
+        // (unmount mutates `renderers`).
+        HMRBridge.installTeardownHook {
+            for selector in Array(renderers.keys) {
+                unmount(into: selector)
+            }
+        }
 #endif
 
         renderer.renderOnce()
