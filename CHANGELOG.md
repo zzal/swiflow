@@ -20,6 +20,41 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.22] — 2026-07-16
+
+**Beta.** A fifth SwiflowUI design-review round, one feature: `LabeledField` — the
+shared field chrome the column form controls repeated by hand, now one public
+component with a horizontal layout and label adornments. Purely additive; no
+existing signature changed.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes.
+
+### Added
+
+- **`LabeledField`** — the kit's field chrome (label line, control slot, standard
+  error, size class) as a public component for custom controls:
+  `LabeledField("API key", layout: .horizontal, suffix: text("optional")) { … }`.
+- **`FieldLayout`** — `.vertical` (the default, today's look) or `.horizontal`:
+  label beside the control in a fixed-width column driven by the new registered
+  token `--sw-field-label-width` (10rem), so stacked fields align like a settings
+  form. Available on TextField, Select, Autocomplete, NumberField, Slider, and
+  TextArea via `layout:`.
+- **Label adornments** — `labelPrefix:`/`labelSuffix:` (on the six controls) and
+  `prefix:`/`suffix:` (on `LabeledField`) render subtle muted additions beside the
+  label text: `text("optional")` or an `Icon(...)`.
+- Catalog: a **LabeledField** story page (horizontal settings form, adornments,
+  custom control) and a horizontal TextField example.
+
+### Changed
+
+- The six column controls now render their chrome through the shared builder.
+  One DOM detail changed: the label text sits inside a `span.sw-field__label-line`
+  wrapper (needed so adornments row up beside it). Selectors targeting
+  `.sw-field__label-text` as the label's direct child need the extra hop; the
+  kit's own sheets never did.
+
+---
+
 ## [0.4.21] — 2026-07-15
 
 **Beta.** A fourth SwiflowUI design-review round: a Slider correctness fix, a
