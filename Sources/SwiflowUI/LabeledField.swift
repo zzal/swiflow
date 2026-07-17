@@ -1,17 +1,34 @@
 import Swiflow
 
+/// How the horizontal layout sizes its label column.
+public enum FieldLabelColumn: Equatable {
+    /// Fixed shared width (`--sw-field-label-width`, default 10rem) so
+    /// stacked fields align — the settings-form look. The default.
+    case fixed
+    /// The column hugs this field's own label (`max-content`). Right for
+    /// standalone fields or dense inline forms; stacked hug fields do NOT
+    /// share a column (each field is its own grid).
+    case hug
+}
+
 /// How a field lays its label against its control.
 public enum FieldLayout: Equatable {
     /// Label above the control — the default, today's look.
     case vertical
-    /// Label beside the control in a fixed-width column
-    /// (`--sw-field-label-width`), so stacked fields align like a settings form.
-    case horizontal
+    /// Label beside the control: a `.fixed` shared-width column
+    /// (`--sw-field-label-width`) so stacked fields align, or a `.hug`
+    /// column sized to this field's own label.
+    case horizontal(labelColumn: FieldLabelColumn)
 
-    var rootModifierClass: String? {
+    /// Source-compat sugar: the fixed-column horizontal layout, spelled
+    /// `.horizontal` as before the `labelColumn:` dimension existed.
+    public static var horizontal: FieldLayout { .horizontal(labelColumn: .fixed) }
+
+    var rootModifierClasses: [String] {
         switch self {
-        case .vertical:   return nil
-        case .horizontal: return "sw-field--h"
+        case .vertical:                        return []
+        case .horizontal(labelColumn: .fixed): return ["sw-field--h"]
+        case .horizontal(labelColumn: .hug):   return ["sw-field--h", "sw-field--h-hug"]
         }
     }
 }
@@ -54,12 +71,19 @@ func labeledFieldChrome(
     controls: [VNode]
 ) -> VNode {
     var classes = ["sw-field", "sw-field--\(size.modifierClass)"]
-    if let modifier = layout.rootModifierClass { classes.append(modifier) }
+    classes += layout.rootModifierClasses
     classes += extraClasses
 
+    // Horizontal is a two-column grid (label line | control): 2+ control nodes
+    // (possible only via the public LabeledField builder) must occupy ONE grid
+    // item or the extras wrap into the label column. Vertical stacks anyway,
+    // and single-node fields (every built-in control) keep their exact DOM.
+    let controlSlot: [VNode] = (layout != .vertical && controls.count > 1)
+        ? [element("span", attributes: [.class("sw-field__controls")], children: controls)]
+        : controls
     var rootChildren: [VNode] = [
         element("label", attributes: [.class("sw-field__label")],
-                children: [fieldLabelLine(label, prefix: prefix, suffix: suffix)] + controls),
+                children: [fieldLabelLine(label, prefix: prefix, suffix: suffix)] + controlSlot),
     ]
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
     return element("div", attributes: [.class(classes.joined(separator: " "))] + rootAttrs,
@@ -74,6 +98,11 @@ func labeledFieldChrome(
 ///     LabeledField("API key", layout: .horizontal, suffix: text("optional")) {
 ///         element("input", attributes: [.attr("type", "password")])
 ///     }
+///
+/// Horizontal's label column is a fixed shared width by default
+/// (`--sw-field-label-width`, so stacked fields align); pass
+/// `layout: .horizontal(labelColumn: .hug)` for a column that hugs this
+/// field's own label instead.
 ///
 /// Caller `Attribute...`/`.class` merge onto the ROOT div.
 @MainActor

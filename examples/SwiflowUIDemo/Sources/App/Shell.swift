@@ -35,9 +35,11 @@ final class Shell {
                 h1("SwiflowUI Catalog").style("font-size", "1.1rem")
                 Spacer()
                 Select("Accent", selection: $accentChoice,
-                       options: ["Default", "Crimson", "Violet", "Emerald"], size: .sm)
+                       options: ["Default", "Crimson", "Violet", "Emerald"], size: .sm,
+                       layout: .horizontal(labelColumn: .hug))
                 Select("Radius", selection: $radiusChoice,
-                       options: ["Default", "2px", "8px", "16px"], size: .sm)
+                       options: ["Default", "2px", "8px", "16px"], size: .sm,
+                       layout: .horizontal(labelColumn: .hug))
                 Toggle("Dark mode", isOn: $isDark)
             }
             .padding(.md)

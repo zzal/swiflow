@@ -180,31 +180,37 @@ let formControlsSheet: CSSSheet = css {
     }
 
     /* --- Horizontal field layout (LabeledField layout: .horizontal) --- */
-    /* Fixed label column so stacked fields align (the settings-form look);
-       re-declare --sw-field-label-width on a scope to retune it. */
-    .sw-field--h .sw-field__label {
-      display: grid;
-      grid-template-columns: var(--sw-field-label-width) 1fr;
-      align-items: center;
-      gap: var(--sw-space-sm);
-    }
-    /* Error aligns under the CONTROL column, not the label column. */
-    .sw-field--h .sw-field-error {
-      margin-inline-start: calc(var(--sw-field-label-width) + var(--sw-space-sm));
-    }
-    /* Autocomplete's label is for-associated (a SIBLING of the control wrap, not
-       wrapping it), so horizontal lays out the ROOT as the two-column grid and
-       undoes the wrapping-label grid above. The listbox popover is top-layer
-       (anchor-positioned) — grid placement doesn't affect it. */
-    .sw-field--h.sw-ac {
+    /* The ROOT is the two-column grid for every horizontal field. Wrapping-label
+       controls promote the label's children into it via display: contents
+       (inheritance and DOM label→control association both survive);
+       Autocomplete's for-associated SIBLING label is itself the column-1 item.
+       Fixed column so stacked fields align (the settings-form look) — re-declare
+       --sw-field-label-width on a scope to retune it, or use
+       .horizontal(labelColumn: .hug) for a column hugging this field's label
+       (per-field: stacked hug fields don't share a column). The .sw-ac listbox
+       popover is top-layer/anchor-positioned — grid placement doesn't affect it. */
+    .sw-field--h {
       display: grid;
       grid-template-columns: var(--sw-field-label-width) 1fr;
       align-items: center;
       column-gap: var(--sw-space-sm);
       row-gap: var(--sw-space-xs);
     }
+    .sw-field--h-hug { grid-template-columns: max-content 1fr; }
+    .sw-field--h .sw-field__label { display: contents; }
     .sw-field--h.sw-ac .sw-field__label { display: block; }
-    .sw-field--h.sw-ac .sw-field-error { grid-column: 2; margin-inline-start: 0; }
+    /* Error aligns under the CONTROL column — grid placement, no width math,
+       so it holds for the hug column too. */
+    .sw-field--h .sw-field-error { grid-column: 2; }
+
+    /* Multi-node control slot (public LabeledField builder only): the chrome
+       wraps 2+ control nodes in one grid item so the 2-column template holds. */
+    .sw-field__controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-space-xs);
+      min-width: 0;
+    }
 
     .sw-field input,
     .sw-field select,

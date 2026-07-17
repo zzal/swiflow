@@ -507,7 +507,7 @@ final class AutocompleteBox {
         if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
         rootChildren.append(listbox)
         var rootClasses = ["sw-field", "sw-field--\(size.modifierClass)", "sw-ac"]
-        if let modifier = layout.rootModifierClass { rootClasses.append(modifier) }
+        rootClasses += layout.rootModifierClasses
         let root = element("div", attributes: [.class(rootClasses.joined(separator: " "))],
                            children: rootChildren)
         // Async: one stable `.task` whose `rerunOn: query` cancels+restarts the debounced
