@@ -6,6 +6,7 @@ final class CheckboxStory {
     @State var accepted: Bool = false
     @State var simple: Bool = true
     @State var ctrl: FormController = FormController()
+    @State var name: String = ""
 
     var body: VNode {
         let termsField = Field("terms", $accepted, $ctrl, .custom("You must accept the terms") { $0 })
@@ -30,6 +31,17 @@ final class CheckboxStory {
                 }
                 p("Check then uncheck (or blur unchecked): the box turns aria-invalid and a "
                   + "role=alert message appears.")
+            }
+            variantSection("Horizontal layout", snippet: """
+            TextField("Name", text: $name, layout: .horizontal)
+            Checkbox("Email me a receipt", isOn: $simple, layout: .horizontal)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Name", text: $name, layout: .horizontal)
+                        Checkbox("Email me a receipt", isOn: $simple, layout: .horizontal)
+                    }
+                }
             }
         }
     }

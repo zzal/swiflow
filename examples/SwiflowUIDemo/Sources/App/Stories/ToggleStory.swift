@@ -4,6 +4,7 @@ import SwiflowUI
 @Component
 final class ToggleStory {
     @State var subscribed: Bool = false
+    @State var name: String = ""
 
     var body: VNode {
         storyPage("Toggle",
@@ -17,6 +18,17 @@ final class ToggleStory {
                     VStack(spacing: .md, align: .stretch) {
                         Toggle("Subscribe to updates", isOn: $subscribed)
                         p(subscribed ? "Subscribed — you'll hear from us." : "Not subscribed.")
+                    }
+                }
+            }
+            variantSection("Horizontal layout", snippet: """
+            TextField("Name", text: $name, layout: .horizontal)
+            Toggle("Subscribe to updates", isOn: $subscribed, layout: .horizontal)
+            """) {
+                Card(variant: .plain) {
+                    VStack(spacing: .md, align: .stretch) {
+                        TextField("Name", text: $name, layout: .horizontal)
+                        Toggle("Subscribe to updates", isOn: $subscribed, layout: .horizontal)
                     }
                 }
             }
