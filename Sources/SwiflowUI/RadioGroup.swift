@@ -69,9 +69,7 @@ public func RadioGroup(
 /// Stable across renders (same label → same name), unlike a counter — a changing
 /// name would break grouping and reconciliation.
 private func radioGroupName(_ label: String) -> String {
-    let spaced = String(label.lowercased().map { ($0.isLetter || $0.isNumber) ? $0 : " " })
-    let slug = spaced.split(separator: " ").joined(separator: "-")
-    return slug.isEmpty ? "radiogroup" : slug
+    fieldSlug(label, fallback: "radiogroup")
 }
 
 @MainActor

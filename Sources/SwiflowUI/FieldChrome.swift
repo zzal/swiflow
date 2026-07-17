@@ -119,6 +119,23 @@ func formatControlNumber(_ v: Double) -> String {
     v == v.rounded() && v.magnitude < 1e15 ? String(Int(v)) : String(v)
 }
 
+/// Deterministically slugs an arbitrary label into a lowercase, hyphenated
+/// identifier fragment ("Dark Mode" -> "dark-mode"). Same label -> same slug,
+/// so stateless free functions (no per-mount identity) can derive a stable
+/// id/name without a counter. Shared by `RadioGroup` (its native `name`) and
+/// Toggle/Checkbox (their horizontal-layout `id`/`for` pair).
+func fieldSlug(_ label: String) -> String {
+    let spaced = String(label.lowercased().map { ($0.isLetter || $0.isNumber) ? $0 : " " })
+    return spaced.split(separator: " ").joined(separator: "-")
+}
+
+/// `fieldSlug`, substituting `fallback` when the label has no letters/digits
+/// to slug — so the derived identifier is never empty.
+func fieldSlug(_ label: String, fallback: String) -> String {
+    let slug = fieldSlug(label)
+    return slug.isEmpty ? fallback : slug
+}
+
 /// The "expand more" chevron as an inline SVG data-URI, at a given `stroke`. One geometry
 /// (path + width) is the single source of truth for the chevron everywhere it appears.
 /// `swChevronDownSVG` (currentColor) feeds the *masks*: the Select `::picker-icon` and the
