@@ -74,9 +74,16 @@ func labeledFieldChrome(
     classes += layout.rootModifierClasses
     classes += extraClasses
 
+    // Horizontal is a two-column grid (label line | control): 2+ control nodes
+    // (possible only via the public LabeledField builder) must occupy ONE grid
+    // item or the extras wrap into the label column. Vertical stacks anyway,
+    // and single-node fields (every built-in control) keep their exact DOM.
+    let controlSlot: [VNode] = (layout != .vertical && controls.count > 1)
+        ? [element("span", attributes: [.class("sw-field__controls")], children: controls)]
+        : controls
     var rootChildren: [VNode] = [
         element("label", attributes: [.class("sw-field__label")],
-                children: [fieldLabelLine(label, prefix: prefix, suffix: suffix)] + controls),
+                children: [fieldLabelLine(label, prefix: prefix, suffix: suffix)] + controlSlot),
     ]
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
     return element("div", attributes: [.class(classes.joined(separator: " "))] + rootAttrs,

@@ -203,6 +203,15 @@ let formControlsSheet: CSSSheet = css {
        so it holds for the hug column too. */
     .sw-field--h .sw-field-error { grid-column: 2; }
 
+    /* Multi-node control slot (public LabeledField builder only): the chrome
+       wraps 2+ control nodes in one grid item so the 2-column template holds. */
+    .sw-field__controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-space-xs);
+      min-width: 0;
+    }
+
     .sw-field input,
     .sw-field select,
     .sw-field textarea {
