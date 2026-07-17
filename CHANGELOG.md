@@ -20,6 +20,39 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.26] — 2026-07-17
+
+**Beta.** Extends the horizontal field layout to the `Toggle` and `Checkbox`
+row controls, and deepens the shared field-chrome internals behind a smaller
+interface.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes — the new
+`layout:` parameter defaults to `.vertical`, so existing call sites and their
+rendered output are unchanged.
+
+### Added
+
+- **`Toggle` and `Checkbox` gain a `layout: FieldLayout` parameter.** In
+  `.horizontal`, the label sits in the shared label column beside the control
+  (aligning with `TextField`/`Select`/etc. in the same form); `.vertical` (the
+  default) is byte-for-byte identical to before. `RadioGroup` is intentionally
+  excluded — a `<fieldset>`'s `<legend>` cannot act as a CSS grid item, so it
+  has no horizontal layout.
+- **Catalog demo**: the Toggle and Checkbox stories gain a "Horizontal layout"
+  example pairing each control with a horizontal `TextField`.
+
+### Changed
+
+- **Field-chrome internals deepened.** Root-class assembly is now centralized
+  in one `fieldRootClasses` helper (so a new `FieldLayout` case can't land in
+  one control's root and not another's), and the per-control lowering
+  boilerplate collapses into a single shared path. `Autocomplete` stops
+  hand-duplicating its root-class assembly, and its sibling-label CSS override
+  is generalized into a reusable `sw-field__label--standalone` class. Purely
+  internal — no public API or rendered-output change for existing controls.
+
+---
+
 ## [0.4.25] — 2026-07-17
 
 **Beta.** Adds a content-hugging label column to the horizontal field layout,
