@@ -220,6 +220,16 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--h-hug { grid-template-columns: max-content 1fr; }
     .sw-field--h .sw-field__label { display: contents; }
     .sw-field--h .sw-field__label--standalone { display: block; }
+    /* The row/group controls (Toggle/Checkbox/RadioGroup) carry their own base
+       class (.sw-switch/.sw-check/.sw-radio) whose `display` is declared LATER
+       in this sheet than .sw-field--h, so a single-class .sw-field--h loses the
+       cascade and the grid never forms. Re-assert the grid at higher (two-class)
+       specificity for those families so column layout wins regardless of source
+       order. The wrapping controls (.sw-field) don't need this — their base rule
+       is declared before .sw-field--h. */
+    .sw-field--h.sw-switch,
+    .sw-field--h.sw-check,
+    .sw-field--h.sw-radio { display: grid; }
     /* Error aligns under the CONTROL column — grid placement, no width math,
        so it holds for the hug column too. */
     .sw-field--h .sw-field-error { grid-column: 2; }

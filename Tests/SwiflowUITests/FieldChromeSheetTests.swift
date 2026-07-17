@@ -28,6 +28,13 @@ struct FieldChromeSheetTests {
         // error aligns under the CONTROL column by grid placement, not width math
         #expect(css.contains(".sw-field--h .sw-field-error { grid-column: 2; }"))
         #expect(!css.contains("calc(var(--sw-field-label-width)"))
+        // The row/group controls' own base .display (declared later in the sheet)
+        // must not beat the grid — a higher-specificity compound rule re-asserts it.
+        // (This is a rule-presence guard; the real check is the controller's visual
+        // pass, since a CSS-string test can't observe computed layout.)
+        #expect(css.contains(".sw-field--h.sw-switch"))
+        #expect(css.contains(".sw-field--h.sw-check"))
+        #expect(css.contains(".sw-field--h.sw-radio"))
     }
 
     @Test("multi-node control slot stacks as one min-width-0 grid item") func controlsSlot() {
