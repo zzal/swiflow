@@ -48,10 +48,13 @@ public func TextField(
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
-    fieldControl(label: label, binding: text, type: type, placeholder: placeholder,
-                 error: error, size: size, required: required, disabled: disabled,
-                 layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
-                 attributes: attributes, onBlur: onBlur)
+    var base: [Attribute] = [.attr("type", type.attributeValue), .value(text)]
+    if !placeholder.isEmpty { base.append(.placeholder(placeholder)) }
+    return fieldChromeLowering(label: label, layout: layout, error: error, size: size,
+                               required: required, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: base, caller: attributes, onBlur: onBlur,
+                               makeControl: { element("input", attributes: $0) })
 }
 
 /// `Field`-integrated convenience: pulls the binding, error, and blur→`markTouched`
@@ -74,39 +77,11 @@ public func TextField(
     labelSuffix: VNode? = nil,
     _ attributes: Attribute...
 ) -> VNode {
-    fieldControl(label: label, binding: field.binding, type: type, placeholder: placeholder,
-                 error: field.error, size: size, required: required, disabled: disabled,
-                 layout: layout, labelPrefix: labelPrefix, labelSuffix: labelSuffix,
-                 attributes: attributes, onBlur: { field.markTouched() })
-}
-
-/// Shared field-chrome lowering for the text controls. (`binding`, not `text`, to
-/// avoid shadowing the `text(_:)` node factory.)
-@MainActor
-private func fieldControl(
-    label labelText: String,
-    binding: Binding<String>,
-    type: TextFieldType,
-    placeholder: String,
-    error: String?,
-    size: ControlSize,
-    required: Bool,
-    disabled: Bool,
-    layout: FieldLayout,
-    labelPrefix: VNode?,
-    labelSuffix: VNode?,
-    attributes: [Attribute],
-    onBlur: (@MainActor () -> Void)?
-) -> VNode {
-    ensureBaseStyles()
-    installFieldStyles()
-
-    var base: [Attribute] = [.attr("type", type.attributeValue), .value(binding)]
+    var base: [Attribute] = [.attr("type", type.attributeValue), .value(field.binding)]
     if !placeholder.isEmpty { base.append(.placeholder(placeholder)) }
-    let inputAttrs = controlInputAttributes(base, error: error, required: required,
-                                            disabled: disabled, onBlur: onBlur, caller: attributes)
-
-    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
-                              suffix: labelSuffix, error: error, size: size,
-                              controls: [element("input", attributes: inputAttrs)])
+    return fieldChromeLowering(label: label, layout: layout, error: field.error, size: size,
+                               required: required, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: base, caller: attributes, onBlur: { field.markTouched() },
+                               makeControl: { element("input", attributes: $0) })
 }

@@ -116,6 +116,11 @@ struct NumberFieldTests {
         #expect(input.attributes["name"] == "qty")
     }
 
+    @Test("layout: .horizontal adds the sw-field--h root modifier") func layoutHorizontal() {
+        let root = el(building { NumberField("Quantity", value: unusedDouble, layout: .horizontal) })!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+    }
+
     @Test("the Double value binding reflects on render and writes back on input") func doubleValueBindingRoundTrips() {
         let registry = HandlerRegistry()
         HandlerAmbient.current = registry

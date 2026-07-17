@@ -87,6 +87,11 @@ struct TextAreaTests {
         #expect(ta.attributes["name"] == "bio")
     }
 
+    @Test("layout: .horizontal adds the sw-field--h root modifier") func layoutHorizontal() {
+        let root = el(building { TextArea("Bio", text: unused, layout: .horizontal) })!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+    }
+
     @Test("Field convenience renders the field's error when touched + invalid") func fieldConvenienceError() {
         var value = ""
         var ctrl = FormController()
