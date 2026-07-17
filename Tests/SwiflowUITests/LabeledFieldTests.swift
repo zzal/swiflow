@@ -17,6 +17,25 @@ import Swiflow
     }
 }
 
+@Suite("fieldRootClasses")
+@MainActor
+struct FieldRootClassesTests {
+    @Test("base + size, no layout or extra classes for vertical") func base() {
+        #expect(fieldRootClasses(size: .md, layout: .vertical) == ["sw-field", "sw-field--md"])
+    }
+
+    @Test("horizontal and hug append their layout modifiers, in order") func layout() {
+        #expect(fieldRootClasses(size: .lg, layout: .horizontal) == ["sw-field", "sw-field--lg", "sw-field--h"])
+        #expect(fieldRootClasses(size: .md, layout: .horizontal(labelColumn: .hug))
+                == ["sw-field", "sw-field--md", "sw-field--h", "sw-field--h-hug"])
+    }
+
+    @Test("extra classes land between the size modifier and the layout modifiers") func extra() {
+        #expect(fieldRootClasses(size: .md, layout: .horizontal, extra: ["sw-ac"])
+                == ["sw-field", "sw-field--md", "sw-ac", "sw-field--h"])
+    }
+}
+
 @Suite("LabeledField")
 @MainActor
 struct LabeledFieldTests {
