@@ -172,4 +172,22 @@ struct RadioGroupTests {
         #expect(css.contains(".sw-radio--lg"))
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
+
+    @Test("layout: .horizontal wraps the option rows in one grid item; legend is column 1") func layoutHorizontal() {
+        let node = building { RadioGroup("Plan", selection: unused, options: ["Free", "Pro"], layout: .horizontal) }
+        let root = el(node)!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+        #expect(legendOf(node)!.attributes["class"] == "sw-radio__legend")
+        let wrapper = el(root.children[1])!
+        #expect(wrapper.attributes["class"] == "sw-field__controls")
+        let optionLabels = wrapper.children.compactMap { el($0) }.filter { $0.attributes["class"] == "sw-radio__option" }
+        #expect(optionLabels.count == 2)
+    }
+
+    @Test("layout: .vertical (default) stays byte-identical to today's DOM — options are direct fieldset children") func layoutVerticalUnchanged() {
+        let node = building { RadioGroup("Plan", selection: unused, options: ["Free", "Pro"]) }
+        #expect(radios(node).count == 2)   // existing direct-children helper still finds them
+        let root = el(node)!
+        #expect(root.children.contains { el($0)?.attributes["class"] == "sw-field__controls" } == false)
+    }
 }
