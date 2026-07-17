@@ -54,6 +54,20 @@ func fieldLabelLine(_ label: String, prefix: VNode?, suffix: VNode?) -> VNode {
     return element("span", attributes: [.class("sw-field__label-line")], children: children)
 }
 
+/// The root `div.sw-field` class list: size modifier + layout modifiers +
+/// any control-specific extras (a caller's classes, or a control's own
+/// identity class like Autocomplete's `sw-ac`). Every field-chrome root —
+/// whether built by `labeledFieldChrome` or assembled by a control whose DOM
+/// shape doesn't fit that wrapper (Autocomplete's for-associated label) —
+/// goes through this so a new `FieldLayout` case can't land in one root and
+/// not the other.
+@MainActor
+func fieldRootClasses(size: ControlSize, layout: FieldLayout, extra: [String] = []) -> [String] {
+    var classes = ["sw-field", "sw-field--\(size.modifierClass)"] + extra
+    classes += layout.rootModifierClasses
+    return classes
+}
+
 /// The full shared chrome the wrapping controls delegate to: root `div.sw-field`
 /// (size + layout modifiers), a wrapping `<label>` containing the label line and
 /// the control(s), and the standard error node. This is `LabeledField` minus the
@@ -70,9 +84,7 @@ func labeledFieldChrome(
     rootAttrs: [Attribute] = [],
     controls: [VNode]
 ) -> VNode {
-    var classes = ["sw-field", "sw-field--\(size.modifierClass)"]
-    classes += layout.rootModifierClasses
-    classes += extraClasses
+    let classes = fieldRootClasses(size: size, layout: layout, extra: extraClasses)
 
     // Horizontal is a two-column grid (label line | control): 2+ control nodes
     // (possible only via the public LabeledField builder) must occupy ONE grid

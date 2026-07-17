@@ -506,8 +506,7 @@ final class AutocompleteBox {
         var rootChildren: [VNode] = [labelNode, fieldWrap]
         if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
         rootChildren.append(listbox)
-        var rootClasses = ["sw-field", "sw-field--\(size.modifierClass)", "sw-ac"]
-        rootClasses += layout.rootModifierClasses
+        let rootClasses = fieldRootClasses(size: size, layout: layout, extra: ["sw-ac"])
         let root = element("div", attributes: [.class(rootClasses.joined(separator: " "))],
                            children: rootChildren)
         // Async: one stable `.task` whose `rerunOn: query` cancels+restarts the debounced
