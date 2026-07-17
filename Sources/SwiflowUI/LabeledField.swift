@@ -99,6 +99,11 @@ func labeledFieldChrome(
 ///         element("input", attributes: [.attr("type", "password")])
 ///     }
 ///
+/// Horizontal's label column is a fixed shared width by default
+/// (`--sw-field-label-width`, so stacked fields align); pass
+/// `layout: .horizontal(labelColumn: .hug)` for a column that hugs this
+/// field's own label instead.
+///
 /// Caller `Attribute...`/`.class` merge onto the ROOT div.
 @MainActor
 public func LabeledField(
