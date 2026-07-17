@@ -25,11 +25,12 @@ public func Checkbox(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
     checkboxControl(label: label, binding: isOn, error: error, size: size, required: required,
-                    disabled: disabled, attributes: attributes, onBlur: onBlur)
+                    disabled: disabled, layout: layout, attributes: attributes, onBlur: onBlur)
 }
 
 /// `Field`-integrated convenience (mirrors `TextField(field:)`): wires the bound
@@ -41,12 +42,17 @@ public func Checkbox(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
+    layout: FieldLayout = .vertical,
     _ attributes: Attribute...
 ) -> VNode {
     checkboxControl(label: label, binding: field.binding, error: field.error, size: size, required: required,
-                    disabled: disabled, attributes: attributes, onBlur: { field.markTouched() })
+                    disabled: disabled, layout: layout, attributes: attributes, onBlur: { field.markTouched() })
 }
 
+/// Horizontal layout mirrors `Toggle`'s: the label text splits into a
+/// `for`-associated column-1 element, leaving only the checkbox itself (input +
+/// drawn box) as the row's content. Vertical (the default) keeps today's DOM
+/// byte-for-byte.
 @MainActor
 private func checkboxControl(
     label labelText: String,
@@ -55,27 +61,40 @@ private func checkboxControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
+    layout: FieldLayout,
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
     ensureBaseStyles()
     installFieldStyles()
 
+    let horizontal = layout != .vertical
+    let controlID = horizontal ? "sw-check-" + fieldSlug(labelText, fallback: "checkbox") : nil
+
+    var inputBase: [Attribute] = [.attr("type", "checkbox"), .checked(binding)]
+    if let controlID { inputBase.append(.attr("id", controlID)) }
     let inputAttrs = controlInputAttributes(
-        [.attr("type", "checkbox"), .checked(binding)],
-        error: error, required: required, disabled: disabled, onBlur: onBlur, caller: attributes
+        inputBase, error: error, required: required, disabled: disabled, onBlur: onBlur, caller: attributes
     )
 
     let rowClass = disabled ? "sw-check__row sw-check__row--disabled" : "sw-check__row"
-    var rootChildren: [VNode] = [
-        element("label", attributes: [.class(rowClass)], children: [
-            element("input", attributes: inputAttrs),
-            // The drawn box (the input is sr-only-hidden; see .sw-check in FieldChrome).
-            // Presentational only — state/AT live on the input.
-            element("span", attributes: [.class("sw-check__box"), .attr("aria-hidden", "true")], children: []),
-            element("span", attributes: [.class("sw-check__label-text")], children: [text(labelText)]),
-        ]),
+    var rowChildren: [VNode] = [
+        element("input", attributes: inputAttrs),
+        element("span", attributes: [.class("sw-check__box"), .attr("aria-hidden", "true")], children: []),
     ]
+
+    var rootChildren: [VNode] = []
+    if let controlID {
+        rootChildren.append(
+            element("label", attributes: [.class("sw-field__label sw-field__label--standalone"), .attr("for", controlID)],
+                    children: [fieldLabelLine(labelText, prefix: nil, suffix: nil)])
+        )
+    } else {
+        rowChildren.append(element("span", attributes: [.class("sw-check__label-text")], children: [text(labelText)]))
+    }
+    rootChildren.append(element("label", attributes: [.class(rowClass)], children: rowChildren))
     if let errorNode = fieldErrorNode(error) { rootChildren.append(errorNode) }
-    return element("div", attributes: [.class("sw-check sw-check--\(size.modifierClass)")], children: rootChildren)
+
+    let rootClasses = fieldRootClasses(base: "sw-check", size: size, layout: layout)
+    return element("div", attributes: [.class(rootClasses.joined(separator: " "))], children: rootChildren)
 }
