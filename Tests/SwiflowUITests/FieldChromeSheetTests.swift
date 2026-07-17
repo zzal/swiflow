@@ -27,4 +27,10 @@ struct FieldChromeSheetTests {
         #expect(css.contains(".sw-field--h .sw-field-error { grid-column: 2; }"))
         #expect(!css.contains("calc(var(--sw-field-label-width)"))
     }
+
+    @Test("multi-node control slot stacks as one min-width-0 grid item") func controlsSlot() {
+        let css = formControlsSheet.cssString(scopeClass: "")
+        #expect(css.contains(".sw-field__controls"))
+        #expect(css.contains("min-width: 0"))
+    }
 }

@@ -80,4 +80,29 @@ struct LabeledFieldTests {
         #expect(root.attributes["class"] == "sw-field sw-field--lg mine")
         #expect(root.attributes["data-x"] == "1")
     }
+
+    @Test("horizontal wraps 2+ control nodes in one .sw-field__controls grid item") func multiNodeControls() {
+        // 2 nodes + horizontal: wrapped, so the 2-column grid holds
+        let h = el(LabeledField("A", layout: .horizontal) {
+            element("input", attributes: [])
+            element("span", attributes: [], children: [text("hint")])
+        })!
+        let hLabel = el(h.children[0])!
+        #expect(hLabel.children.count == 2)   // label line + ONE wrapped slot
+        let slot = el(hLabel.children[1])!
+        #expect(slot.tag == "span")
+        #expect(slot.attributes["class"] == "sw-field__controls")
+        #expect(slot.children.count == 2)
+
+        // 1 node + horizontal: no wrapper (the built-in controls' DOM, unchanged)
+        let single = el(LabeledField("A", layout: .horizontal) { element("input", attributes: []) })!
+        #expect(el(el(single.children[0])!.children[1])!.tag == "input")
+
+        // 2 nodes + vertical: never wraps (stacking needs no grid item)
+        let v = el(LabeledField("A") {
+            element("input", attributes: [])
+            element("span", attributes: [], children: [text("hint")])
+        })!
+        #expect(el(v.children[0])!.children.count == 3)   // line + both nodes
+    }
 }
