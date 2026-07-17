@@ -28,9 +28,6 @@ public func Slider(
     _ attributes: Attribute...,
     onBlur: (@MainActor () -> Void)? = nil
 ) -> VNode {
-    ensureBaseStyles()
-    installFieldStyles()
-
     var base: [Attribute] = [
         .attr("type", "range"),
         .attr("min", formatControlNumber(range.lowerBound)),
@@ -40,8 +37,6 @@ public func Slider(
     // step="any" when unspecified — never omit (see the doc comment: the implicit
     // default step of 1 makes the browser SNAP the value, desyncing knob from fill).
     base.append(.attr("step", step.map(formatControlNumber) ?? "any"))
-    let inputAttrs = controlInputAttributes(base, error: error, required: false,
-                                            disabled: disabled, onBlur: onBlur, caller: attributes)
 
     // Fill fraction for the drawn track (see the range rules in FieldChrome): the
     // webkit track paints its accent fill at this width. Re-computed every render —
@@ -52,7 +47,9 @@ public func Slider(
     let fraction = span > 0 ? min(max((value.get() - range.lowerBound) / span, 0), 1) : 0
     let fillPercent = "\(formatControlNumber((fraction * 1000).rounded() / 10))%"
 
-    return labeledFieldChrome(label: label, layout: layout, prefix: labelPrefix,
-                              suffix: labelSuffix, error: error, size: size,
-                              controls: [element("input", attributes: inputAttrs).style("--sw-slider-fill", fillPercent)])
+    return fieldChromeLowering(label: label, layout: layout, error: error, size: size,
+                               required: false, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: base, caller: attributes, onBlur: onBlur,
+                               makeControl: { element("input", attributes: $0).style("--sw-slider-fill", fillPercent) })
 }

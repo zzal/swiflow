@@ -69,15 +69,11 @@ private func textAreaControl(
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
-    ensureBaseStyles()
-    installFieldStyles()
-
     var base: [Attribute] = [.attr("rows", rows), .value(binding)]
     if !placeholder.isEmpty { base.append(.placeholder(placeholder)) }
-    let controlAttrs = controlInputAttributes(base, error: error, required: required,
-                                              disabled: disabled, onBlur: onBlur, caller: attributes)
-
-    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
-                              suffix: labelSuffix, error: error, size: size,
-                              controls: [element("textarea", attributes: controlAttrs)])
+    return fieldChromeLowering(label: labelText, layout: layout, error: error, size: size,
+                               required: required, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: base, caller: attributes, onBlur: onBlur,
+                               makeControl: { element("textarea", attributes: $0) })
 }

@@ -102,6 +102,38 @@ func labeledFieldChrome(
                    children: rootChildren)
 }
 
+/// The single-input control lowering every built-in field (TextField, NumberField,
+/// TextArea, Select, Slider) delegates to: styles-once, `controlInputAttributes` for
+/// the input-level aria/disabled/blur/caller assembly, `makeControl` to turn the
+/// assembled attributes into the control's own element (the one genuinely
+/// control-specific step — an `<input>`, a `<textarea>`, a `<select>` with option
+/// children, a slider's `<input>` plus its fill style), then `labeledFieldChrome`
+/// for the label/error/layout wrapper. Not `private`: Swift's top-level `private` is
+/// file-scoped, and this is shared across files. (Autocomplete doesn't use this — its
+/// DOM has a for-associated label plus sibling controls, not one wrapped input.)
+@MainActor
+func fieldChromeLowering(
+    label: String,
+    layout: FieldLayout,
+    error: String?,
+    size: ControlSize,
+    required: Bool,
+    disabled: Bool,
+    labelPrefix: VNode?,
+    labelSuffix: VNode?,
+    base: [Attribute],
+    caller: [Attribute],
+    onBlur: (@MainActor () -> Void)?,
+    makeControl: (_ attrs: [Attribute]) -> VNode
+) -> VNode {
+    ensureBaseStyles()
+    installFieldStyles()
+    let inputAttrs = controlInputAttributes(base, error: error, required: required,
+                                            disabled: disabled, onBlur: onBlur, caller: caller)
+    return labeledFieldChrome(label: label, layout: layout, prefix: labelPrefix, suffix: labelSuffix,
+                              error: error, size: size, controls: [makeControl(inputAttrs)])
+}
+
 /// The shared field chrome as a public component — for CUSTOM controls that want
 /// the kit's label/error/size/layout treatment. The built-in controls
 /// (TextField/Select/…) already render this internally; don't wrap them in it

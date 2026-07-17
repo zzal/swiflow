@@ -89,18 +89,14 @@ private func numberFieldControl(
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
-    ensureBaseStyles()
-    installFieldStyles()
-
     var base: [Attribute] = [.attr("type", "number"), valueAttribute]
     if let min { base.append(.attr("min", min)) }
     if let max { base.append(.attr("max", max)) }
     if let step { base.append(.attr("step", step)) }
     if !placeholder.isEmpty { base.append(.placeholder(placeholder)) }
-    let inputAttrs = controlInputAttributes(base, error: error, required: required,
-                                            disabled: disabled, onBlur: onBlur, caller: attributes)
-
-    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
-                              suffix: labelSuffix, error: error, size: size,
-                              controls: [element("input", attributes: inputAttrs)])
+    return fieldChromeLowering(label: labelText, layout: layout, error: error, size: size,
+                               required: required, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: base, caller: attributes, onBlur: onBlur,
+                               makeControl: { element("input", attributes: $0) })
 }

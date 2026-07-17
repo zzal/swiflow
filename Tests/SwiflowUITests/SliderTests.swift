@@ -145,4 +145,9 @@ struct SliderTests {
         let input = inputOf(building { Slider("Volume", value: unused, .attr("name", "vol")) })!
         #expect(input.attributes["name"] == "vol")
     }
+
+    @Test("layout: .horizontal adds the sw-field--h root modifier") func layoutHorizontal() {
+        let root = el(building { Slider("Volume", value: unused, layout: .horizontal) })!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+    }
 }

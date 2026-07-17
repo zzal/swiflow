@@ -87,12 +87,6 @@ private func selectControl(
     attributes: [Attribute],
     onBlur: (@MainActor () -> Void)?
 ) -> VNode {
-    ensureBaseStyles()
-    installFieldStyles()
-
-    let selectAttrs = controlInputAttributes([.selection(selection)], error: error, required: required,
-                                             disabled: disabled, onBlur: onBlur, caller: attributes)
-
     // Mark the option matching the bound value as `selected` so the right option
     // renders at mount. The bound `value` *property* is applied before the <option>
     // children exist, so without `selected` the browser falls back to the first
@@ -112,7 +106,9 @@ private func selectControl(
         optionNodes.append(element("option", attributes: attrs, children: [text(option.label)]))
     }
 
-    return labeledFieldChrome(label: labelText, layout: layout, prefix: labelPrefix,
-                              suffix: labelSuffix, error: error, size: size,
-                              controls: [element("select", attributes: selectAttrs, children: optionNodes)])
+    return fieldChromeLowering(label: labelText, layout: layout, error: error, size: size,
+                               required: required, disabled: disabled,
+                               labelPrefix: labelPrefix, labelSuffix: labelSuffix,
+                               base: [.selection(selection)], caller: attributes, onBlur: onBlur,
+                               makeControl: { element("select", attributes: $0, children: optionNodes) })
 }

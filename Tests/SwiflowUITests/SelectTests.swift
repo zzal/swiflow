@@ -117,6 +117,11 @@ struct SelectTests {
         #expect(sel.attributes["aria-required"] == "true")
     }
 
+    @Test("layout: .horizontal adds the sw-field--h root modifier") func layoutHorizontal() {
+        let root = el(building { Select("X", selection: unused, options: ["A"], layout: .horizontal) })!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+    }
+
     @Test("caller attributes and class land on the select") func callerAttributesOnSelect() {
         let sel = selectOf(building { Select("X", selection: unused, options: ["A"], .attr("name", "role"), .class("mine")) })!
         #expect(sel.attributes["name"] == "role")
