@@ -55,12 +55,12 @@ func fieldLabelLine(_ label: String, prefix: VNode?, suffix: VNode?) -> VNode {
 }
 
 /// The field-chrome root's class list: a base class family (`sw-field` by
-/// default; `sw-switch`/`sw-check`/`sw-radio` for the row/group controls,
-/// which have their own size-modifier CSS unrelated to `.sw-field`'s input
-/// padding) + size modifier + layout modifiers + any control-specific extras
-/// (a caller's classes, or a control's own identity class like Autocomplete's
-/// `sw-ac`). Every field-chrome root goes through this so a new `FieldLayout`
-/// case can't land in one root and not another.
+/// default; `sw-switch`/`sw-check` for the Toggle/Checkbox row controls, which
+/// have their own size-modifier CSS unrelated to `.sw-field`'s input padding) +
+/// size modifier + layout modifiers + any control-specific extras (a caller's
+/// classes, or a control's own identity class like Autocomplete's `sw-ac`).
+/// Every field-chrome root goes through this so a new `FieldLayout` case can't
+/// land in one root and not another.
 @MainActor
 func fieldRootClasses(base: String = "sw-field", size: ControlSize, layout: FieldLayout, extra: [String] = []) -> [String] {
     var classes = [base, "\(base)--\(size.modifierClass)"] + extra

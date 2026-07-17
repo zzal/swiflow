@@ -37,7 +37,7 @@ struct FieldRootClassesTests {
 
     @Test("a custom base swaps the class family, still composes with layout") func customBase() {
         #expect(fieldRootClasses(base: "sw-switch", size: .md, layout: .vertical) == ["sw-switch", "sw-switch--md"])
-        #expect(fieldRootClasses(base: "sw-radio", size: .lg, layout: .horizontal) == ["sw-radio", "sw-radio--lg", "sw-field--h"])
+        #expect(fieldRootClasses(base: "sw-check", size: .lg, layout: .horizontal) == ["sw-check", "sw-check--lg", "sw-field--h"])
     }
 }
 
