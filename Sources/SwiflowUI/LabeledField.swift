@@ -54,16 +54,16 @@ func fieldLabelLine(_ label: String, prefix: VNode?, suffix: VNode?) -> VNode {
     return element("span", attributes: [.class("sw-field__label-line")], children: children)
 }
 
-/// The root `div.sw-field` class list: size modifier + layout modifiers +
-/// any control-specific extras (a caller's classes, or a control's own
-/// identity class like Autocomplete's `sw-ac`). Every field-chrome root —
-/// whether built by `labeledFieldChrome` or assembled by a control whose DOM
-/// shape doesn't fit that wrapper (Autocomplete's for-associated label) —
-/// goes through this so a new `FieldLayout` case can't land in one root and
-/// not the other.
+/// The field-chrome root's class list: a base class family (`sw-field` by
+/// default; `sw-switch`/`sw-check`/`sw-radio` for the row/group controls,
+/// which have their own size-modifier CSS unrelated to `.sw-field`'s input
+/// padding) + size modifier + layout modifiers + any control-specific extras
+/// (a caller's classes, or a control's own identity class like Autocomplete's
+/// `sw-ac`). Every field-chrome root goes through this so a new `FieldLayout`
+/// case can't land in one root and not another.
 @MainActor
-func fieldRootClasses(size: ControlSize, layout: FieldLayout, extra: [String] = []) -> [String] {
-    var classes = ["sw-field", "sw-field--\(size.modifierClass)"] + extra
+func fieldRootClasses(base: String = "sw-field", size: ControlSize, layout: FieldLayout, extra: [String] = []) -> [String] {
+    var classes = [base, "\(base)--\(size.modifierClass)"] + extra
     classes += layout.rootModifierClasses
     return classes
 }
