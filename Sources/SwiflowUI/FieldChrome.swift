@@ -1,12 +1,16 @@
 // Sources/SwiflowUI/FieldChrome.swift
 //
-// The shared, layout-NEUTRAL chrome for the form controls (TextField, Toggle,
-// and the upcoming Select/RadioGroup). Each control lays its parts out
-// differently — TextField/Select stack the label above the control, Toggle puts
-// it beside, RadioGroup uses a fieldset/legend — but they all share: the input
-// attribute assembly (aria + disabled + blur + caller merge), the error message
-// node, and one token-only stylesheet. Extracted at the second consumer (Toggle)
-// rather than abstracted speculatively on the first.
+// The shared, layout-NEUTRAL attribute/error/stylesheet chrome for every form
+// control (TextField, NumberField, TextArea, Select, Slider, Toggle, Checkbox,
+// RadioGroup, Autocomplete): the input attribute assembly (aria + disabled +
+// blur + caller merge), the error message node, and one token-only stylesheet.
+// Extracted at the second consumer (Toggle) rather than abstracted speculatively
+// on the first. The horizontal-layout GRID machinery (FieldLayout, the
+// fieldRootClasses/labeledFieldChrome pair) lives one layer up, in
+// LabeledField.swift — the single-control field controls (TextField/NumberField/
+// TextArea/Select/Slider/Autocomplete) plus the Toggle/Checkbox row controls opt
+// into it via a `layout:` parameter without this file knowing FieldLayout exists.
+// RadioGroup stays vertical-only: a <fieldset>'s <legend> can't be a grid item.
 import Swiflow
 
 #if DEBUG
@@ -203,8 +207,9 @@ let formControlsSheet: CSSSheet = css {
        labels — anything that can't wrap its control (Autocomplete's for-associated
        label, Toggle/Checkbox's split-out for-associated label) — opt out of that
        promotion via .sw-field__label--standalone, since they're already their own
-       grid item. RadioGroup's <legend> needs no such class: it was never a
-       .sw-field__label to begin with, so it's a plain grid item automatically.
+       grid item. (RadioGroup is intentionally NOT here: a <fieldset>'s <legend>
+       can't act as a grid item in the browser — it renders in block flow above —
+       so RadioGroup has no horizontal layout.)
        Fixed column so stacked fields align (the settings-form look) — re-declare
        --sw-field-label-width on a scope to retune it, or use
        .horizontal(labelColumn: .hug) for a column hugging this field's own label
@@ -220,16 +225,15 @@ let formControlsSheet: CSSSheet = css {
     .sw-field--h-hug { grid-template-columns: max-content 1fr; }
     .sw-field--h .sw-field__label { display: contents; }
     .sw-field--h .sw-field__label--standalone { display: block; }
-    /* The row/group controls (Toggle/Checkbox/RadioGroup) carry their own base
-       class (.sw-switch/.sw-check/.sw-radio) whose `display` is declared LATER
-       in this sheet than .sw-field--h, so a single-class .sw-field--h loses the
-       cascade and the grid never forms. Re-assert the grid at higher (two-class)
-       specificity for those families so column layout wins regardless of source
-       order. The wrapping controls (.sw-field) don't need this — their base rule
-       is declared before .sw-field--h. */
+    /* The row controls (Toggle/Checkbox) carry their own base class
+       (.sw-switch/.sw-check) whose `display` is declared LATER in this sheet than
+       .sw-field--h, so a single-class .sw-field--h loses the cascade and the grid
+       never forms. Re-assert the grid at higher (two-class) specificity for those
+       families so column layout wins regardless of source order. The wrapping
+       controls (.sw-field) don't need this — their base rule is declared before
+       .sw-field--h. */
     .sw-field--h.sw-switch,
-    .sw-field--h.sw-check,
-    .sw-field--h.sw-radio { display: grid; }
+    .sw-field--h.sw-check { display: grid; }
     /* Error aligns under the CONTROL column — grid placement, no width math,
        so it holds for the hug column too. */
     .sw-field--h .sw-field-error { grid-column: 2; }
