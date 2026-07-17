@@ -38,12 +38,11 @@ public func RadioGroup(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
-    layout: FieldLayout = .vertical,
     _ attributes: Attribute...
 ) -> VNode {
     radioGroupControl(label: label, selection: selection, options: options,
                       name: name ?? radioGroupName(label), error: error, size: size, required: required,
-                      disabled: disabled, layout: layout, attributes: attributes, onSelect: nil)
+                      disabled: disabled, attributes: attributes, onSelect: nil)
 }
 
 /// `Field`-integrated convenience. markTouched fires on SELECT (folded into the
@@ -58,12 +57,11 @@ public func RadioGroup(
     size: ControlSize = .md,
     required: Bool = false,
     disabled: Bool = false,
-    layout: FieldLayout = .vertical,
     _ attributes: Attribute...
 ) -> VNode {
     radioGroupControl(label: label, selection: field.binding, options: options,
                       name: name ?? radioGroupName(label), error: field.error, size: size, required: required,
-                      disabled: disabled, layout: layout, attributes: attributes,
+                      disabled: disabled, attributes: attributes,
                       onSelect: { _ in field.markTouched() })
 }
 
@@ -84,25 +82,26 @@ private func radioGroupControl(
     size: ControlSize,
     required: Bool,
     disabled: Bool,
-    layout: FieldLayout,
     attributes: [Attribute],
     onSelect: (@MainActor (String) -> Void)?
 ) -> VNode {
     ensureBaseStyles()
     installFieldStyles()
 
-    // Per-option Bool binding derived from the group's String selection. The
-    // setter writes the value (and marks touched via onSelect) only when the
-    // radio becomes checked; the native shared `name` clears the others.
-    var optionNodes: [VNode] = []
+    var children: [VNode] = [
+        element("legend", attributes: [.class("sw-radio__legend")], children: [text(labelText)]),
+    ]
     for option in options {
+        // Per-option Bool binding derived from the group's String selection. The
+        // setter writes the value (and marks touched via onSelect) only when the
+        // radio becomes checked; the native shared `name` clears the others.
         let optionBinding = Binding<Bool>(
             get: { selection.get() == option.value },
             set: { isChecked in
                 if isChecked { selection.set(option.value); onSelect?(option.value) }
             }
         )
-        optionNodes.append(
+        children.append(
             element("label", attributes: [.class("sw-radio__option")], children: [
                 element("input", attributes: [.attr("type", "radio"), .attr("name", name), .checked(optionBinding)]),
                 // The drawn dot (the input is sr-only-hidden; see .sw-radio in FieldChrome).
@@ -112,21 +111,6 @@ private func radioGroupControl(
             ])
         )
     }
-
-    // Horizontal: the legend is already a sibling of the options (not a wrapper),
-    // so it becomes the column-1 grid item automatically — no CSS override needed
-    // (unlike Toggle/Checkbox/Autocomplete, it was never a .sw-field__label). The
-    // N option rows wrap in one grid item for column 2, reusing the same
-    // .sw-field__controls multi-node pattern LabeledField uses for 2+ control nodes.
-    let horizontal = layout != .vertical
-    let optionsSlot: [VNode] = horizontal
-        ? [element("span", attributes: [.class("sw-field__controls")], children: optionNodes)]
-        : optionNodes
-
-    var children: [VNode] = [
-        element("legend", attributes: [.class("sw-radio__legend")], children: [text(labelText)]),
-    ]
-    children += optionsSlot
     if let errorNode = fieldErrorNode(error) { children.append(errorNode) }
 
     #if DEBUG
@@ -136,8 +120,8 @@ private func radioGroupControl(
     children.append(embed { RadioNameSentinel(name: name, label: labelText) })
     #endif
 
-    let groupAttrs = fieldGroupAttributes(fieldRootClasses(base: "sw-radio", size: size, layout: layout),
-                                          error: error, required: required, disabled: disabled, caller: attributes)
+    let groupAttrs = fieldGroupAttributes(["sw-radio", "sw-radio--\(size.modifierClass)"], error: error, required: required,
+                                          disabled: disabled, caller: attributes)
     return element("fieldset", attributes: groupAttrs, children: children)
 }
 

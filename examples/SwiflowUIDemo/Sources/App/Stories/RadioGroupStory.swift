@@ -4,7 +4,6 @@ import SwiflowUI
 @Component
 final class RadioGroupStory {
     @State var plan: String = "Free"
-    @State var name: String = ""
 
     var body: VNode {
         storyPage("RadioGroup",
@@ -18,17 +17,6 @@ final class RadioGroupStory {
                     VStack(spacing: .md, align: .stretch) {
                         RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], size: .sm)
                         p("Selected plan: \(plan)")
-                    }
-                }
-            }
-            variantSection("Horizontal layout", snippet: """
-            TextField("Name", text: $name, layout: .horizontal)
-            RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], layout: .horizontal)
-            """) {
-                Card(variant: .plain) {
-                    VStack(spacing: .md, align: .stretch) {
-                        TextField("Name", text: $name, layout: .horizontal)
-                        RadioGroup("Plan", selection: $plan, options: ["Free", "Pro", "Team"], layout: .horizontal)
                     }
                 }
             }
