@@ -12,14 +12,19 @@ struct FieldChromeSheetTests {
         #expect(css.contains("color: var(--sw-text-muted)"))
     }
 
-    @Test("horizontal layout: fixed label column via the registered token") func horizontal() {
+    @Test("horizontal layout: root grid, fixed + hug columns, grid-placed error") func horizontal() {
         let css = formControlsSheet.cssString(scopeClass: "")
-        #expect(css.contains(".sw-field--h .sw-field__label"))
+        // the ROOT is the grid; the fixed column reads the registered token
+        #expect(css.contains(".sw-field--h {"))
         #expect(css.contains("grid-template-columns: var(--sw-field-label-width) 1fr"))
-        // error aligns under the CONTROL column
-        #expect(css.contains(".sw-field--h .sw-field-error"))
-        #expect(css.contains("calc(var(--sw-field-label-width) + var(--sw-space-sm))"))
-        // Autocomplete override (its label doesn't wrap the control)
-        #expect(css.contains(".sw-field--h.sw-ac"))
+        // hug modifier swaps the column for max-content
+        #expect(css.contains(".sw-field--h-hug { grid-template-columns: max-content 1fr; }"))
+        // wrapping labels dissolve into the root grid…
+        #expect(css.contains(".sw-field--h .sw-field__label { display: contents; }"))
+        // …except Autocomplete's for-associated sibling label, which IS the column-1 item
+        #expect(css.contains(".sw-field--h.sw-ac .sw-field__label { display: block; }"))
+        // error aligns under the CONTROL column by grid placement, not width math
+        #expect(css.contains(".sw-field--h .sw-field-error { grid-column: 2; }"))
+        #expect(!css.contains("calc(var(--sw-field-label-width)"))
     }
 }
