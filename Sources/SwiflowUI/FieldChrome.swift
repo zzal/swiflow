@@ -197,13 +197,17 @@ let formControlsSheet: CSSSheet = css {
     }
 
     /* --- Horizontal field layout (LabeledField layout: .horizontal) --- */
-    /* The ROOT is the two-column grid for every horizontal field. Wrapping-label
-       controls promote the label's children into it via display: contents
-       (inheritance and DOM label→control association both survive);
-       Autocomplete's for-associated SIBLING label is itself the column-1 item.
+    /* The ROOT is the two-column grid for every horizontal field/control. Wrapping-
+       label controls promote the label's children into it via display: contents
+       (inheritance and DOM label→control association both survive). Sibling-shaped
+       labels — anything that can't wrap its control (Autocomplete's for-associated
+       label, Toggle/Checkbox's split-out for-associated label) — opt out of that
+       promotion via .sw-field__label--standalone, since they're already their own
+       grid item. RadioGroup's <legend> needs no such class: it was never a
+       .sw-field__label to begin with, so it's a plain grid item automatically.
        Fixed column so stacked fields align (the settings-form look) — re-declare
        --sw-field-label-width on a scope to retune it, or use
-       .horizontal(labelColumn: .hug) for a column hugging this field's label
+       .horizontal(labelColumn: .hug) for a column hugging this field's own label
        (per-field: stacked hug fields don't share a column). The .sw-ac listbox
        popover is top-layer/anchor-positioned — grid placement doesn't affect it. */
     .sw-field--h {
@@ -215,7 +219,7 @@ let formControlsSheet: CSSSheet = css {
     }
     .sw-field--h-hug { grid-template-columns: max-content 1fr; }
     .sw-field--h .sw-field__label { display: contents; }
-    .sw-field--h.sw-ac .sw-field__label { display: block; }
+    .sw-field--h .sw-field__label--standalone { display: block; }
     /* Error aligns under the CONTROL column — grid placement, no width math,
        so it holds for the hug column too. */
     .sw-field--h .sw-field-error { grid-column: 2; }

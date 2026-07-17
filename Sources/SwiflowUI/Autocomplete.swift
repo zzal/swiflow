@@ -444,7 +444,7 @@ final class AutocompleteBox {
 
         // Label is `for`-associated (not wrapping) so the input's accessible name is just the
         // label text — the trailing ✕ button, a sibling of the input, doesn't pollute it.
-        let labelNode = element("label", attributes: [.class("sw-field__label"), .attr("for", controlID)], children: [
+        let labelNode = element("label", attributes: [.class("sw-field__label sw-field__label--standalone"), .attr("for", controlID)], children: [
             fieldLabelLine(label, prefix: labelPrefix, suffix: labelSuffix),
         ])
 
