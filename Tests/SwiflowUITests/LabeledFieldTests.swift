@@ -37,11 +37,16 @@ struct LabeledFieldTests {
         #expect(control.tag == "input")
     }
 
-    @Test("vertical (default) has no --h class; horizontal adds it on the root") func layoutClass() {
+    @Test("vertical has no --h class; horizontal adds it; hug adds the hug modifier") func layoutClass() {
         let v = el(LabeledField("A") { element("input", attributes: []) })!
         #expect(v.attributes["class"]?.contains("sw-field--h") == false)
+        // source-compat pins: bare `.horizontal` still exists, means fixed,
+        // and emits exactly the pre-hug class string
+        #expect(FieldLayout.horizontal == .horizontal(labelColumn: .fixed))
         let h = el(LabeledField("A", layout: .horizontal) { element("input", attributes: []) })!
         #expect(h.attributes["class"] == "sw-field sw-field--md sw-field--h")
+        let hug = el(LabeledField("A", layout: .horizontal(labelColumn: .hug)) { element("input", attributes: []) })!
+        #expect(hug.attributes["class"] == "sw-field sw-field--md sw-field--h sw-field--h-hug")
     }
 
     @Test("prefix/suffix render as adornment spans, in order, only when given") func adornments() {
