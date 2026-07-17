@@ -20,6 +20,46 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.4.25] — 2026-07-17
+
+**Beta.** Adds a content-hugging label column to the horizontal field layout,
+and unifies the horizontal field-chrome CSS behind it.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes — the new
+`FieldLayout.horizontal` case is source-compatible with the existing
+`.horizontal` spelling.
+
+### Added
+
+- **`FieldLayout.horizontal(labelColumn:)`** with a new `FieldLabelColumn`
+  enum: `.fixed` (the shared-width `--sw-field-label-width` column, so stacked
+  fields align — the previous behavior, unchanged) or `.hug` (the column
+  hugs each field's own label via `max-content`). Bare `.horizontal` remains
+  valid everywhere and resolves to `.fixed`, so no call site needs to change.
+  Applies to every field control (`TextField`, `TextArea`, `Select`,
+  `NumberField`, `Slider`, `Autocomplete`, and the public `LabeledField`).
+
+### Changed
+
+- **Horizontal field chrome unified**: all horizontal fields now lay out on a
+  single root grid (previously wrapping-label controls and `Autocomplete` used
+  two divergent implementations). The validation-error message aligns under
+  the control column by grid placement rather than a fixed-width `calc()`, so
+  it holds for both the fixed and hugging columns. Fixed-layout rendering is
+  unchanged.
+- **Catalog demo**: the `Accent` and `Radius` theme-override selects in the
+  header now use the hugging horizontal layout; the `LabeledField` story gains
+  a "Hugging label column" example.
+
+### Fixed
+
+- **`LabeledField` with multiple control nodes** under a horizontal layout: the
+  extra nodes previously wrapped into the label column; they are now grouped
+  in a single control cell. Single-control fields (every built-in) are
+  unaffected.
+
+---
+
 ## [0.4.24] — 2026-07-16
 
 **Beta.** A maintenance release folding in the post-merge review of the
