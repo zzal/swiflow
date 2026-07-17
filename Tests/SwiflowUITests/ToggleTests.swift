@@ -16,6 +16,13 @@ import Testing
 
 @MainActor private func rowOf(_ root: VNode) -> ElementData? { el(el(root)?.children.first) }
 
+@MainActor private func firstInputAnywhere(_ node: VNode) -> ElementData? {
+    guard let d = el(node) else { return nil }
+    if d.tag == "input" { return d }
+    for child in d.children { if let found = firstInputAnywhere(child) { return found } }
+    return nil
+}
+
 @MainActor private func hasClass(_ root: VNode, _ cls: String) -> Bool {
     guard let r = el(root) else { return false }
     func walk(_ d: ElementData) -> Bool {
@@ -148,5 +155,40 @@ struct ToggleTests {
         #expect(css.contains("var(--sw-accent)"))
         #expect(css.contains("var(--sw-duration)"))                           // slide honors reduced-motion
         #expect(css.contains(".sw-switch--sm"))                               // size scale shipped
+    }
+
+    @Test("layout: .horizontal splits the label into a for-associated column-1 element; the row keeps only the switch") func layoutHorizontal() {
+        let node = building { Toggle("Dark mode", isOn: unused, layout: .horizontal) }
+        let root = el(node)!
+        #expect(root.attributes["class"]?.contains("sw-field--h") == true)
+        #expect(root.children.count == 2)   // standalone label + row (no error)
+        let standaloneLabel = el(root.children[0])!
+        #expect(standaloneLabel.tag == "label")
+        #expect(standaloneLabel.attributes["class"] == "sw-field__label sw-field__label--standalone")
+        #expect(allText(.element(standaloneLabel)) == "Dark mode")
+        let input = firstInputAnywhere(node)!
+        let inputID = input.attributes["id"]
+        #expect(inputID != nil)
+        #expect(standaloneLabel.attributes["for"] == inputID)
+        let row = el(root.children[1])!
+        #expect(row.attributes["class"] == "sw-switch__row")
+        #expect(row.children.compactMap { el($0) }.contains { $0.attributes["class"] == "sw-switch__label-text" } == false)
+    }
+
+    @Test("layout: .vertical (default) stays byte-identical to today's DOM — no id, single row child") func layoutVerticalUnchanged() {
+        let node = building { Toggle("Dark mode", isOn: unused) }
+        let root = el(node)!
+        #expect(root.children.count == 1)   // just the row — no standalone label sibling
+        #expect(firstInputAnywhere(node)!.attributes["id"] == nil)
+        let row = el(root.children[0])!
+        #expect(row.attributes["class"] == "sw-switch__row")
+        #expect(row.children.compactMap { el($0) }.contains { $0.attributes["class"] == "sw-switch__label-text" })
+    }
+
+    @Test("the derived id is deterministic across renders for the same label") func idIsDeterministic() {
+        let first = firstInputAnywhere(building { Toggle("Email notifications", isOn: unused, layout: .horizontal) })!
+        let second = firstInputAnywhere(building { Toggle("Email notifications", isOn: unused, layout: .horizontal) })!
+        #expect(first.attributes["id"] == second.attributes["id"])
+        #expect(first.attributes["id"] == "sw-switch-email-notifications")
     }
 }
