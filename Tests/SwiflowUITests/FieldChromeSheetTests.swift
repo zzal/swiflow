@@ -21,8 +21,10 @@ struct FieldChromeSheetTests {
         #expect(css.contains(".sw-field--h-hug { grid-template-columns: max-content 1fr; }"))
         // wrapping labels dissolve into the root grid…
         #expect(css.contains(".sw-field--h .sw-field__label { display: contents; }"))
-        // …except Autocomplete's for-associated sibling label, which IS the column-1 item
-        #expect(css.contains(".sw-field--h.sw-ac .sw-field__label { display: block; }"))
+        // …except sibling-shaped labels (Autocomplete's for-associated label, Toggle/
+        // Checkbox's split-out label), which ARE the column-1 item already
+        #expect(css.contains(".sw-field--h .sw-field__label--standalone { display: block; }"))
+        #expect(!css.contains(".sw-ac .sw-field__label"))   // the old per-consumer coupling is gone
         // error aligns under the CONTROL column by grid placement, not width math
         #expect(css.contains(".sw-field--h .sw-field-error { grid-column: 2; }"))
         #expect(!css.contains("calc(var(--sw-field-label-width)"))
