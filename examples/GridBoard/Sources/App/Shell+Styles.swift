@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber
 
     static let base = #css("""
         :root {
@@ -63,4 +63,37 @@ extension GridShell {
           stroke-width: 2;
         }
         """)
+
+    static let scrubber = #css("""
+        .gb-scrubber { display: grid; gap: 6px; }
+        .gb-scrubber-bar { display: flex; gap: 8px; align-items: center; }
+        .gb-btn {
+          border: 1px solid var(--gb-border);
+          background: var(--gb-panel);
+          color: var(--gb-text);
+          border-radius: 8px;
+          padding: 4px 12px;
+          font: 500 13px system-ui, sans-serif;
+          cursor: pointer;
+        }
+        .gb-btn--on { background: var(--gb-accent); color: white; border-color: transparent; }
+        .gb-readout { color: var(--gb-dim); font: 500 13px ui-monospace, monospace; }
+        .gb-track {
+          width: 100%;
+          height: 64px;
+          display: block;
+          background: color-mix(in oklab, var(--gb-panel) 70%, var(--gb-bg));
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          cursor: ew-resize;
+          touch-action: none;
+        }
+        .gb-spark { fill: color-mix(in oklab, var(--gb-accent) 25%, transparent); stroke: var(--gb-accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+        .gb-tick { stroke: var(--gb-border); }
+        .gb-playhead { stroke: var(--gb-text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .gb-playhead-knob { fill: var(--gb-accent); stroke: white; stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .gb-brush-range { fill: color-mix(in oklab, var(--gb-accent) 18%, transparent); }
+        .gb-thumb { stroke: var(--gb-accent); stroke-width: 4; vector-effect: non-scaling-stroke; cursor: ew-resize; }
+        """)
 }
+

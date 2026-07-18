@@ -24,10 +24,20 @@ final class GridShell {
     @State var inspectedEdge: Int? = nil
     @State var snapshot: GridSnapshot? = nil
 
+    @State var brushMode: Bool = false
+    @State var playing: Bool = false
+    @State var brushLo: Int = GridShell.initialInterval - 4 * GridDataset.intervalsPerDay
+    @State var brushHi: Int = GridShell.initialInterval + 3 * GridDataset.intervalsPerDay
+
     // Native-listener plumbing (populated in later tasks).
     let mapRef = Ref<JSObject>()
+    let scrubberRef = Ref<JSObject>()
+    let raf = RAFLoop()
     var retainedClosures: [JSClosure] = []
     var listenersAttached = false
+    var sparkPath = ""
+    enum DragTarget { case playhead, brushLoHandle, brushHiHandle }
+    var dragTarget: DragTarget? = nil
 
     /// January 20th, 18:00 — a cold winter evening, the grid at its most
     /// interesting.
@@ -38,11 +48,35 @@ final class GridShell {
         let data = GridDataset.generate(seed: 0xC0FFEE)
         engine = GridEngine(data: data)
         buildMs = nowMs() - t0
+
+        // National daily mean demand → the sparkline drawn INSIDE the
+        // scrubber track. 365 points, built once.
+        var daily = [Double](repeating: 0, count: GridDataset.dayCount)
+        for d in 0..<GridDataset.dayCount {
+            var sum = 0.0
+            let t0d = d * GridDataset.intervalsPerDay
+            for z in Zone.allCases {
+                for i in stride(from: t0d, to: t0d + GridDataset.intervalsPerDay, by: 24) {
+                    sum += Double(data.demand(z, i))
+                }
+            }
+            daily[d] = sum
+        }
+        let maxD = daily.max() ?? 1
+        var path = "M0,56"
+        for (d, v) in daily.enumerated() {
+            let x = Double(d) / Double(GridDataset.dayCount - 1) * 1000
+            let y = 56 - 50 * (v / maxD)
+            path += "L\(Int(x)),\(Int(y))"
+        }
+        sparkPath = path + "L1000,56Z"
     }
 
     func onAppear() {
         runQuery()
         attachNativeListeners()
+        raf.onFrame = { [weak self] ts in self?.tick(ts) }
+        raf.start()
     }
 
     /// The single query funnel: every control mutation ends here.
@@ -54,10 +88,19 @@ final class GridShell {
         snapshot = snap
     }
 
+    /// Per-frame driver. Task 12 appends the canvas flow pass.
+    func tick(_ ts: Double) {
+        if playing, case .instant(let t) = slice {
+            slice = .instant((t + 6) % GridDataset.intervalCount)
+            runQuery()
+        }
+    }
+
     /// Idempotent — later tasks append coordinate listeners here.
     func attachNativeListeners() {
         guard !listenersAttached else { return }
         listenersAttached = true
+        attachScrubberListeners()
     }
 
     var body: VNode {
@@ -88,7 +131,15 @@ final class GridShell {
     }
 
     func controlsRow() -> VNode {
-        element("div", attributes: [.class("gb-controls")], children: [])
+        element("div", attributes: [.class("gb-controls")], children: [
+            scrubberView(),
+            wheelSlot(),
+        ])
+    }
+
+    /// Replaced by the season×hour wheel in Task 8.
+    func wheelSlot() -> VNode {
+        element("div", attributes: [.class("gb-wheel")], children: [])
     }
 }
 
