@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel
 
     static let base = #css("""
         :root {
@@ -95,5 +95,21 @@ extension GridShell {
         .gb-brush-range { fill: color-mix(in oklab, var(--gb-accent) 18%, transparent); }
         .gb-thumb { stroke: var(--gb-accent); stroke-width: 4; vector-effect: non-scaling-stroke; cursor: ew-resize; }
         """)
-}
 
+    static let wheel = #css("""
+        .gb-wheel-svg { width: 148px; height: 148px; display: block; user-select: none; }
+        .gb-seg {
+          fill: color-mix(in oklab, var(--gb-text) 8%, var(--gb-panel));
+          stroke: var(--gb-bg);
+          stroke-width: 1;
+          cursor: pointer;
+          transition: fill 120ms ease;
+        }
+        .gb-seg:hover { fill: color-mix(in oklab, var(--gb-accent) 30%, var(--gb-panel)); }
+        .gb-seg--on { fill: var(--gb-accent); }
+        .gb-seg-label { font: 600 8px system-ui; fill: var(--gb-dim); text-anchor: middle; pointer-events: none; }
+        .gb-wheel-clear { fill: var(--gb-panel); stroke: var(--gb-border); cursor: pointer; }
+        .gb-wheel-clear--idle { opacity: 0.6; }
+        .gb-wheel-clear-label { font: 600 9px system-ui; fill: var(--gb-dim); text-anchor: middle; pointer-events: none; }
+        """)
+}
