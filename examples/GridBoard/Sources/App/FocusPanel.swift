@@ -141,4 +141,3 @@ extension GridShell {
         return element("ul", attributes: [.class("gb-legend")], children: items)
     }
 }
-

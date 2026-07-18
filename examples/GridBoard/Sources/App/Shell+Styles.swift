@@ -174,4 +174,3 @@ extension GridShell {
         .gb-inspector-note { color: var(--gb-dim); font-size: 12px; }
         """)
 }
-
