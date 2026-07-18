@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud
 
     static let base = #css("""
         :root {
@@ -182,6 +182,27 @@ extension GridShell {
           height: auto;
           aspect-ratio: 1000 / 760;
           pointer-events: none;
+        }
+        """)
+
+    static let hud = #css("""
+        .gb-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+        .gb-hud {
+          display: flex;
+          gap: 8px;
+          align-items: start;
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .gb-hud-toggle { border: none; background: none; color: var(--gb-dim); cursor: pointer; font-size: 14px; padding: 0 2px; }
+        .gb-hud-grid { display: flex; gap: 14px; margin: 0; }
+        .gb-hud-cell dt { font: 500 10px system-ui; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .gb-hud-cell dd { margin: 0; font: 600 14px ui-monospace, monospace; }
+        @media (max-width: 900px) {
+          .gb-main { grid-template-columns: 1fr; }
+          .gb-header { flex-direction: column; }
         }
         """)
 }

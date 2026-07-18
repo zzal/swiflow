@@ -46,6 +46,7 @@ final class GridShell {
     var frameCount = 0
     var lastFpsStamp = 0.0
     @State var hudFps: Int = 0
+    @State var hudOpen: Bool = true
     enum DragTarget { case playhead, brushLoHandle, brushHiHandle }
     var dragTarget: DragTarget? = nil
     var wheelPainting = false
@@ -141,9 +142,12 @@ final class GridShell {
 
     func headerView() -> VNode {
         element("header", attributes: [.class("gb-header")], children: [
-            element("h1", attributes: [], children: [text("Canada Grid — live")]),
-            element("p", attributes: [.class("gb-tagline")],
-                    children: [text("A year of 5-minute grid data, queried in your browser. No server.")]),
+            element("div", attributes: [], children: [
+                element("h1", attributes: [], children: [text("Canada Grid — live")]),
+                element("p", attributes: [.class("gb-tagline")],
+                        children: [text("A year of 5-minute grid data, queried in your browser. No server.")]),
+            ]),
+            hudView(),
         ])
     }
 
