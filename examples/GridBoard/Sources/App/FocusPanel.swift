@@ -140,10 +140,5 @@ extension GridShell {
         }
         return element("ul", attributes: [.class("gb-legend")], children: items)
     }
-
-    /// Replaced by the real inspector in Task 11.
-    @MainActor
-    func inspectorPanel() -> VNode {
-        element("aside", attributes: [.class("gb-panel")], children: [])
-    }
 }
+
