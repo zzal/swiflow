@@ -9,23 +9,24 @@
 //
 //     dismissTimer?.cancel()
 //
-// TimerHandle holds the JSClosure for the timer's lifetime for ownership
-// clarity (mirrors RAFScheduler.swift), not because that's what keeps it
-// callable — JSClosure.init self-registers into JavaScriptKit's static
-// sharedClosures table, independent of any Swift-side field. What actually
-// stops the callback from firing is cancel()'s explicit clearTimeout call;
-// dropping the closure reference alone would not prevent JS from invoking it.
-// TimerHandle also cancels itself on deinit, so simply dropping a handle
-// without calling cancel() still clears the underlying setTimeout.
+// The callback is a JSOneshotClosure: it self-releases from
+// JavaScriptKit's static sharedClosures table after its single firing, so
+// a fired timer leaves nothing pinned. A CANCELLED timer never fires, so
+// cancel() must (and does) release the closure explicitly — with a plain
+// JSClosure, dropping the Swift reference would leave the entry pinned in
+// the static table forever (the leak class found in RAFScheduler via
+// GridBoard playback). TimerHandle also cancels itself on deinit, so
+// dropping a handle without calling cancel() still clears the underlying
+// setTimeout and releases the closure.
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 
 /// A cancellable scheduled callback. Returned by `after(_:do:)`.
 ///
-/// Holds the underlying `JSClosure` and setTimeout handle until either
-/// `cancel()` is called or the timer fires; see the file-level comment for
-/// why that field isn't what keeps the callback callable.
+/// Holds the underlying `JSOneshotClosure` and setTimeout handle until
+/// either `cancel()` is called or the timer fires; see the file-level
+/// comment for the closure-release contract.
 ///
 /// `@MainActor`-isolated (all JS access here — `clearTimeout` — must run on
 /// the main thread) with an isolated `deinit`, so dropping a handle without
@@ -34,9 +35,9 @@ import JavaScriptKit
 @MainActor
 public final class TimerHandle {
     private var handle: JSValue?
-    private var closure: JSClosure?
+    private var closure: JSOneshotClosure?
 
-    fileprivate init(handle: JSValue, closure: JSClosure) {
+    fileprivate init(handle: JSValue, closure: JSOneshotClosure) {
         self.handle = handle
         self.closure = closure
     }
@@ -46,7 +47,9 @@ public final class TimerHandle {
         guard let h = handle else { return }
         _ = JSObject.global.clearTimeout!(h)
         handle = nil
-        // Drop the closure — JS won't call it now.
+        // A cancelled one-shot never fires, so it never self-releases —
+        // release it here or its sharedClosures entry stays pinned forever.
+        closure?.release()
         closure = nil
     }
 
@@ -54,6 +57,7 @@ public final class TimerHandle {
     /// clearTimeout (the timer already fired, so there's nothing to clear).
     fileprivate func didFire() {
         handle = nil
+        // The one-shot self-released on invocation; just drop the reference.
         closure = nil
     }
 
@@ -78,7 +82,7 @@ public func after(_ seconds: Double, do body: @escaping @MainActor () -> Void) -
     final class Box { weak var handle: TimerHandle? }
     let box = Box()
 
-    let closure = JSClosure { _ in
+    let closure = JSOneshotClosure { _ in
         // setTimeout fires on the main thread in browsers; hop back onto
         // MainActor explicitly for the body and cleanup.
         MainActor.assumeIsolated {
