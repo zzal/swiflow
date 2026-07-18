@@ -20,6 +20,49 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.5.0] — 2026-07-18
+
+**Beta.** The showcase release: a new `GridBoard` starter template — a
+serverless, Electricity-Maps-style dashboard of the Canadian grid that
+answers every interaction with a full-dataset WASM query — plus the two
+framework capabilities it drove out: native SVG rendering, and a rendering
+pipeline proven leak-free at sustained 60 renders/s.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes.
+
+### Added
+
+- **`GridBoard` template** (`swiflow init --template GridBoard`). A year of
+  5-minute-resolution synthetic grid data for Canada's 13 provinces and
+  territories (~12M data points) lives in WASM linear memory; the time
+  scrubber, season×hour wheel, hover lens, donut-as-filter, and interconnect
+  inspector all re-scan it between frames — no server, no API, no
+  precomputed tiles. A perf HUD shows the receipts (release build: dataset
+  generated in under a second; instant scans 0.1 ms; worst-case full-year
+  13.7M-row scan under 90 ms). The pure-Swift `GridCore` target (generator,
+  columnar store, aggregation engine — host-tested) is the seam to replace
+  with your own data loader.
+- **SVG-namespace rendering.** The js-driver now creates SVG tags
+  (`svg`, `path`, `g`, `circle`, `linearGradient`, …) via `createElementNS`,
+  so live, diffed SVG works through ordinary Swiflow VNodes. Dual-namespace
+  tags (`a`, `title`, `style`, `script`) stay HTML. Previously SVG could only
+  reach the DOM via CSS masks or `rawHTML`.
+
+### Fixed
+
+- **memoKey hits no longer leak the discarded subtree's handlers.** `.on`
+  closures register during body build; the diff now evicts the discarded
+  registrations on a memo bail, and per-handler scope eviction is O(1)
+  (`Set`-backed). Before, apps rendering at animation rate degraded
+  quadratically (60 → 6 fps within minutes).
+- **`RAFScheduler` no longer pins one `JSClosure` per render.** The rAF
+  callback is created once and reused; `after()` timers use self-releasing
+  `JSOneshotClosure`s. Before, the web process grew ~5 MB/s during sustained
+  playback until Safari killed the tab ("using significant memory");
+  post-fix, a 4-minute WebKit soak holds 60 fps with a flat closure table.
+
+---
+
 ## [0.4.26] — 2026-07-17
 
 **Beta.** Extends the horizontal field layout to the `Toggle` and `Checkbox`
