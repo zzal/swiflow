@@ -24,6 +24,10 @@ final class GridShell {
     @State var inspectedEdge: Int? = nil
     @State var snapshot: GridSnapshot? = nil
 
+    @State var lensZone: Zone? = nil
+    var lensPx = 0.0
+    var lensPy = 0.0
+
     @State var brushMode: Bool = false
     @State var playing: Bool = false
     @State var brushLo: Int = GridShell.initialInterval - 4 * GridDataset.intervalsPerDay
@@ -103,6 +107,7 @@ final class GridShell {
         listenersAttached = true
         attachScrubberListeners()
         attachWheelListeners()
+        attachLensListeners()
     }
 
     var body: VNode {
