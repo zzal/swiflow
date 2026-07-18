@@ -32,6 +32,11 @@ plus two helpers. Replace `GridDataset.generate(seed:)` with a loader
 for your own columnar data and everything downstream follows. The
 GridCore test suite (`swift test`) runs on the host.
 
+One caveat: the scrubber's time axis assumes the generator's shape (a
+365-day year at 5-minute resolution). Loading data with a different
+resolution or date range also means updating the interval math in
+`Sources/App/Scrubber.swift`.
+
 ## Architecture notes
 
 - `GridCore` — columnar struct-of-arrays store, deterministic synthetic

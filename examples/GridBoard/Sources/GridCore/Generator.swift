@@ -1,3 +1,4 @@
+// Sources/GridCore/Generator.swift
 //
 // libc, not Foundation: sin/cos/exp/pow come from the platform C library
 // (WASILibc on wasm32) — GridCore's no-Foundation constraint holds.
