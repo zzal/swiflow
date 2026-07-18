@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel
 
     static let base = #css("""
         :root {
@@ -111,5 +111,26 @@ extension GridShell {
         .gb-wheel-clear { fill: var(--gb-panel); stroke: var(--gb-border); cursor: pointer; }
         .gb-wheel-clear--idle { opacity: 0.6; }
         .gb-wheel-clear-label { font: 600 9px system-ui; fill: var(--gb-dim); text-anchor: middle; pointer-events: none; }
+        """)
+
+    static let panel = #css("""
+        .gb-panel-title { margin: 0 0 8px; font-size: 17px; }
+        .gb-empty { color: var(--gb-dim); font-style: italic; }
+        .gb-stat-row { display: flex; gap: 18px; margin-bottom: 8px; }
+        .gb-stat { display: grid; }
+        .gb-stat strong { font-size: 17px; }
+        .gb-stat small { color: var(--gb-dim); }
+        .gb-donut { width: 160px; margin: 0 auto; display: block; }
+        .gb-donut-seg { cursor: pointer; transition: opacity 120ms ease; stroke: var(--gb-panel); stroke-width: 1; }
+        .gb-donut-seg:hover { opacity: 0.85; }
+        .gb-donut-hole { fill: var(--gb-panel); cursor: pointer; }
+        .gb-donut-label { text-anchor: middle; font: 600 12px system-ui; fill: var(--gb-dim); pointer-events: none; }
+        .gb-legend { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; }
+        .gb-legend-item { display: flex; align-items: center; gap: 6px; }
+        .gb-legend-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+        .gb-chart-card h3 { margin: 10px 0 4px; font-size: 12px; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+        .gb-chart { width: 100%; display: block; background: color-mix(in oklab, var(--gb-text) 4%, var(--gb-panel)); border-radius: 8px; }
+        .gb-area { opacity: 0.9; }
+        .gb-price-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
         """)
 }
