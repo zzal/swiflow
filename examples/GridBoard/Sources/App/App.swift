@@ -36,10 +36,16 @@ final class GridShell {
     // Native-listener plumbing (populated in later tasks).
     let mapRef = Ref<JSObject>()
     let scrubberRef = Ref<JSObject>()
+    let canvasRef = Ref<JSObject>()
     let raf = RAFLoop()
     var retainedClosures: [JSClosure] = []
     var listenersAttached = false
     var sparkPath = ""
+    var canvasCtx: JSObject? = nil
+    var particlePhases: [[Double]] = []          // [edge][particle] in 0..<1
+    var frameCount = 0
+    var lastFpsStamp = 0.0
+    @State var hudFps: Int = 0
     enum DragTarget { case playhead, brushLoHandle, brushHiHandle }
     var dragTarget: DragTarget? = nil
     var wheelPainting = false
@@ -93,11 +99,21 @@ final class GridShell {
         snapshot = snap
     }
 
-    /// Per-frame driver. Task 12 appends the canvas flow pass.
+    /// Per-frame driver: playback stepping + the canvas flow pass + a
+    /// 1 Hz fps stamp (a @State write per second, not per frame).
     func tick(_ ts: Double) {
         if playing, case .instant(let t) = slice {
             slice = .instant((t + 6) % GridDataset.intervalCount)
             runQuery()
+        }
+        drawFlows()
+        frameCount += 1
+        if ts - lastFpsStamp > 1000 {
+            if lastFpsStamp > 0 {
+                hudFps = Int((Double(frameCount) * 1000 / (ts - lastFpsStamp)).rounded())
+            }
+            frameCount = 0
+            lastFpsStamp = ts
         }
     }
 

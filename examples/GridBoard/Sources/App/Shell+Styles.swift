@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas
 
     static let base = #css("""
         :root {
@@ -172,5 +172,16 @@ extension GridShell {
         .gb-duration-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
         .gb-cap-line { stroke: var(--gb-dim); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
         .gb-inspector-note { color: var(--gb-dim); font-size: 12px; }
+        """)
+
+    static let canvas = #css("""
+        .gb-flow-canvas {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: auto;
+          aspect-ratio: 1000 / 760;
+          pointer-events: none;
+        }
         """)
 }
