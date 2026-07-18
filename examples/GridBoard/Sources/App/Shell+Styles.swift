@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens
 
     static let base = #css("""
         :root {
@@ -133,4 +133,27 @@ extension GridShell {
         .gb-area { opacity: 0.9; }
         .gb-price-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
         """)
+
+    static let lens = #css("""
+        .gb-lens {
+          position: absolute;
+          z-index: 5;
+          pointer-events: none;
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+          padding: 8px 10px;
+          width: 160px;
+          font-size: 12px;
+          display: grid;
+          gap: 5px;
+        }
+        .gb-lens--hidden { display: none; }
+        .gb-lens-stats { color: var(--gb-dim); }
+        .gb-lens-mix { width: 100%; border-radius: 3px; }
+        .gb-lens-spark { width: 100%; }
+        .gb-lens-spark-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+        """)
 }
+

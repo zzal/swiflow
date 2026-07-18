@@ -64,6 +64,7 @@ extension GridShell {
                 .attr("viewBox", "0 0 \(Int(MapGeometry.viewWidth)) \(Int(MapGeometry.viewHeight))"),
                 .attr("preserveAspectRatio", "xMidYMid meet"),
             ], children: children),
+            lensOverlay(),
         ])
     }
 }
