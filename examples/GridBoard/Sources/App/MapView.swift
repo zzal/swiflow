@@ -32,7 +32,7 @@ func arcControlPoints(_ i: Int) -> (p0: (Double, Double), c: (Double, Double), p
         p1 = MapGeometry.centroid(to)
     } else {
         let a = MapGeometry.usAnchor(tie.from)
-        p1 = (a.0 + 18, 660)
+        p1 = (a.0 + 18, 600)
     }
     let mx = (p0.0 + p1.0) / 2, my = (p0.1 + p1.1) / 2
     let dx = p1.0 - p0.0, dy = p1.1 - p0.1
@@ -88,7 +88,7 @@ extension GridShell {
             ], children: children),
             element("canvas", attributes: [
                 .class("gb-flow-canvas"),
-                .attr("width", "1000"), .attr("height", "760"),
+                .attr("width", "1000"), .attr("height", "620"),
                 .ref(canvasRef),
             ]).unmanagedChildren(),
             lensOverlay(),

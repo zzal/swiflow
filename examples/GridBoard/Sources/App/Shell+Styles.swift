@@ -43,7 +43,16 @@ extension GridShell {
         """)
 
     static let map = #css("""
-        .gb-map-wrap { position: relative; }
+        .gb-map-wrap {
+          position: relative;
+          width: 100%;
+          /* Fit the whole dashboard in the viewport: cap the map's WIDTH
+             so its aspect-locked height leaves room for the header and
+             the scrubber/wheel row. Width stays the scale driver — the
+             lens hit-test and the canvas overlay both assume it. */
+          max-width: calc((100dvh - 310px) * (1000 / 620));
+          margin-inline: auto;
+        }
         .gb-map { width: 100%; height: auto; display: block; }
         .gb-zone {
           stroke: light-dark(oklch(.98 0 0 / .85), oklch(.14 .01 250 / .9));
@@ -180,7 +189,7 @@ extension GridShell {
           inset: 0;
           width: 100%;
           height: auto;
-          aspect-ratio: 1000 / 760;
+          aspect-ratio: 1000 / 620;
           pointer-events: none;
         }
         """)

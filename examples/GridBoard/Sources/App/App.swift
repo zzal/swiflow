@@ -107,7 +107,7 @@ final class GridShell {
             slice = .instant((t + 6) % GridDataset.intervalCount)
             runQuery()
         }
-        drawFlows()
+        drawFlows(ts)
         frameCount += 1
         if ts - lastFpsStamp > 1000 {
             if lastFpsStamp > 0 {
