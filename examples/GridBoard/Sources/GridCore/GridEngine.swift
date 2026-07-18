@@ -149,3 +149,81 @@ public struct GridEngine: Sendable {
                             stats: QueryStats(rowsTouched: rows, elapsedMs: 0), isEmpty: isEmpty)
     }
 }
+
+/// Bucket-mean downsampling to at most `target` points. Empty input
+/// stays empty; short input passes through unchanged.
+public func downsample(_ values: [Double], to target: Int) -> [Double] {
+    guard values.count > target, target > 0 else { return values }
+    var out = [Double](repeating: 0, count: target)
+    var counts = [Int](repeating: 0, count: target)
+    for (i, v) in values.enumerated() {
+        let b = min(target - 1, i * target / values.count)
+        out[b] += v
+        counts[b] += 1
+    }
+    for b in 0..<target where counts[b] > 0 { out[b] /= Double(counts[b]) }
+    return out
+}
+
+public struct LensSeries: Sendable {
+    public let demand24h: [Double]     // ≤ 48 points, trailing 24 h
+    public let mixMW: [Double]         // instant MW by source at `around`
+}
+
+public struct DurationCurve: Sendable {
+    public let points: [Double]        // |flow| sorted descending, ≤ 100 points
+    public let meanMW: Double          // signed mean
+    public let peakMW: Double
+    public let congestionHours: Double
+}
+
+extension GridEngine {
+    /// Trailing-24h demand sparkline + instant mix for the hover lens.
+    public func lensSeries(zone: Zone, around t: Int) -> LensSeries {
+        let n = data.intervals
+        let tc = min(max(0, t), n - 1)
+        let lo = max(0, tc - GridDataset.intervalsPerDay + 1)
+        var raw: [Double] = []
+        raw.reserveCapacity(tc - lo + 1)
+        for i in lo...tc { raw.append(Double(data.demand(zone, i))) }
+        let mix = Source.allCases.map { Double(data.gen($0, zone, tc)) }
+        return LensSeries(demand24h: downsample(raw, to: 48), mixMW: mix)
+    }
+
+    /// Flow-duration curve for one interconnect over the active slice+wheel.
+    public func durationCurve(edge: Int, slice: TimeSlice, wheel: SeasonHourFilter) -> DurationCurve {
+        let n = data.intervals
+        var lo: Int, hi: Int
+        switch slice {
+        case .instant(let t):
+            // A single instant has no curve — widen to the surrounding day.
+            let tc = min(max(0, t), n - 1)
+            lo = max(0, tc - GridDataset.intervalsPerDay / 2)
+            hi = min(n - 1, lo + GridDataset.intervalsPerDay - 1)
+        case .range(let a, let b):
+            lo = min(max(0, min(a, b)), n - 1)
+            hi = min(max(0, max(a, b)), n - 1)
+        }
+        let cap = Interconnect.all[edge].capacityMW
+        var absFlows: [Double] = []
+        var sum = 0.0, peak = 0.0
+        var congested = 0
+        for t in lo...hi {
+            if !wheel.isIdentity,
+               !wheel.passes(month: data.monthOfInterval[t], hour: data.hourOfInterval[t]) { continue }
+            let f = Double(data.flow[edge][t])
+            let a = abs(f)
+            absFlows.append(a)
+            sum += f
+            if a > peak { peak = a }
+            if a > cap * 0.95 { congested += 1 }
+        }
+        absFlows.sort(by: >)
+        let count = max(1, absFlows.count)
+        return DurationCurve(points: downsample(absFlows, to: 100),
+                             meanMW: sum / Double(count),
+                             peakMW: peak,
+                             congestionHours: Double(congested) * 5.0 / 60.0)
+    }
+}
+
