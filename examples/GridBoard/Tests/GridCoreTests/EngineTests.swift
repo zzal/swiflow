@@ -104,3 +104,33 @@ struct EngineTests {
         #expect(one.stats.rowsTouched == 13 * 9 + 14)
     }
 }
+
+@Suite("GridEngine extras")
+struct EngineExtrasTests {
+    @Test("downsample: bucket means, pass-through when short")
+    func downsampleBasics() {
+        #expect(downsample([1, 2, 3, 4], to: 2) == [1.5, 3.5])
+        #expect(downsample([1, 2], to: 4) == [1, 2])
+        #expect(downsample([], to: 4) == [])
+    }
+
+    @Test("lensSeries: trailing window clamps at zero; mix reads the instant")
+    func lens() {
+        let e = EngineTests.fixture()
+        let s = e.lensSeries(zone: .qc, around: 2)
+        #expect(s.demand24h == [10, 20, 30])                 // 4-interval fixture, t ≤ 2
+        #expect(s.mixMW[Source.hydro.rawValue] == 30)
+        #expect(s.mixMW[Source.gas.rawValue] == 0)
+    }
+
+    @Test("durationCurve: sorted descending, congestion in hours")
+    func duration() {
+        let e = EngineTests.fixture()
+        let c = e.durationCurve(edge: 0, slice: .range(0, 3), wheel: SeasonHourFilter())
+        #expect(c.points == [1200, 200, 100, 100])
+        #expect(c.meanMW == 350)
+        #expect(c.peakMW == 1200)
+        #expect(abs(c.congestionHours - 5.0 / 60.0) < 0.0001)  // one 5-min interval
+    }
+}
+
