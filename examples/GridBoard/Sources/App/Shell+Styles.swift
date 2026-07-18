@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs
 
     static let base = #css("""
         :root {
@@ -155,4 +155,23 @@ extension GridShell {
         .gb-lens-spark { width: 100%; }
         .gb-lens-spark-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
         """)
+
+    static let arcs = #css("""
+        .gb-arc {
+          fill: none;
+          stroke: color-mix(in oklab, var(--gb-accent) 70%, white);
+          stroke-linecap: round;
+          opacity: 0.65;
+          pointer-events: none;
+          transition: stroke-width 220ms ease;
+        }
+        .gb-arc--reverse { stroke: color-mix(in oklab, oklch(.7 .15 60) 80%, white); }
+        .gb-arc--focus { opacity: 1; stroke: var(--gb-accent); }
+        .gb-arc-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+        .gb-inspector-head { display: flex; justify-content: space-between; align-items: start; }
+        .gb-duration-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+        .gb-cap-line { stroke: var(--gb-dim); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+        .gb-inspector-note { color: var(--gb-dim); font-size: 12px; }
+        """)
 }
+

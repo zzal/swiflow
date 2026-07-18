@@ -21,6 +21,27 @@ func shareColor(_ share: Double) -> String {
     return "hsl(215, 60%, \(Int(light))%)"
 }
 
+/// Quadratic-bezier control points for interconnect `i`: zone centroid →
+/// zone centroid (bowed perpendicular), or centroid → south-of-map for
+/// US exports. Shared by the SVG arcs and the canvas particles.
+func arcControlPoints(_ i: Int) -> (p0: (Double, Double), c: (Double, Double), p1: (Double, Double)) {
+    let tie = Interconnect.all[i]
+    let p0 = MapGeometry.centroid(tie.from)
+    let p1: (Double, Double)
+    if let to = tie.to {
+        p1 = MapGeometry.centroid(to)
+    } else {
+        let a = MapGeometry.usAnchor(tie.from)
+        p1 = (a.0 + 18, 660)
+    }
+    let mx = (p0.0 + p1.0) / 2, my = (p0.1 + p1.1) / 2
+    let dx = p1.0 - p0.0, dy = p1.1 - p0.1
+    let len = max(1, (dx * dx + dy * dy).squareRoot())
+    // Bow 12% of length to the left of travel.
+    let c = (mx - dy / len * len * 0.12, my + dx / len * len * 0.12)
+    return (p0, c, p1)
+}
+
 extension GridShell {
     @MainActor
     func mapView() -> VNode {
@@ -58,6 +79,7 @@ extension GridShell {
             ], children: [text(shape.zone.code)]))
         }
         // Flow arcs land here in Task 11; canvas overlay in Task 12.
+        children.append(flowArcsLayer())
         return element("div", attributes: [.class("gb-map-wrap"), .ref(mapRef)], children: [
             element("svg", attributes: [
                 .class("gb-map"),
@@ -66,5 +88,34 @@ extension GridShell {
             ], children: children),
             lensOverlay(),
         ])
+    }
+
+    @MainActor
+    func flowArcsLayer() -> VNode {
+        var children: [VNode] = []
+        for (i, _) in Interconnect.all.enumerated() {
+            let (p0, c, p1) = arcControlPoints(i)
+            let d = "M\(p0.0),\(p0.1)Q\(c.0),\(c.1) \(p1.0),\(p1.1)"
+            let agg = snapshot?.edges[i]
+            let mean = agg?.meanFlowMW ?? 0
+            let cap = Interconnect.all[i].capacityMW
+            let width = 1.0 + 5.0 * min(1, abs(mean) / cap)
+            var cls = "gb-arc"
+            if inspectedEdge == i { cls += " gb-arc--focus" }
+            if mean < 0 { cls += " gb-arc--reverse" }
+            children.append(element("path", attributes: [
+                .attr("d", d), .class(cls),
+                .attr("stroke-width", "\(width)"),
+            ]))
+            // Fat invisible hit path.
+            children.append(element("path", attributes: [
+                .attr("d", d), .class("gb-arc-hit"),
+                .on(.click) { [weak self] in
+                    guard let self else { return }
+                    self.inspectedEdge = self.inspectedEdge == i ? nil : i
+                },
+            ]))
+        }
+        return element("g", attributes: [.class("gb-arcs")], children: children)
     }
 }
