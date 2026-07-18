@@ -126,12 +126,6 @@ final class GridShell {
         ])
     }
 
-    func sidePanel() -> VNode {
-        element("aside", attributes: [.class("gb-panel")], children: [
-            text(focusZone.map { $0.name } ?? "Canada"),
-        ])
-    }
-
     func controlsRow() -> VNode {
         element("div", attributes: [.class("gb-controls")], children: [
             scrubberView(),
