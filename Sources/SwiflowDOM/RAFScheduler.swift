@@ -18,12 +18,10 @@ import Swiflow
 ///
 /// **Closure lifetime:** `RAFScheduler` is owned by `Renderer`. The
 /// `onFlushBatch` closure typically captures `Renderer` weakly. `rafClosure`
-/// is retained on `self` for ownership clarity, not because that's what
-/// keeps the callback callable — `JSClosure.init` self-registers into a
-/// static `sharedClosures` table, so JS can invoke it regardless of this
-/// field. `rafFired()` nils `rafClosure` once the frame it was scheduled
-/// for has fired, since `requestAnimationFrame` only calls a given callback
-/// once; the field never needs an explicit `cancelAnimationFrame`.
+/// is created ONCE (lazily, on first schedule) and reused for every frame
+/// thereafter — see the field's documentation for why a per-frame closure
+/// would leak an entry in JavaScriptKit's static `sharedClosures` table on
+/// every render. One scheduler ⇒ exactly one registered closure, for life.
 ///
 /// **Single-root assumption:** Phase 3 v1 assumes one ambient `Renderer` per
 /// app. If multi-root support lands in a future phase, each Renderer would
@@ -40,12 +38,20 @@ final class RAFScheduler: Scheduler {
     /// against scheduling more than one rAF callback per frame.
     private var rafScheduled = false
 
-    /// Held from scheduling until the frame fires, for ownership clarity
-    /// (so it's obvious exactly one rAF closure is outstanding at a time).
-    /// `JSClosure` self-registers into JavaScriptKit's static
-    /// `sharedClosures` table on init, so it stays callable from JS whether
-    /// or not this field holds it; nil-ing it here does not stop or cancel
-    /// anything — `requestAnimationFrame` already only fires once.
+    /// The ONE rAF callback this scheduler ever creates, built lazily on
+    /// first schedule and reused for every subsequent frame.
+    ///
+    /// This must not be a per-frame allocation: `JSClosure.init`
+    /// self-registers into JavaScriptKit's static `sharedClosures` table
+    /// and stays there until `release()` — dropping the Swift reference
+    /// does NOT unregister it. The previous implementation created a fresh
+    /// closure per scheduled frame and nil-ed it after firing, leaking one
+    /// pinned closure (plus its JS function object) per render — at
+    /// animation-rate renders that ballooned the web process by hundreds
+    /// of MB within minutes until Safari killed the page (found via
+    /// GridBoard playback). Passing the same function to
+    /// `requestAnimationFrame` every frame is standard JS; rAF registers
+    /// per call, not per function identity.
     private var rafClosure: JSClosure?
 
     /// Invoked once per rAF tick when at least one component is dirty, with
@@ -95,26 +101,25 @@ final class RAFScheduler: Scheduler {
         guard !rafScheduled else { return }
         rafScheduled = true
 
-        // Create and retain the closure before passing it to JS. The
-        // JSClosure must outlive the rAF callback invocation.
-        let closure = JSClosure { [weak self] _ -> JSValue in
-            // requestAnimationFrame fires on the main thread; hop onto MainActor
-            // explicitly (matching DispatcherBridge.swift / Timing.swift) so the
-            // @MainActor scheduler methods are invoked with enforced isolation.
-            MainActor.assumeIsolated { self?.rafFired() }
-            return .undefined
+        if rafClosure == nil {
+            rafClosure = JSClosure { [weak self] _ -> JSValue in
+                // requestAnimationFrame fires on the main thread; hop onto MainActor
+                // explicitly (matching DispatcherBridge.swift / Timing.swift) so the
+                // @MainActor scheduler methods are invoked with enforced isolation.
+                MainActor.assumeIsolated { self?.rafFired() }
+                return .undefined
+            }
         }
-        rafClosure = closure
-        _ = JSObject.global.requestAnimationFrame!(JSValue.object(closure))
+        _ = JSObject.global.requestAnimationFrame!(JSValue.object(rafClosure!))
     }
 
     private func rafFired() {
         // Clear scheduling state BEFORE flush so that if onFlushBatch's
         // synchronous work triggers new markDirty calls (e.g. a setState
         // in an effect), they schedule a fresh rAF rather than being
-        // silently swallowed by an already-set guard.
+        // silently swallowed by an already-set guard. The closure is NOT
+        // dropped — it is this scheduler's permanent, reused callback.
         rafScheduled = false
-        rafClosure = nil
         flush()
     }
 }
