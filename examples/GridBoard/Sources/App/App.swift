@@ -38,6 +38,7 @@ final class GridShell {
     var sparkPath = ""
     enum DragTarget { case playhead, brushLoHandle, brushHiHandle }
     var dragTarget: DragTarget? = nil
+    var wheelPainting = false
 
     /// January 20th, 18:00 — a cold winter evening, the grid at its most
     /// interesting.
@@ -101,6 +102,7 @@ final class GridShell {
         guard !listenersAttached else { return }
         listenersAttached = true
         attachScrubberListeners()
+        attachWheelListeners()
     }
 
     var body: VNode {
@@ -133,13 +135,8 @@ final class GridShell {
     func controlsRow() -> VNode {
         element("div", attributes: [.class("gb-controls")], children: [
             scrubberView(),
-            wheelSlot(),
+            wheelView(),
         ])
-    }
-
-    /// Replaced by the season×hour wheel in Task 8.
-    func wheelSlot() -> VNode {
-        element("div", attributes: [.class("gb-wheel")], children: [])
     }
 }
 
