@@ -571,6 +571,2537 @@ final class Trap9KeyedItemsInnerState {
             ]
         ),
         Template(
+            name: "GridBoard",
+            files: [
+                ".gitignore": ##"""
+# macOS
+.DS_Store
+
+# Swift build outputs
+.build/
+.swiftpm/
+Package.resolved
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+xcuserdata/
+
+# Swiflow dev artifacts (regenerated on `swiflow dev`)
+swiflow-driver.js
+
+# Swiflow build artifacts (emitted by `swiflow build` at project root)
+swiflow-manifest.json
+
+"""##,
+                "Package.swift": ##"""
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "{{NAME}}",
+    // Inherited from the parent Swiflow package, which sets this floor
+    // because its SwiflowCLI executable depends on Hummingbird 2.x.
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "App", targets: ["App"]),
+    ],
+    dependencies: [
+        // Local path back to the parent Swiflow package.
+        {{SWIFLOW_DEP}},
+        // JavaScriptKit is declared as a direct dependency so SwiftPM
+        // exposes the `swift package js` (PackageToJS) plugin to this
+        // package. Without it, the plugin only surfaces on the parent
+        // package and can't target this example's executable.
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.53.0")),
+    ],
+    targets: [
+        // Pure Swift data core: generator + columnar store + aggregation
+        // engine. No Foundation, no JavaScriptKit, no Swiflow — so it
+        // compiles and tests on the host. This is the seam to replace
+        // when pointing the dashboard at your own data.
+        .target(name: "GridCore", path: "Sources/GridCore"),
+        .executableTarget(
+            name: "App",
+            dependencies: [
+                "GridCore",
+                .product(name: "SwiflowDOM", package: "Swiflow"),
+                .product(name: "SwiflowUI", package: "Swiflow"),
+            ],
+            path: "Sources/App"
+        ),
+        .testTarget(name: "GridCoreTests", dependencies: ["GridCore"], path: "Tests/GridCoreTests"),
+    ]
+)
+
+"""##,
+                "README.md": ##"""
+# {{NAME}}
+
+A serverless, Electricity-Maps-style dashboard of the Canadian grid —
+and a showcase of what WASM compute makes possible in the browser.
+
+Every interaction is a full-dataset query: a year of 5-minute-resolution
+data for 13 provinces and territories (~12M data points) lives in WASM
+linear memory, and dragging the scrubber, painting the season×hour
+wheel, or hovering a province re-scans it between two frames. No server,
+no API, no precomputed tiles. The perf HUD shows the receipts.
+
+## Run it
+
+    swiflow dev
+
+## The tour
+
+- **Time scrubber** — the year's demand curve IS the track. Drag the
+  playhead, press play, or switch to Brush and drag a range.
+- **Season×hour wheel** — outer ring months, inner ring hours. Paint
+  "January evenings" and the whole map re-aggregates for that slice.
+- **Provinces** — click to focus the right-hand panel; hover for a live
+  lens (trailing-24h sparkline computed per pointer-move).
+- **Donut** — click a source to recolor the map by that source's share.
+- **Flow arcs** — click an interconnect for its flow-duration curve.
+
+## Point it at your data
+
+`Sources/GridCore` is the seam. It is pure Swift — no Foundation, no
+browser imports — and the app only ever calls `GridEngine.query(_:)`
+plus two helpers. Replace `GridDataset.generate(seed:)` with a loader
+for your own columnar data and everything downstream follows. The
+GridCore test suite (`swift test`) runs on the host.
+
+## Architecture notes
+
+- `GridCore` — columnar struct-of-arrays store, deterministic synthetic
+  generator, brute-force masked-scan aggregation engine.
+- `App` — one Swiflow component (`GridShell`) owning all state; SVG map
+  and controls are plain VNodes; the flow particles are the one canvas
+  layer, painted through the `.ref` escape hatch; native pointer
+  listeners supply the coordinates Swiflow events don't carry.
+
+"""##,
+                "Sources/App/App.swift": ##"""
+// Sources/App/App.swift
+//
+// {{NAME}} — the Canadian grid, live, with no server.
+//
+// Single-component architecture: GridShell owns ALL dashboard state and
+// every view is an extension method on it. One state hub, one query
+// funnel (runQuery), no embed/prop plumbing — the whole dashboard
+// re-renders from one snapshot, and Swiflow's diff keeps the DOM work
+// proportional to what changed.
+import Swiflow
+import SwiflowDOM
+import JavaScriptKit
+import GridCore
+
+@Component
+final class GridShell {
+    let engine: GridEngine
+    let buildMs: Double
+
+    @State var slice: TimeSlice = .instant(GridShell.initialInterval)
+    @State var wheel: SeasonHourFilter = SeasonHourFilter()
+    @State var lensMetric: LensMetric = .carbonIntensity
+    @State var focusZone: Zone? = nil
+    @State var inspectedEdge: Int? = nil
+    @State var snapshot: GridSnapshot? = nil
+
+    @State var lensZone: Zone? = nil
+    var lensPx = 0.0
+    var lensPy = 0.0
+
+    @State var brushMode: Bool = false
+    @State var playing: Bool = false
+    @State var brushLo: Int = GridShell.initialInterval - 4 * GridDataset.intervalsPerDay
+    @State var brushHi: Int = GridShell.initialInterval + 3 * GridDataset.intervalsPerDay
+
+    // Native-listener plumbing (populated in later tasks).
+    let mapRef = Ref<JSObject>()
+    let scrubberRef = Ref<JSObject>()
+    let canvasRef = Ref<JSObject>()
+    let raf = RAFLoop()
+    var retainedClosures: [JSClosure] = []
+    var listenersAttached = false
+    var sparkPath = ""
+    var canvasCtx: JSObject? = nil
+    var particlePhases: [[Double]] = []          // [edge][particle] in 0..<1
+    var frameCount = 0
+    var lastFpsStamp = 0.0
+    @State var hudFps: Int = 0
+    @State var hudOpen: Bool = true
+    enum DragTarget { case playhead, brushLoHandle, brushHiHandle }
+    var dragTarget: DragTarget? = nil
+    var wheelPainting = false
+
+    /// January 20th, 18:00 — a cold winter evening, the grid at its most
+    /// interesting.
+    static let initialInterval = 20 * GridDataset.intervalsPerDay + 18 * 12
+
+    init() {
+        let t0 = nowMs()
+        let data = GridDataset.generate(seed: 0xC0FFEE)
+        engine = GridEngine(data: data)
+        buildMs = nowMs() - t0
+
+        // National daily mean demand → the sparkline drawn INSIDE the
+        // scrubber track. 365 points, built once.
+        var daily = [Double](repeating: 0, count: GridDataset.dayCount)
+        for d in 0..<GridDataset.dayCount {
+            var sum = 0.0
+            let t0d = d * GridDataset.intervalsPerDay
+            for z in Zone.allCases {
+                for i in stride(from: t0d, to: t0d + GridDataset.intervalsPerDay, by: 24) {
+                    sum += Double(data.demand(z, i))
+                }
+            }
+            daily[d] = sum
+        }
+        let maxD = daily.max() ?? 1
+        var path = "M0,56"
+        for (d, v) in daily.enumerated() {
+            let x = Double(d) / Double(GridDataset.dayCount - 1) * 1000
+            let y = 56 - 50 * (v / maxD)
+            path += "L\(Int(x)),\(Int(y))"
+        }
+        sparkPath = path + "L1000,56Z"
+    }
+
+    func onAppear() {
+        runQuery()
+        attachNativeListeners()
+        raf.onFrame = { [weak self] ts in self?.tick(ts) }
+        raf.start()
+    }
+
+    /// The single query funnel: every control mutation ends here.
+    func runQuery() {
+        let t0 = nowMs()
+        var snap = engine.query(GridQuery(slice: slice, wheel: wheel,
+                                          lensMetric: lensMetric, focusZone: focusZone))
+        snap.stats.elapsedMs = nowMs() - t0
+        snapshot = snap
+    }
+
+    /// Per-frame driver: playback stepping + the canvas flow pass + a
+    /// 1 Hz fps stamp (a @State write per second, not per frame).
+    func tick(_ ts: Double) {
+        if playing, case .instant(let t) = slice {
+            slice = .instant((t + 6) % GridDataset.intervalCount)
+            runQuery()
+        }
+        drawFlows()
+        frameCount += 1
+        if ts - lastFpsStamp > 1000 {
+            if lastFpsStamp > 0 {
+                hudFps = Int((Double(frameCount) * 1000 / (ts - lastFpsStamp)).rounded())
+            }
+            frameCount = 0
+            lastFpsStamp = ts
+        }
+    }
+
+    /// Idempotent — later tasks append coordinate listeners here.
+    func attachNativeListeners() {
+        guard !listenersAttached else { return }
+        listenersAttached = true
+        attachScrubberListeners()
+        attachWheelListeners()
+        attachLensListeners()
+    }
+
+    var body: VNode {
+        element("main", attributes: [.class("gb-shell")], children: [
+            headerView(),
+            element("div", attributes: [.class("gb-main")], children: [
+                mapView(),
+                sidePanel(),
+            ]),
+            controlsRow(),
+        ])
+    }
+
+    // MARK: placeholder slots — replaced by later tasks
+
+    func headerView() -> VNode {
+        element("header", attributes: [.class("gb-header")], children: [
+            element("div", attributes: [], children: [
+                element("h1", attributes: [], children: [text("Canada Grid — live")]),
+                element("p", attributes: [.class("gb-tagline")],
+                        children: [text("A year of 5-minute grid data, queried in your browser. No server.")]),
+            ]),
+            hudView(),
+        ])
+    }
+
+    func controlsRow() -> VNode {
+        element("div", attributes: [.class("gb-controls")], children: [
+            scrubberView(),
+            wheelView(),
+        ])
+    }
+}
+
+@main
+struct App {
+    @MainActor
+    static func main() {
+        Swiflow.render(into: "#app") { GridShell() }
+    }
+}
+
+"""##,
+                "Sources/App/Charts.swift": ##"""
+// Sources/App/Charts.swift
+//
+// SVG path builders. Input is already ≤200 points (the engine
+// downsamples) — these only turn numbers into `d` strings.
+import Swiflow
+import GridCore
+
+func sourceColor(_ s: Source) -> String {
+    switch s {
+    case .hydro: "#3d85c8"
+    case .nuclear: "#8867c9"
+    case .gas: "#d98a3d"
+    case .coal: "#6b5d52"
+    case .wind: "#5fb88a"
+    case .solar: "#e0c33f"
+    case .diesel: "#a05252"
+    }
+}
+
+/// Polyline path scaled into w×h, y-flipped (0 at the bottom).
+func linePath(_ values: [Double], w: Double, h: Double, maxV: Double) -> String {
+    guard values.count > 1, maxV > 0 else { return "" }
+    var d = ""
+    for (i, v) in values.enumerated() {
+        let x = Double(i) / Double(values.count - 1) * w
+        let y = h - min(1, max(0, v / maxV)) * h
+        d += (i == 0 ? "M" : "L") + "\(x),\(y)"
+    }
+    return d
+}
+
+/// Stacked area bands, bottom-up in Source order. Returns one closed
+/// path per source that has any generation.
+func stackedAreaPaths(_ bySource: [[Double]], w: Double, h: Double) -> [(Source, String)] {
+    let count = bySource.first?.count ?? 0
+    guard count > 1 else { return [] }
+    var cumulative = [Double](repeating: 0, count: count)
+    var tops: [[Double]] = []
+    for s in 0..<bySource.count {
+        for i in 0..<count { cumulative[i] += bySource[s][i] }
+        tops.append(cumulative)
+    }
+    let maxV = max(1, cumulative.max() ?? 1)
+    var out: [(Source, String)] = []
+    var lower = [Double](repeating: 0, count: count)
+    for (s, top) in tops.enumerated() {
+        let source = Source(rawValue: s)!
+        if bySource[s].allSatisfy({ $0 <= 0 }) { lower = top; continue }
+        func xy(_ i: Int, _ v: Double) -> String {
+            "\(Double(i) / Double(count - 1) * w),\(h - v / maxV * h)"
+        }
+        var d = "M" + xy(0, lower[0])
+        for i in 0..<count { d += "L" + xy(i, top[i]) }
+        for i in stride(from: count - 1, through: 0, by: -1) { d += "L" + xy(i, lower[i]) }
+        out.append((source, d + "Z"))
+        lower = top
+    }
+    return out
+}
+
+"""##,
+                "Sources/App/FlowCanvas.swift": ##"""
+// Sources/App/FlowCanvas.swift
+//
+// The one canvas layer: flow particles along the interconnect arcs,
+// painted imperatively every frame through the .ref seam. Swiflow never
+// reconciles inside the canvas — it only owns the element shell.
+//
+// Bridge-chattiness budget: ≤ ~40 particles/edge × 14 edges ≈ 560
+// particles, one beginPath+arc+fill batch PER EDGE (15 fill calls, not
+// 560). If the Task 15 perf checkpoint shows dropped frames, halve
+// PARTICLE_BUDGET before reaching for lineDashOffset streams.
+import Swiflow
+import JavaScriptKit
+import GridCore
+
+private let PARTICLE_BUDGET = 40                 // max per edge
+
+extension GridShell {
+    @MainActor
+    func drawFlows() {
+        guard let snap = snapshot else { return }
+        if canvasCtx == nil, let canvas = canvasRef.wrappedValue {
+            canvasCtx = canvas.getContext!("2d").object
+            particlePhases = Interconnect.all.indices.map { i in
+                var rng = SplitMix64(seed: UInt64(1000 + i))
+                return (0..<PARTICLE_BUDGET).map { _ in rng.unit() }
+            }
+        }
+        guard let ctx = canvasCtx else { return }
+        _ = ctx.clearRect!(0, 0, MapGeometry.viewWidth, MapGeometry.viewHeight)
+
+        for (i, tie) in Interconnect.all.enumerated() {
+            let mean = snap.edges[i].meanFlowMW
+            let load = min(1, abs(mean) / tie.capacityMW)
+            guard load > 0.01 else { continue }
+            let count = max(2, Int(Double(PARTICLE_BUDGET) * load))
+            let speed = (0.001 + 0.006 * load) * (mean >= 0 ? 1 : -1)
+            let (p0, c, p1) = arcControlPoints(i)
+
+            ctx.fillStyle = .string(mean >= 0 ? "rgba(96, 165, 250, 0.85)" : "rgba(251, 146, 60, 0.85)")
+            _ = ctx.beginPath!()
+            for p in 0..<count {
+                particlePhases[i][p] += speed
+                if particlePhases[i][p] > 1 { particlePhases[i][p] -= 1 }
+                if particlePhases[i][p] < 0 { particlePhases[i][p] += 1 }
+                let u = particlePhases[i][p]
+                // Quadratic bezier point.
+                let v = 1 - u
+                let x = v * v * p0.0 + 2 * v * u * c.0 + u * u * p1.0
+                let y = v * v * p0.1 + 2 * v * u * c.1 + u * u * p1.1
+                _ = ctx.moveTo!(x + 2.2, y)
+                _ = ctx.arc!(x, y, 2.2, 0, 6.2832)
+            }
+            _ = ctx.fill!()
+        }
+    }
+}
+
+"""##,
+                "Sources/App/FocusPanel.swift": ##"""
+// Sources/App/FocusPanel.swift
+//
+// The right-hand panel: focus-zone (or national) stats, the mix donut —
+// which is ALSO the lens-metric filter — a stacked generation chart and
+// a price line over the active slice. Task 11 swaps this panel for the
+// interconnect inspector when an edge is selected.
+import Swiflow
+import GridCore
+
+extension GridShell {
+    @MainActor
+    func sidePanel() -> VNode {
+        if inspectedEdge != nil { return inspectorPanel() }
+        guard let snap = snapshot, !snap.isEmpty else {
+            return element("aside", attributes: [.class("gb-panel")], children: [
+                element("p", attributes: [.class("gb-empty")],
+                        children: [text(snapshot == nil ? "Crunching the year…" : "— no intervals match —")]),
+            ])
+        }
+        let title = focusZone?.name ?? "Canada"
+        let genMW: [Double]
+        let demandMW: Double
+        let intensity: Double
+        if let z = focusZone {
+            let agg = snap.zones[z.rawValue]
+            genMW = agg.genMW; demandMW = agg.meanDemandMW; intensity = agg.carbonIntensity
+        } else {
+            genMW = snap.national.genMW
+            demandMW = snap.national.totalDemandMW
+            intensity = snap.national.carbonIntensity
+        }
+
+        var children: [VNode] = [
+            element("h2", attributes: [.class("gb-panel-title")], children: [text(title)]),
+            element("div", attributes: [.class("gb-stat-row")], children: [
+                statView("\(Int(demandMW.rounded())) MW", "demand"),
+                statView("\(Int(intensity.rounded())) g/kWh", "CO₂ intensity"),
+            ]),
+            donutView(genMW),
+            legendView(genMW),
+        ]
+        if snap.series.bucketCount > 1 {
+            var areas: [VNode] = []
+            for (source, d) in stackedAreaPaths(snap.series.bySource, w: 300, h: 90) {
+                areas.append(element("path", attributes: [
+                    .attr("d", d), .attr("fill", sourceColor(source)), .class("gb-area"),
+                ]))
+            }
+            children.append(chartCard("Generation mix", element("svg", attributes: [
+                .attr("viewBox", "0 0 300 90"), .class("gb-chart"),
+            ], children: areas)))
+            children.append(chartCard("Price $/MWh", element("svg", attributes: [
+                .attr("viewBox", "0 0 300 60"), .class("gb-chart"),
+            ], children: [
+                element("path", attributes: [
+                    .attr("d", linePath(snap.series.price, w: 300, h: 60,
+                                        maxV: max(1, snap.series.price.max() ?? 1))),
+                    .class("gb-price-line"),
+                ]),
+            ])))
+        }
+        return element("aside", attributes: [.class("gb-panel")], children: children)
+    }
+
+    @MainActor
+    func statView(_ value: String, _ label: String) -> VNode {
+        element("div", attributes: [.class("gb-stat")], children: [
+            element("strong", attributes: [], children: [text(value)]),
+            element("small", attributes: [], children: [text(label)]),
+        ])
+    }
+
+    @MainActor
+    func chartCard(_ title: String, _ chart: VNode) -> VNode {
+        element("section", attributes: [.class("gb-chart-card")], children: [
+            element("h3", attributes: [], children: [text(title)]),
+            chart,
+        ])
+    }
+
+    /// The national/zone mix donut. Clicking a segment lenses the whole
+    /// map by that source's share; clicking it again (or the hole)
+    /// returns to carbon intensity.
+    @MainActor
+    func donutView(_ genMW: [Double]) -> VNode {
+        let total = genMW.reduce(0, +)
+        var children: [VNode] = []
+        var angle = 0.0
+        if total > 0 {
+            for s in Source.allCases where genMW[s.rawValue] > 0 {
+                let sweep = genMW[s.rawValue] / total * 2 * .pi
+                let selected = lensMetric == .sourceShare(s)
+                let a0 = angle, a1 = angle + max(0.02, sweep - 0.015)
+                children.append(element("path", attributes: [
+                    .attr("d", arcPath(cx: 80, cy: 80, r0: selected ? 44 : 48,
+                                       r1: selected ? 78 : 72, a0: a0, a1: a1)),
+                    .attr("fill", sourceColor(s)),
+                    .class(selected ? "gb-donut-seg gb-donut-seg--on" : "gb-donut-seg"),
+                    .on(.click) { [weak self] in
+                        guard let self else { return }
+                        self.lensMetric = selected ? .carbonIntensity : .sourceShare(s)
+                        self.runQuery()
+                    },
+                ]))
+                angle += sweep
+            }
+        }
+        children.append(element("circle", attributes: [
+            .attr("cx", "80"), .attr("cy", "80"), .attr("r", "40"), .class("gb-donut-hole"),
+            .on(.click) { [weak self] in
+                guard let self else { return }
+                self.lensMetric = .carbonIntensity
+                self.runQuery()
+            },
+        ]))
+        let centerLabel: String
+        switch lensMetric {
+        case .carbonIntensity: centerLabel = "mix"
+        case .sourceShare(let s): centerLabel = s.label.lowercased()
+        }
+        children.append(element("text", attributes: [
+            .attr("x", "80"), .attr("y", "84"), .class("gb-donut-label"),
+        ], children: [text(centerLabel)]))
+        return element("svg", attributes: [.attr("viewBox", "0 0 160 160"), .class("gb-donut")],
+                       children: children)
+    }
+
+    @MainActor
+    func legendView(_ genMW: [Double]) -> VNode {
+        let total = max(1, genMW.reduce(0, +))
+        var items: [VNode] = []
+        for s in Source.allCases where genMW[s.rawValue] > 0.5 {
+            let pct = Int((genMW[s.rawValue] / total * 100).rounded())
+            items.append(element("li", attributes: [.class("gb-legend-item")], children: [
+                element("span", attributes: [
+                    .class("gb-legend-swatch"), .style("background", sourceColor(s)),
+                ], children: []),
+                text("\(s.label) \(pct)%"),
+            ]))
+        }
+        return element("ul", attributes: [.class("gb-legend")], children: items)
+    }
+}
+
+"""##,
+                "Sources/App/HoverLens.swift": ##"""
+// Sources/App/HoverLens.swift
+//
+// A floating card that follows the pointer over the map: instant mix
+// bar + trailing-24h demand sparkline, recomputed from the raw series
+// on every pointer move (per-move compute is the point — the HUD's
+// numbers include it). Uses clientX/Y minus the wrap's rect: offsetX
+// would be relative to whichever <path> the pointer is over.
+import Swiflow
+import JavaScriptKit
+import GridCore
+
+extension GridShell {
+    @MainActor
+    func lensOverlay() -> VNode {
+        guard let z = lensZone, let snap = snapshot else {
+            return element("div", attributes: [.class("gb-lens gb-lens--hidden")], children: [])
+        }
+        let t: Int
+        switch slice {
+        case .instant(let i): t = i
+        case .range(_, let hi): t = hi
+        }
+        let series = engine.lensSeries(zone: z, around: t)
+        let total = max(1, series.mixMW.reduce(0, +))
+        var mixBars: [VNode] = []
+        var x = 0.0
+        for s in Source.allCases where series.mixMW[s.rawValue] > 0 {
+            let w = series.mixMW[s.rawValue] / total * 140
+            mixBars.append(element("rect", attributes: [
+                .attr("x", "\(x)"), .attr("y", "0"), .attr("width", "\(w)"), .attr("height", "8"),
+                .attr("fill", sourceColor(s)),
+            ]))
+            x += w
+        }
+        let agg = snap.zones[z.rawValue]
+        return element("div", attributes: [
+            .class("gb-lens"),
+            .style("left", "\(Int(lensPx + 14))px"),
+            .style("top", "\(Int(lensPy + 14))px"),
+        ], children: [
+            element("strong", attributes: [], children: [text(z.name)]),
+            element("div", attributes: [.class("gb-lens-stats")], children: [
+                text("\(Int(agg.meanDemandMW.rounded())) MW · \(Int(agg.carbonIntensity.rounded())) g/kWh"),
+            ]),
+            element("svg", attributes: [.attr("viewBox", "0 0 140 8"), .class("gb-lens-mix")],
+                    children: mixBars),
+            element("svg", attributes: [.attr("viewBox", "0 0 140 30"), .class("gb-lens-spark")],
+                    children: [
+                element("path", attributes: [
+                    .attr("d", linePath(series.demand24h, w: 140, h: 30,
+                                        maxV: max(1, series.demand24h.max() ?? 1))),
+                    .class("gb-lens-spark-line"),
+                ]),
+            ]),
+        ])
+    }
+
+    @MainActor
+    func attachLensListeners() {
+        guard let wrap = mapRef.wrappedValue else { return }
+        retainedClosures.append(addNativeListener(wrap, "pointermove") { [weak self] ev in
+            guard let self else { return }
+            let rect = wrap.getBoundingClientRect!()
+            let left = rect.left.number ?? 0, top = rect.top.number ?? 0
+            let width = rect.width.number ?? 1
+            let px = (ev.clientX.number ?? 0) - left
+            let py = (ev.clientY.number ?? 0) - top
+            self.lensPx = px
+            self.lensPy = py
+            let scale = MapGeometry.viewWidth / width
+            self.lensZone = MapGeometry.hitTest(x: px * scale, y: py * scale)
+        })
+        retainedClosures.append(addNativeListener(wrap, "pointerleave") { [weak self] _ in
+            self?.lensZone = nil
+        })
+    }
+}
+
+"""##,
+                "Sources/App/Inspector.swift": ##"""
+// Sources/App/Inspector.swift
+//
+// Interconnect detail: flow-duration curve + congestion stats for the
+// active slice+wheel. Replaces the focus panel while an edge is
+// selected.
+import Swiflow
+import GridCore
+
+extension GridShell {
+    @MainActor
+    func inspectorPanel() -> VNode {
+        guard let i = inspectedEdge else {
+            return element("aside", attributes: [.class("gb-panel")], children: [])
+        }
+        let tie = Interconnect.all[i]
+        let curve = engine.durationCurve(edge: i, slice: slice, wheel: wheel)
+        let capLine = tie.capacityMW
+        return element("aside", attributes: [.class("gb-panel")], children: [
+            element("div", attributes: [.class("gb-inspector-head")], children: [
+                element("h2", attributes: [.class("gb-panel-title")], children: [text(tie.label)]),
+                element("button", attributes: [.class("gb-btn"), .on(.click) { [weak self] in
+                    self?.inspectedEdge = nil
+                }], children: [text("✕")]),
+            ]),
+            element("div", attributes: [.class("gb-stat-row")], children: [
+                statView("\(Int(curve.meanMW.rounded())) MW", "mean flow"),
+                statView("\(Int(curve.peakMW.rounded())) MW", "peak"),
+                statView("\(Int(curve.congestionHours.rounded())) h", "congested"),
+            ]),
+            chartCard("Flow duration (|MW|, sorted)", element("svg", attributes: [
+                .attr("viewBox", "0 0 300 90"), .class("gb-chart"),
+            ], children: [
+                element("line", attributes: [
+                    .attr("x1", "0"), .attr("x2", "300"),
+                    .attr("y1", "\(90 - min(1, capLine / max(1, max(curve.peakMW, capLine))) * 90)"),
+                    .attr("y2", "\(90 - min(1, capLine / max(1, max(curve.peakMW, capLine))) * 90)"),
+                    .class("gb-cap-line"),
+                ]),
+                element("path", attributes: [
+                    .attr("d", linePath(curve.points, w: 300, h: 90,
+                                        maxV: max(1, max(curve.peakMW, capLine)))),
+                    .class("gb-duration-line"),
+                ]),
+            ])),
+            element("p", attributes: [.class("gb-inspector-note")], children: [
+                text("Capacity \(Int(tie.capacityMW)) MW. Positive = \(tie.from.code) exports."),
+            ]),
+        ])
+    }
+}
+
+"""##,
+                "Sources/App/JSInterop.swift": ##"""
+// Sources/App/JSInterop.swift
+//
+// The App target's few imperative touches: a monotonic clock, native
+// event listeners (Swiflow's EventInfo carries no pointer coordinates),
+// and a requestAnimationFrame loop. Every JSClosure is retained for the
+// app's lifetime — GridShell never unmounts.
+import JavaScriptKit
+
+@MainActor
+func nowMs() -> Double {
+    let performance = JSObject.global.performance.object!
+    return performance.now.function!(this: performance).number ?? 0
+}
+
+/// Attaches a native DOM listener and returns the retained closure.
+/// Caller stores it (listener lifetime == app lifetime).
+@MainActor
+@discardableResult
+func addNativeListener(_ target: JSObject, _ event: String,
+                       _ handler: @escaping (JSValue) -> Void) -> JSClosure {
+    let closure = JSClosure { args in
+        handler(args.first ?? .undefined)
+        return .undefined
+    }
+    _ = target.addEventListener!(event, closure)
+    return closure
+}
+
+/// A per-frame driver for playback + the canvas flow layer.
+@MainActor
+final class RAFLoop {
+    private var closure: JSClosure?
+    var onFrame: ((Double) -> Void)?
+
+    func start() {
+        guard closure == nil else { return }
+        let c = JSClosure { [weak self] args in
+            self?.onFrame?(args.first?.number ?? 0)
+            self?.schedule()
+            return .undefined
+        }
+        closure = c
+        schedule()
+    }
+
+    private func schedule() {
+        guard let closure else { return }
+        _ = JSObject.global.requestAnimationFrame!(closure)
+    }
+}
+
+"""##,
+                "Sources/App/MapGeometry.swift": ##"""
+// Sources/App/MapGeometry.swift
+//
+// Baked, pre-projected low-poly geometry. No runtime geo pipeline: the
+// polygons ARE the map. Coordinates are viewBox units (1000 × 760,
+// y-down). Multi-polygon zones render as one path with multiple
+// subpaths (M…Z M…Z) and hit-test each polygon.
+import GridCore
+
+struct ProvinceShape {
+    let zone: Zone
+    let polygons: [[(Double, Double)]]
+}
+
+enum MapGeometry {
+    static let viewWidth = 1000.0
+    static let viewHeight = 760.0
+
+    static let shapes: [ProvinceShape] = [
+        ProvinceShape(zone: .yt, polygons: [[(60, 60), (150, 60), (150, 205), (100, 205), (60, 150)]]),
+        ProvinceShape(zone: .nt, polygons: [[(150, 60), (330, 45), (355, 205), (150, 205)]]),
+        ProvinceShape(zone: .nu, polygons: [[(330, 45), (700, 25), (760, 120), (700, 255), (430, 255), (355, 205)]]),
+        ProvinceShape(zone: .bc, polygons: [[(75, 205), (210, 205), (210, 470), (158, 470), (118, 415), (75, 330)]]),
+        ProvinceShape(zone: .ab, polygons: [[(210, 205), (300, 205), (300, 470), (210, 470)]]),
+        ProvinceShape(zone: .sk, polygons: [[(300, 205), (385, 205), (385, 470), (300, 470)]]),
+        ProvinceShape(zone: .mb, polygons: [[(385, 205), (470, 205), (470, 470), (385, 470)]]),
+        ProvinceShape(zone: .on, polygons: [[(470, 205), (560, 225), (620, 255), (640, 315), (640, 420),
+                                             (600, 470), (555, 555), (505, 535), (470, 470)]]),
+        ProvinceShape(zone: .qc, polygons: [[(620, 255), (640, 205), (720, 175), (800, 215), (830, 300),
+                                             (805, 415), (730, 470), (680, 430), (640, 420), (640, 315)]]),
+        ProvinceShape(zone: .nl, polygons: [
+            [(720, 175), (705, 95), (790, 80), (850, 150), (830, 215), (800, 215)],
+            [(850, 330), (915, 320), (935, 368), (872, 392)],
+        ]),
+        ProvinceShape(zone: .nb, polygons: [[(770, 470), (828, 468), (834, 525), (776, 530)]]),
+        ProvinceShape(zone: .pe, polygons: [[(845, 478), (882, 474), (886, 489), (850, 493)]]),
+        ProvinceShape(zone: .ns, polygons: [[(838, 505), (928, 520), (940, 558), (852, 566), (824, 536)]]),
+    ]
+
+    /// Southern anchor for each zone's US-export arrow.
+    static let usAnchors: [Zone: (Double, Double)] = [
+        .bc: (160, 468), .mb: (427, 468), .on: (557, 553), .qc: (705, 462), .nb: (800, 528),
+    ]
+
+    static func pathString(_ shape: ProvinceShape) -> String {
+        shape.polygons.map { poly in
+            "M" + poly.map { "\($0.0),\($0.1)" }.joined(separator: "L") + "Z"
+        }.joined()
+    }
+
+    /// Vertex mean of the first (main) polygon — good enough for labels
+    /// and arc endpoints on a stylized map.
+    static func centroid(_ zone: Zone) -> (Double, Double) {
+        let poly = shapes.first { $0.zone == zone }!.polygons[0]
+        let sx = poly.reduce(0.0) { $0 + $1.0 }
+        let sy = poly.reduce(0.0) { $0 + $1.1 }
+        return (sx / Double(poly.count), sy / Double(poly.count))
+    }
+
+    static func usAnchor(_ zone: Zone) -> (Double, Double) { usAnchors[zone]! }
+
+    static func hitTest(x: Double, y: Double) -> Zone? {
+        for shape in shapes {
+            for poly in shape.polygons where contains(poly, x: x, y: y) {
+                return shape.zone
+            }
+        }
+        return nil
+    }
+
+    /// Standard even-odd ray cast.
+    private static func contains(_ poly: [(Double, Double)], x: Double, y: Double) -> Bool {
+        var inside = false
+        var j = poly.count - 1
+        for i in 0..<poly.count {
+            let (xi, yi) = poly[i]
+            let (xj, yj) = poly[j]
+            if (yi > y) != (yj > y), x < (xj - xi) * (y - yi) / (yj - yi) + xi {
+                inside.toggle()
+            }
+            j = i
+        }
+        return inside
+    }
+}
+
+"""##,
+                "Sources/App/MapView.swift": ##"""
+// Sources/App/MapView.swift
+//
+// The choropleth. Fill color per province comes straight from the
+// snapshot's lensValue; Swiflow diffs only the changed attributes per
+// query (path `d` strings are static and memo-keyed).
+import Swiflow
+import GridCore
+
+/// Carbon-intensity scale, Electricity-Maps-flavored: green → brown.
+func carbonColor(_ gPerKWh: Double) -> String {
+    let t = min(1, max(0, gPerKWh / 700))
+    let hue = 145.0 - 120.0 * t
+    let sat = 55.0 - 15.0 * t
+    let light = 44.0 - 16.0 * t
+    return "hsl(\(Int(hue)), \(Int(sat))%, \(Int(light))%)"
+}
+
+/// Sequential single-hue scale for source-share mode (0…1).
+func shareColor(_ share: Double) -> String {
+    let light = 88.0 - 55.0 * min(1, max(0, share))
+    return "hsl(215, 60%, \(Int(light))%)"
+}
+
+/// Quadratic-bezier control points for interconnect `i`: zone centroid →
+/// zone centroid (bowed perpendicular), or centroid → south-of-map for
+/// US exports. Shared by the SVG arcs and the canvas particles.
+func arcControlPoints(_ i: Int) -> (p0: (Double, Double), c: (Double, Double), p1: (Double, Double)) {
+    let tie = Interconnect.all[i]
+    let p0 = MapGeometry.centroid(tie.from)
+    let p1: (Double, Double)
+    if let to = tie.to {
+        p1 = MapGeometry.centroid(to)
+    } else {
+        let a = MapGeometry.usAnchor(tie.from)
+        p1 = (a.0 + 18, 660)
+    }
+    let mx = (p0.0 + p1.0) / 2, my = (p0.1 + p1.1) / 2
+    let dx = p1.0 - p0.0, dy = p1.1 - p0.1
+    let len = max(1, (dx * dx + dy * dy).squareRoot())
+    // Bow 12% of length to the left of travel.
+    let c = (mx - dy / len * len * 0.12, my + dx / len * len * 0.12)
+    return (p0, c, p1)
+}
+
+extension GridShell {
+    @MainActor
+    func mapView() -> VNode {
+        var children: [VNode] = []
+        for shape in MapGeometry.shapes {
+            let agg = snapshot?.zones[shape.zone.rawValue]
+            let fill: String
+            switch lensMetric {
+            case .carbonIntensity: fill = carbonColor(agg?.carbonIntensity ?? 0)
+            case .sourceShare: fill = shareColor(agg?.lensValue ?? 0)
+            }
+            let zone = shape.zone
+            var cls = "gb-zone"
+            if focusZone == zone { cls += " gb-zone--focus" }
+            children.append(
+                element("path", attributes: [
+                    .attr("d", MapGeometry.pathString(shape)),
+                    .attr("fill", fill),
+                    .class(cls),
+                    .attr("data-zone", zone.code),
+                    .on(.click) { [weak self] in
+                        guard let self else { return }
+                        self.focusZone = self.focusZone == zone ? nil : zone
+                        self.inspectedEdge = nil
+                        self.runQuery()
+                    },
+                ]).memoKey("zone-\(zone.code)-\(fill)-\(cls)")
+            )
+        }
+        for shape in MapGeometry.shapes {
+            let (cx, cy) = MapGeometry.centroid(shape.zone)
+            children.append(element("text", attributes: [
+                .attr("x", "\(Int(cx))"), .attr("y", "\(Int(cy))"),
+                .class("gb-zone-label"),
+            ], children: [text(shape.zone.code)]))
+        }
+        // Flow arcs land here in Task 11; canvas overlay in Task 12.
+        children.append(flowArcsLayer())
+        return element("div", attributes: [.class("gb-map-wrap"), .ref(mapRef)], children: [
+            element("svg", attributes: [
+                .class("gb-map"),
+                .attr("viewBox", "0 0 \(Int(MapGeometry.viewWidth)) \(Int(MapGeometry.viewHeight))"),
+                .attr("preserveAspectRatio", "xMidYMid meet"),
+            ], children: children),
+            element("canvas", attributes: [
+                .class("gb-flow-canvas"),
+                .attr("width", "1000"), .attr("height", "760"),
+                .ref(canvasRef),
+            ]).unmanagedChildren(),
+            lensOverlay(),
+        ])
+    }
+
+    @MainActor
+    func flowArcsLayer() -> VNode {
+        var children: [VNode] = []
+        for (i, _) in Interconnect.all.enumerated() {
+            let (p0, c, p1) = arcControlPoints(i)
+            let d = "M\(p0.0),\(p0.1)Q\(c.0),\(c.1) \(p1.0),\(p1.1)"
+            let agg = snapshot?.edges[i]
+            let mean = agg?.meanFlowMW ?? 0
+            let cap = Interconnect.all[i].capacityMW
+            let width = 1.0 + 5.0 * min(1, abs(mean) / cap)
+            var cls = "gb-arc"
+            if inspectedEdge == i { cls += " gb-arc--focus" }
+            if mean < 0 { cls += " gb-arc--reverse" }
+            children.append(element("path", attributes: [
+                .attr("d", d), .class(cls),
+                .attr("stroke-width", "\(width)"),
+            ]))
+            // Fat invisible hit path.
+            children.append(element("path", attributes: [
+                .attr("d", d), .class("gb-arc-hit"),
+                .on(.click) { [weak self] in
+                    guard let self else { return }
+                    self.inspectedEdge = self.inspectedEdge == i ? nil : i
+                },
+            ]))
+        }
+        return element("g", attributes: [.class("gb-arcs")], children: children)
+    }
+}
+
+"""##,
+                "Sources/App/PerfHUD.swift": ##"""
+// Sources/App/PerfHUD.swift
+//
+// The receipts: dataset size, rows touched by the LAST query, its
+// elapsed ms, live fps, and the startup generation time. Collapsible so
+// screenshots can go chrome-less.
+import Swiflow
+import GridCore
+
+extension GridShell {
+    @MainActor
+    func fmtPts(_ n: Int) -> String {
+        if n >= 1_000_000 {
+            let tenths = (n * 10) / 1_000_000
+            return "\(tenths / 10).\(tenths % 10)M"
+        }
+        if n >= 1_000 { return "\(n / 1_000)k" }
+        return "\(n)"
+    }
+
+    @MainActor
+    func fmtMs(_ ms: Double) -> String {
+        let tenths = Int((ms * 10).rounded())
+        return "\(tenths / 10).\(tenths % 10)"
+    }
+
+    @MainActor
+    func hudView() -> VNode {
+        let datasetPts = GridDataset.intervalCount * Zone.allCases.count * 9
+        var children: [VNode] = [
+            element("button", attributes: [
+                .class("gb-hud-toggle"),
+                .on(.click) { [weak self] in self?.hudOpen.toggle() },
+            ], children: [text(hudOpen ? "⌄" : "⌃")]),
+        ]
+        if hudOpen {
+            let stats = snapshot?.stats
+            children.append(element("dl", attributes: [.class("gb-hud-grid")], children: [
+                hudCell(fmtPts(datasetPts), "dataset pts"),
+                hudCell(stats.map { fmtPts($0.rowsTouched) } ?? "—", "rows / query"),
+                hudCell(stats.map { "\(fmtMs($0.elapsedMs)) ms" } ?? "—", "scan time"),
+                hudCell("\(hudFps)", "fps"),
+                hudCell("\(Int(buildMs.rounded())) ms", "generated in"),
+            ]))
+        }
+        return element("div", attributes: [.class("gb-hud")], children: children)
+    }
+
+    @MainActor
+    private func hudCell(_ value: String, _ label: String) -> VNode {
+        element("div", attributes: [.class("gb-hud-cell")], children: [
+            element("dt", attributes: [], children: [text(label)]),
+            element("dd", attributes: [], children: [text(value)]),
+        ])
+    }
+}
+
+"""##,
+                "Sources/App/Scrubber.swift": ##"""
+// Sources/App/Scrubber.swift
+//
+// The hero control. A year-long SVG track with the national demand curve
+// drawn inside it, a draggable playhead (instant mode) or a two-thumb
+// brush (range mode), and playback. Coordinates come from native pointer
+// listeners (Swiflow events carry no clientX) — clientX minus the
+// track's bounding rect, so drags stay correct under pointer capture.
+import Swiflow
+import JavaScriptKit
+import GridCore
+
+extension GridShell {
+    @MainActor
+    func intervalToX(_ t: Int) -> Double {
+        Double(t) / Double(GridDataset.intervalCount - 1) * 1000
+    }
+
+    @MainActor
+    func xToInterval(_ x: Double) -> Int {
+        let f = min(1, max(0, x / 1000))
+        return Int(f * Double(GridDataset.intervalCount - 1))
+    }
+
+    @MainActor
+    func pad2(_ v: Int) -> String { v < 10 ? "0\(v)" : "\(v)" }
+
+    @MainActor
+    func formatInterval(_ t: Int) -> String {
+        let d = t / GridDataset.intervalsPerDay
+        var m = 11
+        while GridDataset.monthStartDay[m] > d { m -= 1 }
+        let names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        let mins = (t % GridDataset.intervalsPerDay) * 5
+        return "\(names[m]) \(d - GridDataset.monthStartDay[m] + 1), \(pad2(mins / 60)):\(pad2(mins % 60))"
+    }
+
+    @MainActor
+    func scrubberView() -> VNode {
+        var svgChildren: [VNode] = [
+            element("path", attributes: [.attr("d", sparkPath), .class("gb-spark")])
+                .memoKey("gb-spark"),
+        ]
+        // Month ticks.
+        for (m, start) in GridDataset.monthStartDay.enumerated() {
+            let x = Int(Double(start) / Double(GridDataset.dayCount) * 1000)
+            svgChildren.append(element("line", attributes: [
+                .attr("x1", "\(x)"), .attr("x2", "\(x)"),
+                .attr("y1", "56"), .attr("y2", "62"),
+                .class("gb-tick"), .attr("data-month", "\(m)"),
+            ]))
+        }
+        if brushMode {
+            let xl = intervalToX(brushLo), xh = intervalToX(brushHi)
+            svgChildren.append(element("rect", attributes: [
+                .attr("x", "\(Int(xl))"), .attr("y", "0"),
+                .attr("width", "\(Int(max(1, xh - xl)))"), .attr("height", "56"),
+                .class("gb-brush-range"),
+            ]))
+            for (x, cls) in [(xl, "gb-thumb gb-thumb--lo"), (xh, "gb-thumb gb-thumb--hi")] {
+                svgChildren.append(element("line", attributes: [
+                    .attr("x1", "\(Int(x))"), .attr("x2", "\(Int(x))"),
+                    .attr("y1", "0"), .attr("y2", "56"), .class(cls),
+                ]))
+            }
+        } else if case .instant(let t) = slice {
+            let x = intervalToX(t)
+            svgChildren.append(element("line", attributes: [
+                .attr("x1", "\(Int(x))"), .attr("x2", "\(Int(x))"),
+                .attr("y1", "0"), .attr("y2", "56"), .class("gb-playhead"),
+            ]))
+            svgChildren.append(element("circle", attributes: [
+                .attr("cx", "\(Int(x))"), .attr("cy", "8"), .attr("r", "7"),
+                .class("gb-playhead-knob"),
+            ]))
+        }
+
+        let readout: String
+        switch slice {
+        case .instant(let t): readout = formatInterval(t)
+        case .range(let a, let b): readout = "\(formatInterval(a)) → \(formatInterval(b))"
+        }
+
+        return element("div", attributes: [.class("gb-scrubber")], children: [
+            element("div", attributes: [.class("gb-scrubber-bar")], children: [
+                element("button", attributes: [
+                    .class(playing ? "gb-btn gb-btn--on" : "gb-btn"),
+                    .on(.click) { [weak self] in
+                        guard let self else { return }
+                        if self.brushMode { return }
+                        self.playing.toggle()
+                    },
+                ], children: [text(playing ? "❚❚" : "▶")]),
+                element("button", attributes: [
+                    .class(brushMode ? "gb-btn gb-btn--on" : "gb-btn"),
+                    .on(.click) { [weak self] in
+                        guard let self else { return }
+                        self.playing = false
+                        self.brushMode.toggle()
+                        self.slice = self.brushMode
+                            ? .range(self.brushLo, self.brushHi)
+                            : .instant((self.brushLo + self.brushHi) / 2)
+                        self.runQuery()
+                    },
+                ], children: [text("Brush")]),
+                element("span", attributes: [.class("gb-readout")], children: [text(readout)]),
+            ]),
+            element("svg", attributes: [
+                .class("gb-track"),
+                .attr("viewBox", "0 0 1000 64"),
+                .attr("preserveAspectRatio", "none"),
+                .ref(scrubberRef),
+            ], children: svgChildren),
+        ])
+    }
+
+    @MainActor
+    func attachScrubberListeners() {
+        guard let el = scrubberRef.wrappedValue else { return }
+
+        func trackX(_ ev: JSValue) -> Double {
+            let rect = el.getBoundingClientRect!()
+            let left = rect.left.number ?? 0
+            let width = rect.width.number ?? 1
+            return ((ev.clientX.number ?? 0) - left) / width * 1000
+        }
+
+        retainedClosures.append(addNativeListener(el, "pointerdown") { [weak self] ev in
+            guard let self else { return }
+            self.playing = false
+            let t = self.xToInterval(trackX(ev))
+            if self.brushMode {
+                let dLo = abs(t - self.brushLo), dHi = abs(t - self.brushHi)
+                self.dragTarget = dLo <= dHi ? .brushLoHandle : .brushHiHandle
+                self.applyDrag(t)
+            } else {
+                self.dragTarget = .playhead
+                self.slice = .instant(t)
+                self.runQuery()
+            }
+            if let id = ev.pointerId.number {
+                _ = el.setPointerCapture!(id)
+            }
+        })
+        retainedClosures.append(addNativeListener(el, "pointermove") { [weak self] ev in
+            guard let self, self.dragTarget != nil else { return }
+            self.applyDrag(self.xToInterval(trackX(ev)))
+        })
+        for endEvent in ["pointerup", "pointercancel"] {
+            retainedClosures.append(addNativeListener(el, endEvent) { [weak self] _ in
+                self?.dragTarget = nil
+            })
+        }
+    }
+
+    @MainActor
+    private func applyDrag(_ t: Int) {
+        switch dragTarget {
+        case .playhead:
+            slice = .instant(t)
+        case .brushLoHandle:
+            brushLo = min(t, brushHi)                        // clamp lo ≤ hi
+            slice = .range(brushLo, brushHi)
+        case .brushHiHandle:
+            brushHi = max(t, brushLo)
+            slice = .range(brushLo, brushHi)
+        case nil:
+            return
+        }
+        runQuery()
+    }
+}
+
+"""##,
+                "Sources/App/SeasonWheel.swift": ##"""
+// Sources/App/SeasonWheel.swift
+//
+// Radial filter: outer ring = 12 months, inner ring = 24 hours. Click
+// toggles a segment; press-and-sweep paints contiguous segments on
+// (mousedown starts the paint, mouseenter applies it, a window-level
+// mouseup ends it). Empty selection on a ring = no filter on that
+// dimension.
+import Swiflow
+import JavaScriptKit
+import GridCore
+
+// Local trig shims (App target also stays Foundation-free).
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(WASILibc)
+import WASILibc
+#endif
+@inline(__always) func _sinD(_ x: Double) -> Double { sin(x) }
+@inline(__always) func _cosD(_ x: Double) -> Double { cos(x) }
+
+/// Annular sector between radii r0<r1 from angle a0 to a1 (radians,
+/// 0 = 12 o'clock, clockwise).
+func arcPath(cx: Double, cy: Double, r0: Double, r1: Double, a0: Double, a1: Double) -> String {
+    func pt(_ r: Double, _ a: Double) -> (Double, Double) {
+        (cx + r * _sinD(a), cy - r * _cosD(a))
+    }
+    let large = (a1 - a0) > .pi ? 1 : 0
+    let (x0, y0) = pt(r1, a0), (x1, y1) = pt(r1, a1)
+    let (x2, y2) = pt(r0, a1), (x3, y3) = pt(r0, a0)
+    return "M\(x0),\(y0)A\(r1),\(r1) 0 \(large) 1 \(x1),\(y1)"
+        + "L\(x2),\(y2)A\(r0),\(r0) 0 \(large) 0 \(x3),\(y3)Z"
+}
+
+extension GridShell {
+    @MainActor
+    func wheelView() -> VNode {
+        var children: [VNode] = []
+        let monthNames = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+        for m in 0..<12 {
+            let a0 = Double(m) / 12 * 2 * .pi + 0.012
+            let a1 = Double(m + 1) / 12 * 2 * .pi - 0.012
+            let on = (wheel.months >> m) & 1 == 1
+            children.append(element("path", attributes: [
+                .attr("d", arcPath(cx: 70, cy: 70, r0: 47, r1: 65, a0: a0, a1: a1)),
+                .class(on ? "gb-seg gb-seg--on" : "gb-seg"),
+                .on(.mousedown) { [weak self] in self?.beginPaint { $0.months ^= 1 << m } },
+                .on(.mouseenter) { [weak self] in self?.paint { $0.months |= 1 << m } },
+            ]))
+            let mid = (a0 + a1) / 2
+            children.append(element("text", attributes: [
+                .attr("x", "\(70 + 56 * _sinD(mid))"), .attr("y", "\(70 - 56 * _cosD(mid) + 3)"),
+                .class("gb-seg-label"),
+            ], children: [text(monthNames[m])]))
+        }
+        for h in 0..<24 {
+            let a0 = Double(h) / 24 * 2 * .pi + 0.02
+            let a1 = Double(h + 1) / 24 * 2 * .pi - 0.02
+            let on = (wheel.hours >> h) & 1 == 1
+            children.append(element("path", attributes: [
+                .attr("d", arcPath(cx: 70, cy: 70, r0: 27, r1: 45, a0: a0, a1: a1)),
+                .class(on ? "gb-seg gb-seg--on" : "gb-seg"),
+                .on(.mousedown) { [weak self] in self?.beginPaint { $0.hours ^= 1 << h } },
+                .on(.mouseenter) { [weak self] in self?.paint { $0.hours |= 1 << h } },
+            ]))
+        }
+        children.append(element("circle", attributes: [
+            .attr("cx", "70"), .attr("cy", "70"), .attr("r", "22"),
+            .class(wheel.isIdentity ? "gb-wheel-clear gb-wheel-clear--idle" : "gb-wheel-clear"),
+            .on(.click) { [weak self] in
+                guard let self else { return }
+                self.wheel = SeasonHourFilter()
+                self.runQuery()
+            },
+        ]))
+        children.append(element("text", attributes: [
+            .attr("x", "70"), .attr("y", "74"), .class("gb-wheel-clear-label"),
+        ], children: [text(wheel.isIdentity ? "all" : "clear")]))
+
+        return element("div", attributes: [.class("gb-wheel"), .attr("title", "Filter by month (outer) and hour (inner)")], children: [
+            element("svg", attributes: [.attr("viewBox", "0 0 140 140"), .class("gb-wheel-svg")],
+                    children: children),
+        ])
+    }
+
+    @MainActor
+    func beginPaint(_ apply: (inout SeasonHourFilter) -> Void) {
+        wheelPainting = true
+        apply(&wheel)
+        runQuery()
+    }
+
+    @MainActor
+    func paint(_ apply: (inout SeasonHourFilter) -> Void) {
+        guard wheelPainting else { return }
+        apply(&wheel)
+        runQuery()
+    }
+
+    @MainActor
+    func attachWheelListeners() {
+        // Paint ends wherever the pointer is released.
+        let window = JSObject.global.window.object!
+        retainedClosures.append(addNativeListener(window, "mouseup") { [weak self] _ in
+            self?.wheelPainting = false
+        })
+    }
+}
+
+"""##,
+                "Sources/App/Shell+Styles.swift": ##"""
+// Sources/App/Shell+Styles.swift
+import Swiflow
+
+extension GridShell {
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud
+
+    static let base = #css("""
+        :root {
+          --gb-bg: light-dark(oklch(.98 .005 250), oklch(.16 .01 250));
+          --gb-panel: light-dark(oklch(.995 0 0), oklch(.21 .012 250));
+          --gb-text: CanvasText;
+          --gb-dim: color-mix(in oklab, CanvasText 60%, Canvas);
+          --gb-border: color-mix(in oklab, CanvasText 14%, transparent);
+          --gb-accent: oklch(.62 .17 255);
+        }
+        :host { display: block; min-height: 100dvh; background: var(--gb-bg); }
+        .gb-shell {
+          display: grid;
+          grid-template-rows: auto 1fr auto;
+          gap: 12px;
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 16px 20px 20px;
+          min-height: 100dvh;
+          box-sizing: border-box;
+        }
+        .gb-header h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+        .gb-tagline { margin: 2px 0 0; color: var(--gb-dim); font-size: 13px; }
+        .gb-main {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 14px;
+          min-height: 0;
+        }
+        .gb-panel {
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 12px;
+          padding: 14px;
+          overflow-y: auto;
+        }
+        .gb-controls { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; }
+        """)
+
+    static let map = #css("""
+        .gb-map-wrap { position: relative; }
+        .gb-map { width: 100%; height: auto; display: block; }
+        .gb-zone {
+          stroke: light-dark(oklch(.98 0 0 / .85), oklch(.14 .01 250 / .9));
+          stroke-width: 1.5;
+          cursor: pointer;
+          transition: fill 220ms ease;
+        }
+        .gb-zone:hover { filter: brightness(1.12); }
+        .gb-zone--focus { stroke: var(--gb-accent); stroke-width: 3; }
+        .gb-zone-label {
+          font: 600 12px system-ui, sans-serif;
+          fill: light-dark(oklch(.99 0 0 / .92), oklch(.95 0 0 / .92));
+          text-anchor: middle;
+          pointer-events: none;
+          paint-order: stroke;
+          stroke: rgb(0 0 0 / .25);
+          stroke-width: 2;
+        }
+        """)
+
+    static let scrubber = #css("""
+        .gb-scrubber { display: grid; gap: 6px; }
+        .gb-scrubber-bar { display: flex; gap: 8px; align-items: center; }
+        .gb-btn {
+          border: 1px solid var(--gb-border);
+          background: var(--gb-panel);
+          color: var(--gb-text);
+          border-radius: 8px;
+          padding: 4px 12px;
+          font: 500 13px system-ui, sans-serif;
+          cursor: pointer;
+        }
+        .gb-btn--on { background: var(--gb-accent); color: white; border-color: transparent; }
+        .gb-readout { color: var(--gb-dim); font: 500 13px ui-monospace, monospace; }
+        .gb-track {
+          width: 100%;
+          height: 64px;
+          display: block;
+          background: color-mix(in oklab, var(--gb-panel) 70%, var(--gb-bg));
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          cursor: ew-resize;
+          touch-action: none;
+        }
+        .gb-spark { fill: color-mix(in oklab, var(--gb-accent) 25%, transparent); stroke: var(--gb-accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+        .gb-tick { stroke: var(--gb-border); }
+        .gb-playhead { stroke: var(--gb-text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .gb-playhead-knob { fill: var(--gb-accent); stroke: white; stroke-width: 2; vector-effect: non-scaling-stroke; }
+        .gb-brush-range { fill: color-mix(in oklab, var(--gb-accent) 18%, transparent); }
+        .gb-thumb { stroke: var(--gb-accent); stroke-width: 4; vector-effect: non-scaling-stroke; cursor: ew-resize; }
+        """)
+
+    static let wheel = #css("""
+        .gb-wheel-svg { width: 148px; height: 148px; display: block; user-select: none; }
+        .gb-seg {
+          fill: color-mix(in oklab, var(--gb-text) 8%, var(--gb-panel));
+          stroke: var(--gb-bg);
+          stroke-width: 1;
+          cursor: pointer;
+          transition: fill 120ms ease;
+        }
+        .gb-seg:hover { fill: color-mix(in oklab, var(--gb-accent) 30%, var(--gb-panel)); }
+        .gb-seg--on { fill: var(--gb-accent); }
+        .gb-seg-label { font: 600 8px system-ui; fill: var(--gb-dim); text-anchor: middle; pointer-events: none; }
+        .gb-wheel-clear { fill: var(--gb-panel); stroke: var(--gb-border); cursor: pointer; }
+        .gb-wheel-clear--idle { opacity: 0.6; }
+        .gb-wheel-clear-label { font: 600 9px system-ui; fill: var(--gb-dim); text-anchor: middle; pointer-events: none; }
+        """)
+
+    static let panel = #css("""
+        .gb-panel-title { margin: 0 0 8px; font-size: 17px; }
+        .gb-empty { color: var(--gb-dim); font-style: italic; }
+        .gb-stat-row { display: flex; gap: 18px; margin-bottom: 8px; }
+        .gb-stat { display: grid; }
+        .gb-stat strong { font-size: 17px; }
+        .gb-stat small { color: var(--gb-dim); }
+        .gb-donut { width: 160px; margin: 0 auto; display: block; }
+        .gb-donut-seg { cursor: pointer; transition: opacity 120ms ease; stroke: var(--gb-panel); stroke-width: 1; }
+        .gb-donut-seg:hover { opacity: 0.85; }
+        .gb-donut-hole { fill: var(--gb-panel); cursor: pointer; }
+        .gb-donut-label { text-anchor: middle; font: 600 12px system-ui; fill: var(--gb-dim); pointer-events: none; }
+        .gb-legend { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; }
+        .gb-legend-item { display: flex; align-items: center; gap: 6px; }
+        .gb-legend-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+        .gb-chart-card h3 { margin: 10px 0 4px; font-size: 12px; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+        .gb-chart { width: 100%; display: block; background: color-mix(in oklab, var(--gb-text) 4%, var(--gb-panel)); border-radius: 8px; }
+        .gb-area { opacity: 0.9; }
+        .gb-price-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+        """)
+
+    static let lens = #css("""
+        .gb-lens {
+          position: absolute;
+          z-index: 5;
+          pointer-events: none;
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+          padding: 8px 10px;
+          width: 160px;
+          font-size: 12px;
+          display: grid;
+          gap: 5px;
+        }
+        .gb-lens--hidden { display: none; }
+        .gb-lens-stats { color: var(--gb-dim); }
+        .gb-lens-mix { width: 100%; border-radius: 3px; }
+        .gb-lens-spark { width: 100%; }
+        .gb-lens-spark-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+        """)
+
+    static let arcs = #css("""
+        .gb-arc {
+          fill: none;
+          stroke: color-mix(in oklab, var(--gb-accent) 70%, white);
+          stroke-linecap: round;
+          opacity: 0.65;
+          pointer-events: none;
+          transition: stroke-width 220ms ease;
+        }
+        .gb-arc--reverse { stroke: color-mix(in oklab, oklch(.7 .15 60) 80%, white); }
+        .gb-arc--focus { opacity: 1; stroke: var(--gb-accent); }
+        .gb-arc-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+        .gb-inspector-head { display: flex; justify-content: space-between; align-items: start; }
+        .gb-duration-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+        .gb-cap-line { stroke: var(--gb-dim); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+        .gb-inspector-note { color: var(--gb-dim); font-size: 12px; }
+        """)
+
+    static let canvas = #css("""
+        .gb-flow-canvas {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: auto;
+          aspect-ratio: 1000 / 760;
+          pointer-events: none;
+        }
+        """)
+
+    static let hud = #css("""
+        .gb-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+        .gb-hud {
+          display: flex;
+          gap: 8px;
+          align-items: start;
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .gb-hud-toggle { border: none; background: none; color: var(--gb-dim); cursor: pointer; font-size: 14px; padding: 0 2px; }
+        .gb-hud-grid { display: flex; gap: 14px; margin: 0; }
+        .gb-hud-cell dt { font: 500 10px system-ui; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .gb-hud-cell dd { margin: 0; font: 600 14px ui-monospace, monospace; }
+        @media (max-width: 900px) {
+          .gb-main { grid-template-columns: 1fr; }
+          .gb-header { flex-direction: column; }
+        }
+        """)
+}
+
+"""##,
+                "Sources/GridCore/Generator.swift": ##"""
+//
+// libc, not Foundation: sin/cos/exp/pow come from the platform C library
+// (WASILibc on wasm32) — GridCore's no-Foundation constraint holds.
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(WASILibc)
+import WASILibc
+#endif
+
+// Real-shaped synthetic year. Profiles are tuned for plausibility, not
+// accuracy: winter-peaking demand (electric heating), latitude-aware
+// solar, autocorrelated wind, nuclear baseload with outage windows,
+// hydro/thermal dispatched against residual load, flows from a static
+// contract shape modulated by season and hour.
+//
+// Replace `GridDataset.generate(seed:)` with your own loader to point
+// the dashboard at real data — everything downstream only sees
+// GridDataset.
+struct ZoneProfile {
+    let basePeakMW: Double      // reference demand scale
+    let meanTempC: Double
+    let tempAmpC: Double        // seasonal swing (winter = mean - amp)
+    let heatShare: Double       // demand sensitivity to cold
+    let coolShare: Double       // demand sensitivity to heat
+    let solarSeason: Double     // latitude penalty on winter daylight (0…1, 1 = strong swing)
+    let caps: [Double]          // MW by Source.rawValue order
+    let merit: [Source]         // dispatch order for dispatchables
+}
+
+private let profiles: [Zone: ZoneProfile] = [
+    .bc: ZoneProfile(basePeakMW: 8_000, meanTempC: 9, tempAmpC: 11, heatShare: 0.55, coolShare: 0.10, solarSeason: 0.55,
+                     caps: [16_000, 0, 1_200, 0, 700, 100, 0], merit: [.hydro, .gas, .diesel]),
+    .ab: ZoneProfile(basePeakMW: 10_000, meanTempC: 4, tempAmpC: 16, heatShare: 0.45, coolShare: 0.15, solarSeason: 0.60,
+                     caps: [900, 0, 11_000, 1_500, 6_000, 1_800, 0], merit: [.hydro, .coal, .gas, .diesel]),
+    .sk: ZoneProfile(basePeakMW: 3_800, meanTempC: 3, tempAmpC: 17, heatShare: 0.45, coolShare: 0.15, solarSeason: 0.60,
+                     caps: [900, 0, 2_800, 1_500, 800, 300, 0], merit: [.hydro, .coal, .gas, .diesel]),
+    .mb: ZoneProfile(basePeakMW: 3_500, meanTempC: 3, tempAmpC: 18, heatShare: 0.60, coolShare: 0.10, solarSeason: 0.60,
+                     caps: [5_600, 0, 300, 0, 260, 50, 0], merit: [.hydro, .gas, .diesel]),
+    .on: ZoneProfile(basePeakMW: 16_000, meanTempC: 8, tempAmpC: 14, heatShare: 0.35, coolShare: 0.35, solarSeason: 0.50,
+                     caps: [9_000, 13_000, 10_000, 0, 5_500, 500, 0], merit: [.hydro, .gas, .diesel]),
+    .qc: ZoneProfile(basePeakMW: 21_000, meanTempC: 5, tempAmpC: 16, heatShare: 0.80, coolShare: 0.15, solarSeason: 0.55,
+                     caps: [37_000, 0, 0, 0, 4_000, 50, 0], merit: [.hydro, .diesel]),
+    .nb: ZoneProfile(basePeakMW: 1_800, meanTempC: 6, tempAmpC: 13, heatShare: 0.60, coolShare: 0.10, solarSeason: 0.55,
+                     caps: [900, 660, 400, 500, 300, 50, 0], merit: [.hydro, .coal, .gas, .diesel]),
+    .pe: ZoneProfile(basePeakMW: 150, meanTempC: 6, tempAmpC: 12, heatShare: 0.55, coolShare: 0.10, solarSeason: 0.55,
+                     caps: [0, 0, 0, 0, 200, 10, 100], merit: [.diesel]),
+    .ns: ZoneProfile(basePeakMW: 1_400, meanTempC: 7, tempAmpC: 12, heatShare: 0.55, coolShare: 0.10, solarSeason: 0.55,
+                     caps: [400, 0, 500, 1_200, 600, 100, 0], merit: [.hydro, .coal, .gas, .diesel]),
+    .nl: ZoneProfile(basePeakMW: 1_200, meanTempC: 2, tempAmpC: 12, heatShare: 0.70, coolShare: 0.05, solarSeason: 0.60,
+                     caps: [6_800, 0, 0, 0, 50, 0, 100], merit: [.hydro, .diesel]),
+    .yt: ZoneProfile(basePeakMW: 60, meanTempC: -3, tempAmpC: 20, heatShare: 0.70, coolShare: 0.02, solarSeason: 0.80,
+                     caps: [95, 0, 0, 0, 5, 2, 30], merit: [.hydro, .diesel]),
+    .nt: ZoneProfile(basePeakMW: 55, meanTempC: -5, tempAmpC: 22, heatShare: 0.70, coolShare: 0.02, solarSeason: 0.85,
+                     caps: [55, 0, 0, 0, 5, 2, 70], merit: [.hydro, .diesel]),
+    .nu: ZoneProfile(basePeakMW: 40, meanTempC: -10, tempAmpC: 22, heatShare: 0.70, coolShare: 0.02, solarSeason: 0.95,
+                     caps: [0, 0, 0, 0, 2, 1, 200], merit: [.diesel]),
+]
+
+/// Static contract bias per interconnect (share of capacity flowing
+/// from → to in an average hour). Index-aligned with `Interconnect.all`.
+private let flowBias: [Double] = [
+    0.15,   // BC→AB — swings with AB scarcity
+    0.30,   // AB→SK
+    0.25,   // SK→MB — often reverses (MB hydro pushes back)
+    0.60,   // MB→ON — Manitoba hydro exports east
+    0.55,   // QC→ON contract flow
+    0.55,   // QC→NB
+    0.55,   // NB→NS
+    0.45,   // NB→PE
+    0.88,   // NL→QC — Churchill Falls, near-constant
+    0.45,   // BC→US
+    0.60,   // MB→US
+    0.40,   // ON→US
+    0.70,   // QC→US
+    0.35,   // NB→US
+]
+// Convention: bias ≈ mean of `flow / capacity`, positive = from → to.
+
+extension GridDataset {
+    public static func generate(seed: UInt64) -> GridDataset {
+        let n = intervalCount
+        let zoneCount = Zone.allCases.count
+        var rng = SplitMix64(seed: seed)
+        let cal = calendar()
+
+        var demand = [Float](repeating: 0, count: zoneCount * n)
+        var price = [Float](repeating: 0, count: zoneCount * n)
+        var gen = [[Float]](repeating: [Float](repeating: 0, count: zoneCount * n),
+                            count: Source.allCases.count)
+        var flow = [[Float]](repeating: [Float](repeating: 0, count: n),
+                             count: Interconnect.all.count)
+
+        // Per-zone autocorrelated states (wind + cloud), advanced per interval.
+        var windState = [Double](repeating: 0.35, count: zoneCount)
+        var cloudState = [Double](repeating: 0.5, count: zoneCount)
+
+        for t in 0..<n {
+            let d = t / intervalsPerDay
+            let hour = Double(t % intervalsPerDay) / 12.0          // 0..<24, fractional
+            let dayPhase = Double(d)
+            let weekend = (d % 7 == 5 || d % 7 == 6)
+            // Seasonal factors shared by all zones this interval.
+            let seasonCos = _cos(2 * .pi * (dayPhase - 15) / 365)  // 1 ≈ mid-January
+            let sunSeason = 0.5 - 0.5 * seasonCos                  // 0 winter … 1 summer
+
+            // --- flows first (they shape dispatch via netExport) ---
+            var netExport = [Double](repeating: 0, count: zoneCount)
+            for (i, tie) in Interconnect.all.enumerated() {
+                let diurnal = 0.75 + 0.25 * _sin((hour - 6) * .pi / 12)
+                let winterBoost = tie.from == .qc || tie.from == .mb ? (1 + 0.25 * seasonCos) : 1
+                let wobble = 0.9 + 0.2 * rng.unit()
+                var f = tie.capacityMW * flowBias[i] * diurnal * winterBoost * wobble
+                if tie.from == .bc, tie.to == .ab {
+                    // BC↔AB genuinely swings sign with Alberta's evening peak.
+                    f = tie.capacityMW * (0.35 * _sin((hour - 17) * .pi / 6) + 0.1 * (rng.unit() - 0.5))
+                }
+                f = _clamp(f, -tie.capacityMW, tie.capacityMW)
+                flow[i][t] = Float(f)
+                netExport[tie.from.rawValue] += f
+                if let to = tie.to { netExport[to.rawValue] -= f }
+            }
+
+            for z in Zone.allCases {
+                let p = profiles[z]!
+                let zi = z.rawValue
+                let idx = zi * n + t
+
+                // --- demand ---
+                let temp = p.meanTempC - p.tempAmpC * seasonCos
+                let heating = p.heatShare * max(0, 16 - temp) / 28
+                let cooling = p.coolShare * max(0, temp - 22) / 15
+                let diurnal = 0.82
+                    + 0.13 * _exp(-((hour - 8) * (hour - 8)) / 8)
+                    + 0.16 * _exp(-((hour - 18.5) * (hour - 18.5)) / 10)
+                let dm = p.basePeakMW * diurnal * (weekend ? 0.92 : 1.0)
+                    * (1 + heating + cooling) * (1 + 0.03 * (rng.unit() - 0.5))
+                demand[idx] = Float(dm)
+
+                // --- must-run: wind, solar, nuclear ---
+                // Wind: mean-reverting walk, clamped capacity factor.
+                windState[zi] += 0.02 * (0.35 - windState[zi]) + 0.05 * (rng.unit() - 0.5)
+                windState[zi] = _clamp(windState[zi], 0.02, 0.95)
+                var wind = p.caps[Source.wind.rawValue] * windState[zi]
+
+                // Solar: daylight bell scaled by season and slow-moving cloud.
+                cloudState[zi] += 0.03 * (0.5 - cloudState[zi]) + 0.06 * (rng.unit() - 0.5)
+                cloudState[zi] = _clamp(cloudState[zi], 0.05, 0.95)
+                let halfDay = 4.2 + 2.8 * (sunSeason * (0.4 + 0.6 * (1 - p.solarSeason)) + sunSeason * p.solarSeason)
+                let elev = _cos((hour - 12.75) * .pi / (2 * halfDay))
+                var solar = elev > 0
+                    ? p.caps[Source.solar.rawValue] * _pow(elev, 1.4) * (0.35 + 0.65 * sunSeason) * (1 - 0.7 * cloudState[zi])
+                    : 0
+                // Nuclear: flat with outage windows.
+                var nuclearFactor = 1.0
+                if z == .on { if (110...140).contains(d) || (250...270).contains(d) { nuclearFactor = 0.85 } }
+                if z == .nb { if (200...215).contains(d) { nuclearFactor = 0 } }
+                var nuclear = p.caps[Source.nuclear.rawValue] * nuclearFactor
+
+                // --- dispatch: fill demand + netExport, preserve identity ---
+                var need = dm + netExport[zi] - (wind + solar + nuclear)
+                if need < 0 {
+                    // Curtail wind, then solar, then nuclear to maintain Σgen == demand + netExport.
+                    let cut = -need
+                    let windCut = min(wind, cut)
+                    wind -= windCut
+                    let solarCut = min(solar, cut - windCut)
+                    solar -= solarCut
+                    let nuclearCut = min(nuclear, cut - windCut - solarCut)
+                    nuclear -= nuclearCut
+                    need = 0
+                }
+                var dispatched: [Source: Double] = [:]
+                for s in p.merit {
+                    let take = min(p.caps[s.rawValue], need)
+                    dispatched[s] = take
+                    need -= take
+                    if need <= 0 { break }
+                }
+                if need > 0 {
+                    // Emergency peakers beyond nameplate — keeps the identity
+                    // and reads as scarcity in the price.
+                    dispatched[.gas, default: 0] += need
+                }
+
+                gen[Source.wind.rawValue][idx] = Float(wind)
+                gen[Source.solar.rawValue][idx] = Float(solar)
+                gen[Source.nuclear.rawValue][idx] = Float(nuclear)
+                for (s, mw) in dispatched { gen[s.rawValue][idx] += Float(mw) }
+
+                // --- price: quadratic in dispatch tightness ---
+                let dispCap = p.merit.reduce(0.0) { $0 + p.caps[$1.rawValue] }
+                let tightness = dispCap > 0 ? _clamp((dm + netExport[zi] - nuclear) / dispCap, 0, 1.4) : 1.0
+                var pr = 20 + 90 * tightness * tightness + 4 * (rng.unit() - 0.5)
+                if tightness > 0.9 { pr += 400 * (tightness - 0.9) }
+                price[idx] = Float(max(5, pr))
+            }
+        }
+        return GridDataset(demand: demand, price: price, gen: gen, flow: flow,
+                           monthOfInterval: cal.month, hourOfInterval: cal.hour)
+    }
+}
+
+@inline(__always) func _sin(_ x: Double) -> Double { sin(x) }
+@inline(__always) func _cos(_ x: Double) -> Double { cos(x) }
+@inline(__always) func _exp(_ x: Double) -> Double { exp(x) }
+@inline(__always) func _pow(_ x: Double, _ y: Double) -> Double { pow(x, y) }
+@inline(__always) func _clamp(_ x: Double, _ lo: Double, _ hi: Double) -> Double { min(hi, max(lo, x)) }
+
+"""##,
+                "Sources/GridCore/GridDataset.swift": ##"""
+// Sources/GridCore/GridDataset.swift
+//
+// Columnar struct-of-arrays store. Zone-major layout (`z * N + t`) keeps
+// each zone's year contiguous, so per-zone scans are cache-linear.
+public struct GridDataset: Sendable {
+    public static let intervalsPerDay = 288          // 5-minute resolution
+    public static let dayCount = 365
+    public static let intervalCount = 105_120        // 365 × 288
+
+    /// Cumulative day-of-year at each month start (non-leap).
+    public static let monthStartDay: [Int] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+
+    public var demand: [Float]        // [zone × interval]
+    public var price: [Float]         // [zone × interval]
+    public var gen: [[Float]]         // [source][zone × interval]
+    public var flow: [[Float]]        // [interconnect][interval]
+    public var monthOfInterval: [UInt8]
+    public var hourOfInterval: [UInt8]
+
+    public init(demand: [Float], price: [Float], gen: [[Float]], flow: [[Float]],
+                monthOfInterval: [UInt8], hourOfInterval: [UInt8]) {
+        self.demand = demand
+        self.price = price
+        self.gen = gen
+        self.flow = flow
+        self.monthOfInterval = monthOfInterval
+        self.hourOfInterval = hourOfInterval
+    }
+
+    /// Interval count of THIS dataset instance, derived from array length.
+    /// The generator always builds `Self.intervalCount` (the full year);
+    /// tests build small fixtures — the engine and helpers index with this
+    /// so both work.
+    @inline(__always)
+    public var intervals: Int { demand.count / Zone.allCases.count }
+
+    @inline(__always)
+    public func demand(_ z: Zone, _ t: Int) -> Float {
+        demand[z.rawValue * intervals + t]
+    }
+
+    @inline(__always)
+    public func price(_ z: Zone, _ t: Int) -> Float {
+        price[z.rawValue * intervals + t]
+    }
+
+    @inline(__always)
+    public func gen(_ s: Source, _ z: Zone, _ t: Int) -> Float {
+        gen[s.rawValue][z.rawValue * intervals + t]
+    }
+
+    /// Builds the two calendar arrays for a full standard year.
+    public static func calendar() -> (month: [UInt8], hour: [UInt8]) {
+        var month = [UInt8](repeating: 0, count: intervalCount)
+        var hour = [UInt8](repeating: 0, count: intervalCount)
+        var m = 0
+        for d in 0..<dayCount {
+            if m < 11 && d >= monthStartDay[m + 1] { m += 1 }
+            for i in 0..<intervalsPerDay {
+                let t = d * intervalsPerDay + i
+                month[t] = UInt8(m)
+                hour[t] = UInt8(i / 12)                  // 12 five-minute steps per hour
+            }
+        }
+        return (month, hour)
+    }
+}
+
+"""##,
+                "Sources/GridCore/GridEngine.swift": ##"""
+// Sources/GridCore/GridEngine.swift
+//
+// Brute-force masked scans over the columnar arrays — deliberately no
+// precomputed rollups (honest per-frame compute is the demo; summaries
+// could slot in behind this same interface later). Zone-major layout
+// makes the inner t-loop cache-linear per zone.
+public struct GridEngine: Sendable {
+    public let data: GridDataset
+
+    public init(data: GridDataset) { self.data = data }
+
+    public func query(_ q: GridQuery) -> GridSnapshot {
+        let n = data.intervals
+        var lo: Int, hi: Int
+        switch q.slice {
+        case .instant(let t):
+            lo = min(max(0, t), n - 1); hi = lo
+        case .range(let a, let b):
+            lo = min(max(0, min(a, b)), n - 1)
+            hi = min(max(0, max(a, b)), n - 1)
+        }
+
+        // Precompute the wheel mask once for the range (identity → nil).
+        var mask: [Bool]? = nil
+        var visited = hi - lo + 1
+        if !q.wheel.isIdentity {
+            var m = [Bool](repeating: false, count: hi - lo + 1)
+            var c = 0
+            for t in lo...hi {
+                let ok = q.wheel.passes(month: data.monthOfInterval[t], hour: data.hourOfInterval[t])
+                m[t - lo] = ok
+                if ok { c += 1 }
+            }
+            mask = m
+            visited = c
+        }
+
+        let zoneCount = Zone.allCases.count
+        let srcCount = Source.allCases.count
+        let isEmpty = visited == 0
+
+        // --- per-zone scan ---
+        var zones: [ZoneAggregate] = []
+        zones.reserveCapacity(zoneCount)
+        var natDemand = 0.0
+        var natGen = [Double](repeating: 0, count: srcCount)
+        for z in Zone.allCases {
+            var dSum = 0.0, pSum = 0.0
+            var gSum = [Double](repeating: 0, count: srcCount)
+            if !isEmpty {
+                let base = z.rawValue * n
+                for t in lo...hi {
+                    if let mask, !mask[t - lo] { continue }
+                    dSum += Double(data.demand[base + t])
+                    pSum += Double(data.price[base + t])
+                    for s in 0..<srcCount { gSum[s] += Double(data.gen[s][base + t]) }
+                }
+            }
+            let c = Double(max(1, visited))
+            let genMW = gSum.map { $0 / c }
+            let totalGen = genMW.reduce(0, +)
+            let intensity = totalGen > 0
+                ? zip(genMW, Source.allCases).reduce(0.0) { $0 + $1.0 * $1.1.gCO2PerKWh } / totalGen
+                : 0
+            let lens: Double
+            switch q.lensMetric {
+            case .carbonIntensity: lens = intensity
+            case .sourceShare(let s): lens = totalGen > 0 ? genMW[s.rawValue] / totalGen : 0
+            }
+            zones.append(ZoneAggregate(zone: z, meanDemandMW: dSum / c, meanPriceDollars: pSum / c,
+                                       genMW: genMW, carbonIntensity: intensity, lensValue: lens))
+            natDemand += dSum / c
+            for s in 0..<srcCount { natGen[s] += genMW[s] }
+        }
+        let natTotal = natGen.reduce(0, +)
+        let natIntensity = natTotal > 0
+            ? zip(natGen, Source.allCases).reduce(0.0) { $0 + $1.0 * $1.1.gCO2PerKWh } / natTotal
+            : 0
+        let national = NationalAggregate(totalDemandMW: natDemand, genMW: natGen, carbonIntensity: natIntensity)
+
+        // --- per-edge scan ---
+        var edges: [EdgeAggregate] = []
+        edges.reserveCapacity(Interconnect.all.count)
+        for (i, tie) in Interconnect.all.enumerated() {
+            var fSum = 0.0, peak = 0.0
+            var congested = 0
+            if !isEmpty {
+                let limit = tie.capacityMW * 0.95
+                for t in lo...hi {
+                    if let mask, !mask[t - lo] { continue }
+                    let f = Double(data.flow[i][t])
+                    fSum += f
+                    let a = abs(f)
+                    if a > peak { peak = a }
+                    if a > limit { congested += 1 }
+                }
+            }
+            let c = Double(max(1, visited))
+            edges.append(EdgeAggregate(index: i, meanFlowMW: fSum / c, peakAbsMW: peak,
+                                       congestionShare: Double(congested) / c))
+        }
+
+        // --- chart series (focus zone, or national sum) ---
+        let bucketCount = isEmpty ? 0 : min(200, hi - lo + 1)
+        var sDemand = [Double](repeating: 0, count: bucketCount)
+        var sPrice = [Double](repeating: 0, count: bucketCount)
+        var sBySource = [[Double]](repeating: [Double](repeating: 0, count: bucketCount), count: srcCount)
+        if bucketCount > 0 {
+            var counts = [Int](repeating: 0, count: bucketCount)
+            let span = hi - lo + 1
+            let focus = q.focusZone
+            for t in lo...hi {
+                if let mask, !mask[t - lo] { continue }
+                let b = min(bucketCount - 1, (t - lo) * bucketCount / span)
+                counts[b] += 1
+                if let z = focus {
+                    sDemand[b] += Double(data.demand(z, t))
+                    sPrice[b] += Double(data.price(z, t))
+                    for s in 0..<srcCount { sBySource[s][b] += Double(data.gen[s][z.rawValue * n + t]) }
+                } else {
+                    for z in Zone.allCases {
+                        sDemand[b] += Double(data.demand(z, t))
+                        for s in 0..<srcCount { sBySource[s][b] += Double(data.gen[s][z.rawValue * n + t]) }
+                    }
+                    // National price: demand-agnostic simple mean across zones.
+                    var p = 0.0
+                    for z in Zone.allCases { p += Double(data.price(z, t)) }
+                    sPrice[b] += p / Double(zoneCount)
+                }
+            }
+            for b in 0..<bucketCount where counts[b] > 0 {
+                let c = Double(counts[b])
+                sDemand[b] /= c; sPrice[b] /= c
+                for s in 0..<srcCount { sBySource[s][b] /= c }
+            }
+            // Empty buckets (wheel gaps): carry the previous bucket's value
+            // so charts stay continuous.
+            for b in 1..<bucketCount where counts[b] == 0 {
+                sDemand[b] = sDemand[b - 1]; sPrice[b] = sPrice[b - 1]
+                for s in 0..<srcCount { sBySource[s][b] = sBySource[s][b - 1] }
+            }
+        }
+        let series = ChartSeries(bucketCount: bucketCount, demand: sDemand, bySource: sBySource, price: sPrice)
+
+        // Rows touched: every (interval × zone) cell read across demand,
+        // price, and the 7 gen arrays, plus the per-edge flow reads.
+        let rows = visited * zoneCount * (2 + srcCount) + visited * Interconnect.all.count
+        return GridSnapshot(zones: zones, edges: edges, national: national, series: series,
+                            stats: QueryStats(rowsTouched: rows, elapsedMs: 0), isEmpty: isEmpty)
+    }
+}
+
+/// Bucket-mean downsampling to at most `target` points. Empty input
+/// stays empty; short input passes through unchanged.
+public func downsample(_ values: [Double], to target: Int) -> [Double] {
+    guard values.count > target, target > 0 else { return values }
+    var out = [Double](repeating: 0, count: target)
+    var counts = [Int](repeating: 0, count: target)
+    for (i, v) in values.enumerated() {
+        let b = min(target - 1, i * target / values.count)
+        out[b] += v
+        counts[b] += 1
+    }
+    for b in 0..<target where counts[b] > 0 { out[b] /= Double(counts[b]) }
+    return out
+}
+
+public struct LensSeries: Sendable {
+    public let demand24h: [Double]     // ≤ 48 points, trailing 24 h
+    public let mixMW: [Double]         // instant MW by source at `around`
+}
+
+public struct DurationCurve: Sendable {
+    public let points: [Double]        // |flow| sorted descending, ≤ 100 points
+    public let meanMW: Double          // signed mean
+    public let peakMW: Double
+    public let congestionHours: Double
+}
+
+extension GridEngine {
+    /// Trailing-24h demand sparkline + instant mix for the hover lens.
+    public func lensSeries(zone: Zone, around t: Int) -> LensSeries {
+        let n = data.intervals
+        let tc = min(max(0, t), n - 1)
+        let lo = max(0, tc - GridDataset.intervalsPerDay + 1)
+        var raw: [Double] = []
+        raw.reserveCapacity(tc - lo + 1)
+        for i in lo...tc { raw.append(Double(data.demand(zone, i))) }
+        let mix = Source.allCases.map { Double(data.gen($0, zone, tc)) }
+        return LensSeries(demand24h: downsample(raw, to: 48), mixMW: mix)
+    }
+
+    /// Flow-duration curve for one interconnect over the active slice+wheel.
+    public func durationCurve(edge: Int, slice: TimeSlice, wheel: SeasonHourFilter) -> DurationCurve {
+        let n = data.intervals
+        var lo: Int, hi: Int
+        switch slice {
+        case .instant(let t):
+            // A single instant has no curve — widen to the surrounding day.
+            let tc = min(max(0, t), n - 1)
+            lo = max(0, tc - GridDataset.intervalsPerDay / 2)
+            hi = min(n - 1, lo + GridDataset.intervalsPerDay - 1)
+        case .range(let a, let b):
+            lo = min(max(0, min(a, b)), n - 1)
+            hi = min(max(0, max(a, b)), n - 1)
+        }
+        let cap = Interconnect.all[edge].capacityMW
+        var absFlows: [Double] = []
+        var sum = 0.0, peak = 0.0
+        var congested = 0
+        for t in lo...hi {
+            if !wheel.isIdentity,
+               !wheel.passes(month: data.monthOfInterval[t], hour: data.hourOfInterval[t]) { continue }
+            let f = Double(data.flow[edge][t])
+            let a = abs(f)
+            absFlows.append(a)
+            sum += f
+            if a > peak { peak = a }
+            if a > cap * 0.95 { congested += 1 }
+        }
+        absFlows.sort(by: >)
+        let count = max(1, absFlows.count)
+        return DurationCurve(points: downsample(absFlows, to: 100),
+                             meanMW: sum / Double(count),
+                             peakMW: peak,
+                             congestionHours: Double(congested) * 5.0 / 60.0)
+    }
+}
+
+
+"""##,
+                "Sources/GridCore/QueryTypes.swift": ##"""
+// Sources/GridCore/QueryTypes.swift
+//
+// The engine's entire caller-facing vocabulary. The App target sees
+// nothing below this interface — no raw arrays cross it.
+public enum TimeSlice: Equatable, Sendable {
+    case instant(Int)
+    case range(Int, Int)       // inclusive lo...hi (order-normalized by the engine)
+}
+
+/// The season×hour wheel's selection. Bit m of `months` = month m
+/// selected; bit h of `hours` = hour h. All-zero on a dimension means
+/// "no filter" on that dimension.
+public struct SeasonHourFilter: Equatable, Sendable {
+    public var months: UInt16
+    public var hours: UInt32
+
+    public init(months: UInt16 = 0, hours: UInt32 = 0) {
+        self.months = months
+        self.hours = hours
+    }
+
+    @inline(__always)
+    public func passes(month: UInt8, hour: UInt8) -> Bool {
+        (months == 0 || (months >> month) & 1 == 1)
+            && (hours == 0 || (hours >> hour) & 1 == 1)
+    }
+
+    public var isIdentity: Bool { months == 0 && hours == 0 }
+}
+
+public enum LensMetric: Equatable, Sendable {
+    case carbonIntensity
+    case sourceShare(Source)
+}
+
+public struct GridQuery: Equatable, Sendable {
+    public var slice: TimeSlice
+    public var wheel: SeasonHourFilter
+    public var lensMetric: LensMetric
+    public var focusZone: Zone?
+
+    public init(slice: TimeSlice, wheel: SeasonHourFilter = SeasonHourFilter(),
+                lensMetric: LensMetric = .carbonIntensity, focusZone: Zone? = nil) {
+        self.slice = slice
+        self.wheel = wheel
+        self.lensMetric = lensMetric
+        self.focusZone = focusZone
+    }
+}
+
+public struct ZoneAggregate: Sendable {
+    public let zone: Zone
+    public let meanDemandMW: Double
+    public let meanPriceDollars: Double
+    public let genMW: [Double]          // mean MW by Source.rawValue
+    public let carbonIntensity: Double  // gCO2/kWh, generation-weighted
+    public let lensValue: Double        // intensity, or the share (0…1) for .sourceShare
+}
+
+public struct EdgeAggregate: Sendable {
+    public let index: Int               // into Interconnect.all
+    public let meanFlowMW: Double       // signed, + = from → to
+    public let peakAbsMW: Double
+    public let congestionShare: Double  // fraction of intervals with |flow| > 95% cap
+}
+
+public struct NationalAggregate: Sendable {
+    public let totalDemandMW: Double
+    public let genMW: [Double]
+    public let carbonIntensity: Double
+}
+
+/// Panel series, pre-downsampled in-engine — the UI never receives more
+/// than `bucketCount` points per series.
+public struct ChartSeries: Sendable {
+    public let bucketCount: Int
+    public let demand: [Double]
+    public let bySource: [[Double]]     // [source][bucket]
+    public let price: [Double]
+}
+
+public struct QueryStats: Sendable {
+    public let rowsTouched: Int
+    /// Stamped by the caller boundary (App shell, performance.now) so the
+    /// engine stays clock-free and host-testable.
+    public var elapsedMs: Double
+}
+
+public struct GridSnapshot: Sendable {
+    public let zones: [ZoneAggregate]
+    public let edges: [EdgeAggregate]
+    public let national: NationalAggregate
+    public let series: ChartSeries
+    public var stats: QueryStats
+    public let isEmpty: Bool
+}
+
+"""##,
+                "Sources/GridCore/SplitMix64.swift": ##"""
+// Sources/GridCore/SplitMix64.swift
+//
+// Deterministic PRNG for the synthetic dataset. SplitMix64: tiny, fast,
+// statistically fine for demo data, and — critically — identical output
+// on host and wasm32 because everything is explicit UInt64 (wasm32's
+// native Int is 32-bit; bare-Int mixing would differ or trap).
+public struct SplitMix64: Sendable {
+    private var state: UInt64
+    public init(seed: UInt64) { state = seed }
+
+    public mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+
+    /// Uniform in [0, 1) with 53 bits of mantissa.
+    public mutating func unit() -> Double {
+        Double(next() >> 11) * (1.0 / 9_007_199_254_740_992.0)
+    }
+
+    public mutating func range(_ lo: Double, _ hi: Double) -> Double {
+        lo + (hi - lo) * unit()
+    }
+}
+
+"""##,
+                "Sources/GridCore/Zones.swift": ##"""
+// Sources/GridCore/Zones.swift
+//
+// The fixed universe: 13 Canadian provinces/territories, 7 generation
+// sources, and the interconnects between zones (plus US-export ties,
+// modeled as `to: nil`). Capacities are round, plausible figures — this
+// is a demo dataset, not a grid model.
+public enum Zone: Int, CaseIterable, Sendable, Equatable {
+    case bc, ab, sk, mb, on, qc, nb, pe, ns, nl, yt, nt, nu
+
+    public var code: String {
+        switch self {
+        case .bc: "BC"; case .ab: "AB"; case .sk: "SK"; case .mb: "MB"
+        case .on: "ON"; case .qc: "QC"; case .nb: "NB"; case .pe: "PE"
+        case .ns: "NS"; case .nl: "NL"; case .yt: "YT"; case .nt: "NT"
+        case .nu: "NU"
+        }
+    }
+
+    public var name: String {
+        switch self {
+        case .bc: "British Columbia"; case .ab: "Alberta"
+        case .sk: "Saskatchewan"; case .mb: "Manitoba"
+        case .on: "Ontario"; case .qc: "Québec"
+        case .nb: "New Brunswick"; case .pe: "Prince Edward Island"
+        case .ns: "Nova Scotia"; case .nl: "Newfoundland and Labrador"
+        case .yt: "Yukon"; case .nt: "Northwest Territories"
+        case .nu: "Nunavut"
+        }
+    }
+}
+
+public enum Source: Int, CaseIterable, Sendable, Equatable {
+    case hydro, nuclear, gas, coal, wind, solar, diesel
+
+    public var label: String {
+        switch self {
+        case .hydro: "Hydro"; case .nuclear: "Nuclear"; case .gas: "Gas"
+        case .coal: "Coal"; case .wind: "Wind"; case .solar: "Solar"
+        case .diesel: "Diesel"
+        }
+    }
+
+    /// Lifecycle emission factors, gCO2eq/kWh (IPCC-style medians).
+    public var gCO2PerKWh: Double {
+        switch self {
+        case .hydro: 24; case .nuclear: 12; case .gas: 490
+        case .coal: 820; case .wind: 11; case .solar: 45; case .diesel: 650
+        }
+    }
+}
+
+/// A directed transmission tie. Positive flow = `from` → `to`.
+/// `to == nil` models a US export interface (the US side is not a zone).
+public struct Interconnect: Sendable, Equatable {
+    public let from: Zone
+    public let to: Zone?
+    public let capacityMW: Double
+
+    public var label: String { "\(from.code) → \(to?.code ?? "US")" }
+
+    public init(from: Zone, to: Zone?, capacityMW: Double) {
+        self.from = from
+        self.to = to
+        self.capacityMW = capacityMW
+    }
+
+    public static let all: [Interconnect] = [
+        Interconnect(from: .bc, to: .ab, capacityMW: 1_200),
+        Interconnect(from: .ab, to: .sk, capacityMW: 150),
+        Interconnect(from: .sk, to: .mb, capacityMW: 300),
+        Interconnect(from: .mb, to: .on, capacityMW: 250),
+        Interconnect(from: .qc, to: .on, capacityMW: 2_700),
+        Interconnect(from: .qc, to: .nb, capacityMW: 1_000),
+        Interconnect(from: .nb, to: .ns, capacityMW: 500),
+        Interconnect(from: .nb, to: .pe, capacityMW: 560),
+        Interconnect(from: .nl, to: .qc, capacityMW: 5_000),   // Churchill Falls
+        Interconnect(from: .bc, to: nil, capacityMW: 3_000),
+        Interconnect(from: .mb, to: nil, capacityMW: 2_100),
+        Interconnect(from: .on, to: nil, capacityMW: 2_500),
+        Interconnect(from: .qc, to: nil, capacityMW: 4_000),
+        Interconnect(from: .nb, to: nil, capacityMW: 1_000),
+    ]
+}
+
+"""##,
+                "Tests/GridCoreTests/EngineTests.swift": ##"""
+import Testing
+@testable import GridCore
+
+@Suite("GridEngine")
+struct EngineTests {
+    static func fixture() -> GridEngine {
+        let zc = Zone.allCases.count, n = 4
+        var demand = [Float](repeating: 0, count: zc * n)
+        var price = [Float](repeating: 0, count: zc * n)
+        var gen = [[Float]](repeating: [Float](repeating: 0, count: zc * n), count: Source.allCases.count)
+        var flow = [[Float]](repeating: [Float](repeating: 0, count: n), count: Interconnect.all.count)
+        let qc = Zone.qc.rawValue * n, ab = Zone.ab.rawValue * n
+        for t in 0..<n {
+            demand[qc + t] = Float(10 * (t + 1))
+            gen[Source.hydro.rawValue][qc + t] = Float(10 * (t + 1))
+            price[qc + t] = Float(t + 1)
+            demand[ab + t] = 100
+            gen[Source.gas.rawValue][ab + t] = 60
+            gen[Source.coal.rawValue][ab + t] = 40
+            price[ab + t] = 50
+        }
+        flow[0] = [100, -100, 200, 1200]
+        let data = GridDataset(demand: demand, price: price, gen: gen, flow: flow,
+                               monthOfInterval: [0, 0, 6, 6], hourOfInterval: [3, 20, 3, 20])
+        return GridEngine(data: data)
+    }
+
+    @Test("instant query reads a single interval exactly")
+    func instant() {
+        let snap = Self.fixture().query(GridQuery(slice: .instant(2)))
+        let qc = snap.zones[Zone.qc.rawValue]
+        #expect(qc.meanDemandMW == 30)
+        #expect(qc.genMW[Source.hydro.rawValue] == 30)
+        #expect(qc.carbonIntensity == 24)                    // pure hydro
+        let ab = snap.zones[Zone.ab.rawValue]
+        #expect(ab.meanDemandMW == 100)
+        // AB intensity: (60·490 + 40·820) / 100 = 622
+        #expect(abs(ab.carbonIntensity - 622) < 0.001)
+        #expect(!snap.isEmpty)
+    }
+
+    @Test("range query means; national aggregate sums zones")
+    func range() {
+        let snap = Self.fixture().query(GridQuery(slice: .range(0, 3)))
+        let qc = snap.zones[Zone.qc.rawValue]
+        #expect(qc.meanDemandMW == 25)                       // (10+20+30+40)/4
+        #expect(qc.meanPriceDollars == 2.5)
+        #expect(snap.national.totalDemandMW == 125)          // 25 + 100
+        #expect(abs(snap.national.genMW[Source.hydro.rawValue] - 25) < 0.001)
+    }
+
+    @Test("wheel filter: month mask selects January intervals only")
+    func wheelMonths() {
+        // months bit 0 = January → intervals 0 and 1.
+        let wheel = SeasonHourFilter(months: 1)
+        let snap = Self.fixture().query(GridQuery(slice: .range(0, 3), wheel: wheel))
+        #expect(snap.zones[Zone.qc.rawValue].meanDemandMW == 15)   // (10+20)/2
+    }
+
+    @Test("wheel filter: month × hour intersect; impossible combo → isEmpty")
+    func wheelIntersection() {
+        // January (bit 0) AND hour 20 (bit 20) → interval 1 only.
+        let both = SeasonHourFilter(months: 1, hours: 1 << 20)
+        let snap = Self.fixture().query(GridQuery(slice: .range(0, 3), wheel: both))
+        #expect(snap.zones[Zone.qc.rawValue].meanDemandMW == 20)
+        // July (bit 6) AND hour 5 (unused) → nothing passes.
+        let none = SeasonHourFilter(months: 1 << 6, hours: 1 << 5)
+        let empty = Self.fixture().query(GridQuery(slice: .range(0, 3), wheel: none))
+        #expect(empty.isEmpty)
+        #expect(empty.zones[Zone.qc.rawValue].meanDemandMW == 0)
+    }
+
+    @Test("lens metric: sourceShare returns the generation share")
+    func lens() {
+        let q = GridQuery(slice: .instant(0), wheel: SeasonHourFilter(),
+                          lensMetric: .sourceShare(.gas))
+        let snap = Self.fixture().query(q)
+        #expect(abs(snap.zones[Zone.ab.rawValue].lensValue - 0.6) < 0.001)
+        #expect(snap.zones[Zone.qc.rawValue].lensValue == 0)
+    }
+
+    @Test("edges: mean, peak, congestion share")
+    func edges() {
+        let snap = Self.fixture().query(GridQuery(slice: .range(0, 3)))
+        let e = snap.edges[0]                                // BC→AB, cap 1200
+        #expect(e.meanFlowMW == 350)                         // (100-100+200+1200)/4
+        #expect(e.peakAbsMW == 1200)
+        #expect(e.congestionShare == 0.25)                   // only 1200 > 1140
+    }
+
+    @Test("series: buckets equal the range length when short; focus zone respected")
+    func series() {
+        let snap = Self.fixture().query(GridQuery(slice: .range(0, 3), focusZone: .qc))
+        #expect(snap.series.bucketCount == 4)
+        #expect(snap.series.demand == [10, 20, 30, 40])
+        #expect(snap.series.bySource[Source.hydro.rawValue] == [10, 20, 30, 40])
+    }
+
+    @Test("rows touched scales with visited intervals")
+    func stats() {
+        let full = Self.fixture().query(GridQuery(slice: .range(0, 3)))
+        let one = Self.fixture().query(GridQuery(slice: .instant(0)))
+        #expect(full.stats.rowsTouched == 4 * 13 * 9 + 4 * 14)
+        #expect(one.stats.rowsTouched == 13 * 9 + 14)
+    }
+}
+
+@Suite("GridEngine extras")
+struct EngineExtrasTests {
+    @Test("downsample: bucket means, pass-through when short")
+    func downsampleBasics() {
+        #expect(downsample([1, 2, 3, 4], to: 2) == [1.5, 3.5])
+        #expect(downsample([1, 2], to: 4) == [1, 2])
+        #expect(downsample([], to: 4) == [])
+    }
+
+    @Test("lensSeries: trailing window clamps at zero; mix reads the instant")
+    func lens() {
+        let e = EngineTests.fixture()
+        let s = e.lensSeries(zone: .qc, around: 2)
+        #expect(s.demand24h == [10, 20, 30])                 // 4-interval fixture, t ≤ 2
+        #expect(s.mixMW[Source.hydro.rawValue] == 30)
+        #expect(s.mixMW[Source.gas.rawValue] == 0)
+    }
+
+    @Test("durationCurve: sorted descending, congestion in hours")
+    func duration() {
+        let e = EngineTests.fixture()
+        let c = e.durationCurve(edge: 0, slice: .range(0, 3), wheel: SeasonHourFilter())
+        #expect(c.points == [1200, 200, 100, 100])
+        #expect(c.meanMW == 350)
+        #expect(c.peakMW == 1200)
+        #expect(abs(c.congestionHours - 5.0 / 60.0) < 0.0001)  // one 5-min interval
+    }
+}
+
+
+"""##,
+                "Tests/GridCoreTests/GeneratorTests.swift": ##"""
+import Testing
+@testable import GridCore
+
+/// Small-N generation would be nicer, but the generator is fixed-size by
+/// design (the whole point is the 105k-interval year). One shared instance
+/// keeps the suite fast; generation is ~a second on host.
+@Suite("Generator", .serialized)
+struct GeneratorTests {
+    static let a = GridDataset.generate(seed: 1)
+
+    @Test("deterministic: same seed → identical arrays; different seed diverges")
+    func determinism() {
+        let b = GridDataset.generate(seed: 1)
+        let c = GridDataset.generate(seed: 2)
+        #expect(Self.a.demand == b.demand)
+        #expect(Self.a.price == b.price)
+        #expect(Self.a.gen == b.gen)
+        #expect(Self.a.flow == b.flow)
+        #expect(Self.a.demand != c.demand)
+    }
+
+    @Test("physical sanity: no NaN, no negatives, flows within capacity")
+    func sanity() {
+        let d = Self.a
+        #expect(!d.demand.contains { $0.isNaN || $0 < 0 })
+        #expect(!d.price.contains { $0.isNaN || $0 < 0 })
+        for s in d.gen { #expect(!s.contains { $0.isNaN || $0 < 0 }) }
+        for (i, tie) in Interconnect.all.enumerated() {
+            let cap = Float(tie.capacityMW)
+            #expect(!d.flow[i].contains { $0.isNaN || abs($0) > cap * 1.001 })
+        }
+    }
+
+    @Test("dispatch identity: Σgen == demand + netExport (per zone, sampled)")
+    func identity() {
+        let d = Self.a
+        let n = GridDataset.intervalCount
+        for t in stride(from: 0, to: n, by: 997) {
+            var netExport = [Double](repeating: 0, count: Zone.allCases.count)
+            for (i, tie) in Interconnect.all.enumerated() {
+                let f = Double(d.flow[i][t])
+                netExport[tie.from.rawValue] += f
+                if let to = tie.to { netExport[to.rawValue] -= f }
+            }
+            for z in Zone.allCases {
+                let total = Source.allCases.reduce(0.0) { $0 + Double(d.gen($1, z, t)) }
+                let target = Double(d.demand(z, t)) + netExport[z.rawValue]
+                // Curtailment floors generation at demand+export ≥ 0; the
+                // identity holds within Float rounding either way.
+                #expect(abs(total - max(0, target)) < max(1.0, abs(target) * 0.001),
+                        "zone \(z.code) t=\(t): gen \(total) vs target \(target)")
+            }
+        }
+    }
+
+    @Test("shape: winter-peaking Québec, daylight-bounded solar, calendar sane")
+    func shape() {
+        let d = Self.a
+        let n = GridDataset.intervalCount
+        // Mean QC demand in January > mean QC demand in July.
+        var jan = 0.0, jul = 0.0, janN = 0, julN = 0
+        for t in 0..<n {
+            if d.monthOfInterval[t] == 0 { jan += Double(d.demand(.qc, t)); janN += 1 }
+            if d.monthOfInterval[t] == 6 { jul += Double(d.demand(.qc, t)); julN += 1 }
+        }
+        #expect(jan / Double(janN) > jul / Double(julN) * 1.2)
+        // No solar at 2am anywhere, ever.
+        for t in 0..<n where d.hourOfInterval[t] == 2 {
+            for z in Zone.allCases { #expect(d.gen(.solar, z, t) == 0) }
+        }
+        // Calendar: month array is monotone non-decreasing, hours cycle 0–23.
+        #expect(d.monthOfInterval.first == 0 && d.monthOfInterval.last == 11)
+        #expect(Set(d.hourOfInterval) == Set(0...23))
+    }
+}
+
+"""##,
+                "Tests/GridCoreTests/PRNGTests.swift": ##"""
+import Testing
+@testable import GridCore
+
+@Suite("SplitMix64")
+struct PRNGTests {
+    @Test("same seed produces the same stream; different seeds diverge")
+    func determinism() {
+        var a = SplitMix64(seed: 42), b = SplitMix64(seed: 42), c = SplitMix64(seed: 43)
+        let streamA = (0..<64).map { _ in a.next() }
+        let streamB = (0..<64).map { _ in b.next() }
+        let streamC = (0..<64).map { _ in c.next() }
+        #expect(streamA == streamB)
+        #expect(streamA != streamC)
+    }
+
+    @Test("unit() stays in [0,1) and range() respects bounds")
+    func bounds() {
+        var r = SplitMix64(seed: 7)
+        for _ in 0..<10_000 {
+            let u = r.unit()
+            #expect(u >= 0 && u < 1)
+            let v = r.range(-3, 5)
+            #expect(v >= -3 && v < 5)
+        }
+    }
+
+    @Test("universe shape: 13 zones, 7 sources, 14 interconnects")
+    func universe() {
+        #expect(Zone.allCases.count == 13)
+        #expect(Source.allCases.count == 7)
+        #expect(Interconnect.all.count == 14)
+        // Every non-US tie references two distinct zones.
+        for tie in Interconnect.all where tie.to != nil {
+            #expect(tie.from != tie.to)
+        }
+    }
+}
+
+"""##,
+                "index.html": ##"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{NAME}}</title>
+    <style>
+      /* Swiflow loading indicator. The driver writes
+         documentElement.dataset.swiflowProgress = "0".."100"
+         during WASM fetch. Everything else (theme, layout, components) is
+         owned by per-component scopedStyles in Swift. */
+      html { color-scheme: light dark; }
+      html[data-swiflow-progress]:not([data-swiflow-progress="100"])::before {
+        content: "Loading " attr(data-swiflow-progress) "%";
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+        font: 16px/1.4 system-ui, sans-serif;
+        z-index: 9999;
+      }
+      body { margin: 0; min-height: 100dvh; background: Canvas; color: CanvasText;
+             font: 16px/1.5 -apple-system, system-ui, sans-serif; overscroll-behavior: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="swiflow-driver.js"></script>
+  </body>
+</html>
+
+"""##,
+            ]
+        ),
+        Template(
             name: "HelloWorld",
             files: [
                 ".gitignore": ##"""
