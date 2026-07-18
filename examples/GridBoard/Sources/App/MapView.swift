@@ -86,6 +86,11 @@ extension GridShell {
                 .attr("viewBox", "0 0 \(Int(MapGeometry.viewWidth)) \(Int(MapGeometry.viewHeight))"),
                 .attr("preserveAspectRatio", "xMidYMid meet"),
             ], children: children),
+            element("canvas", attributes: [
+                .class("gb-flow-canvas"),
+                .attr("width", "1000"), .attr("height", "760"),
+                .ref(canvasRef),
+            ]).unmanagedChildren(),
             lensOverlay(),
         ])
     }
