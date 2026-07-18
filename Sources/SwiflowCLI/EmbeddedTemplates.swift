@@ -672,6 +672,11 @@ plus two helpers. Replace `GridDataset.generate(seed:)` with a loader
 for your own columnar data and everything downstream follows. The
 GridCore test suite (`swift test`) runs on the host.
 
+One caveat: the scrubber's time axis assumes the generator's shape (a
+365-day year at 5-minute resolution). Loading data with a different
+resolution or date range also means updating the interval math in
+`Sources/App/Scrubber.swift`.
+
 ## Architecture notes
 
 - `GridCore` — columnar struct-of-arrays store, deterministic synthetic
@@ -2079,6 +2084,7 @@ extension GridShell {
 
 """##,
                 "Sources/GridCore/Generator.swift": ##"""
+// Sources/GridCore/Generator.swift
 //
 // libc, not Foundation: sin/cos/exp/pow come from the platform C library
 // (WASILibc on wasm32) — GridCore's no-Foundation constraint holds.
@@ -2590,7 +2596,6 @@ extension GridEngine {
     }
 }
 
-
 """##,
                 "Sources/GridCore/QueryTypes.swift": ##"""
 // Sources/GridCore/QueryTypes.swift
@@ -2943,7 +2948,6 @@ struct EngineExtrasTests {
         #expect(abs(c.congestionHours - 5.0 / 60.0) < 0.0001)  // one 5-min interval
     }
 }
-
 
 """##,
                 "Tests/GridCoreTests/GeneratorTests.swift": ##"""

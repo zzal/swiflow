@@ -226,4 +226,3 @@ extension GridEngine {
                              congestionHours: Double(congested) * 5.0 / 60.0)
     }
 }
-

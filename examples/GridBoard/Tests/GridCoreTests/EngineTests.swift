@@ -133,4 +133,3 @@ struct EngineExtrasTests {
         #expect(abs(c.congestionHours - 5.0 / 60.0) < 0.0001)  // one 5-min interval
     }
 }
-
