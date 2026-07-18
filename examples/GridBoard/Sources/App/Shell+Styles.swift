@@ -156,4 +156,3 @@ extension GridShell {
         .gb-lens-spark-line { fill: none; stroke: var(--gb-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
         """)
 }
-
