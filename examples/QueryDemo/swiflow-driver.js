@@ -128,6 +128,16 @@
     };
   }
 
+  // SVG tags rendered via createElementNS. Deliberately excludes the
+  // dual-namespace tags (a, title, style, script, font) — those stay HTML;
+  // inside an SVG subtree Swiflow apps don't need them. Sync with
+  // Swift-side docs if extended.
+  const SVG_TAGS = new Set([
+    "svg", "path", "g", "circle", "ellipse", "rect", "line", "polyline",
+    "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient",
+    "stop", "marker", "clipPath", "mask", "pattern", "use", "symbol",
+  ]);
+
   /**
    * Apply a single patch. The opcode is `p.op`; field names match the
    * Swift-side `PatchSerializer.encode(...)` contract.
@@ -136,7 +146,9 @@
     switch (p.op) {
       // Lifecycle
       case "createElement":
-        nodes.set(p.handle, document.createElement(p.tag));
+        nodes.set(p.handle, SVG_TAGS.has(p.tag)
+          ? document.createElementNS("http://www.w3.org/2000/svg", p.tag)
+          : document.createElement(p.tag));
         return;
       case "createText":
         nodes.set(p.handle, document.createTextNode(p.text));
