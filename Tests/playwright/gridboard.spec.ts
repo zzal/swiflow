@@ -18,11 +18,12 @@ test.describe("GridBoard smoke", () => {
     const readout = page.locator(".gb-readout");
     const before = await readout.innerText();
     const track = page.locator("svg.gb-track");
+    // The scrubber lives below the fold at default viewport height and
+    // page.mouse does not auto-scroll — bring it into view first.
+    await track.scrollIntoViewIfNeeded();
     const box = await track.boundingBox();
     if (!box) throw new Error("scrubber track not laid out");
-    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.up();
+    await track.click({ position: { x: box.width * 0.8, y: box.height / 2 } });
     await expect(readout).not.toHaveText(before);
   });
 });
