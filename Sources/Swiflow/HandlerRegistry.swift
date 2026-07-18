@@ -26,7 +26,12 @@ package final class HandlerRegistry: @unchecked Sendable {
 
     private struct Scope {
         var debugName: String
-        var ids: [Int]
+        // A Set, not an Array: eviction must be O(1). With an Array the
+        // per-handler `removeAll` scan made every eviction O(scope size),
+        // which turned any handler leak into a quadratic frame-time blowup
+        // at animation-rate renders. Order is irrelevant — `closeScope`
+        // evicts all members and nothing observes insertion order.
+        var ids: Set<Int>
     }
     private var scopes: [ScopeID: Scope] = [:]
     private var openScopes: [ScopeID] = []      // open scope IDs in push order; last = top
@@ -56,7 +61,7 @@ package final class HandlerRegistry: @unchecked Sendable {
         handlers[id] = handler
         Self.globalTable[id] = handler
         if let scope {
-            scopes[scope]?.ids.append(id)
+            scopes[scope]?.ids.insert(id)
             handlerToScope[id] = scope
         }
     }
@@ -67,7 +72,7 @@ package final class HandlerRegistry: @unchecked Sendable {
         handlers.removeValue(forKey: id)
         Self.globalTable.removeValue(forKey: id)
         if let scopeID = handlerToScope.removeValue(forKey: id) {
-            scopes[scopeID]?.ids.removeAll { $0 == id }
+            scopes[scopeID]?.ids.remove(id)
         }
     }
 

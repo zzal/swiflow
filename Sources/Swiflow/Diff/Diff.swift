@@ -467,7 +467,16 @@ func update(
         // for the whole subtree — the new VNode's ref/task bindings are never
         // even inspected. Don't pair `.memoKey` with `.ref`/`.task(rerunOn:)`
         // expecting them to pick up live updates on a memo hit.
+        //
+        // The discarded subtree's handlers were already registered during
+        // body build (`.on` registers eagerly, before the diff runs). They
+        // must be evicted here or every memo hit leaks its subtree's handler
+        // registrations into the owning scope until the component unmounts —
+        // at animation-rate render frequencies that grew the scope by
+        // hundreds of IDs per second and degraded every later eviction
+        // (found via GridBoard playback: 60 → 6 fps over minutes).
         if let oldKey = oldData.memoKey, let newKey = newData.memoKey, oldKey == newKey {
+            evictDiscardedHandlers(of: next, handlers: handlers)
             return mounted
         }
         // Refs: clear old bindings, then re-bind new bindings to the
@@ -838,6 +847,38 @@ func diffHandlers(
     }
 
     return nextIDs
+}
+
+/// Evicts every handler registered by a discarded VNode subtree — the
+/// new tree a memoKey hit throws away. `.on` closures register with the
+/// `HandlerRegistry` while the component body is being BUILT, so by diff
+/// time the discarded tree's handlers are already in the registry; without
+/// this walk they'd stay there (attributed to the owning scope) until the
+/// component unmounts.
+///
+/// `.component` nodes are deliberately not recursed into: an embedded
+/// child's body has not been evaluated for the discarded tree (body
+/// evaluation happens during the component's own mount/update), so it has
+/// registered nothing yet.
+@MainActor
+func evictDiscardedHandlers(of vnode: VNode, handlers: HandlerRegistry) {
+    switch vnode {
+    case .element(let data):
+        for (_, handler) in data.handlers {
+            handlers.remove(id: handler.id)
+        }
+        for child in data.children {
+            evictDiscardedHandlers(of: child, handlers: handlers)
+        }
+    case .fragment(let children):
+        for child in children {
+            evictDiscardedHandlers(of: child, handlers: handlers)
+        }
+    case .environmentOverride(_, let child):
+        evictDiscardedHandlers(of: child, handlers: handlers)
+    case .text, .rawHTML, .component:
+        return
+    }
 }
 
 /// True when this anchor's body chain ends at a `.fragment` — the case
