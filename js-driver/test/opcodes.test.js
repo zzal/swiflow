@@ -421,4 +421,27 @@ describe("driver opcodes", () => {
     assert.equal(result, false, "the batch itself is still reported as having had a failure");
     assert.ok(errors.some(a => String(a[0]).includes("patch failed")));
   });
+
+  test("createElement uses the SVG namespace for SVG tags", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "svg" },
+      { op: "createElement", handle: 2, tag: "path" },
+      { op: "setAttribute", handle: 1, name: "viewBox", value: "0 0 10 10" },
+      { op: "setAttribute", handle: 2, name: "d", value: "M0 0L10 10" },
+      { op: "appendChild", parent: 1, child: 2 },
+    ]);
+    swiflow.mount(1, "#app");
+    const svg = document.querySelector("svg");
+    assert.equal(svg.namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal(svg.querySelector("path").namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal(svg.getAttribute("viewBox"), "0 0 10 10");
+  });
+
+  test("ambiguous dual-namespace tags stay HTML", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "a" }]);
+    swiflow.mount(1, "#app");
+    assert.equal(document.querySelector("a").namespaceURI, "http://www.w3.org/1999/xhtml");
+  });
 });
