@@ -6,6 +6,7 @@
 // numbers include it). Uses clientX/Y minus the wrap's rect: offsetX
 // would be relative to whichever <path> the pointer is over.
 import Swiflow
+import SwiflowUI
 import JavaScriptKit
 import GridCore
 
@@ -33,17 +34,17 @@ extension GridShell {
             x += w
         }
         let agg = snap.zones[z.rawValue]
-        return element("div", attributes: [
+        return Card(
             .class("gb-lens"),
             .style("left", "\(Int(lensPx + 14))px"),
-            .style("top", "\(Int(lensPy + 14))px"),
-        ], children: [
-            element("strong", attributes: [], children: [text(z.name)]),
+            .style("top", "\(Int(lensPy + 14))px")
+        ) {
+            element("strong", attributes: [], children: [text(z.name)])
             element("div", attributes: [.class("gb-lens-stats")], children: [
                 text("\(Int(agg.meanDemandMW.rounded())) MW · \(Int(agg.carbonIntensity.rounded())) g/kWh"),
-            ]),
+            ])
             element("svg", attributes: [.attr("viewBox", "0 0 140 8"), .class("gb-lens-mix")],
-                    children: mixBars),
+                    children: mixBars)
             element("svg", attributes: [.attr("viewBox", "0 0 140 30"), .class("gb-lens-spark")],
                     children: [
                 element("path", attributes: [
@@ -51,8 +52,8 @@ extension GridShell {
                                         maxV: max(1, series.demand24h.max() ?? 1))),
                     .class("gb-lens-spark-line"),
                 ]),
-            ]),
-        ])
+            ])
+        }
     }
 
     @MainActor

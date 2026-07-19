@@ -4,6 +4,7 @@
 // elapsed ms, live fps, and the startup generation time. Collapsible so
 // screenshots can go chrome-less.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
@@ -27,10 +28,9 @@ extension GridShell {
     func hudView() -> VNode {
         let datasetPts = GridDataset.intervalCount * Zone.allCases.count * 9
         var children: [VNode] = [
-            element("button", attributes: [
-                .class("gb-hud-toggle"),
-                .on(.click) { [weak self] in self?.hudOpen.toggle() },
-            ], children: [text(hudOpen ? "⌄" : "⌃")]),
+            Button(hudOpen ? "⌄" : "⌃", variant: .ghost, size: .xs) { [weak self] in
+                self?.hudOpen.toggle()
+            },
         ]
         if hudOpen {
             let stats = snapshot?.stats
@@ -42,7 +42,7 @@ extension GridShell {
                 hudCell("\(Int(buildMs.rounded())) ms", "generated in"),
             ]))
         }
-        return element("div", attributes: [.class("gb-hud")], children: children)
+        return Card(variant: .outlined, .class("gb-hud")) { children }
     }
 
     @MainActor

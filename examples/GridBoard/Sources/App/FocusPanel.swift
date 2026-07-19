@@ -5,6 +5,7 @@
 // a price line over the active slice. Task 11 swaps this panel for the
 // interconnect inspector when an edge is selected.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
@@ -12,10 +13,10 @@ extension GridShell {
     func sidePanel() -> VNode {
         if inspectedEdge != nil { return inspectorPanel() }
         guard let snap = snapshot, !snap.isEmpty else {
-            return element("aside", attributes: [.class("gb-panel")], children: [
-                element("p", attributes: [.class("gb-empty")],
-                        children: [text(snapshot == nil ? "Crunching the year…" : "— no intervals match —")]),
-            ])
+            return Card(variant: .outlined, .class("gb-panel")) {
+                Text(snapshot == nil ? "Crunching the year…" : "— no intervals match —",
+                     variant: .body, color: .muted, .class("gb-empty"))
+            }
         }
         let title = focusZone?.name ?? "Canada"
         let genMW: [Double]
@@ -59,7 +60,7 @@ extension GridShell {
                 ]),
             ])))
         }
-        return element("aside", attributes: [.class("gb-panel")], children: children)
+        return Card(variant: .outlined, .class("gb-panel")) { children }
     }
 
     @MainActor
