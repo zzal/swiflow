@@ -619,8 +619,8 @@ final class DataTableBox {
         let end = first + window.count
         let tbody = element("tbody",
                             attributes: [
-                                .style("padding-top", "\(first * rowHeight)px"),
-                                .style("padding-bottom", "\(max(0, total - end) * rowHeight)px"),
+                                .style("padding-top", "\(cssPixelInt(Double(first) * Double(rowHeight)))px"),
+                                .style("padding-bottom", "\(cssPixelInt(Double(max(0, total - end)) * Double(rowHeight)))px"),
                                 .attr("role", "rowgroup"),
                             ],
                             children: virtualBodyRows(window, first: first, rowHeight: rowHeight, gridColumns: cols))
@@ -702,9 +702,9 @@ final class DataTableBox {
         guard let node = scrollRef.wrappedValue, let rh = activeRowHeight(), rh > 0 else { return }
         let top = node.scrollTop.number ?? 0
         let height = node.clientHeight.number ?? 0
-        let newFirst = max(0, Int(top) / rh)
-        let newRowsInView = (Int(height) + rh - 1) / rh
-        let oldRowsInView = viewportHeight > 0 ? (Int(viewportHeight) + rh - 1) / rh : -1
+        let newFirst = cssPixelInt(top) / rh
+        let newRowsInView = (cssPixelInt(height) + rh - 1) / rh
+        let oldRowsInView = viewportHeight > 0 ? (cssPixelInt(viewportHeight) + rh - 1) / rh : -1
         if newFirst != firstVisibleIndex() || newRowsInView != oldRowsInView {
             setViewportMetrics(scrollTop: top, viewportHeight: height)
         }

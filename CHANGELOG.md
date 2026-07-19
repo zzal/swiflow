@@ -26,6 +26,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   clicks during the exit window can't dispatch into evicted handlers.
 - The dev-mode `window.__swiflow` API no longer re-creates its four closures
   on every render/unmount (each re-install pinned the prior set forever).
+- `NumberField`/`Slider` no longer trap in the browser when a whole-number
+  `min`/`max`/`step` exceeds ±2^31 (wasm32 `Int` is 32-bit; such values now
+  render via the plain `Double` path on every platform). `DataTable`'s scroll
+  handler and virtual-runway padding route through the same trap-free pixel
+  clamp as the rest of its pixel math.
 
 ### Removed
 

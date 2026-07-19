@@ -147,3 +147,34 @@ struct NumberFieldTests {
         #expect(stored == 42)
     }
 }
+
+// formatControlNumber's whole-number fast path must stop at ±2^31: Int(v)
+// past that traps on wasm32 (host Int is 64-bit and hides it), and the
+// cutoff is the same on every platform so these host assertions pin the
+// exact strings wasm emits (cf. cssPixelInt).
+@Suite("formatControlNumber — wasm32-safe whole-number cutoff")
+@MainActor
+struct FormatControlNumberTests {
+    @Test("whole numbers inside Int32 render without a trailing .0")
+    func wholeInsideInt32() {
+        #expect(formatControlNumber(0) == "0")
+        #expect(formatControlNumber(-5) == "-5")
+        #expect(formatControlNumber(2_147_483_647) == "2147483647")
+        // Int32.min itself sits on the conservative side of the magnitude
+        // cutoff — it takes the Double rendering rather than special-casing
+        // one value.
+        #expect(formatControlNumber(-2_147_483_647) == "-2147483647")
+    }
+
+    @Test("whole numbers past the Int32 bound fall back to String(v) instead of trapping")
+    func wholeBeyondInt32() {
+        #expect(formatControlNumber(2_147_483_648) == String(2_147_483_648.0))
+        #expect(formatControlNumber(10_000_000_000) == String(10_000_000_000.0))   // epoch-ms scale
+    }
+
+    @Test("fractional values keep the plain Double rendering")
+    func fractional() {
+        #expect(formatControlNumber(0.5) == "0.5")
+        #expect(formatControlNumber(-3.25) == "-3.25")
+    }
+}
