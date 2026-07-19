@@ -210,6 +210,11 @@ public final class PersistentStore {
 
     private func evictConnection() {
         database = nil
+        // release() drops the watchers from JavaScriptKit's static
+        // `sharedClosures` table (clearing the array alone leaks them
+        // there). Releasing the currently-executing watcher from inside
+        // its own invocation is safe — JSOneshotClosure does exactly that.
+        for watcher in connectionWatchers { watcher.release() }
         connectionWatchers = []
     }
 
@@ -218,21 +223,26 @@ public final class PersistentStore {
     /// caller *after* the await (the request object stays alive in scope), so no
     /// non-`Sendable` `JSValue` crosses the continuation.
     ///
-    /// JavaScriptKit ref-counts `JSClosure`s on the Swift side, so the handlers
-    /// must outlive the synchronous setup below. A retainer ↔ closures reference
-    /// cycle keeps them alive with no external owner; the first handler to fire
-    /// breaks the cycle, releasing all of them.
+    /// The handlers must outlive the synchronous setup below; a retainer
+    /// holds them with no external owner. The first handler to fire
+    /// `release()`s ALL of them — dropping the Swift references alone is
+    /// NOT enough, because `JSClosure.init` pins each closure in
+    /// JavaScriptKit's static `sharedClosures` table until released.
+    /// Before this, every IndexedDB request (every `@Persisted` write)
+    /// leaked its 2–3 handlers in that table. Releasing the currently
+    /// executing closure from inside its own body is sanctioned
+    /// (JSOneshotClosure's own implementation does it).
     private func awaitRequest(_ request: JSObject, onUpgradeNeeded: (() -> Void)? = nil) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let retainer = ClosureRetainer()
 
             let onSuccess = JSClosure { _ in
-                retainer.closures = []
+                retainer.releaseAll()
                 continuation.resume(returning: ())
                 return .undefined
             }
             let onError = JSClosure { _ in
-                retainer.closures = []
+                retainer.releaseAll()
                 let message = request.error.object?.message.string ?? "IndexedDB request failed"
                 // DEBUG visibility (audit IV Wave-3): callers routinely
                 // swallow these with `try?` (fire-and-forget saves), so a
@@ -263,6 +273,13 @@ public final class PersistentStore {
 /// See `awaitRequest` for the retain-cycle lifetime trick.
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
+
+    /// Releases every held closure from JavaScriptKit's static table and
+    /// drops the references. Called by whichever handler fires first.
+    func releaseAll() {
+        for closure in closures { closure.release() }
+        closures = []
+    }
 }
 
 /// Wraps a `JSObject` so it can be the `Success` type of an unstructured

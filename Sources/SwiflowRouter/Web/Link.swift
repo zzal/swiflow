@@ -91,13 +91,16 @@ public final class Link: Component {
     }
 
     public func onDisappear() {
-        // Held for ownership clarity, not because it's what keeps `closure`
-        // callable — `JSClosure.init` self-registers into JavaScriptKit's
-        // static `sharedClosures` table. What actually stops it from firing
-        // is this explicit `removeEventListener` call (mirrors Toast's
-        // stopTimer-on-onDisappear discipline).
-        if let el = linkRef.wrappedValue, let closure = clickClosure {
-            _ = el.removeEventListener!("click", closure)
+        // removeEventListener stops the callback from firing; release()
+        // drops it from JavaScriptKit's static `sharedClosures` table —
+        // BOTH are required. `JSClosure.init` pins the closure in that
+        // static table until released, so skipping release here leaked one
+        // closure per Link mount/unmount cycle (i.e. per route change).
+        if let closure = clickClosure {
+            if let el = linkRef.wrappedValue {
+                _ = el.removeEventListener!("click", closure)
+            }
+            closure.release()
         }
         clickClosure = nil
     }
