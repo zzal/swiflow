@@ -61,6 +61,52 @@ describe("driver opcodes", () => {
     // entry only. removeChild is what removes from DOM.
   });
 
+  test("animateExit detaches listeners immediately, removes the node after the window", async () => {
+    const { swiflow, window, document } = setupDriver();
+    let callCount = 0;
+    window.__swiflowDispatch = () => { callCount += 1; };
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createElement", handle: 2, tag: "button" },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "addHandler", handle: 2, event: "click", handlerId: 7 },
+    ]);
+    swiflow.mount(1, "#app");
+    const btn = document.querySelector("button");
+    btn.click();
+    assert.equal(callCount, 1);
+
+    swiflow.applyPatches([
+      { op: "animateExit", handle: 2, parentHandle: 1, animation: "out 0.2s", durationMs: 0 },
+    ]);
+    assert.equal(btn.style.animation, "out 0.2s");
+    // The Swift side evicted handler id 7 when it emitted the patch — a
+    // click inside the animation window must not dispatch, and the
+    // listeners entry must be gone (this was the per-toast leak).
+    btn.click();
+    assert.equal(callCount, 1, "no dispatch during the exit window");
+
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(document.querySelector("button"), null, "removed after the window");
+    // Map entry gone → re-destroying the handle is a no-op.
+    swiflow.applyPatches([{ op: "destroyNode", handle: 2 }]);
+  });
+
+  test("animateExit falls back to node.parentNode when parentHandle is unknown", async () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createElement", handle: 2, tag: "span" },
+      { op: "appendChild", parent: 1, child: 2 },
+    ]);
+    swiflow.mount(1, "#app");
+    swiflow.applyPatches([
+      { op: "animateExit", handle: 2, parentHandle: 99, animation: "out 0.1s", durationMs: 0 },
+    ]);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(document.querySelector("span"), null);
+  });
+
   test("insertBefore places a child before a reference child", () => {
     const { swiflow, document } = setupDriver();
     swiflow.applyPatches([
