@@ -9,7 +9,7 @@ import GridCore
 extension GridShell {
     @MainActor
     func inspectorPanel() -> VNode {
-        guard let i = inspectedEdge else {
+        guard let i = inspectedEdge, let engine else {
             return element("aside", attributes: [.class("gb-panel")], children: [])
         }
         let tie = Interconnect.all[i]

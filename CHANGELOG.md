@@ -18,6 +18,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Added
+
+- **GridBoard boot progress bar.** The 12M-point dataset now generates in
+  day-sized chunks behind a splash with a determinate progress bar —
+  previously the page sat blank for the 1–4 s of synchronous generation.
+  `GridCore` gains a public `GeneratorSession` (chunk-by-chunk generation,
+  bit-identical to the one-shot `generate(seed:)`).
+
+### Fixed
+
+- **GridBoard playback speed is now refresh-rate independent.** The play
+  tick advanced a fixed step per frame, so 120 Hz displays (ProMotion
+  Chrome/Firefox) played the year twice as fast as Safari's 60 Hz. Playback
+  is now delta-timed at 30 simulated hours per real second everywhere.
+
 ---
 
 ## [0.5.1] — 2026-07-19

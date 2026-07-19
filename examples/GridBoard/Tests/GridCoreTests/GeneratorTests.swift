@@ -53,6 +53,23 @@ struct GeneratorTests {
         }
     }
 
+    @Test("chunked GeneratorSession output is bit-identical to one-shot generate")
+    func chunkedEqualsOneShot() {
+        let session = GeneratorSession(seed: 1)
+        // Deliberately ragged slice sizes, including a clamp past year-end.
+        for days in [1, 6, 30, 90, 111, 200] {
+            session.generateDays(days)
+        }
+        #expect(session.isComplete)
+        let chunked = session.finish()
+        #expect(chunked.demand == Self.a.demand)
+        #expect(chunked.price == Self.a.price)
+        #expect(chunked.gen == Self.a.gen)
+        #expect(chunked.flow == Self.a.flow)
+        // Progress counter clamps at the year boundary.
+        #expect(session.daysGenerated == GridDataset.dayCount)
+    }
+
     @Test("shape: winter-peaking Québec, daylight-bounded solar, calendar sane")
     func shape() {
         let d = Self.a

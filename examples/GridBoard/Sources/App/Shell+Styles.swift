@@ -2,7 +2,7 @@
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud + boot
 
     static let base = #css("""
         :root {
@@ -213,5 +213,38 @@ extension GridShell {
           .gb-main { grid-template-columns: 1fr; }
           .gb-header { flex-direction: column; }
         }
+        """)
+
+    static let boot = #css("""
+        .gb-boot {
+          min-height: 100dvh;
+          display: grid;
+          place-items: center;
+          background: var(--gb-bg);
+        }
+        .gb-boot-card {
+          width: min(440px, 86vw);
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 14px;
+          padding: 26px 28px;
+          display: grid;
+          gap: 12px;
+        }
+        .gb-boot-card h1 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+        .gb-boot-line { margin: 0; color: var(--gb-dim); font-size: 13px; line-height: 1.45; }
+        .gb-boot-track {
+          height: 8px;
+          border-radius: 4px;
+          background: color-mix(in oklab, var(--gb-text) 10%, var(--gb-panel));
+          overflow: hidden;
+        }
+        .gb-boot-fill {
+          height: 100%;
+          border-radius: 4px;
+          background: var(--gb-accent);
+          transition: width 120ms linear;
+        }
+        .gb-boot-pct { margin: 0; color: var(--gb-dim); font: 500 12px ui-monospace, monospace; }
         """)
 }

@@ -12,7 +12,7 @@ import GridCore
 extension GridShell {
     @MainActor
     func lensOverlay() -> VNode {
-        guard let z = lensZone, let snap = snapshot else {
+        guard let z = lensZone, let snap = snapshot, let engine else {
             return element("div", attributes: [.class("gb-lens gb-lens--hidden")], children: [])
         }
         let t: Int
