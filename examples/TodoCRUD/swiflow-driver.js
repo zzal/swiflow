@@ -139,6 +139,27 @@
   ]);
 
   /**
+   * Detach every tracked listener for `handle` from `node` and drop the
+   * `listeners` map entries. Shared by `destroyNode` and `animateExit` —
+   * both destruction paths must run the same sweep or entries leak. The
+   * handle prefix is parsed numerically: a startsWith match would hit
+   * handle 1 against keys for 10/11/etc.
+   */
+  function detachListeners(handle, node) {
+    for (const key of Array.from(listeners.keys())) {
+      const sep = key.indexOf(":");
+      if (sep < 0) continue;
+      if (Number(key.slice(0, sep)) !== handle) continue;
+      const event = key.slice(sep + 1);
+      const fn = listeners.get(key);
+      if (node !== undefined && fn !== undefined) {
+        node.removeEventListener(event, fn);
+      }
+      listeners.delete(key);
+    }
+  }
+
+  /**
    * Apply a single patch. The opcode is `p.op`; field names match the
    * Swift-side `PatchSerializer.encode(...)` contract.
    */
@@ -165,24 +186,7 @@
       case "destroyNode": {
         // Symmetric with removeHandler: detach every tracked listener for
         // this handle from the DOM node AND drop the map entries.
-        // Previously this case only deleted from the map, leaving the DOM
-        // bindings until GC -- mostly harmless but inconsistent with
-        // removeHandler and falsified the comment that claimed "Detach any
-        // listeners". Also: parse the handle prefix numerically (was
-        // startsWith-based, which would match handle 1 against keys for
-        // 10/11/etc. once handles cross 10).
-        const node = nodes.get(p.handle);
-        for (const key of Array.from(listeners.keys())) {
-          const sep = key.indexOf(":");
-          if (sep < 0) continue;
-          if (Number(key.slice(0, sep)) !== p.handle) continue;
-          const event = key.slice(sep + 1);
-          const fn = listeners.get(key);
-          if (node !== undefined && fn !== undefined) {
-            node.removeEventListener(event, fn);
-          }
-          listeners.delete(key);
-        }
+        detachListeners(p.handle, nodes.get(p.handle));
         nodes.delete(p.handle);
         return;
       }
@@ -190,6 +194,12 @@
         const node = nodes.get(p.handle);
         const parent = nodes.get(p.parentHandle);
         if (!node) return;
+        // The Swift side evicts this node's handler ids when it emits the
+        // patch (destroyNode is suppressed for the animated root), so its
+        // listeners must be detached NOW — kept through the animation
+        // window they dispatch into evicted ids and their map entries
+        // outlive the node.
+        detachListeners(p.handle, node);
         node.style.animation = p.animation;
         setTimeout(function () {
           if (parent && node.parentNode === parent) {

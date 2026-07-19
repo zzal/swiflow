@@ -31,9 +31,10 @@ enum DevAPI {
 
     // MARK: - Install
 
-    /// Installs (or re-installs) `window.__swiflow` commands pointing at all
-    /// currently mounted roots. Called after every `render(into:)` and
-    /// `unmount(into:)` so the API always reflects the live root set.
+    /// Installs `window.__swiflow` commands. Idempotent: called after every
+    /// `render(into:)` and `unmount(into:)`, but only the first call creates
+    /// the closures — they read the live `renderers` set on each invocation,
+    /// so the API reflects the current roots without re-installation.
     ///
     /// All four commands return JS objects keyed by selector when multiple
     /// roots are mounted, and return the same structure for a single root so
@@ -41,6 +42,12 @@ enum DevAPI {
     @MainActor
     static func installAll() {
         guard JSObject.global.SWIFLOW_DEV.boolean == true else { return }
+        // Install once: every closure reads the live `renderers` static at
+        // call time, so one install stays correct as roots mount/unmount —
+        // and re-creating the closures would pin the prior four in
+        // JavaScriptKit's static sharedClosures table forever (nil-ing a
+        // JSClosure field never releases it).
+        guard treeClosure == nil else { return }
 
         let ns = swiflowDevNamespace()
 
