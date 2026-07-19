@@ -100,8 +100,11 @@ package final class BrowserNavigator: Navigator {
         if let event = listenerEvent, let value = listenerValue {
             _ = window.removeEventListener!(event.jsValue, value)
         }
-        // Nil the closure AFTER removeEventListener, so the JSClosure stays
-        // alive through the remove (mirrors `BackgroundRevalidation.stop()`).
+        // Release AFTER removeEventListener: removal stops the callback
+        // from firing, release() drops the entry from JavaScriptKit's
+        // static `sharedClosures` table (dropping the Swift reference
+        // alone leaks it there forever).
+        listenerClosure?.release()
         listenerClosure = nil
         listenerValue = nil
         listenerEvent = nil

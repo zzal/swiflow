@@ -69,10 +69,13 @@ final class BackgroundRevalidation {
             }
             _ = JSObject.global.removeEventListener!("focus", listener)
         }
-        // Nil the closures AFTER the removeEventListener calls, so the JSClosure
-        // stays alive through the remove.
+        // Release AFTER the removeEventListener calls (removal stops the
+        // callbacks; release() drops their pinned `sharedClosures` entries —
+        // nil-ing the fields alone leaks them in that static table).
         focusListener = nil
+        tickClosure?.release()
         tickClosure = nil
+        focusClosure?.release()
         focusClosure = nil
     }
 }
