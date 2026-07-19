@@ -22,7 +22,6 @@
 #if arch(wasm32)
 import Swiflow
 import JavaScriptKit
-import SwiflowFetcher
 
 /// A persistent key/value store backed by one IndexedDB object store.
 ///
