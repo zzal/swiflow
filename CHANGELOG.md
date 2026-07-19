@@ -18,6 +18,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Fixed
+
+- Exit-animated unmounts (e.g. every Toast dismissal) no longer leak a
+  driver listener entry per handler: the `animateExit` opcode now runs the
+  same listener-eviction sweep as `destroyNode`, and detaches immediately so
+  clicks during the exit window can't dispatch into evicted handlers.
+- The dev-mode `window.__swiflow` API no longer re-creates its four closures
+  on every render/unmount (each re-install pinned the prior set forever).
+
 ### Removed
 
 - **BREAKING:** the `HTTP` static facade (`HTTP.get/post/put/patch/delete/send`)
