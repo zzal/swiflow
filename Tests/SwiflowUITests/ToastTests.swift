@@ -1,11 +1,14 @@
 // Tests/SwiflowUITests/ToastTests.swift
 // Toast is the app-owned-queue overlay: ToastStack renders a Binding<[ToastItem]>,
 // each as a keyed ToastView (@Component) that auto-dismisses via after()/TimerHandle.
-// The timer is WASM-runtime, so host tests cover structure + the ✕/onDismiss wiring +
-// the stack's keyed-embed shape; the timer + slide animation are demo-verified.
+// Structure + ✕/onDismiss wiring are asserted on hand-built bodies; the auto-dismiss
+// countdown and its WCAG pause/resume run in ToastTimerTests against ManualTimers.
+// The slide animation stays demo-verified (vendor-pseudo, invisible to the harness).
 import Testing
 @testable import Swiflow
 @testable import SwiflowUI
+import SwiflowTesting
+import SwiflowTiming
 
 @MainActor private func el(_ node: VNode?) -> ElementData? {
     if case .element(let data)? = node { return data }
@@ -192,5 +195,84 @@ struct ToastCoalesceBadgeTests {
         let badge = firstWithClass(el(many)!, "sw-toast__count")
         #expect(badge != nil)
         #expect(allText(.element(badge!)).contains("3"))
+    }
+}
+
+// MARK: - Auto-dismiss countdown (ManualTimers)
+
+/// Owns the process-global `ManualTimers` seam: every test that advances
+/// host timers lives in this suite, serialized, and resets the queue first.
+@Suite("Toast timers", .serialized)
+@MainActor
+struct ToastTimerTests {
+
+    @Test("mount arms the countdown; advancing past duration dismisses exactly once")
+    func autoDismiss() {
+        ManualTimers.reset()
+        var dismissed = 0
+        let h = render(ToastView(item: ToastItem("Saved", duration: 4),
+                                 recurrences: { 1 }, onDismiss: { dismissed += 1 }))
+        #expect(h.find(class: "sw-toast") != nil)
+        #expect(ManualTimers.pendingCount == 1)
+        ManualTimers.advance(by: 3.9)
+        #expect(dismissed == 0)
+        ManualTimers.advance(by: 0.1)
+        #expect(dismissed == 1)
+        #expect(ManualTimers.pendingCount == 0)
+    }
+
+    @Test("hover pauses the countdown; leaving re-arms the FULL duration (WCAG 2.2.1)")
+    func hoverPausesAndRestarts() {
+        ManualTimers.reset()
+        var dismissed = 0
+        let h = render(ToastView(item: ToastItem("Saved", duration: 4),
+                                 recurrences: { 1 }, onDismiss: { dismissed += 1 }))
+        let toast = h.find(class: "sw-toast")!
+        ManualTimers.advance(by: 3)                  // 1s of the countdown left
+        toast.fire("mouseenter")
+        #expect(ManualTimers.pendingCount == 0)      // paused = cancelled, nothing pending
+        ManualTimers.advance(by: 10)
+        #expect(dismissed == 0)
+        toast.fire("mouseleave")
+        ManualTimers.advance(by: 3.9)                // resume restarted the full 4s, not the 1s remainder
+        #expect(dismissed == 0)
+        ManualTimers.advance(by: 0.1)
+        #expect(dismissed == 1)
+    }
+
+    @Test("keyboard focus pauses like hover (focusin/focusout bubble from the ✕)")
+    func focusPausesAndRestarts() {
+        ManualTimers.reset()
+        var dismissed = 0
+        let h = render(ToastView(item: ToastItem("Saved", duration: 4),
+                                 recurrences: { 1 }, onDismiss: { dismissed += 1 }))
+        let toast = h.find(class: "sw-toast")!
+        toast.fire("focusin")
+        #expect(ManualTimers.pendingCount == 0)
+        ManualTimers.advance(by: 10)
+        #expect(dismissed == 0)
+        toast.fire("focusout")
+        #expect(ManualTimers.pendingCount == 1)
+        ManualTimers.advance(by: 4)
+        #expect(dismissed == 1)
+    }
+
+    @Test("countdown stays paused while EITHER hover or focus still holds")
+    func eitherHoldKeepsPause() {
+        ManualTimers.reset()
+        var dismissed = 0
+        let h = render(ToastView(item: ToastItem("Saved", duration: 4),
+                                 recurrences: { 1 }, onDismiss: { dismissed += 1 }))
+        let toast = h.find(class: "sw-toast")!
+        toast.fire("mouseenter")
+        toast.fire("focusin")
+        toast.fire("mouseleave")                     // focus still holds
+        #expect(ManualTimers.pendingCount == 0)
+        ManualTimers.advance(by: 10)
+        #expect(dismissed == 0)
+        toast.fire("focusout")                       // last hold released → re-armed
+        #expect(ManualTimers.pendingCount == 1)
+        ManualTimers.advance(by: 4)
+        #expect(dismissed == 1)
     }
 }

@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "Swiflow", targets: ["Swiflow"]),
         .library(name: "SwiflowDOM", targets: ["SwiflowDOM"]),
+        .library(name: "SwiflowTiming", targets: ["SwiflowTiming"]),
         .library(name: "SwiflowRouter", targets: ["SwiflowRouter"]),
         .library(name: "SwiflowTesting", targets: ["SwiflowTesting"]),
         .library(name: "SwiflowQuery", targets: ["SwiflowQuery"]),
@@ -67,11 +68,25 @@ let package = Package(
             path: "Sources/Swiflow",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // One-shot cancellable timers (after()/TimerHandle). The JS crossing
+        // is behind arch(wasm32); host builds get the ManualTimers test queue,
+        // so timer-owning components stay mountable in host harnesses.
+        .target(
+            name: "SwiflowTiming",
+            dependencies: [
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            ],
+            path: "Sources/SwiflowTiming",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .target(
             name: "SwiflowDOM",
             dependencies: [
                 "Swiflow",
                 "SwiflowQuery",
+                // Re-exported (see SwiflowDOM.swift): apps that import
+                // SwiflowDOM keep after()/TimerHandle without a new import.
+                "SwiflowTiming",
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
                 .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ],
@@ -198,8 +213,8 @@ let package = Package(
                 // explicitly so the C shim is in SwiflowUI's link closure (host + wasm),
                 // mirroring SwiflowRouter/SwiflowStore.
                 .product(name: "JavaScriptKit", package: "JavaScriptKit"),
-                // Toast's auto-dismiss uses after()/TimerHandle from SwiflowDOM.
-                "SwiflowDOM",
+                // Toast's auto-dismiss uses after()/TimerHandle.
+                "SwiflowTiming",
             ],
             path: "Sources/SwiflowUI",
             swiftSettings: [.swiftLanguageMode(.v6)]
@@ -275,7 +290,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiflowUITests",
-            dependencies: ["SwiflowUI", "Swiflow", "SwiflowColor", "SwiflowTesting"],
+            dependencies: ["SwiflowUI", "Swiflow", "SwiflowColor", "SwiflowTesting", "SwiflowTiming"],
             path: "Tests/SwiflowUITests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
