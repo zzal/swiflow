@@ -885,11 +885,8 @@ final class GridShell {
     func bootSplash() -> VNode {
         let pct = bootDaysDone * 100 / GridDataset.dayCount
         let points = GridDataset.intervalCount * Zone.allCases.count * 9
-        // The centering container is a CHILD of <main>, not <main> itself —
-        // the root element's box doesn't reliably fill the viewport inside
-        // the mount point, so place-items centering must live one level in.
-        // The card itself is SwiflowUI (Card + Text + ProgressView): the
-        // showcase template should showcase the kit, not hand-rolled chrome.
+        // Centering lives on a child of <main>: the root element's box
+        // doesn't reliably fill the viewport inside the mount point.
         return element("main", attributes: [], children: [
             element("div", attributes: [.class("gb-boot")], children: [
                 Card(.class("gb-boot-card")) {
@@ -1100,6 +1097,7 @@ extension GridShell {
 // a price line over the active slice. Task 11 swaps this panel for the
 // interconnect inspector when an edge is selected.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
@@ -1107,10 +1105,10 @@ extension GridShell {
     func sidePanel() -> VNode {
         if inspectedEdge != nil { return inspectorPanel() }
         guard let snap = snapshot, !snap.isEmpty else {
-            return element("aside", attributes: [.class("gb-panel")], children: [
-                element("p", attributes: [.class("gb-empty")],
-                        children: [text(snapshot == nil ? "Crunching the year…" : "— no intervals match —")]),
-            ])
+            return Card(variant: .outlined, .class("gb-panel")) {
+                Text(snapshot == nil ? "Crunching the year…" : "— no intervals match —",
+                     variant: .body, color: .muted, .class("gb-empty"))
+            }
         }
         let title = focusZone?.name ?? "Canada"
         let genMW: [Double]
@@ -1154,7 +1152,7 @@ extension GridShell {
                 ]),
             ])))
         }
-        return element("aside", attributes: [.class("gb-panel")], children: children)
+        return Card(variant: .outlined, .class("gb-panel")) { children }
     }
 
     @MainActor
@@ -1247,6 +1245,7 @@ extension GridShell {
 // numbers include it). Uses clientX/Y minus the wrap's rect: offsetX
 // would be relative to whichever <path> the pointer is over.
 import Swiflow
+import SwiflowUI
 import JavaScriptKit
 import GridCore
 
@@ -1274,17 +1273,17 @@ extension GridShell {
             x += w
         }
         let agg = snap.zones[z.rawValue]
-        return element("div", attributes: [
+        return Card(
             .class("gb-lens"),
             .style("left", "\(Int(lensPx + 14))px"),
-            .style("top", "\(Int(lensPy + 14))px"),
-        ], children: [
-            element("strong", attributes: [], children: [text(z.name)]),
+            .style("top", "\(Int(lensPy + 14))px")
+        ) {
+            element("strong", attributes: [], children: [text(z.name)])
             element("div", attributes: [.class("gb-lens-stats")], children: [
                 text("\(Int(agg.meanDemandMW.rounded())) MW · \(Int(agg.carbonIntensity.rounded())) g/kWh"),
-            ]),
+            ])
             element("svg", attributes: [.attr("viewBox", "0 0 140 8"), .class("gb-lens-mix")],
-                    children: mixBars),
+                    children: mixBars)
             element("svg", attributes: [.attr("viewBox", "0 0 140 30"), .class("gb-lens-spark")],
                     children: [
                 element("path", attributes: [
@@ -1292,8 +1291,8 @@ extension GridShell {
                                         maxV: max(1, series.demand24h.max() ?? 1))),
                     .class("gb-lens-spark-line"),
                 ]),
-            ]),
-        ])
+            ])
+        }
     }
 
     @MainActor
@@ -1325,29 +1324,30 @@ extension GridShell {
 // active slice+wheel. Replaces the focus panel while an edge is
 // selected.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
     @MainActor
     func inspectorPanel() -> VNode {
         guard let i = inspectedEdge, let engine else {
-            return element("aside", attributes: [.class("gb-panel")], children: [])
+            return Card(variant: .outlined, .class("gb-panel"))
         }
         let tie = Interconnect.all[i]
         let curve = engine.durationCurve(edge: i, slice: slice, wheel: wheel)
         let capLine = tie.capacityMW
-        return element("aside", attributes: [.class("gb-panel")], children: [
+        return Card(variant: .outlined, .class("gb-panel")) {
             element("div", attributes: [.class("gb-inspector-head")], children: [
                 element("h2", attributes: [.class("gb-panel-title")], children: [text(tie.label)]),
-                element("button", attributes: [.class("gb-btn"), .on(.click) { [weak self] in
+                Button("✕", variant: .ghost, size: .sm) { [weak self] in
                     self?.inspectedEdge = nil
-                }], children: [text("✕")]),
-            ]),
+                },
+            ])
             element("div", attributes: [.class("gb-stat-row")], children: [
                 statView("\(Int(curve.meanMW.rounded())) MW", "mean flow"),
                 statView("\(Int(curve.peakMW.rounded())) MW", "peak"),
                 statView("\(Int(curve.congestionHours.rounded())) h", "congested"),
-            ]),
+            ])
             chartCard("Flow duration (|MW|, sorted)", element("svg", attributes: [
                 .attr("viewBox", "0 0 300 90"), .class("gb-chart"),
             ], children: [
@@ -1362,11 +1362,11 @@ extension GridShell {
                                         maxV: max(1, max(curve.peakMW, capLine)))),
                     .class("gb-duration-line"),
                 ]),
-            ])),
+            ]))
             element("p", attributes: [.class("gb-inspector-note")], children: [
                 text("Capacity \(Int(tie.capacityMW)) MW. Positive = \(tie.from.code) exports."),
-            ]),
-        ])
+            ])
+        }
     }
 }
 
@@ -1704,6 +1704,7 @@ extension GridShell {
 // elapsed ms, live fps, and the startup generation time. Collapsible so
 // screenshots can go chrome-less.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
@@ -1727,10 +1728,9 @@ extension GridShell {
     func hudView() -> VNode {
         let datasetPts = GridDataset.intervalCount * Zone.allCases.count * 9
         var children: [VNode] = [
-            element("button", attributes: [
-                .class("gb-hud-toggle"),
-                .on(.click) { [weak self] in self?.hudOpen.toggle() },
-            ], children: [text(hudOpen ? "⌄" : "⌃")]),
+            Button(hudOpen ? "⌄" : "⌃", variant: .ghost, size: .xs) { [weak self] in
+                self?.hudOpen.toggle()
+            },
         ]
         if hudOpen {
             let stats = snapshot?.stats
@@ -1742,7 +1742,7 @@ extension GridShell {
                 hudCell("\(Int(buildMs.rounded())) ms", "generated in"),
             ]))
         }
-        return element("div", attributes: [.class("gb-hud")], children: children)
+        return Card(variant: .outlined, .class("gb-hud")) { children }
     }
 
     @MainActor
@@ -1764,6 +1764,7 @@ extension GridShell {
 // listeners (Swiflow events carry no clientX) — clientX minus the
 // track's bounding rect, so drags stay correct under pointer capture.
 import Swiflow
+import SwiflowUI
 import JavaScriptKit
 import GridCore
 
@@ -1841,26 +1842,22 @@ extension GridShell {
 
         return element("div", attributes: [.class("gb-scrubber")], children: [
             element("div", attributes: [.class("gb-scrubber-bar")], children: [
-                element("button", attributes: [
-                    .class(playing ? "gb-btn gb-btn--on" : "gb-btn"),
-                    .on(.click) { [weak self] in
-                        guard let self else { return }
-                        if self.brushMode { return }
-                        self.playing.toggle()
-                    },
-                ], children: [text(playing ? "❚❚" : "▶")]),
-                element("button", attributes: [
-                    .class(brushMode ? "gb-btn gb-btn--on" : "gb-btn"),
-                    .on(.click) { [weak self] in
-                        guard let self else { return }
-                        self.playing = false
-                        self.brushMode.toggle()
-                        self.slice = self.brushMode
-                            ? .range(self.brushLo, self.brushHi)
-                            : .instant((self.brushLo + self.brushHi) / 2)
-                        self.runQuery()
-                    },
-                ], children: [text("Brush")]),
+                Button(playing ? "❚❚" : "▶",
+                       variant: playing ? .primary : .secondary, size: .sm) { [weak self] in
+                    guard let self else { return }
+                    if self.brushMode { return }
+                    self.playing.toggle()
+                },
+                Button("Brush",
+                       variant: brushMode ? .primary : .secondary, size: .sm) { [weak self] in
+                    guard let self else { return }
+                    self.playing = false
+                    self.brushMode.toggle()
+                    self.slice = self.brushMode
+                        ? .range(self.brushLo, self.brushHi)
+                        : .instant((self.brushLo + self.brushHi) / 2)
+                    self.runQuery()
+                },
                 element("span", attributes: [.class("gb-readout")], children: [text(readout)]),
             ]),
             element("svg", attributes: [
@@ -2077,13 +2074,9 @@ extension GridShell {
           gap: 14px;
           min-height: 0;
         }
-        .gb-panel {
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 12px;
-          padding: 14px;
-          overflow-y: auto;
-        }
+        /* Surface chrome comes from the SwiflowUI Card; the panel only
+           pins scroll behavior. */
+        .gb-panel { overflow-y: auto; }
         .gb-controls { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; }
         """)
 
@@ -2121,16 +2114,6 @@ extension GridShell {
     static let scrubber = #css("""
         .gb-scrubber { display: grid; gap: 6px; }
         .gb-scrubber-bar { display: flex; gap: 8px; align-items: center; }
-        .gb-btn {
-          border: 1px solid var(--gb-border);
-          background: var(--gb-panel);
-          color: var(--gb-text);
-          border-radius: 8px;
-          padding: 4px 12px;
-          font: 500 13px system-ui, sans-serif;
-          cursor: pointer;
-        }
-        .gb-btn--on { background: var(--gb-accent); color: white; border-color: transparent; }
         .gb-readout { color: var(--gb-dim); font: 500 13px ui-monospace, monospace; }
         .gb-track {
           width: 100%;
@@ -2169,7 +2152,7 @@ extension GridShell {
 
     static let panel = #css("""
         .gb-panel-title { margin: 0 0 8px; font-size: 17px; }
-        .gb-empty { color: var(--gb-dim); font-style: italic; }
+        .gb-empty { font-style: italic; }
         .gb-stat-row { display: flex; gap: 18px; margin-bottom: 8px; }
         .gb-stat { display: grid; }
         .gb-stat strong { font-size: 17px; }
@@ -2193,14 +2176,9 @@ extension GridShell {
           position: absolute;
           z-index: 5;
           pointer-events: none;
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 10px;
-          box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
           padding: 8px 10px;
           width: 160px;
           font-size: 12px;
-          display: grid;
           gap: 5px;
         }
         .gb-lens--hidden { display: none; }
@@ -2242,15 +2220,11 @@ extension GridShell {
     static let hud = #css("""
         .gb-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
         .gb-hud {
-          display: flex;
+          flex-direction: row;
           gap: 8px;
           align-items: start;
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 10px;
           padding: 8px 10px;
         }
-        .gb-hud-toggle { border: none; background: none; color: var(--gb-dim); cursor: pointer; font-size: 14px; padding: 0 2px; }
         .gb-hud-grid { display: flex; gap: 14px; margin: 0; }
         .gb-hud-cell dt { font: 500 10px system-ui; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.05em; }
         .gb-hud-cell dd { margin: 0; font: 600 14px ui-monospace, monospace; }

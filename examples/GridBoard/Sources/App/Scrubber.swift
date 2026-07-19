@@ -6,6 +6,7 @@
 // listeners (Swiflow events carry no clientX) — clientX minus the
 // track's bounding rect, so drags stay correct under pointer capture.
 import Swiflow
+import SwiflowUI
 import JavaScriptKit
 import GridCore
 
@@ -83,26 +84,22 @@ extension GridShell {
 
         return element("div", attributes: [.class("gb-scrubber")], children: [
             element("div", attributes: [.class("gb-scrubber-bar")], children: [
-                element("button", attributes: [
-                    .class(playing ? "gb-btn gb-btn--on" : "gb-btn"),
-                    .on(.click) { [weak self] in
-                        guard let self else { return }
-                        if self.brushMode { return }
-                        self.playing.toggle()
-                    },
-                ], children: [text(playing ? "❚❚" : "▶")]),
-                element("button", attributes: [
-                    .class(brushMode ? "gb-btn gb-btn--on" : "gb-btn"),
-                    .on(.click) { [weak self] in
-                        guard let self else { return }
-                        self.playing = false
-                        self.brushMode.toggle()
-                        self.slice = self.brushMode
-                            ? .range(self.brushLo, self.brushHi)
-                            : .instant((self.brushLo + self.brushHi) / 2)
-                        self.runQuery()
-                    },
-                ], children: [text("Brush")]),
+                Button(playing ? "❚❚" : "▶",
+                       variant: playing ? .primary : .secondary, size: .sm) { [weak self] in
+                    guard let self else { return }
+                    if self.brushMode { return }
+                    self.playing.toggle()
+                },
+                Button("Brush",
+                       variant: brushMode ? .primary : .secondary, size: .sm) { [weak self] in
+                    guard let self else { return }
+                    self.playing = false
+                    self.brushMode.toggle()
+                    self.slice = self.brushMode
+                        ? .range(self.brushLo, self.brushHi)
+                        : .instant((self.brushLo + self.brushHi) / 2)
+                    self.runQuery()
+                },
                 element("span", attributes: [.class("gb-readout")], children: [text(readout)]),
             ]),
             element("svg", attributes: [

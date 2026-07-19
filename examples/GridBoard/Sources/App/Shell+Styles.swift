@@ -32,13 +32,9 @@ extension GridShell {
           gap: 14px;
           min-height: 0;
         }
-        .gb-panel {
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 12px;
-          padding: 14px;
-          overflow-y: auto;
-        }
+        /* Surface chrome comes from the SwiflowUI Card; the panel only
+           pins scroll behavior. */
+        .gb-panel { overflow-y: auto; }
         .gb-controls { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; }
         """)
 
@@ -76,16 +72,6 @@ extension GridShell {
     static let scrubber = #css("""
         .gb-scrubber { display: grid; gap: 6px; }
         .gb-scrubber-bar { display: flex; gap: 8px; align-items: center; }
-        .gb-btn {
-          border: 1px solid var(--gb-border);
-          background: var(--gb-panel);
-          color: var(--gb-text);
-          border-radius: 8px;
-          padding: 4px 12px;
-          font: 500 13px system-ui, sans-serif;
-          cursor: pointer;
-        }
-        .gb-btn--on { background: var(--gb-accent); color: white; border-color: transparent; }
         .gb-readout { color: var(--gb-dim); font: 500 13px ui-monospace, monospace; }
         .gb-track {
           width: 100%;
@@ -124,7 +110,7 @@ extension GridShell {
 
     static let panel = #css("""
         .gb-panel-title { margin: 0 0 8px; font-size: 17px; }
-        .gb-empty { color: var(--gb-dim); font-style: italic; }
+        .gb-empty { font-style: italic; }
         .gb-stat-row { display: flex; gap: 18px; margin-bottom: 8px; }
         .gb-stat { display: grid; }
         .gb-stat strong { font-size: 17px; }
@@ -148,14 +134,9 @@ extension GridShell {
           position: absolute;
           z-index: 5;
           pointer-events: none;
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 10px;
-          box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
           padding: 8px 10px;
           width: 160px;
           font-size: 12px;
-          display: grid;
           gap: 5px;
         }
         .gb-lens--hidden { display: none; }
@@ -197,15 +178,11 @@ extension GridShell {
     static let hud = #css("""
         .gb-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
         .gb-hud {
-          display: flex;
+          flex-direction: row;
           gap: 8px;
           align-items: start;
-          background: var(--gb-panel);
-          border: 1px solid var(--gb-border);
-          border-radius: 10px;
           padding: 8px 10px;
         }
-        .gb-hud-toggle { border: none; background: none; color: var(--gb-dim); cursor: pointer; font-size: 14px; padding: 0 2px; }
         .gb-hud-grid { display: flex; gap: 14px; margin: 0; }
         .gb-hud-cell dt { font: 500 10px system-ui; color: var(--gb-dim); text-transform: uppercase; letter-spacing: 0.05em; }
         .gb-hud-cell dd { margin: 0; font: 600 14px ui-monospace, monospace; }

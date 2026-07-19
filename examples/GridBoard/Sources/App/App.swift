@@ -195,11 +195,8 @@ final class GridShell {
     func bootSplash() -> VNode {
         let pct = bootDaysDone * 100 / GridDataset.dayCount
         let points = GridDataset.intervalCount * Zone.allCases.count * 9
-        // The centering container is a CHILD of <main>, not <main> itself —
-        // the root element's box doesn't reliably fill the viewport inside
-        // the mount point, so place-items centering must live one level in.
-        // The card itself is SwiflowUI (Card + Text + ProgressView): the
-        // showcase template should showcase the kit, not hand-rolled chrome.
+        // Centering lives on a child of <main>: the root element's box
+        // doesn't reliably fill the viewport inside the mount point.
         return element("main", attributes: [], children: [
             element("div", attributes: [.class("gb-boot")], children: [
                 Card(.class("gb-boot-card")) {

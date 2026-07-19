@@ -4,29 +4,30 @@
 // active slice+wheel. Replaces the focus panel while an edge is
 // selected.
 import Swiflow
+import SwiflowUI
 import GridCore
 
 extension GridShell {
     @MainActor
     func inspectorPanel() -> VNode {
         guard let i = inspectedEdge, let engine else {
-            return element("aside", attributes: [.class("gb-panel")], children: [])
+            return Card(variant: .outlined, .class("gb-panel"))
         }
         let tie = Interconnect.all[i]
         let curve = engine.durationCurve(edge: i, slice: slice, wheel: wheel)
         let capLine = tie.capacityMW
-        return element("aside", attributes: [.class("gb-panel")], children: [
+        return Card(variant: .outlined, .class("gb-panel")) {
             element("div", attributes: [.class("gb-inspector-head")], children: [
                 element("h2", attributes: [.class("gb-panel-title")], children: [text(tie.label)]),
-                element("button", attributes: [.class("gb-btn"), .on(.click) { [weak self] in
+                Button("✕", variant: .ghost, size: .sm) { [weak self] in
                     self?.inspectedEdge = nil
-                }], children: [text("✕")]),
-            ]),
+                },
+            ])
             element("div", attributes: [.class("gb-stat-row")], children: [
                 statView("\(Int(curve.meanMW.rounded())) MW", "mean flow"),
                 statView("\(Int(curve.peakMW.rounded())) MW", "peak"),
                 statView("\(Int(curve.congestionHours.rounded())) h", "congested"),
-            ]),
+            ])
             chartCard("Flow duration (|MW|, sorted)", element("svg", attributes: [
                 .attr("viewBox", "0 0 300 90"), .class("gb-chart"),
             ], children: [
@@ -41,10 +42,10 @@ extension GridShell {
                                         maxV: max(1, max(curve.peakMW, capLine)))),
                     .class("gb-duration-line"),
                 ]),
-            ])),
+            ]))
             element("p", attributes: [.class("gb-inspector-note")], children: [
                 text("Capacity \(Int(tie.capacityMW)) MW. Positive = \(tie.from.code) exports."),
-            ]),
-        ])
+            ])
+        }
     }
 }
