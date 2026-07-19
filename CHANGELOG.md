@@ -26,6 +26,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Changed
 
+- `after()`/`TimerHandle` moved from `SwiflowDOM` into a new `SwiflowTiming`
+  target. `SwiflowDOM` re-exports it, so existing `import SwiflowDOM` code
+  compiles unchanged. On host builds the pair is now backed by `ManualTimers`,
+  a test-driven queue (`advance(by:)`/`reset()`/`pendingCount`), so components
+  that own timers — like `ToastView` — mount and run in host test harnesses;
+  toast auto-dismiss and its WCAG 2.2.1 hover/focus pause are now unit-tested.
+- `SwiflowUI` no longer depends on `SwiflowDOM` (it depends on `SwiflowTiming`).
 - `SwiflowStore` no longer depends on `SwiflowFetcher`.
 
 ---

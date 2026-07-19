@@ -10,6 +10,9 @@
 import JavaScriptKit
 import JavaScriptEventLoop
 @_exported import Swiflow
+// after()/TimerHandle live in SwiflowTiming; re-exported so app code that
+// imports SwiflowDOM keeps them without a second import.
+@_exported import SwiflowTiming
 
 // `Swiflow` namespace is declared here (Phase 1 deleted the core placeholder).
 // The extension below hangs the renderer API off this enum.

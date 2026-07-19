@@ -1,6 +1,6 @@
 // Sources/SwiflowUI/Toast.swift
 import Swiflow
-import SwiflowDOM   // after() / TimerHandle for auto-dismiss (WASM-runtime; see ToastView)
+import SwiflowTiming   // after() / TimerHandle for auto-dismiss (see ToastView)
 
 /// Severity of a `Toast`, mapped to an accent color + a live-region politeness.
 /// Matches the rest of the palette (accent/success/danger/warning; see Theme.swift /
@@ -94,7 +94,7 @@ public func ToastStack(toasts: Binding<[ToastItem]>, placement: ToastPlacement =
 }
 
 /// Removes the toast with `id` from the bound queue. Pulled out of the `onDismiss`
-/// closure so the queue logic is unit-testable on host (the timer that drives it isn't).
+/// closure so the queue logic is unit-testable without a mounted stack.
 /// Idempotent: removing an absent id is a no-op; order of the survivors is preserved.
 @MainActor
 func removeToast(_ id: String, from toasts: Binding<[ToastItem]>) {
@@ -114,9 +114,7 @@ final class ToastView {
     // (WCAG 2.2.1 — give users enough time; keyboard users need to reach the ✕).
     private var isHovered = false
     private var isFocused = false
-    #if canImport(JavaScriptKit)
     private var dismissTimer: TimerHandle?
-    #endif
 
     init(item: ToastItem, recurrences: @escaping () -> Int, onDismiss: @escaping () -> Void) {
         self.item = item
@@ -165,17 +163,13 @@ final class ToastView {
     /// hover/focus. Idempotent; safe to call from every pause/resume transition.
     private func reschedule() {
         stopTimer()
-        #if canImport(JavaScriptKit)
         guard !isHovered, !isFocused else { return }
         dismissTimer = after(item.duration) { [weak self] in self?.onDismiss() }
-        #endif
     }
 
     private func stopTimer() {
-        #if canImport(JavaScriptKit)
         dismissTimer?.cancel()
         dismissTimer = nil
-        #endif
     }
 
     // Slide/fade out on unmount. Duration is token-driven (reduced-motion → 0s → instant).
