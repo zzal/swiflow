@@ -18,6 +18,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.5.2] — 2026-07-19
+
+**Beta.** GridBoard polish from first-device feedback: a boot progress bar
+and refresh-rate-independent playback.
+
+**Stability:** Stable for pre-1.0 usage. No breaking API changes;
+`GridCore` gains a public `GeneratorSession`.
+
 ### Added
 
 - **GridBoard boot progress bar.** The 12M-point dataset now generates in
