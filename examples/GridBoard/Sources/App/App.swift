@@ -9,6 +9,7 @@
 // proportional to what changed.
 import Swiflow
 import SwiflowDOM
+import SwiflowUI
 import JavaScriptKit
 import GridCore
 
@@ -197,23 +198,19 @@ final class GridShell {
         // The centering container is a CHILD of <main>, not <main> itself —
         // the root element's box doesn't reliably fill the viewport inside
         // the mount point, so place-items centering must live one level in.
+        // The card itself is SwiflowUI (Card + Text + ProgressView): the
+        // showcase template should showcase the kit, not hand-rolled chrome.
         return element("main", attributes: [], children: [
             element("div", attributes: [.class("gb-boot")], children: [
-                element("div", attributes: [.class("gb-boot-card")], children: [
-                    element("h1", attributes: [], children: [text("Canada Grid — live")]),
-                    element("p", attributes: [.class("gb-boot-line")], children: [
-                        text("Generating a year of 5-minute grid data — \(fmtPts(points)) points, right here in your browser."),
-                    ]),
-                    element("div", attributes: [.class("gb-boot-track")], children: [
-                        element("div", attributes: [
-                            .class("gb-boot-fill"),
-                            .style("width", "\(pct)%"),
-                        ], children: []),
-                    ]),
-                    element("p", attributes: [.class("gb-boot-pct")], children: [
-                        text("\(pct)% · day \(bootDaysDone) of \(GridDataset.dayCount)"),
-                    ]),
-                ]),
+                Card(.class("gb-boot-card")) {
+                    Text("Canada Grid — live", variant: .heading)
+                    Text("Generating a year of 5-minute grid data — \(fmtPts(points)) points, right here in your browser.",
+                         variant: .caption, color: .muted)
+                    ProgressView(value: Double(bootDaysDone) / Double(GridDataset.dayCount),
+                                 label: "Generating dataset", animated: true)
+                    Text("\(pct)% · day \(bootDaysDone) of \(GridDataset.dayCount)",
+                         variant: .caption, color: .muted, .class("gb-boot-pct"))
+                }
             ]),
         ])
     }
