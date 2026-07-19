@@ -20,6 +20,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.5.1] — 2026-07-19
+
+**Beta.** Patch release completing the `JSClosure` lifecycle audit started
+in 0.5.0: every teardown path in the framework now releases its closures
+from JavaScriptKit's static registration table.
+
+**Stability:** Stable for pre-1.0 usage. No API changes.
+
+### Fixed
+
+- **`@Persisted` writes no longer leak.** `PersistentStore` pinned 2–3
+  bridge closures per IndexedDB request (and 2 per connection cycle);
+  apps with frequent persisted writes accumulated them for the page's
+  lifetime.
+- **`Link` no longer leaks its click closure on unmount** (one per link
+  per route change), and `BrowserNavigator`/`BackgroundRevalidation`
+  release their listeners on stop. `DispatcherBridge`, `DevAPI`, and
+  `HMRBridge` were audited and confirmed as intentional app-lifetime
+  singletons.
+
+---
+
 ## [0.5.0] — 2026-07-18
 
 **Beta.** The showcase release: a new `GridBoard` starter template — a
