@@ -329,12 +329,14 @@ jobs:
         # .e2e-cache (which CI doesn't cache anyway). The .build cache restored
         # above still warms compilation.
         #
-        # Three runs: the default config (counter/router/sw/edgecases servers),
-        # then the RegionDemo and SwiflowUIDemo demos via their own configs — they
-        # collide on port :3004 so can't share the default config's parallel
-        # servers, and run sequentially here. All three run regardless of an
-        # earlier failure (status accumulates) so one red spec doesn't hide the
-        # rest. TodoCRUD needs the real backend → separate run-e2e-backend job.
+        # Four runs: the default config (counter/router/sw/edgecases servers),
+        # then RegionDemo, SwiflowUIDemo, and GridBoard via their own configs —
+        # Region/SwiflowUI collide on port :3004 so can't share the default
+        # config's parallel servers; GridBoard (:3009) is the per-frame-leak
+        # soak surface and needs its long boot timeout. All run regardless of
+        # an earlier failure (status accumulates) so one red spec doesn't hide
+        # the rest. TodoCRUD needs the real backend → separate run-e2e-backend
+        # job.
         env:
           SWIFLOW_E2E_CLEAN: "1"
         run: |
@@ -342,6 +344,7 @@ jobs:
           npm test || status=1
           npm run test:regions || status=1
           npm run test:swiflowui || status=1
+          npm run test:gridboard || status=1
           exit $status
 
       - name: Upload Playwright trace on failure

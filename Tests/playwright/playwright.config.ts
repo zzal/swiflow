@@ -38,10 +38,14 @@ export default defineConfig({
   // test:swiflowui, and the run-e2e-backend job for todocrud). Without this
   // ignore they'd run against :3000 (counter) and fail "element not found".
   testIgnore: [
-    "region.spec.ts",     // RegionDemo — npm run test:regions (:3004)
-    "datatable.spec.ts",  // SwiflowUIDemo — npm run test:swiflowui
-    "dropdown.spec.ts",   // SwiflowUIDemo — npm run test:swiflowui
-    "todocrud.spec.ts",   // real Bun+SQLite backend — run-e2e-backend job
+    "region.spec.ts",      // RegionDemo — npm run test:regions (:3004)
+    "datatable.spec.ts",   // SwiflowUIDemo — npm run test:swiflowui
+    "dropdown.spec.ts",    // SwiflowUIDemo — npm run test:swiflowui
+    "overlay.spec.ts",     // SwiflowUIDemo — npm run test:swiflowui
+    "tabs.spec.ts",        // SwiflowUIDemo — npm run test:swiflowui
+    "catalog-nav.spec.ts", // SwiflowUIDemo — npm run test:swiflowui
+    "gridboard.spec.ts",   // GridBoard — npm run test:gridboard (:3009)
+    "todocrud.spec.ts",    // real Bun+SQLite backend — run-e2e-backend job
   ],
   fullyParallel: false,
   reporter: process.env.CI ? "github" : "list",
