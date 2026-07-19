@@ -20,6 +20,32 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ---
 
+## [0.5.3] — 2026-07-19
+
+**Beta.** GridBoard review polish: the template now dogfoods SwiflowUI for
+all of its chrome.
+
+**Stability:** Stable for pre-1.0 usage. No API changes.
+
+### Changed
+
+- **GridBoard chrome composes SwiflowUI.** The boot splash is a `Card` +
+  `Text` + `ProgressView`; Play/Brush, the inspector close, and the HUD
+  toggle are SwiflowUI `Button`s; the side panel, HUD, and hover-lens
+  surfaces are outlined `Card`s. The app-specific stylesheet keeps only
+  layout the kit can't know, and the chrome now inherits dark/contrast
+  themes from the tokens. The five custom visualizations (scrubber,
+  wheel, lens sparkline, donut, flow arcs) remain hand-drawn — that
+  contrast is the point of the showcase.
+
+### Fixed
+
+- **Boot splash centering.** The centering container is now a child of
+  `<main>` rather than the root element itself, so the card sits in the
+  true center of the viewport.
+
+---
+
 ## [0.5.2] — 2026-07-19
 
 **Beta.** GridBoard polish from first-device feedback: a boot progress bar
