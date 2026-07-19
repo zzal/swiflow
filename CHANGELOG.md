@@ -18,6 +18,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING:** the `HTTP` static facade (`HTTP.get/post/put/patch/delete/send`)
+  is gone. Construct an `HTTPClient()` and call the same methods on it —
+  every signature is otherwise identical.
+
+### Changed
+
+- `SwiflowStore` no longer depends on `SwiflowFetcher`.
+
 ---
 
 ## [0.5.3] — 2026-07-19
