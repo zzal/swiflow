@@ -704,8 +704,10 @@ import GridCore
 
 @Component
 final class GridShell {
-    let engine: GridEngine
-    let buildMs: Double
+    /// nil until the boot generator finishes — body shows the boot splash
+    /// (with a real progress bar) until then.
+    @State var engine: GridEngine? = nil
+    var buildMs: Double = 0
 
     @State var slice: TimeSlice = .instant(GridShell.initialInterval)
     @State var wheel: SeasonHourFilter = SeasonHourFilter()
@@ -741,18 +743,54 @@ final class GridShell {
     var dragTarget: DragTarget? = nil
     var wheelPainting = false
 
+    // Boot (chunked dataset generation, so the splash can paint between
+    // slices) + delta-time playback state.
+    @State var bootDaysDone: Int = 0
+    private var bootSession: GeneratorSession? = nil
+    private var bootTimer: TimerHandle? = nil      // retained: TimerHandle cancels on deinit
+    private var bootStartMs: Double = 0
+    var lastFrameTs: Double = 0
+    var playCarry: Double = 0
+
     /// January 20th, 18:00 — a cold winter evening, the grid at its most
     /// interesting.
     static let initialInterval = 20 * GridDataset.intervalsPerDay + 18 * 12
 
-    init() {
-        let t0 = nowMs()
-        let data = GridDataset.generate(seed: 0xC0FFEE)
-        engine = GridEngine(data: data)
-        buildMs = nowMs() - t0
+    func onAppear() {
+        raf.onFrame = { [weak self] ts in self?.tick(ts) }
+        raf.start()
+        bootStartMs = nowMs()
+        bootSession = GeneratorSession(seed: 0xC0FFEE)
+        scheduleBootSlice()
+    }
 
-        // National daily mean demand → the sparkline drawn INSIDE the
-        // scrubber track. 365 points, built once.
+    // MARK: - Boot
+
+    /// Generates the year in day-sized chunks, yielding to the browser
+    /// between slices so the splash's progress bar actually paints.
+    private func scheduleBootSlice() {
+        bootTimer = after(0) { [weak self] in self?.bootSlice() }
+    }
+
+    private func bootSlice() {
+        guard let session = bootSession else { return }
+        session.generateDays(8)
+        bootDaysDone = session.daysGenerated
+        if session.isComplete {
+            let data = session.finish()
+            bootSession = nil
+            buildMs = nowMs() - bootStartMs
+            buildSpark(data)
+            engine = GridEngine(data: data)
+            runQuery()
+        } else {
+            scheduleBootSlice()
+        }
+    }
+
+    /// National daily mean demand → the sparkline drawn INSIDE the
+    /// scrubber track. 365 points, built once at boot completion.
+    private func buildSpark(_ data: GridDataset) {
         var daily = [Double](repeating: 0, count: GridDataset.dayCount)
         for d in 0..<GridDataset.dayCount {
             var sum = 0.0
@@ -774,15 +812,9 @@ final class GridShell {
         sparkPath = path + "L1000,56Z"
     }
 
-    func onAppear() {
-        runQuery()
-        attachNativeListeners()
-        raf.onFrame = { [weak self] ts in self?.tick(ts) }
-        raf.start()
-    }
-
     /// The single query funnel: every control mutation ends here.
     func runQuery() {
+        guard let engine else { return }
         let t0 = nowMs()
         var snap = engine.query(GridQuery(slice: slice, wheel: wheel,
                                           lensMetric: lensMetric, focusZone: focusZone))
@@ -792,10 +824,25 @@ final class GridShell {
 
     /// Per-frame driver: playback stepping + the canvas flow pass + a
     /// 1 Hz fps stamp (a @State write per second, not per frame).
+    ///
+    /// Playback is DELTA-TIMED: rAF fires at the display's refresh rate
+    /// (60 Hz on Safari, 120 Hz on ProMotion Chrome/Firefox), so a fixed
+    /// per-frame step would play the year twice as fast on 120 Hz screens.
+    /// The rate is anchored to the old 60 fps feel: 360 intervals/second
+    /// (= 30 simulated hours per real second), with a fractional carry so
+    /// odd frame times don't drop time.
     func tick(_ ts: Double) {
+        let delta = lastFrameTs > 0 ? min(ts - lastFrameTs, 250) : 1000.0 / 60.0
+        lastFrameTs = ts
+        attachNativeListeners()
         if playing, case .instant(let t) = slice {
-            slice = .instant((t + 6) % GridDataset.intervalCount)
-            runQuery()
+            playCarry += delta * 0.36           // 360 intervals per 1000 ms
+            let step = Int(playCarry)
+            if step > 0 {
+                playCarry -= Double(step)
+                slice = .instant((t + step) % GridDataset.intervalCount)
+                runQuery()
+            }
         }
         drawFlows(ts)
         frameCount += 1
@@ -808,9 +855,12 @@ final class GridShell {
         }
     }
 
-    /// Idempotent — later tasks append coordinate listeners here.
+    /// Idempotent, ref-gated: called every tick and no-ops until the full
+    /// dashboard (post-splash) has mounted and the refs are bound.
     func attachNativeListeners() {
-        guard !listenersAttached else { return }
+        guard !listenersAttached,
+              scrubberRef.wrappedValue != nil,
+              mapRef.wrappedValue != nil else { return }
         listenersAttached = true
         attachScrubberListeners()
         attachWheelListeners()
@@ -818,13 +868,38 @@ final class GridShell {
     }
 
     var body: VNode {
-        element("main", attributes: [.class("gb-shell")], children: [
+        guard engine != nil else { return bootSplash() }
+        return element("main", attributes: [.class("gb-shell")], children: [
             headerView(),
             element("div", attributes: [.class("gb-main")], children: [
                 mapView(),
                 sidePanel(),
             ]),
             controlsRow(),
+        ])
+    }
+
+    /// Boot splash with a determinate progress bar while the year of data
+    /// is generated in chunks.
+    func bootSplash() -> VNode {
+        let pct = bootDaysDone * 100 / GridDataset.dayCount
+        let points = GridDataset.intervalCount * Zone.allCases.count * 9
+        return element("main", attributes: [.class("gb-boot")], children: [
+            element("div", attributes: [.class("gb-boot-card")], children: [
+                element("h1", attributes: [], children: [text("Canada Grid — live")]),
+                element("p", attributes: [.class("gb-boot-line")], children: [
+                    text("Generating a year of 5-minute grid data — \(fmtPts(points)) points, right here in your browser."),
+                ]),
+                element("div", attributes: [.class("gb-boot-track")], children: [
+                    element("div", attributes: [
+                        .class("gb-boot-fill"),
+                        .style("width", "\(pct)%"),
+                    ], children: []),
+                ]),
+                element("p", attributes: [.class("gb-boot-pct")], children: [
+                    text("\(pct)% · day \(bootDaysDone) of \(GridDataset.dayCount)"),
+                ]),
+            ]),
         ])
     }
 
@@ -1176,7 +1251,7 @@ import GridCore
 extension GridShell {
     @MainActor
     func lensOverlay() -> VNode {
-        guard let z = lensZone, let snap = snapshot else {
+        guard let z = lensZone, let snap = snapshot, let engine else {
             return element("div", attributes: [.class("gb-lens gb-lens--hidden")], children: [])
         }
         let t: Int
@@ -1253,7 +1328,7 @@ import GridCore
 extension GridShell {
     @MainActor
     func inspectorPanel() -> VNode {
-        guard let i = inspectedEdge else {
+        guard let i = inspectedEdge, let engine else {
             return element("aside", attributes: [.class("gb-panel")], children: [])
         }
         let tie = Interconnect.all[i]
@@ -1970,7 +2045,7 @@ extension GridShell {
 import Swiflow
 
 extension GridShell {
-    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud
+    @MainActor static var scopedStyles: CSSSheet? = base + map + scrubber + wheel + panel + lens + arcs + canvas + hud + boot
 
     static let base = #css("""
         :root {
@@ -2182,6 +2257,39 @@ extension GridShell {
           .gb-header { flex-direction: column; }
         }
         """)
+
+    static let boot = #css("""
+        .gb-boot {
+          min-height: 100dvh;
+          display: grid;
+          place-items: center;
+          background: var(--gb-bg);
+        }
+        .gb-boot-card {
+          width: min(440px, 86vw);
+          background: var(--gb-panel);
+          border: 1px solid var(--gb-border);
+          border-radius: 14px;
+          padding: 26px 28px;
+          display: grid;
+          gap: 12px;
+        }
+        .gb-boot-card h1 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+        .gb-boot-line { margin: 0; color: var(--gb-dim); font-size: 13px; line-height: 1.45; }
+        .gb-boot-track {
+          height: 8px;
+          border-radius: 4px;
+          background: color-mix(in oklab, var(--gb-text) 10%, var(--gb-panel));
+          overflow: hidden;
+        }
+        .gb-boot-fill {
+          height: 100%;
+          border-radius: 4px;
+          background: var(--gb-accent);
+          transition: width 120ms linear;
+        }
+        .gb-boot-pct { margin: 0; color: var(--gb-dim); font: 500 12px ui-monospace, monospace; }
+        """)
 }
 
 """##,
@@ -2268,26 +2376,57 @@ private let flowBias: [Double] = [
 // Convention: bias ≈ mean of `flow / capacity`, positive = from → to.
 
 extension GridDataset {
+    /// One-shot convenience over `GeneratorSession` — generates the full
+    /// year synchronously. Prefer the session directly when the caller
+    /// wants to interleave UI work (e.g. a boot progress bar) between
+    /// day-sized chunks.
     public static func generate(seed: UInt64) -> GridDataset {
-        let n = intervalCount
+        let session = GeneratorSession(seed: seed)
+        session.generateDays(GridDataset.dayCount)
+        return session.finish()
+    }
+}
+
+/// Incremental generator: produces the synthetic year day by day so a UI
+/// can paint progress between chunks. Chunking is bit-identical to the
+/// one-shot `GridDataset.generate(seed:)` — the per-interval loop order
+/// (and therefore the PRNG draw sequence) is exactly the same regardless
+/// of how the days are sliced.
+public final class GeneratorSession {
+    private var rng: SplitMix64
+    private var windState = [Double](repeating: 0.35, count: Zone.allCases.count)
+    private var cloudState = [Double](repeating: 0.5, count: Zone.allCases.count)
+    private var demand: [Float]
+    private var price: [Float]
+    private var gen: [[Float]]
+    private var flow: [[Float]]
+
+    /// Days generated so far (0...`GridDataset.dayCount`). Drives progress UI.
+    public private(set) var daysGenerated = 0
+    public var isComplete: Bool { daysGenerated >= GridDataset.dayCount }
+
+    public init(seed: UInt64) {
+        let n = GridDataset.intervalCount
         let zoneCount = Zone.allCases.count
-        var rng = SplitMix64(seed: seed)
-        let cal = calendar()
+        rng = SplitMix64(seed: seed)
+        demand = [Float](repeating: 0, count: zoneCount * n)
+        price = [Float](repeating: 0, count: zoneCount * n)
+        gen = [[Float]](repeating: [Float](repeating: 0, count: zoneCount * n),
+                        count: Source.allCases.count)
+        flow = [[Float]](repeating: [Float](repeating: 0, count: n),
+                         count: Interconnect.all.count)
+    }
 
-        var demand = [Float](repeating: 0, count: zoneCount * n)
-        var price = [Float](repeating: 0, count: zoneCount * n)
-        var gen = [[Float]](repeating: [Float](repeating: 0, count: zoneCount * n),
-                            count: Source.allCases.count)
-        var flow = [[Float]](repeating: [Float](repeating: 0, count: n),
-                             count: Interconnect.all.count)
-
-        // Per-zone autocorrelated states (wind + cloud), advanced per interval.
-        var windState = [Double](repeating: 0.35, count: zoneCount)
-        var cloudState = [Double](repeating: 0.5, count: zoneCount)
-
-        for t in 0..<n {
-            let d = t / intervalsPerDay
-            let hour = Double(t % intervalsPerDay) / 12.0          // 0..<24, fractional
+    /// Generates up to `count` further days (clamped at the year's end).
+    public func generateDays(_ count: Int) {
+        let n = GridDataset.intervalCount
+        let zoneCount = Zone.allCases.count
+        let lastDay = min(daysGenerated + count, GridDataset.dayCount)
+        for day in daysGenerated..<lastDay {
+            for interval in 0..<GridDataset.intervalsPerDay {
+                let t = day * GridDataset.intervalsPerDay + interval
+                let d = day
+            let hour = Double(interval) / 12.0          // 0..<24, fractional
             let dayPhase = Double(d)
             let weekend = (d % 7 == 5 || d % 7 == 6)
             // Seasonal factors shared by all zones this interval.
@@ -2385,7 +2524,15 @@ extension GridDataset {
                 if tightness > 0.9 { pr += 400 * (tightness - 0.9) }
                 price[idx] = Float(max(5, pr))
             }
+            }
         }
+        daysGenerated = lastDay
+    }
+
+    /// Assembles the dataset. Call once, after `isComplete`.
+    public func finish() -> GridDataset {
+        precondition(isComplete, "GeneratorSession.finish() before all days were generated")
+        let cal = GridDataset.calendar()
         return GridDataset(demand: demand, price: price, gen: gen, flow: flow,
                            monthOfInterval: cal.month, hourOfInterval: cal.hour)
     }
@@ -3106,6 +3253,23 @@ struct GeneratorTests {
                         "zone \(z.code) t=\(t): gen \(total) vs target \(target)")
             }
         }
+    }
+
+    @Test("chunked GeneratorSession output is bit-identical to one-shot generate")
+    func chunkedEqualsOneShot() {
+        let session = GeneratorSession(seed: 1)
+        // Deliberately ragged slice sizes, including a clamp past year-end.
+        for days in [1, 6, 30, 90, 111, 200] {
+            session.generateDays(days)
+        }
+        #expect(session.isComplete)
+        let chunked = session.finish()
+        #expect(chunked.demand == Self.a.demand)
+        #expect(chunked.price == Self.a.price)
+        #expect(chunked.gen == Self.a.gen)
+        #expect(chunked.flow == Self.a.flow)
+        // Progress counter clamps at the year boundary.
+        #expect(session.daysGenerated == GridDataset.dayCount)
     }
 
     @Test("shape: winter-peaking Québec, daylight-bounded solar, calendar sane")

@@ -80,26 +80,57 @@ private let flowBias: [Double] = [
 // Convention: bias ≈ mean of `flow / capacity`, positive = from → to.
 
 extension GridDataset {
+    /// One-shot convenience over `GeneratorSession` — generates the full
+    /// year synchronously. Prefer the session directly when the caller
+    /// wants to interleave UI work (e.g. a boot progress bar) between
+    /// day-sized chunks.
     public static func generate(seed: UInt64) -> GridDataset {
-        let n = intervalCount
+        let session = GeneratorSession(seed: seed)
+        session.generateDays(GridDataset.dayCount)
+        return session.finish()
+    }
+}
+
+/// Incremental generator: produces the synthetic year day by day so a UI
+/// can paint progress between chunks. Chunking is bit-identical to the
+/// one-shot `GridDataset.generate(seed:)` — the per-interval loop order
+/// (and therefore the PRNG draw sequence) is exactly the same regardless
+/// of how the days are sliced.
+public final class GeneratorSession {
+    private var rng: SplitMix64
+    private var windState = [Double](repeating: 0.35, count: Zone.allCases.count)
+    private var cloudState = [Double](repeating: 0.5, count: Zone.allCases.count)
+    private var demand: [Float]
+    private var price: [Float]
+    private var gen: [[Float]]
+    private var flow: [[Float]]
+
+    /// Days generated so far (0...`GridDataset.dayCount`). Drives progress UI.
+    public private(set) var daysGenerated = 0
+    public var isComplete: Bool { daysGenerated >= GridDataset.dayCount }
+
+    public init(seed: UInt64) {
+        let n = GridDataset.intervalCount
         let zoneCount = Zone.allCases.count
-        var rng = SplitMix64(seed: seed)
-        let cal = calendar()
+        rng = SplitMix64(seed: seed)
+        demand = [Float](repeating: 0, count: zoneCount * n)
+        price = [Float](repeating: 0, count: zoneCount * n)
+        gen = [[Float]](repeating: [Float](repeating: 0, count: zoneCount * n),
+                        count: Source.allCases.count)
+        flow = [[Float]](repeating: [Float](repeating: 0, count: n),
+                         count: Interconnect.all.count)
+    }
 
-        var demand = [Float](repeating: 0, count: zoneCount * n)
-        var price = [Float](repeating: 0, count: zoneCount * n)
-        var gen = [[Float]](repeating: [Float](repeating: 0, count: zoneCount * n),
-                            count: Source.allCases.count)
-        var flow = [[Float]](repeating: [Float](repeating: 0, count: n),
-                             count: Interconnect.all.count)
-
-        // Per-zone autocorrelated states (wind + cloud), advanced per interval.
-        var windState = [Double](repeating: 0.35, count: zoneCount)
-        var cloudState = [Double](repeating: 0.5, count: zoneCount)
-
-        for t in 0..<n {
-            let d = t / intervalsPerDay
-            let hour = Double(t % intervalsPerDay) / 12.0          // 0..<24, fractional
+    /// Generates up to `count` further days (clamped at the year's end).
+    public func generateDays(_ count: Int) {
+        let n = GridDataset.intervalCount
+        let zoneCount = Zone.allCases.count
+        let lastDay = min(daysGenerated + count, GridDataset.dayCount)
+        for day in daysGenerated..<lastDay {
+            for interval in 0..<GridDataset.intervalsPerDay {
+                let t = day * GridDataset.intervalsPerDay + interval
+                let d = day
+            let hour = Double(interval) / 12.0          // 0..<24, fractional
             let dayPhase = Double(d)
             let weekend = (d % 7 == 5 || d % 7 == 6)
             // Seasonal factors shared by all zones this interval.
@@ -197,7 +228,15 @@ extension GridDataset {
                 if tightness > 0.9 { pr += 400 * (tightness - 0.9) }
                 price[idx] = Float(max(5, pr))
             }
+            }
         }
+        daysGenerated = lastDay
+    }
+
+    /// Assembles the dataset. Call once, after `isComplete`.
+    public func finish() -> GridDataset {
+        precondition(isComplete, "GeneratorSession.finish() before all days were generated")
+        let cal = GridDataset.calendar()
         return GridDataset(demand: demand, price: price, gen: gen, flow: flow,
                            monthOfInterval: cal.month, hourOfInterval: cal.hour)
     }
