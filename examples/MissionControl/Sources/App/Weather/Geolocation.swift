@@ -56,12 +56,11 @@ enum Geolocation {
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
 
-    /// Releases every held closure from JavaScriptKit's static table and
-    /// drops the references — dropping the array alone leaves the entries
-    /// pinned forever. Called by whichever handler fires first (releasing
-    /// the currently-executing closure inside its own body is sanctioned).
+    /// Drops the held closures once the geolocation callback has fired, so
+    /// JavaScriptKit's WeakRefs GC can collect them. (No manual release() —
+    /// it's a deprecated no-op on the default build.) Called by whichever
+    /// handler fires first.
     func releaseAll() {
-        for closure in closures { closure.release() }
         closures = []
     }
 }
