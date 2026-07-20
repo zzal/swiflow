@@ -29,7 +29,20 @@ package final class BrowserNavigator: Navigator {
     /// The event name registered alongside `listenerValue`.
     private var listenerEvent: String?
 
-    package init() {}
+    package init() {
+        // canImport(JavaScriptKit) is true on host, and the first
+        // JSObject.global access there aborts with NO message — the
+        // accessor fatalErrors below can never print on host. Fail at
+        // construction instead, where a diagnostic still reaches the
+        // terminal.
+        #if !arch(wasm32)
+        fatalError(
+            "Swiflow router: BrowserNavigator requires a browser environment. "
+                + "Host tests must inject a Navigator (RouterRoot's package "
+                + "init with a MockNavigator)."
+        )
+        #endif
+    }
 
     private var window: JSObject {
         guard let w = JSObject.global.window.object else {

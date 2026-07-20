@@ -99,7 +99,6 @@ struct TaskDiffTests {
         var captured: [String] = []
         let prior = _swiflowDiagnosticOverride
         _swiflowDiagnosticOverride = { captured.append($0) }
-        defer { _swiflowDiagnosticOverride = prior }
 
         // New render declares two tasks where there was one — stable-slot violation.
         inScope {
@@ -107,6 +106,11 @@ struct TaskDiffTests {
                            new: [TaskBinding(dependency: AnyEquatableBox(1), body: {}),
                                  TaskBinding(dependency: nil, body: {})])
         }
+        // The diagnostic fires synchronously inside reconcileTasks, so restore
+        // BEFORE the await: a process-global override held across a suspension
+        // lets parallel suites interleave installs and break the LIFO restore
+        // (the seam's synchronous-hold invariant — see Diagnostics.swift).
+        _swiflowDiagnosticOverride = prior
         await drain()
         #expect(captured.contains { $0.contains("`.task` count") })
         // The grow path still ran past the diagnostic and started the extra slot.

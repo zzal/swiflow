@@ -8,6 +8,7 @@
 import Testing
 @testable import Swiflow      // HandlerAmbient / HandlerRegistry / EventInfo for the click dispatch
 @testable import SwiflowUI
+import SwiflowTesting         // live-harness keyboard-roving suite
 
 @MainActor private func el(_ node: VNode?) -> ElementData? {
     if case .element(let data)? = node { return data }
@@ -296,5 +297,61 @@ struct TabsTests {
         #expect(css.contains("transition: left var(--sw-duration) ease-out"))
         // supported browsers hand the static underline off to the slider
         #expect(css.contains(".sw-tabs__tab[aria-selected=\"true\"] { border-bottom-color: transparent; }"))
+    }
+}
+
+// MARK: - Live keyboard roving (harness-mounted)
+
+/// Hosts a real Tabs in the headless harness so keydown drives the FULL
+/// path — handleRove's selection move runs on host (only the DOM focus()
+/// crossing is arch(wasm32)-gated). Before that gate, a host keydown
+/// aborted in JSObject.global with no message, which is why no such test
+/// could exist.
+@Component
+private final class TabsRovingHost {
+    @State var selection: String = "one"
+    var body: VNode {
+        Tabs(selection: $selection) {
+            Tab("One", id: "one") { text("first") }
+            Tab("Two", id: "two") { text("second") }
+            Tab("Three", id: "three") { text("third") }
+        }
+    }
+}
+
+@Suite("Tabs live keyboard roving")
+@MainActor
+struct TabsRovingTests {
+
+    private func selectedLabel(_ h: TestHarness) -> String? {
+        h.findAll(role: "tab").first { $0.attributes["aria-selected"] == "true" }?.text
+    }
+
+    @Test("ArrowRight/ArrowLeft/Home/End move the selection (automatic activation), wrapping")
+    func arrowKeysMoveSelection() {
+        let h = render(TabsRovingHost())
+        #expect(selectedLabel(h) == "One")
+
+        h.findAll(role: "tab")[0].press(key: "ArrowRight")
+        #expect(selectedLabel(h) == "Two")
+
+        h.findAll(role: "tab")[1].press(key: "End")
+        #expect(selectedLabel(h) == "Three")
+
+        h.findAll(role: "tab")[2].press(key: "ArrowRight")   // wraps
+        #expect(selectedLabel(h) == "One")
+
+        h.findAll(role: "tab")[0].press(key: "ArrowLeft")    // wraps back
+        #expect(selectedLabel(h) == "Three")
+
+        h.findAll(role: "tab")[2].press(key: "Home")
+        #expect(selectedLabel(h) == "One")
+    }
+
+    @Test("a non-roving key leaves the selection alone")
+    func otherKeysIgnored() {
+        let h = render(TabsRovingHost())
+        h.findAll(role: "tab")[0].press(key: "Enter")
+        #expect(selectedLabel(h) == "One")
     }
 }
