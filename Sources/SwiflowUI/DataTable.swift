@@ -124,16 +124,10 @@ public func DataTable<Row: Identifiable>(
     }
 }
 
-/// Clamp a pixel quantity to a trap-free `Int`. `Int(_:)` on a Double past
-/// ±2^31 TRAPS on wasm32 (host Int is 64-bit and HIDES it — the class that
-/// bit the query clock, PR #154), and raw Int multiplication overflows the
-/// same bound. CSS lengths beyond ~2^31 px are meaningless anyway (browsers
-/// cap element sizes far lower), so clamping identically on EVERY platform
-/// keeps host tests honest about wasm behavior. Non-finite inputs → 0.
-func cssPixelInt(_ value: Double) -> Int {
-    guard !value.isNaN else { return 0 }
-    return Int(max(0, min(value, 2_147_483_000)))   // just under Int32.max; ±∞ clamp naturally
-}
+/// Clamp a pixel quantity to a trap-free `Int` — see `WasmSafeInt.pixelClamp`
+/// for the wasm32 32-bit-`Int` rationale. Kept as a named alias because the
+/// call sites read as pixel math.
+func cssPixelInt(_ value: Double) -> Int { WasmSafeInt.pixelClamp(value) }
 
 // MARK: - Erasure (also the test seam)
 
