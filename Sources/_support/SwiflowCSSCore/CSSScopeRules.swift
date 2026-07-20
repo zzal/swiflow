@@ -1,5 +1,3 @@
-// Sources/SwiflowCSSCore/CSSScopeRules.swift
-//
 // The single source of truth for which CSS selectors escape component scoping.
 // Shared by BOTH scope-deciding paths so they can never drift:
 //   - the runtime CSS DSL (`Swiflow.CSSSheet.scopedSelector`, wasm)

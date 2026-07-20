@@ -1,5 +1,3 @@
-// Sources/MacroConsumerChecks/QueryMutationChecks.swift
-//
 // COMPILE-ONLY GATE for @Query/@Mutation witness isolation.
 // MainActorWitnessIsolation.witnessNames = ["fetch", "perform",
 // "optimistic", "invalidations"] is hand-encoded string policy that must

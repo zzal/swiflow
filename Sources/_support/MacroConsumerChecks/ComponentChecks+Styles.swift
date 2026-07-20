@@ -1,5 +1,3 @@
-// Sources/MacroConsumerChecks/ComponentChecks+Styles.swift
-//
 // The documented scopedStyles-in-extension pattern: @Component's
 // memberAttribute role can't reach extension members, so the explicit
 // @MainActor here is required — this file pins that the pattern keeps

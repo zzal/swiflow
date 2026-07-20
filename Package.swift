@@ -49,7 +49,7 @@ let package = Package(
         // compile for both wasm and the host compiler plugin.
         .target(
             name: "SwiflowCSSCore",
-            path: "Sources/SwiflowCSSCore",
+            path: "Sources/_support/SwiflowCSSCore",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .macro(
@@ -115,7 +115,7 @@ let package = Package(
         // re-implement it inline because they couldn't import an executable).
         .target(
             name: "SwiflowEmbedders",
-            path: "Sources/SwiflowEmbedders",
+            path: "Sources/_support/SwiflowEmbedders",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // Repo-dev codegen tool: `swift run swiflow-codegen <driver|templates|all>`.
@@ -235,7 +235,7 @@ let package = Package(
         .target(
             name: "MacroConsumerChecks",
             dependencies: ["Swiflow", "SwiflowQuery", "SwiflowStore"],
-            path: "Sources/MacroConsumerChecks",
+            path: "Sources/_support/MacroConsumerChecks",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
