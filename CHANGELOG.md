@@ -18,6 +18,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.5.4] — 2026-07-20
+
+**Beta.** The code-quality/modularization audit release: a driver listener
+leak on every exit-animated unmount, two wasm32 `Int` traps, host-test
+abort hazards, and a batch of macro guardrails — plus three small breaking
+API cleanups.
+
+**Stability:** Stable for pre-1.0 usage. Three BREAKING changes, each a
+mechanical migration: the `HTTP` facade → `HTTPClient()`, `LabeledField`'s
+`prefix:`/`suffix:` → `labelPrefix:`/`labelSuffix:`, and tuple-pattern
+`@State`/`@Persisted` (previously silently non-reactive) is now a compile
+error.
+
 ### Fixed
 
 - Exit-animated unmounts (e.g. every Toast dismissal) no longer leak a
@@ -37,6 +52,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   no HMR snapshot.
 - `@Persisted` on a `let` now offers the same "Replace 'let' with 'var'"
   FixIt as its sibling state macros.
+- `Dropdown`/`Tabs` keyboard roving and `BrowserNavigator` construction no
+  longer abort a host test process without a message: the DOM-focus crossings
+  are keyed on `arch(wasm32)` (the roving decision and tab selection stay
+  host-side), and `BrowserNavigator` now fails with its named diagnostic at
+  construction. Browser behavior is unchanged.
 
 ### Removed
 
