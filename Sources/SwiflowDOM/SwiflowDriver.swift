@@ -35,6 +35,12 @@ protocol SwiflowDriver {
     /// handle (e.g. an anchor handle or a post-destroy handle). Powers
     /// `Ref<Element>.wrappedValue`.
     func nodeForHandle(_ handle: Int) -> JSObject?
+
+    /// Detach the root mounted at `selector` from the DOM and drop the
+    /// driver's record of it. Called after `Swiflow.unmount(into:)` tears the
+    /// tree down, so an unmounted-and-never-remounted selector doesn't pin
+    /// its detached root. No-op for a selector that was never mounted.
+    func unmount(selector: String)
 }
 
 /// The production `SwiflowDriver`, backed by the `window.swiflow` global.
@@ -88,6 +94,10 @@ struct JSDriver: SwiflowDriver {
         // returns JS `null`, whose `.object` is `nil` — the legitimate
         // "ref not currently bound" outcome.
         global.nodeForHandle!(JSValue.number(Double(handle))).object
+    }
+
+    func unmount(selector: String) {
+        _ = global.unmount!(JSValue.string(selector))
     }
 }
 #endif

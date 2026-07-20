@@ -293,14 +293,25 @@ private struct DatabaseBox: @unchecked Sendable {
 }
 
 #else
+import Swiflow
 
 /// Host stub: the real store needs a browser. Present so app targets typecheck
-/// off-WASM; `load` always yields `nil`, writes are no-ops.
+/// off-WASM; `load` always yields `nil`, writes are no-ops. A host test that
+/// asserts persistence against the DEFAULT registry (rather than swapping in
+/// `MemoryStorage`) would otherwise pass or fail with no signal, so the first
+/// host `save` emits a one-time DEBUG warn.
 @MainActor
 public final class PersistentStore {
+    private static var warnedOnHost = false
+
     public init(database: String? = nil, store: String = "kv") {}
     public func load<T: Decodable>(_ type: T.Type, forKey key: String) async throws -> T? { nil }
-    public func save<T: Encodable>(_ value: T, forKey key: String) async throws {}
+    public func save<T: Encodable>(_ value: T, forKey key: String) async throws {
+        if !Self.warnedOnHost {
+            Self.warnedOnHost = true
+            swiflowWarn("PersistentStore: running on a non-WASM host — save/load are no-ops (nothing persists). Inject a MemoryStorage via _PersistedStorageRegistry to test persistence off-browser.")
+        }
+    }
     public func remove(forKey key: String) async throws {}
 }
 

@@ -340,6 +340,11 @@ final class Renderer {
         // the test harness but never here).
         let patches = teardownMountTree(tree, handlers: handlers, observer: queryClient)
         driver.applyPatches(patches)
+        // Drop the driver's record of this root and detach it from the DOM.
+        // The teardown patches above emit the root's destroyNode (which frees
+        // the node/listener maps), but `mountedRoots` is keyed by selector and
+        // deliberately survives destroyNode, so it needs this explicit signal.
+        driver.unmount(selector: selector)
 
         // Stop background revalidation triggers before releasing the scheduler.
         backgroundRevalidation?.stop()
