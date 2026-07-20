@@ -31,6 +31,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   render via the plain `Double` path on every platform). `DataTable`'s scroll
   handler and virtual-runway padding route through the same trap-free pixel
   clamp as the rest of its pixel math.
+- `@State`/`@Persisted` on a tuple or wildcard binding (`@State var (a, b) =
+  (0, 1)`) is now a compile error. Previously it was silently accepted and
+  compiled as plain, non-reactive storage — no state cell, no persistence,
+  no HMR snapshot.
+- `@Persisted` on a `let` now offers the same "Replace 'let' with 'var'"
+  FixIt as its sibling state macros.
 
 ### Removed
 

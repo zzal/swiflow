@@ -48,7 +48,7 @@ public macro Key() = #externalMacro(module: "SwiflowMacrosPlugin", type: "KeyMac
 /// }
 /// ```
 @attached(extension, conformances: Query)
-@attached(member, names: named(queryKey), arbitrary)
+@attached(member, names: named(queryKey), named(init))
 @attached(memberAttribute)
 public macro Query(prefix: String? = nil) =
     #externalMacro(module: "SwiflowMacrosPlugin", type: "QueryMacro")

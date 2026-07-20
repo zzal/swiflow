@@ -224,10 +224,17 @@ final class PersistedMacroTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@Persisted requires a `var` — persisted cells must be mutable.",
-                    line: 2, column: 5, severity: .error
+                    line: 2, column: 5, severity: .error,
+                    fixIts: [FixItSpec(message: "Replace 'let' with 'var'")]
                 ),
             ],
-            macros: testMacros
+            macros: testMacros,
+            applyFixIts: ["Replace 'let' with 'var'"],
+            fixedSource: """
+            final class Prefs {
+                @Persisted var theme: String = "light"
+            }
+            """
         )
     }
 
