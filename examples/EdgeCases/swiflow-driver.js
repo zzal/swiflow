@@ -414,6 +414,17 @@
   }
 
   window.swiflow = {
+    /** Test/diagnostic introspection: live sizes of the driver's node,
+     *  listener, and mount-root maps. Leak soaks assert these stay bounded
+     *  under animation-rate rendering — the driver has no other window into
+     *  its retention. Not API; shape may change. */
+    __stats: function () {
+      return {
+        nodes: nodes.size,
+        listeners: listeners.size,
+        mountedRoots: mountedRoots.size,
+      };
+    },
     /** Called by Swift each frame with a JSArray of patch objects.
      *  Each patch is applied in its own try/catch: one bad handle must not
      *  abort the rest of the frame (a half-applied batch is strictly worse

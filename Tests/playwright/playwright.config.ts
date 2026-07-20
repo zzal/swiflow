@@ -44,6 +44,7 @@ export default defineConfig({
     "overlay.spec.ts",     // SwiflowUIDemo — npm run test:swiflowui
     "tabs.spec.ts",        // SwiflowUIDemo — npm run test:swiflowui
     "catalog-nav.spec.ts", // SwiflowUIDemo — npm run test:swiflowui
+    "autocomplete.spec.ts",// SwiflowUIDemo — npm run test:swiflowui
     "gridboard.spec.ts",   // GridBoard — npm run test:gridboard (:3009)
     "todocrud.spec.ts",    // real Bun+SQLite backend — run-e2e-backend job
   ],
