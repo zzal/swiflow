@@ -116,13 +116,14 @@ func installFieldStyles() { installControlSheet(id: "sw-forms", formControlsShee
 
 /// Trims a trailing `.0` off a whole-number `Double` (`0` → `"0"`, not
 /// `"0.0"`), so e.g. `min: 0` emits `min="0"`. Falls back to `String(v)` for
-/// fractional values or magnitudes past ±2^31: `Int(v)` beyond that TRAPS on
-/// wasm32 (host Int is 64-bit and hides it), and the cutoff must be the same
-/// on every platform so host tests see wasm behavior (cf. `cssPixelInt`).
-/// Shared by `NumberField` (min/max/step) and `Slider` (range bounds/step) —
-/// extracted here at the second consumer rather than duplicated.
+/// fractional values or magnitudes past the signed 32-bit range: `Int(v)`
+/// beyond that TRAPS on wasm32 (see `WasmSafeInt`), so the whole-number fast
+/// path goes through `WasmSafeInt.exact` — identical on every platform, so
+/// host tests see wasm behavior. Shared by `NumberField` (min/max/step) and
+/// `Slider` (range bounds/step).
 func formatControlNumber(_ v: Double) -> String {
-    v == v.rounded() && v.magnitude < 2_147_483_648 ? String(Int(v)) : String(v)
+    if v == v.rounded(), let i = WasmSafeInt.exact(v) { return String(i) }
+    return String(v)
 }
 
 /// Deterministically slugs an arbitrary label into a lowercase, hyphenated
