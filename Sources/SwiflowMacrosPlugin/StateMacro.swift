@@ -79,8 +79,20 @@ public struct StateMacro: AccessorMacro, PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              let binding = varDecl.bindings.first,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+              let binding = varDecl.bindings.first else {
+            return []
+        }
+
+        // Reject tuple/wildcard patterns FIRST: the compiler never runs the
+        // accessor role for them, so every downstream "accessor path
+        // diagnosed it" bail would be silent — and `@State var (a, b)`
+        // would compile as plain, non-reactive storage (no cell, no HMR
+        // snapshot).
+        guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: StateMacroDiagnostic.requiresSingleBinding
+            ))
             return []
         }
 

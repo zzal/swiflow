@@ -378,3 +378,69 @@ final class QueryMacroTests: XCTestCase {
         )
     }
 }
+
+// prefixMustBeLiteral: the key prefix is cache identity, so it must be
+// statically known. A non-literal (or interpolated) prefix is diagnosed and
+// the expansion falls back to the type-name prefix.
+extension QueryMacroTests {
+
+    func testNonLiteralPrefixIsDiagnosed() {
+        assertMacroExpansion(
+            """
+            @Query(prefix: dynamicPrefix) struct TodoList {
+                func fetch() async throws -> [Todo] { [] }
+            }
+            """,
+            expandedSource: """
+            struct TodoList {
+                @MainActor
+                func fetch() async throws -> [Todo] { [] }
+
+                var queryKey: QueryKey {
+                    ["TodoList"]
+                }
+
+                init() {
+                }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Query(prefix:) requires a string literal — the key prefix must be statically known for the cache.",
+                    line: 1, column: 16, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+
+    func testInterpolatedPrefixIsDiagnosed() {
+        assertMacroExpansion(
+            #"""
+            @Query(prefix: "todos-\(region)") struct TodoList {
+                func fetch() async throws -> [Todo] { [] }
+            }
+            """#,
+            expandedSource: """
+            struct TodoList {
+                @MainActor
+                func fetch() async throws -> [Todo] { [] }
+
+                var queryKey: QueryKey {
+                    ["TodoList"]
+                }
+
+                init() {
+                }
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Query(prefix:) requires a string literal — the key prefix must be statically known for the cache.",
+                    line: 1, column: 16, severity: .error
+                ),
+            ],
+            macros: testMacros
+        )
+    }
+}

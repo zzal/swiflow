@@ -26,7 +26,8 @@ public struct PersistedMacro: AccessorMacro, PeerMacro {
         guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
             context.diagnose(Diagnostic(
                 node: Syntax(varDecl),
-                message: PersistedMacroDiagnostic.requiresVar
+                message: PersistedMacroDiagnostic.requiresVar,
+                fixIts: [MacroFixIt.letToVar(varDecl.bindingSpecifier)]
             ))
             return []
         }
@@ -96,8 +97,19 @@ public struct PersistedMacro: AccessorMacro, PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              let binding = varDecl.bindings.first,
-              let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+              let binding = varDecl.bindings.first else {
+            return []
+        }
+
+        // Reject tuple/wildcard patterns FIRST: the compiler never runs the
+        // accessor role for them, so every downstream "accessor path
+        // diagnosed it" bail would be silent — and `@Persisted var (a, b)`
+        // would compile as plain storage that never persists.
+        guard let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier else {
+            context.diagnose(Diagnostic(
+                node: Syntax(varDecl),
+                message: PersistedMacroDiagnostic.requiresSingleBinding
+            ))
             return []
         }
 
