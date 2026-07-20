@@ -4644,7 +4644,7 @@ enum Geolocation {
             // PersistentStore for the same pattern).
             let retainer = ClosureRetainer()
             let onSuccess = JSClosure { args in
-                retainer.closures = []
+                retainer.releaseAll()
                 guard let position = args.first,
                       let lat = position.coords.latitude.number,
                       let lon = position.coords.longitude.number else {
@@ -4655,7 +4655,7 @@ enum Geolocation {
                 return .undefined
             }
             let onError = JSClosure { _ in
-                retainer.closures = []
+                retainer.releaseAll()
                 continuation.resume(returning: nil)
                 return .undefined
             }
@@ -4672,6 +4672,15 @@ enum Geolocation {
 #if canImport(JavaScriptKit)
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
+
+    /// Releases every held closure from JavaScriptKit's static table and
+    /// drops the references — dropping the array alone leaves the entries
+    /// pinned forever. Called by whichever handler fires first (releasing
+    /// the currently-executing closure inside its own body is sanctioned).
+    func releaseAll() {
+        for closure in closures { closure.release() }
+        closures = []
+    }
 }
 #endif
 
@@ -5612,8 +5621,14 @@ final class Shell {
 
     private func stopHashListener() {
         #if canImport(JavaScriptKit)
-        if let window = JSObject.global.window.object, let closure = hashListener {
-            _ = window.removeEventListener!("hashchange", closure)
+        if let closure = hashListener {
+            if let window = JSObject.global.window.object {
+                _ = window.removeEventListener!("hashchange", closure)
+            }
+            // removeEventListener only detaches; release() is what unpins the
+            // closure from JavaScriptKit's static table (nil-ing the field
+            // does not).
+            closure.release()
         }
         hashListener = nil
         #endif

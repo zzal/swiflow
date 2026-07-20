@@ -225,8 +225,14 @@ final class Shell {
 
     private func stopHashListener() {
         #if canImport(JavaScriptKit)
-        if let window = JSObject.global.window.object, let closure = hashListener {
-            _ = window.removeEventListener!("hashchange", closure)
+        if let closure = hashListener {
+            if let window = JSObject.global.window.object {
+                _ = window.removeEventListener!("hashchange", closure)
+            }
+            // removeEventListener only detaches; release() is what unpins the
+            // closure from JavaScriptKit's static table (nil-ing the field
+            // does not).
+            closure.release()
         }
         hashListener = nil
         #endif
