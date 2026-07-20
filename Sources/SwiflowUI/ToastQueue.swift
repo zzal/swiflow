@@ -20,7 +20,15 @@ public struct ToastQueue: Reducer {
     }
 
     let maxVisible: Int
-    public init(maxVisible: Int = 3) { self.maxVisible = maxVisible }
+    public init(maxVisible: Int = 3) {
+        // A non-positive cap would park every toast in `pending` forever —
+        // nothing would ever render. Clamp loudly (the DataTable rowHeight
+        // guard is the precedent).
+        if maxVisible < 1 {
+            swiflowWarn("ToastQueue: maxVisible must be >= 1 (got \(maxVisible)); clamping to 1.")
+        }
+        self.maxVisible = Swift.max(1, maxVisible)
+    }
     public var initialState: State { .init() }
 
     public func reduce(into s: inout State, _ action: Action) {

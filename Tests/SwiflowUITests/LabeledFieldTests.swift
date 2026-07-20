@@ -78,7 +78,7 @@ struct LabeledFieldTests {
         let plainLine = el(el(plain.children[0])!.children[0])!
         #expect(plainLine.children.count == 1)   // just the label text
 
-        let both = el(LabeledField("A", prefix: text("P"), suffix: text("S")) { element("input", attributes: []) })!
+        let both = el(LabeledField("A", labelPrefix: text("P"), labelSuffix: text("S")) { element("input", attributes: []) })!
         let line = el(el(both.children[0])!.children[0])!
         #expect(line.children.count == 3)
         #expect(el(line.children[0])!.attributes["class"] == "sw-field__label-prefix")

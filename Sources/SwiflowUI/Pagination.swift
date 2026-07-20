@@ -52,7 +52,11 @@ private func paginationBody(
 
     func navBtn(_ label: String, _ target: Int, disabled: Bool) -> VNode {
         var attrs: [Attribute] = [.class("sw-pagination__btn"), .attr("type", "button"), .attr("aria-label", label)]
-        if disabled { attrs.append(.attr("inert", true)) }     // project rule: inert, not disabled
+        // `inert`, not `disabled`: a pager button inside a composite widget
+        // must leave the tab order and a11y tree, and has no form semantics
+        // to preserve — form-associated controls keep native `disabled`
+        // (see Button).
+        if disabled { attrs.append(.attr("inert", true)) }
         else { attrs.append(.on(.click) { onChange(target) }) }
         return element("button", attributes: attrs, children: [text(label)])
     }

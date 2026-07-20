@@ -128,3 +128,47 @@ struct ToastStackQueueTests {
         #expect(h.state.visible[0].count == 2, "recurrence badge, not a second toast")
     }
 }
+
+// MARK: - Numeric-input guardrails (synchronous warn-capture only — the
+// _swiflowWarnOverride seam must never be held across a suspension)
+
+@Suite("Toast numeric guardrails")
+@MainActor
+struct ToastGuardrailTests {
+
+    private func capturingWarns<T>(_ body: () -> T) -> (value: T, warns: [String]) {
+        var warns: [String] = []
+        let prior = _swiflowWarnOverride
+        _swiflowWarnOverride = { warns.append($0) }
+        defer { _swiflowWarnOverride = prior }
+        return (body(), warns)
+    }
+
+    @Test("ToastQueue clamps maxVisible < 1 to 1, with a DEBUG warn")
+    func maxVisibleClamped() {
+        let (queue, warns) = capturingWarns { ToastQueue(maxVisible: 0) }
+        #expect(queue.maxVisible == 1)
+        #expect(warns.contains { $0.contains("maxVisible") })
+        // Clamped queue still renders: one show goes visible, not pending.
+        var s = queue.initialState
+        queue.reduce(into: &s, .show(ToastItem("a")))
+        #expect(s.visible.count == 1)
+        #expect(s.pending.isEmpty)
+    }
+
+    @Test("valid maxVisible does not warn")
+    func validMaxVisibleSilent() {
+        let (queue, warns) = capturingWarns { ToastQueue(maxVisible: 3) }
+        #expect(queue.maxVisible == 3)
+        #expect(warns.isEmpty)
+    }
+
+    @Test("ToastItem warns on a non-positive duration (behavior unchanged: immediate dismiss)")
+    func nonPositiveDurationWarns() {
+        let (item, warns) = capturingWarns { ToastItem("x", duration: 0) }
+        #expect(item.duration == 0)
+        #expect(warns.contains { $0.contains("duration") })
+        let (_, quiet) = capturingWarns { ToastItem("y") }
+        #expect(quiet.isEmpty)
+    }
+}

@@ -137,7 +137,12 @@ private func buttonNode(
 
     var attrs: [Attribute] = [.class(classValue), .attr("type", type.rawValue)]
     if disabled {
-        attrs.append(.attr("disabled", true))           // no click handler on a disabled button
+        // Native `disabled`, not `inert`: a <button> is form-associated
+        // (submission exclusion, :disabled UA behavior). `inert` is for
+        // controls INSIDE composite widgets (Pagination's pagers, Dropdown's
+        // menu items), which must leave the tab order but carry no form
+        // semantics. No click handler on a disabled button.
+        attrs.append(.attr("disabled", true))
     } else if let action {
         attrs.append(.on(.click, perform: action))      // submit/reset pass nil → no handler; the form drives them
     }
