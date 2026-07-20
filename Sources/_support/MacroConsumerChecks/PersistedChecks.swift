@@ -1,5 +1,3 @@
-// Sources/MacroConsumerChecks/PersistedChecks.swift
-//
 // COMPILE-ONLY GATE for @Persisted. Consumes the macro
 // the way a real app does: PLAIN imports, a public @Component, public
 // @Persisted members read from a main-actor body.

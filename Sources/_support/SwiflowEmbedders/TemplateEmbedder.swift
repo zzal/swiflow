@@ -1,5 +1,3 @@
-// Sources/SwiflowEmbedders/TemplateEmbedder.swift
-//
 // THE emit path for EmbeddedTemplates.swift — invoked by the swiflow-codegen
 // tool (`swift run swiflow-codegen templates`), which replaced the standalone
 // script that used to duplicate this logic, and byte-pinned by the freshness

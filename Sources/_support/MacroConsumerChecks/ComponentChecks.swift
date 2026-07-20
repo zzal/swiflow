@@ -1,5 +1,3 @@
-// Sources/MacroConsumerChecks/ComponentChecks.swift
-//
 // COMPILE-ONLY GATE for the component-side macros.
 // `assertMacroExpansion` type-checks nothing, and the compile gates that DO
 // live inside test targets (BareComponentIsolationTests & friends) use

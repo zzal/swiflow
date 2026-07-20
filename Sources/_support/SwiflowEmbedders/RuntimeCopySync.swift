@@ -1,5 +1,3 @@
-// Sources/SwiflowEmbedders/RuntimeCopySync.swift
-//
 // The generated runtime JS lives canonically in js-driver/ and as tracked
 // per-example copies (7× swiflow-driver.js, 9× swiflow-service-worker.js,
 // plus RegionDemo's regions pair). Those copies used to be refreshed by

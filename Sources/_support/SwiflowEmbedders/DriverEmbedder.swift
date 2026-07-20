@@ -1,5 +1,3 @@
-// Sources/SwiflowEmbedders/DriverEmbedder.swift
-//
 // THE emit path for EmbeddedDriver.swift — invoked by the swiflow-codegen
 // tool (`swift run swiflow-codegen driver`), which replaced the standalone
 // script that used to re-implement this inline. The byte-pin test in
