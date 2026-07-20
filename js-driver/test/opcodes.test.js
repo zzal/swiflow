@@ -46,19 +46,35 @@ describe("driver opcodes", () => {
     assert.match(div.innerHTML, /<b>bold<\/b>.*<i>italic<\/i>/);
   });
 
-  test("destroyNode drops the map entry; re-destroying is a no-op", () => {
-    const { swiflow, document } = setupDriver();
+  test("destroyNode detaches tracked listeners and drops the map entries; re-destroying is a no-op", () => {
+    const { swiflow, window, document } = setupDriver();
+    let callCount = 0;
+    window.__swiflowDispatch = () => { callCount += 1; };
     swiflow.applyPatches([
       { op: "createElement", handle: 1, tag: "div" },
-      { op: "createElement", handle: 2, tag: "span" },
+      { op: "createElement", handle: 2, tag: "button" },
       { op: "appendChild", parent: 1, child: 2 },
+      { op: "addHandler", handle: 2, event: "click", handlerId: 2 },
+      // Handle 12 shares the "2" digit prefix: the key parse must be
+      // numeric, or destroying handle 2 would also sweep 12's listener.
+      { op: "createElement", handle: 12, tag: "button" },
+      { op: "appendChild", parent: 1, child: 12 },
+      { op: "addHandler", handle: 12, event: "click", handlerId: 12 },
     ]);
     swiflow.mount(1, "#app");
-    assert.equal(document.querySelector("div").children.length, 1);
+    const [btn2, btn12] = document.querySelectorAll("button");
+    btn2.click();
+    btn12.click();
+    assert.equal(callCount, 2);
     swiflow.applyPatches([{ op: "destroyNode", handle: 2 }]);
-    swiflow.applyPatches([{ op: "destroyNode", handle: 2 }]);
-    // No DOM-removal assertion — destroyNode drops the driver's map
-    // entry only. removeChild is what removes from DOM.
+    // destroyNode does NOT remove from the DOM (removeChild does) — but its
+    // listener must be gone even while the node is still attached…
+    btn2.click();
+    assert.equal(callCount, 2, "destroyed handle's listener must not fire");
+    // …and the numeric prefix parse must leave handle 12's listener alive.
+    btn12.click();
+    assert.equal(callCount, 3, "handle 12 must survive destroying handle 2");
+    swiflow.applyPatches([{ op: "destroyNode", handle: 2 }]);   // no-op
   });
 
   test("animateExit detaches listeners immediately, removes the node after the window", async () => {
@@ -489,5 +505,164 @@ describe("driver opcodes", () => {
     swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "a" }]);
     swiflow.mount(1, "#app");
     assert.equal(document.querySelector("a").namespaceURI, "http://www.w3.org/1999/xhtml");
+  });
+});
+
+// serializeEvent field fidelity + the innerHTML defence + select mount order —
+// the "declared vs applied" holes: each of these is observable ONLY at the
+// driver layer (VNode-dict tests can't see what the DOM actually received).
+describe("driver event serialization and application order", () => {
+
+  test("serializeEvent carries targetValue from an input event", () => {
+    const { swiflow, window, document } = setupDriver();
+    const payloads = [];
+    window.__swiflowDispatch = (_id, p) => payloads.push(p);
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "input" },
+      { op: "addHandler", handle: 1, event: "input", handlerId: 1 },
+    ]);
+    swiflow.mount(1, "#app");
+    const input = document.querySelector("input");
+    input.value = "hello";
+    input.dispatchEvent(new window.Event("input", { bubbles: true }));
+    assert.equal(payloads.length, 1);
+    assert.equal(payloads[0].targetValue, "hello");
+    assert.equal(payloads[0].isSelfTarget, true);
+    assert.equal(payloads[0].type, "input");
+  });
+
+  test("serializeEvent carries targetChecked from a checkbox change", () => {
+    const { swiflow, window, document } = setupDriver();
+    const payloads = [];
+    window.__swiflowDispatch = (_id, p) => payloads.push(p);
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "input" },
+      { op: "setAttribute", handle: 1, name: "type", value: "checkbox" },
+      { op: "addHandler", handle: 1, event: "change", handlerId: 1 },
+    ]);
+    swiflow.mount(1, "#app");
+    const box = document.querySelector("input");
+    box.checked = true;
+    box.dispatchEvent(new window.Event("change", { bubbles: true }));
+    assert.equal(payloads[0].targetChecked, true);
+  });
+
+  test("serializeEvent: isSelfTarget is false for a bubbled event, true on the target", () => {
+    const { swiflow, window, document } = setupDriver();
+    const payloads = [];
+    window.__swiflowDispatch = (_id, p) => payloads.push(p);
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createElement", handle: 2, tag: "span" },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "addHandler", handle: 1, event: "click", handlerId: 1 },
+    ]);
+    swiflow.mount(1, "#app");
+    // NB: querySelector("div") would match #app itself — resolve the
+    // mounted div through the span instead.
+    const span = document.querySelector("span");
+    const div = span.parentNode;
+    // Click the CHILD: the div's handler sees a bubbled event (backdrop-
+    // click dismissal is built on exactly this distinction).
+    span.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    div.dispatchEvent(new window.MouseEvent("click", { bubbles: false }));
+    assert.equal(payloads.length, 2);
+    assert.equal(payloads[0].isSelfTarget, false);
+    assert.equal(payloads[1].isSelfTarget, true);
+  });
+
+  test("serializeEvent carries key and all four modifier flags", () => {
+    const { swiflow, window, document } = setupDriver();
+    const payloads = [];
+    window.__swiflowDispatch = (_id, p) => payloads.push(p);
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "input" },
+      { op: "addHandler", handle: 1, event: "keydown", handlerId: 1 },
+    ]);
+    swiflow.mount(1, "#app");
+    document.querySelector("input").dispatchEvent(new window.KeyboardEvent("keydown", {
+      key: "Enter", shiftKey: true, ctrlKey: true, altKey: false, metaKey: true,
+      bubbles: true,
+    }));
+    const p = payloads[0];
+    assert.equal(p.key, "Enter");
+    assert.equal(p.shiftKey, true);
+    assert.equal(p.ctrlKey, true);
+    assert.equal(p.altKey, false);
+    assert.equal(p.metaKey, true);
+  });
+
+  test("setProperty refuses innerHTML: the patch fails, the batch reports false", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
+    swiflow.mount(1, "#app");
+    const ok = swiflow.applyPatches([
+      { op: "setProperty", handle: 1, name: "innerHTML", value: "<img onerror=x>" },
+    ]);
+    assert.equal(ok, false, "the batch must report the refused patch");
+    assert.equal(document.querySelector("#app").firstElementChild.innerHTML, "",
+      "no markup may land through setProperty");
+  });
+
+  test("select: a value property applied before options loses to the first option (the mount-order gotcha); the selected attribute wins", () => {
+    const { swiflow, document } = setupDriver();
+    // Arm 1 — value-before-options: the property write happens while the
+    // select has no options, so the browser keeps the first option once
+    // options land. This pins WHY Select must emit `selected` on the chosen
+    // option instead of relying on the bound value property.
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "select" },
+      { op: "setProperty", handle: 1, name: "value", value: "b" },
+      { op: "createElement", handle: 2, tag: "option" },
+      { op: "setAttribute", handle: 2, name: "value", value: "a" },
+      { op: "createElement", handle: 3, tag: "option" },
+      { op: "setAttribute", handle: 3, name: "value", value: "b" },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "appendChild", parent: 1, child: 3 },
+    ]);
+    swiflow.mount(1, "#app");
+    assert.equal(document.querySelector("select").value, "a",
+      "value-before-options: first option wins — the documented gotcha");
+
+    // Arm 2 — the fix's mechanism: `selected` on the intended option.
+    const { swiflow: sw2, document: doc2 } = setupDriver();
+    sw2.applyPatches([
+      { op: "createElement", handle: 1, tag: "select" },
+      { op: "createElement", handle: 2, tag: "option" },
+      { op: "setAttribute", handle: 2, name: "value", value: "a" },
+      { op: "createElement", handle: 3, tag: "option" },
+      { op: "setAttribute", handle: 3, name: "value", value: "b" },
+      { op: "setAttribute", handle: 3, name: "selected", value: "" },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "appendChild", parent: 1, child: 3 },
+    ]);
+    sw2.mount(1, "#app");
+    assert.equal(doc2.querySelector("select").value, "b",
+      "the selected attribute picks the bound option regardless of order");
+  });
+
+  test("__stats reports live map sizes and shrinks after teardown", async () => {
+    const { swiflow, window } = setupDriver();
+    window.__swiflowDispatch = () => {};
+    swiflow.applyPatches([
+      { op: "createElement", handle: 1, tag: "div" },
+      { op: "createElement", handle: 2, tag: "button" },
+      { op: "appendChild", parent: 1, child: 2 },
+      { op: "addHandler", handle: 2, event: "click", handlerId: 1 },
+    ]);
+    swiflow.mount(1, "#app");
+    // Field-by-field: the stats object crosses the jsdom vm realm, so
+    // deepEqual would reject it on prototype identity alone.
+    const before = swiflow.__stats();
+    assert.equal(before.nodes, 2);
+    assert.equal(before.listeners, 1);
+    assert.equal(before.mountedRoots, 1);
+    swiflow.applyPatches([
+      { op: "animateExit", handle: 2, parentHandle: 1, animation: "out 0.1s", durationMs: 0 },
+    ]);
+    await new Promise((r) => setTimeout(r, 0));
+    const after = swiflow.__stats();
+    assert.equal(after.nodes, 1);
+    assert.equal(after.listeners, 0, "the exit-animated node's listener entry is evicted");
   });
 });
