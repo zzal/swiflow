@@ -92,15 +92,16 @@ public final class Link: Component {
 
     public func onDisappear() {
         // removeEventListener stops the callback from firing; release()
-        // drops it from JavaScriptKit's static `sharedClosures` table —
-        // BOTH are required. `JSClosure.init` pins the closure in that
-        // static table until released, so skipping release here leaked one
-        // closure per Link mount/unmount cycle (i.e. per route change).
+        // detaches it. Both matter: detaching the click listener is what lets
+        // the WeakRefs build GC-collect the closure once the field is dropped,
+        // so skipping it leaked one closure per Link mount/unmount cycle (per
+        // route change). `releaseIfNeeded()` additionally frees it on the
+        // legacy non-WeakRefs build.
         if let closure = clickClosure {
             if let el = linkRef.wrappedValue {
                 _ = el.removeEventListener!("click", closure)
             }
-            closure.release()
+            closure.releaseIfNeeded()
         }
         clickClosure = nil
     }

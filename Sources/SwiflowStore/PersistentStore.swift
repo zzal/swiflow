@@ -209,11 +209,11 @@ public final class PersistentStore {
 
     private func evictConnection() {
         database = nil
-        // release() drops the watchers from JavaScriptKit's static
-        // `sharedClosures` table (clearing the array alone leaks them
-        // there). Releasing the currently-executing watcher from inside
-        // its own invocation is safe — JSOneshotClosure does exactly that.
-        for watcher in connectionWatchers { watcher.release() }
+        // Dropping the array lets the WeakRefs build GC-collect the watchers;
+        // `releaseIfNeeded()` additionally frees them on the legacy
+        // non-WeakRefs build. Releasing the currently-executing watcher from
+        // inside its own invocation is safe.
+        for watcher in connectionWatchers { watcher.releaseIfNeeded() }
         connectionWatchers = []
     }
 
@@ -273,10 +273,11 @@ public final class PersistentStore {
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
 
-    /// Releases every held closure from JavaScriptKit's static table and
-    /// drops the references. Called by whichever handler fires first.
+    /// Drops the held closures (GC-collected on the WeakRefs build) and frees
+    /// them on the legacy non-WeakRefs build. Called by whichever handler
+    /// fires first.
     func releaseAll() {
-        for closure in closures { closure.release() }
+        for closure in closures { closure.releaseIfNeeded() }
         closures = []
     }
 }

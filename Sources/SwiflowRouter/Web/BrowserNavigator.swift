@@ -113,11 +113,10 @@ package final class BrowserNavigator: Navigator {
         if let event = listenerEvent, let value = listenerValue {
             _ = window.removeEventListener!(event.jsValue, value)
         }
-        // Release AFTER removeEventListener: removal stops the callback
-        // from firing, release() drops the entry from JavaScriptKit's
-        // static `sharedClosures` table (dropping the Swift reference
-        // alone leaks it there forever).
-        listenerClosure?.release()
+        // Detach (removeEventListener, above) THEN drop the field — that order
+        // lets the WeakRefs build GC-collect the closure. `releaseIfNeeded()`
+        // additionally frees it on the legacy non-WeakRefs build.
+        listenerClosure?.releaseIfNeeded()
         listenerClosure = nil
         listenerValue = nil
         listenerEvent = nil

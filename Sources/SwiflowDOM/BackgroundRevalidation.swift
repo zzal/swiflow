@@ -69,13 +69,14 @@ final class BackgroundRevalidation {
             }
             _ = JSObject.global.removeEventListener!("focus", listener)
         }
-        // Release AFTER the removeEventListener calls (removal stops the
-        // callbacks; release() drops their pinned `sharedClosures` entries —
-        // nil-ing the fields alone leaks them in that static table).
+        // Detach (removeEventListener/clearInterval, above) THEN drop the
+        // fields — that order is what lets the WeakRefs build GC-collect the
+        // closures. `releaseIfNeeded()` additionally frees them on the legacy
+        // non-WeakRefs build; it's a no-op on the default build.
         focusListener = nil
-        tickClosure?.release()
+        tickClosure?.releaseIfNeeded()
         tickClosure = nil
-        focusClosure?.release()
+        focusClosure?.releaseIfNeeded()
         focusClosure = nil
     }
 }
