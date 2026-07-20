@@ -276,7 +276,7 @@ final class AutocompleteBox {
     // MARK: state transitions
     // Internal (not private) so host tests drive the keyboard/commit contract
     // directly instead of digging keydown handlers out of a re-rendered body —
-    // the DataTable internal-seam precedent (audit V Wave-2 #4). Production
+    // the DataTable internal-seam precedent. Production
     // callers remain this file's own handlers.
 
     func openList() {

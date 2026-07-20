@@ -1,7 +1,7 @@
 // Sources/SwiflowTesting/Queries.swift
 //
-// Audit VI Wave-2 #1: the find(role:)/find(class:)/find(label:) query
-// vocabulary — the RTL getByRole bar. Tag+text-only queries are why the
+// The find(role:)/find(class:)/find(label:) query vocabulary — the RTL
+// getByRole bar. Tag+text-only queries are why the
 // SwiflowUI suites hand-rolled VNode walkers instead of adopting the
 // harness: component tests want to speak the ACCESSIBILITY tree ("the
 // textbox labelled Email"), not CSS-selector positions.

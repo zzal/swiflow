@@ -20,7 +20,7 @@ enum DispatcherBridge {
 
     /// Idempotent: subsequent calls are no-ops. One JSClosure services all
     /// roots — handler IDs are globally unique across all `HandlerRegistry`
-    /// instances (Phase 13c), so `HandlerRegistry.dispatchGlobal` routes
+    /// instances, so `HandlerRegistry.dispatchGlobal` routes
     /// correctly regardless of which root registered the handler.
     @MainActor
     static func install() {

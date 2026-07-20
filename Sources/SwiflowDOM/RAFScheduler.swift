@@ -48,8 +48,8 @@ final class RAFScheduler: Scheduler {
     /// closure per scheduled frame and nil-ed it after firing, leaking one
     /// pinned closure (plus its JS function object) per render — at
     /// animation-rate renders that ballooned the web process by hundreds
-    /// of MB within minutes until Safari killed the page (found via
-    /// GridBoard playback). Passing the same function to
+    /// of MB within minutes until Safari killed the page. Passing the same
+    /// function to
     /// `requestAnimationFrame` every frame is standard JS; rAF registers
     /// per call, not per function identity.
     private var rafClosure: JSClosure?

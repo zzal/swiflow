@@ -2,7 +2,7 @@
 import Swiflow
 import Testing
 
-/// A LIVE handle to a rendered element (audit VI Wave-2 #2). Wraps the
+/// A LIVE handle to a rendered element. Wraps the
 /// mount-tree node the diff mutates in place, so reads always reflect the
 /// CURRENT tree, actions dispatch on THIS element (never re-queried, never
 /// first-in-document-order), and `find` scopes to its subtree:
@@ -139,7 +139,7 @@ public func render<C: Component>(_ component: C) -> TestHarness {
 
 /// Wraps a `TestRenderer` and exposes the public query + interaction API.
 ///
-/// > **Fidelity boundary (audit VI Wave-1):** the harness renders, diffs, and
+/// > **Fidelity boundary:** the harness renders, diffs, and
 /// > asserts against the DECLARED VNode tree — the real diff, lifecycle, and
 /// > handler wiring run, but nothing is ever applied to a DOM. Everything on
 /// > the far side of the patch stream is invisible here: `PatchSerializer`,
@@ -234,8 +234,7 @@ public struct TestHarness {
     }
 
     /// Asserts the rendered tree's text contains `text`. On failure records
-    /// an Issue that INCLUDES the rendered tree (audit VI Wave-2 #5 —
-    /// `#expect(h.find(...) != nil)` said "expected non-nil" and nothing else).
+    /// an Issue that INCLUDES the rendered tree != nil)` said "expected non-nil" and nothing else).
     public func expect(text: String, sourceLocation: SourceLocation = #_sourceLocation) {
         guard !renderer.allText.contains(text) else { return }
         Issue.record(
@@ -262,9 +261,7 @@ public struct TestHarness {
     }
 
     /// Records a test failure at the CALLER's line when an interaction could
-    /// not dispatch (audit VI Wave-1: interactions used to silently no-op on
-    /// a typo'd selector, and the assertion three lines later failed with a
-    /// bare "expected non-nil"). The `IfPresent` variants opt back into the
+    /// not dispatch. The `IfPresent` variants opt back into the
     /// no-op contract for genuinely conditional interactions.
     private func recordIfFailed(_ failure: TestRenderer.InteractionFailure?,
                                 _ interaction: String,
@@ -337,9 +334,7 @@ public struct TestHarness {
         _ = renderer.check(tag: tag, at: index, checked: checked)
     }
 
-    /// Fires an arbitrary event type on the matched element (audit VI
-    /// Wave-1: keydown/mousedown/etc. previously required digging handlers
-    /// out of the body by hand). The payload carries the target's
+    /// Fires an arbitrary event type on the matched element. The payload carries the target's
     /// value/checked snapshot, like every other interaction. STRICT.
     public func fire(_ event: String, on tag: String, text: String? = nil, at index: Int = 0,
                      sourceLocation: SourceLocation = #_sourceLocation) {

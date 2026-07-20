@@ -46,7 +46,7 @@ public func Prompt(
                      placeholder: placeholder, confirmTitle: confirmTitle,
                      cancelTitle: cancelTitle, dismissOnBackdrop: dismissOnBackdrop, onSubmit: onSubmit)
     }, refresh: { dialog in
-        // Thread the display props LIVE (audit V Wave-2 #6); the
+        // Thread the display props LIVE; the
         // isPresented/text Bindings were always live.
         dialog.title = title
         dialog.message = message

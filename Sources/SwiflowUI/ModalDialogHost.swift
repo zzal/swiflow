@@ -7,8 +7,7 @@ import JavaScriptKit
 /// The shared machinery of a native modal `<dialog>` driven by an
 /// `isPresented` binding — extracted from `AlertDialog`/`PromptDialog`,
 /// whose copies had already been flagged as byte-identical-but-drifting
-/// (audit V Wave-2 #2: consolidate BEFORE drift; sibling-inconsistency is
-/// the audit's dominant defect shape). Owned as a stored property by each
+///. Owned as a stored property by each
 /// dialog `@Component` — NOT a component itself: the owner keeps the
 /// lifecycle (`onAppear`/`onChange`) and forwards to `syncOpenState()`;
 /// this struct keeps the ref, the sync contract, and the shared attribute
@@ -16,8 +15,7 @@ import JavaScriptKit
 @MainActor
 struct ModalDialogHost {
     let isPresented: Binding<Bool>
-    /// `var`: threaded LIVE by the owning facade's `refresh:` push (audit V
-    /// Wave-2 #6). Mutating this sibling field never touches `dialogRef` —
+    /// `var`: threaded LIVE by the owning facade's `refresh:` push. Mutating this sibling field never touches `dialogRef` —
     /// the Ref is a class reference; the struct mutation leaves it intact.
     var dismissOnBackdrop: Bool
     #if canImport(JavaScriptKit)

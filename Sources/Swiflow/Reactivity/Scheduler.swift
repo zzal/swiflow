@@ -38,8 +38,7 @@ public protocol Scheduler: AnyObject {
 ///   callback per flush carrying that batch's dirty-instance set, exactly
 ///   what the browser delivers per rAF tick. Render roots use this so a
 ///   multi-dirty interaction produces one render, not one per component
-///   (audit VI Wave-2 #4 — the harness used to double-diff and double-fire
-///   `onChange` where the browser fired once).
+///  .
 /// - `init(rerenderCallback:)` — one callback per dirty component, in the
 ///   order components were first marked; a thin adapter over the batch
 ///   core, kept for observers that want per-component signals (the

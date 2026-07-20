@@ -139,14 +139,13 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
                 ))
             }
 
-            // Per Phase 15 Task 1 finding: Optional<T>.none stored in Any
-            // is type-erased. Snapshot must normalize .none to HMRNilSentinel
-            // at the source so the encoder never sees a raw nil-Optional.
+            // Optional<T>.none stored in Any is type-erased. Snapshot must
+            // normalize .none to HMRNilSentinel at the source so the encoder
+            // never sees a raw nil-Optional.
             //
-            // `_hmrCoerce` provides the Int↔Double bridge-round-trip
-            // coercion the old `State<T>` propertyWrapper class did
-            // inline; lives in `StateCell.swift` (public so macro-emitted
-            // code in user modules can reach it).
+            // `_hmrCoerce` provides the Int↔Double bridge-round-trip coercion;
+            // lives in `StateCell.swift` (public so macro-emitted code in user
+            // modules can reach it).
             if isOptional {
                 cellEntries.append("""
                     StateCell<\(className)>(
@@ -304,8 +303,8 @@ public struct ComponentMacro: ExtensionMacro, MemberMacro {
         //
         // When the type already carries explicit `@MainActor` (`synthActor == ""`),
         // Swift itself infers the correct actor on the implicit default init, so
-        // we revert to the old behaviour: synthesize only when mutations/reducers
-        // require default-construction assignments.
+        // synthesize an init only when mutations/reducers require
+        // default-construction assignments.
         let allInits = mutationInits + reducerInits
         var synthesizedInit: DeclSyntax? = nil
         if !hasUserInit {

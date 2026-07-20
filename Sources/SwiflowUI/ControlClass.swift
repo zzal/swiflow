@@ -1,9 +1,9 @@
 // Sources/SwiflowUI/ControlClass.swift
 //
-// Shared helpers for stateless skinned controls — Button, the M4 form controls
-// (TextField/Toggle/Select/RadioGroup), and the M5 Card/Badge/Spinner. Only the
-// genuinely stateful overlays (M6) use the framework's `@Component`
-// `scopedStyles`/`CSSInjector` seam instead and do NOT use these.
+// Shared helpers for stateless skinned controls — Button, the form controls
+// (TextField/Toggle/Select/RadioGroup), Card/Badge/Spinner. Every SwiflowUI
+// control installs its stylesheet through `installControlSheet`; these helpers
+// are the class-merge and keyed-embed plumbing those free functions share.
 import Swiflow
 
 /// Splits caller-supplied attributes into (their `class` values, everything
@@ -49,9 +49,8 @@ func embedKeyed<C: Component>(_ key: String?, contentKey: String? = nil,
 }
 
 /// `embedKeyed` with a `refresh:` prop-push — the overlays that thread their
-/// display props LIVE into the reused instance (Alert/Prompt since audit V
-/// Wave-2 #6) route here. Same plain-`var`-never-`@State` contract as
-/// `embed(_:refresh:)`.
+/// display props LIVE into the reused instance (Alert/Prompt) route here. Same
+/// plain-`var`-never-`@State` contract as `embed(_:refresh:)`.
 @MainActor
 func embedKeyed<C: Component>(_ key: String?, _ factory: @escaping () -> C,
                               refresh: @escaping (C) -> Void) -> VNode {

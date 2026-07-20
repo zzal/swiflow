@@ -12,9 +12,9 @@
 ///   loud on purpose — searching for `rawHTML(` enumerates every audit site.
 /// - `component`: a Component anchor — instantiates and renders a reactive
 ///   `Component` whose `body` is diffed against the previously-mounted
-///   subtree. Phase 3+.
+///   subtree.
 /// - `environmentOverride`: overrides one or more environment values for a
-///   subtree. Created by `withEnvironment(_:_:content:)`. Phase 10+.
+///   subtree. Created by `withEnvironment(_:_:content:)`.
 /// - `fragment`: a transparent child slot with no DOM node of its own — the
 ///   runtime form of a builder `if`/`for`. Holds its position even when empty.
 ///
@@ -32,7 +32,7 @@ public indirect enum VNode {
     /// A component anchor. Carries identity (`typeID` + `key`) and a factory
     /// closure consumed at first mount. Subsequent renders with an equal
     /// description at the same child position reuse the existing instance
-    /// (Phase 3+ — see `Component` and `ComponentDescription`).
+    /// (see `Component` and `ComponentDescription`).
     case component(ComponentDescription)
     /// An environment override wrapping a subtree. Equality compares both the
     /// environment values and the child node; when only the env values change

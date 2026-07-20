@@ -61,7 +61,7 @@ public func Modal(
                     dismissOnBackdrop: dismissOnBackdrop, content: content)
     }, refresh: { dialog in
         // Thread the display props LIVE into the reused instance, mirroring
-        // Alert/Prompt (audit V Wave-2 #6) — isPresented stays init-bound: it's a
+        // Alert/Prompt — isPresented stays init-bound: it's a
         // Binding, already live.
         dialog.title = title
         dialog.size = size

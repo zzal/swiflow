@@ -176,7 +176,7 @@ package enum HMRWalker {
         }
 
         var stateMap: [String: Any] = [:]
-        // Phase 15: snapshot values come from `_ComponentRuntime.stateCells`
+        // Snapshot values come from `_ComponentRuntime.stateCells`
         // — an array of typed StateCell descriptors emitted by the
         // `@Component` macro. Hand-rolled `Component` conformances that
         // don't adopt `_ComponentRuntime` produce an empty state map,

@@ -243,7 +243,7 @@ public final class PersistentStore {
             let onError = JSClosure { _ in
                 retainer.releaseAll()
                 let message = request.error.object?.message.string ?? "IndexedDB request failed"
-                // DEBUG visibility (audit IV Wave-3): callers routinely
+                // DEBUG visibility: callers routinely
                 // swallow these with `try?` (fire-and-forget saves), so a
                 // quota-exceeded or version error would otherwise vanish.
                 swiflowWarn("PersistentStore: IndexedDB request failed — \(message)")

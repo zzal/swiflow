@@ -22,8 +22,7 @@ public struct SystemQueryClock: QueryClock {
         // arch(wasm32), NOT canImport(JavaScriptKit): JavaScriptKit is an
         // unconditional dependency, so canImport is TRUE on the host too and
         // the JS branch would compile there and trap at JSObject.global the
-        // first time a host test constructs a default-clocked QueryClient
-        // (the PR #160 gotcha class; bit for real in audit VI Wave-3).
+        // first time a host test constructs a default-clocked QueryClient.
         #if arch(wasm32)
         let ms = JSObject.global.performance.object?.now?().number ?? 0
         return SystemQueryClock.duration(millisecondsSinceOrigin: ms)

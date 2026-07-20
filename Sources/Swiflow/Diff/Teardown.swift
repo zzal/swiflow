@@ -1,6 +1,6 @@
 // Sources/Swiflow/Diff/Teardown.swift
 
-/// The one teardown routine shared by every render root (audit VI Wave-2 #3).
+/// The one teardown routine shared by every render root.
 ///
 /// `destroy` gates its `componentDidUnmount` notification on
 /// `RenderObserverBox.current`. Before this helper existed the two roots had

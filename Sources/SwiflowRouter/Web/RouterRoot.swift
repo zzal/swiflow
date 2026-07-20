@@ -99,7 +99,7 @@ public final class RouterRoot {
         )
         let matched = matchRoutes(routes, path: currentPath)
         #if DEBUG
-        // Guardrail (audit IV Wave-3): a navigation that matched nothing is
+        // Guardrail: a navigation that matched nothing is
         // usually a typo'd path in a Link or navigate call. Once per path —
         // body runs every render, the warn must not.
         if matched == nil, currentPath != lastWarnedUnmatchedPath {

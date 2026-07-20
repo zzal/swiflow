@@ -104,7 +104,7 @@ struct DoctorCommand: AsyncParsableCommand {
     }
 
     /// Composes the report by consulting the SAME seams `build`/`dev` use
-    /// (audit III Wave-2 #8): `SwiftExecutableLocator` for which compiler,
+    ///: `SwiftExecutableLocator` for which compiler,
     /// `WasmSDKProbe` for which SDKs. Doctor used to re-implement both with
     /// a private raw-Process helper and had already diverged — it blessed
     /// any SDK id containing "wasm" while the build path requires the

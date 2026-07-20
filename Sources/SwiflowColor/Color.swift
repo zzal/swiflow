@@ -132,7 +132,7 @@ extension Color {
     }
     /// Which display gamut a derivation clamps into. `.srgb` models the
     /// fallback hex rendering; `.p3` models what a wide-gamut display shows
-    /// for the widened `oklch()` lines (audit V Wave-2 #1).
+    /// for the widened `oklch()` lines.
     enum Gamut { case srgb, p3 }
     private static func clamp(_ c: LinRGB, to gamut: Gamut) -> LinRGB {
         gamut == .srgb ? clampGamut(c) : clampGamutP3(c)
@@ -238,8 +238,7 @@ extension Color {
     }
 
     /// A hex color re-expressed as `oklch()` with chroma widened toward the
-    /// P3 gamut edge — BUT only as far as `checks` allows (audit V Wave-2 #1,
-    /// widen-then-back-off). Chroma widening at constant OKLCH L/H SHIFTS
+    /// P3 gamut edge — BUT only as far as `checks` allows. Chroma widening at constant OKLCH L/H SHIFTS
     /// WCAG relative luminance (perceptual L is not photometric Y — the old
     /// "same lightness → same contrast" claim here was wrong, test-pinned),
     /// so each candidate widening is validated through `checks` — the calling

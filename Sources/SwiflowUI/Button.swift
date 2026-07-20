@@ -149,7 +149,7 @@ private func buttonNode(
     attrs += callerRest   // caller wins on everything except the merged class
 
     #if DEBUG
-    // A11y guardrail (audit V Wave-2 #7): a label with no text content
+    // A11y guardrail: a label with no text content
     // anywhere leaves the button with NO accessible name unless the caller
     // supplied aria-label. String-titled buttons always pass (their label
     // is a text node); only composed icon-only labels can trip this.

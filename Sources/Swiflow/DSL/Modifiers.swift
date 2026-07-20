@@ -3,7 +3,7 @@
 /// A single modifier passed to an element factory (e.g. `div(.class("row"))`).
 /// Each case maps directly to one of `ElementData`'s bags.
 #if DEBUG
-/// DEBUG seam (audit V Wave-3): installed by SwiflowUI to validate `--sw-*`
+/// DEBUG seam: installed by SwiflowUI to validate `--sw-*`
 /// token references inside stringly `.style` VALUES against its typed
 /// vocabulary — a `var(--sw-surfce)` typo otherwise fails SILENT in CSS.
 /// Core stays vocabulary-agnostic; nil (the default) = no validation.

@@ -1,6 +1,6 @@
 // Sources/SwiflowRouter/Core/LinkActiveMatch.swift
 //
-// How a Link decides it points at the CURRENT route (audit IV Wave-1 #2).
+// How a Link decides it points at the CURRENT route.
 // Lives in Core — the matcher is pure and host-tested, and keeping it out
 // of the browser layer mirrors RouterMode's placement.
 

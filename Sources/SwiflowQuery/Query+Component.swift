@@ -59,7 +59,7 @@ public extension Component {
 
 #if DEBUG
 /// Once-per-process warners for `query()`'s two silent-placeholder paths
-/// (audit II Wave-3): before this, a `query()` with no usable client returned
+///: before this, a `query()` with no usable client returned
 /// a forever-loading snapshot with zero signal. `query()` runs on every body
 /// evaluation, so each situation warns once rather than flooding the console
 /// on every render. Tests reset via `_resetForTests()`.

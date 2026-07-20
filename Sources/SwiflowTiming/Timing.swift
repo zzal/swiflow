@@ -24,8 +24,7 @@ import JavaScriptKit
 // leaves nothing pinned. A CANCELLED timer never fires, so cancel() must
 // (and does) release the closure explicitly — with a plain JSClosure,
 // dropping the Swift reference would leave the entry pinned in the static
-// table forever (the leak class found in RAFScheduler via GridBoard
-// playback). TimerHandle also cancels itself on deinit, so dropping a
+// table forever. TimerHandle also cancels itself on deinit, so dropping a
 // handle without calling cancel() still clears the underlying setTimeout
 // and releases the closure.
 

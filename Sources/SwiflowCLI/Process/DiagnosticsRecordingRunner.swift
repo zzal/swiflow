@@ -1,6 +1,6 @@
 // Sources/SwiflowCLI/Process/DiagnosticsRecordingRunner.swift
 //
-// The dev rebuild loop's runner wrapper (audit III Wave-2 #7). The rebuild
+// The dev rebuild loop's runner wrapper. The rebuild
 // invocations ask for captureOutput:false (inherited streams), so compiler
 // diagnostics were gone by the time the loop's catch wanted to forward them
 // to the browser overlay — and the capture-path rebuild

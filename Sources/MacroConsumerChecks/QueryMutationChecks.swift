@@ -1,7 +1,7 @@
 // Sources/MacroConsumerChecks/QueryMutationChecks.swift
 //
-// COMPILE-ONLY GATE for @Query/@Mutation witness isolation (audit III
-// Wave-2 #9). MainActorWitnessIsolation.witnessNames = ["fetch", "perform",
+// COMPILE-ONLY GATE for @Query/@Mutation witness isolation.
+// MainActorWitnessIsolation.witnessNames = ["fetch", "perform",
 // "optimistic", "invalidations"] is hand-encoded string policy that must
 // track the Query/Mutation protocol requirements — and nothing but a real
 // compile can prove the stamping happened. Every witness below mutates

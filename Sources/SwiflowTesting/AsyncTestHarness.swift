@@ -13,8 +13,7 @@ public struct AsyncTestHarness {
     /// The manual clock driving this harness's client, when there is one:
     /// always for `init(_:clock:)`; for `init(_:queryClient:)` it is the
     /// shared client's OWN clock when that client was built with a
-    /// `ManualClock` (audit VI Wave-3 — this path used to store a
-    /// disconnected placeholder and `advance(by:)` crashed on a
+    /// `ManualClock`` crashed on a
     /// precondition). `nil` means the client runs on a non-manual clock and
     /// `advance(by:)` throws `ClockError`.
     private let manualClock: ManualClock?
@@ -49,7 +48,7 @@ public struct AsyncTestHarness {
     /// root's `TaskScope` keeps `settle()` from awaiting tasks owned by other
     /// (e.g. concurrently running) test renderers in the same process.
     public func settle(maxRounds: Int = 100) async throws {
-        // Flush FIRST (audit VI Wave-1): a direct @State mutation from test
+        // Flush FIRST: a direct @State mutation from test
         // code queues a dirty mark but starts no task — without this, the
         // caller had to remember a manual `flush()` before every settle().
         // An empty flush is a no-op, so this is always safe.
@@ -103,8 +102,7 @@ public struct AsyncTestHarness {
     /// Advance the test clock, fire one `tick`, and settle resulting
     /// refetches. Works for `init(_:clock:)` harnesses and for shared-client
     /// harnesses whose client was built with a `ManualClock`; throws
-    /// `ClockError` otherwise (audit VI Wave-3 — this was a precondition
-    /// crash that killed the whole test process).
+    /// `ClockError` otherwise.
     public func advance(by delta: Duration) async throws {
         guard let manualClock else { throw ClockError.clockNotManual }
         manualClock.advance(by: delta)
