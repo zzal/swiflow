@@ -14,7 +14,7 @@ final class QueryEntry {
     var lastFetched: Duration?
     /// Clock time the last fetch SETTLED (success or failure). Paces polling:
     /// after retries exhaust, `lastFetched` freezes at the last success, and
-    /// gating polls on it alone would refire every tick (audit Wave-1 #6).
+    /// gating polls on it alone would refire every tick.
     var lastSettled: Duration?
     /// Bumped on supersede/invalidate; a resolving fetch commits only if the
     /// entry's generation still matches the one it captured at spawn.

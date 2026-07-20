@@ -1,6 +1,6 @@
 // Sources/SwiflowCLI/Toolchain/SwiftContext.swift
 //
-// One owner for the swiftc invocation preamble (audit III Wave-2 #10).
+// One owner for the swiftc invocation preamble.
 // ToolchainResolution centralized RESOLUTION — which `swift`, which SDK,
 // which TOOLCHAINS bundle — after that preamble had drifted once. But only
 // resolution was centralized: the INVOCATION side (the TOOLCHAINS env map,

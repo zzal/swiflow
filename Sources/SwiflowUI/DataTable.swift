@@ -78,7 +78,7 @@ public func DataTable<Row, ID: Hashable>(
 ) -> VNode {
     let cols = columns()
     let caller = attributes
-    // Freeze digest (audit V Wave-2 #6): rows/loading/pageSize/columns are
+    // Freeze digest: rows/loading/pageSize/columns are
     // captured at first mount; this cheap heuristic lets DEBUG builds warn
     // when they change under an unchanged key (same-count edits slip
     // through — the filter/fetch/reload case is what it catches).
@@ -191,7 +191,7 @@ func makeDataTableBox<Row, ID: Hashable>(
         )
     }
 
-    // Guardrail (audit V Wave-1): Column.id defaults to its title, so two
+    // Guardrail: Column.id defaults to its title, so two
     // columns with the same title — or two untitled "" columns — silently
     // share sort identity (clicking one sorts "both"). Warn once at
     // construction; disambiguate with Column(id:...).

@@ -34,7 +34,7 @@ package struct RoutePattern: Sendable {
                     return .literal(String(part))
                 }
         }
-        // Guardrail (audit IV Wave-3): a bare ":" segment silently captures
+        // Guardrail: a bare ":" segment silently captures
         // under the name "" — almost certainly a typo'd pattern.
         if segments.contains(where: { if case .param("") = $0 { return true }; return false }) {
             swiflowWarn(

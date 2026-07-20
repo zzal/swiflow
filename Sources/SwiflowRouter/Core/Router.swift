@@ -9,7 +9,7 @@ public enum RouterMode: Sendable, Equatable {
 
 // MARK: - Mode behavior
 
-/// The mode's behavior lives ON the mode (audit IV Wave-2 #7) — before
+/// The mode's behavior lives ON the mode — before
 /// this, the dispatch was open-coded at five sites and the URL-string
 /// conventions had drifted into two forms. `package`: implementation
 /// vocabulary for RouterRoot/Router, not user API.

@@ -1,7 +1,7 @@
 // Sources/SwiflowRouter/Core/RouteTableHazards.swift
 import Swiflow
 
-/// DEBUG guardrail (audit IV Wave-3): walk a route table and warn about
+/// DEBUG guardrail: walk a route table and warn about
 /// sibling routes that can never match. `matchRoutes` is first-wins among
 /// siblings (locked by test), so a later sibling with the same matching
 /// SHAPE — or any sibling after a catch-all — is silently dead.

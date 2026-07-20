@@ -333,7 +333,7 @@ final class Renderer {
     func teardown() {
         guard let tree = mountTree else { return }
 
-        // Shared routine with TestRenderer.unmount (audit VI Wave-2 #3):
+        // Shared routine with TestRenderer.unmount:
         // installing the query client as the observer is what lets destroy()
         // fire componentDidUnmount — without it, query subscriptions of
         // unmounted components silently outlived the tree (cleanup fired in

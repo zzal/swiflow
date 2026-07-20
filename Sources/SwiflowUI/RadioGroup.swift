@@ -114,7 +114,7 @@ private func radioGroupControl(
     if let errorNode = fieldErrorNode(error) { children.append(errorNode) }
 
     #if DEBUG
-    // Mount sentinel (audit V Wave-1): gives this stateless free function
+    // Mount sentinel: gives this stateless free function
     // the lifecycle identity the collision registry needs. Renders nothing;
     // DEBUG-only, so the release tree carries no extra node.
     children.append(embed { RadioNameSentinel(name: name, label: labelText) })

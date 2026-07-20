@@ -1,6 +1,6 @@
 // Sources/MacroConsumerChecks/ComponentChecks.swift
 //
-// COMPILE-ONLY GATE for the component-side macros (audit III Wave-2 #9).
+// COMPILE-ONLY GATE for the component-side macros.
 // `assertMacroExpansion` type-checks nothing, and the compile gates that DO
 // live inside test targets (BareComponentIsolationTests & friends) use
 // `private` types under `@testable import` — which disables access-control

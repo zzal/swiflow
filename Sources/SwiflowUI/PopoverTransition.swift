@@ -3,10 +3,7 @@ import Swiflow
 
 /// The top-layer entry/exit animation quartet — closed state, 4-part
 /// transition, open state, `@starting-style` — shared by every popover- and
-/// dialog-based overlay (audit V Wave-2 #3: this exact block was
-/// TRIPLICATED across Dropdown/Autocomplete/DialogChrome, and its
-/// load-bearing display-on-open-only comment had already drifted between
-/// the copies). One authoring site; per-overlay differences are the
+/// dialog-based overlay. One authoring site; per-overlay differences are the
 /// selectors, the transform vector, and any open-state display extras.
 ///
 /// The generated block is appended AFTER the overlay's own panel-styling

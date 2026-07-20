@@ -133,7 +133,7 @@ public struct ComponentDescription: Equatable {
     /// exactly like `factory`).
     let refresh: ((AnyComponent) -> Void)?
 
-    /// Optional cheap digest of the FROZEN init content (audit V Wave-2 #6).
+    /// Optional cheap digest of the FROZEN init content.
     /// NOT part of identity — same (typeID, key) still reuses the instance —
     /// but when the reuse arm sees the digest CHANGE with no `refresh:`
     /// closure, DEBUG builds warn that the instance is showing first-mount

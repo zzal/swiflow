@@ -1,7 +1,7 @@
 // Sources/SwiflowCodegen/main.swift
 //
 // `swift run swiflow-codegen <driver|templates|all>` — the repo's codegen
-// tool (audit III Wave-2 #11). Replaces the standalone scripts/*.swift
+// tool. Replaces the standalone scripts/*.swift
 // codegen scripts, which each re-implemented the embedders' emit logic
 // inline (they couldn't import SwiflowCLI); the byte-pin tests kept the
 // copies honest, but two emit paths was one too many. This tool imports

@@ -146,7 +146,7 @@ public extension Attribute {
     /// written to `binding.get()` on every render (so the matching
     /// `<option>` is selected); a `.change` handler reads
     /// `eventInfo.targetValue` and writes it back through `binding.set(...)`.
-    /// Multi-select (`<select multiple>`) lands in Phase 12.
+    /// Multi-select (`<select multiple>`) is not yet supported.
     @MainActor
     static func selection(_ binding: Binding<String>) -> Attribute {
         let handler = _registerAmbientHandler { info in

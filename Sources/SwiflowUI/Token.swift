@@ -1,7 +1,7 @@
 // Sources/SwiflowUI/Token.swift
 import Swiflow
 
-/// A typed reference to a `--sw-*` design token (audit V Wave-2 #5). `.css`
+/// A typed reference to a `--sw-*` design token. `.css`
 /// renders the `var()` reference for style values, and `Theme` overrides
 /// route through the same constants (`ThemeToken`), so the read and write
 /// vocabularies cannot drift — a stringly `var(--sw-surfce)` typo fails
@@ -130,7 +130,7 @@ public extension VNode {
 }
 
 #if DEBUG
-/// Installs the `.style` value validator (audit V Wave-3): every stringly
+/// Installs the `.style` value validator: every stringly
 /// style VALUE is scanned for `var(--sw-…)` references; a name outside the
 /// typed vocabulary warns — the silent-typo half the typed overloads can't
 /// reach (composite values, existing string spellings). App-custom props

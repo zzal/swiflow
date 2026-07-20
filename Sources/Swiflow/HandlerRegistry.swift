@@ -51,9 +51,9 @@ package final class HandlerRegistry: @unchecked Sendable {
     //     used by the single `window.__swiflowDispatch` JS callback, which
     //     receives only an integer ID and can't know which registry owns it.
     // Every add/remove funnels through this one insert/evict pair (plus the
-    // scope attribution), so the two maps can never drift — previously a missed
-    // hand-sync in one of four methods would leak a `globalTable` entry (a
-    // handler that outlives its component) or corrupt scope diagnostics.
+    // scope attribution), so the two maps can never drift: a hand-synced
+    // alternative would risk leaking a `globalTable` entry (a handler that
+    // outlives its component) or corrupting scope diagnostics.
 
     /// Adds `handler` to both maps and attributes it to `scope`, if any.
     private func insert(_ handler: EventHandler, scope: ScopeID?) {

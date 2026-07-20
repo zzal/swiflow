@@ -73,7 +73,7 @@ public func Popover(
                      trigger: trigger, content: content)
     }, refresh: { panel in
         // Thread the display props LIVE into the reused instance, mirroring
-        // Alert/Modal (audit V Wave-2 #6).
+        // Alert/Modal.
         panel.placement = placement
         panel.offset = offset
         panel.panelAttrs = attributes

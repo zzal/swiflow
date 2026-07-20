@@ -202,7 +202,7 @@ struct BuildInvocation: Sendable {
     /// `-Xswiftc -gnone` (size-over-speed optimisation; debug info
     /// dropped — not needed in production bundles).
     /// `.dev` appends `--debug-info-format dwarf` so the WASM build carries
-    /// DWARF debug symbols for the Phase 13b Chrome DevTools story.
+    /// DWARF debug symbols for Chrome DevTools.
     func composeArguments() -> [String] {
         // Base: swift package global flags (--swift-sdk, -Xswiftc etc.) come
         // before the plugin subcommand `js`; the plugin's own flags (-c, --use-cdn,
@@ -223,10 +223,10 @@ struct BuildInvocation: Sendable {
             // do numerical compute. -gnone drops debug info in release (dev
             // still ships DWARF via --debug-info-format dwarf below).
             // -Xswiftc is a swift-package global option and must precede `js`.
-            // -disable-reflection-metadata: all Mirror call sites were removed in
-            // Phase 15 Task 6, so the linker can now dead-strip the demangler and
-            // SIMD debugDescription helpers that Mirror references pin. Dev builds
-            // keep reflection metadata for Phase 13b DWARF debugging.
+            // -disable-reflection-metadata: the runtime has no Mirror call
+            // sites, so the linker can dead-strip the demangler and SIMD
+            // debugDescription helpers that Mirror references pin. Dev builds
+            // keep reflection metadata for DWARF debugging.
             prePluginArgs.append(contentsOf: [
                 "-Xswiftc", "-Osize",
                 "-Xswiftc", "-gnone",

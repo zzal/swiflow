@@ -43,9 +43,8 @@ public func Alert(
         AlertDialog(title: title, isPresented: isPresented, message: message,
                     dismissOnBackdrop: dismissOnBackdrop, actions: actions)
     }, refresh: { dialog in
-        // Thread the display props LIVE into the reused instance (audit V
-        // Wave-2 #6) — the old "captured at first presentation" freeze is
-        // gone. isPresented stays init-bound: it's a Binding, already live.
+        // Thread the display props LIVE into the reused instance. isPresented
+        // stays init-bound: it's a Binding, already live.
         dialog.title = title
         dialog.message = message
         dialog.actions = actions

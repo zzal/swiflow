@@ -1,10 +1,10 @@
 // Sources/SwiflowDOM/SwiflowDOM.swift
 //
-// SwiflowDOM is the WASM-only renderer layer for Swiflow. All public API
-// lives behind a `#if canImport(JavaScriptKit)` so the target compiles
-// (empty) on platforms without WASM support — this lets `swift build` and
-// `swift test` work on macOS/Linux developer machines while CI's WASM job
-// builds the real symbols.
+// SwiflowDOM is the WASM renderer layer for Swiflow. The whole file compiles
+// on the host too — JavaScriptKit is an unconditional dependency, so
+// `canImport(JavaScriptKit)` is always true and the guard below is a marker
+// of intent, not a real host/wasm split. Host code must not CALL this API:
+// the first `JSObject.global` access traps at runtime (see `render(into:)`).
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit
@@ -139,10 +139,5 @@ public extension Swiflow {
     }
 
 }
-
-#else
-
-// No-op stub for non-WASM platforms. Lets the host package compile.
-public enum Swiflow {}
 
 #endif

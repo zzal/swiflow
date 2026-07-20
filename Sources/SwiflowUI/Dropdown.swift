@@ -184,8 +184,7 @@ final class DropdownMenu {
 
     /// The outcome of a roving keydown — which item id gets focus, or that
     /// the menu closes. Pure value so the decision table is host-testable
-    /// apart from its JS focus effect (audit V Wave-2 #4, the DataTable
-    /// seam pattern).
+    /// apart from its JS focus effect.
     enum RoveAction: Equatable {
         case focus(String)
         case closeMenu

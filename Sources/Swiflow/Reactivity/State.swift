@@ -1,11 +1,10 @@
 // Sources/Swiflow/Reactivity/State.swift
 //
-// Phase 15 — `@State` is now an attached macro (see `Macros.swift` and
-// `SwiflowMacrosPlugin/StateMacro.swift`). The previous `State<T>` /
-// `Box<T>` / `StateWireable` machinery is deleted; per-cell wiring is
-// now driven by `_ComponentRuntime.stateCells` emitted by `@Component`.
+// `@State` is an attached macro (see `Macros.swift` and
+// `SwiflowMacrosPlugin/StateMacro.swift`); per-cell wiring is driven by
+// `_ComponentRuntime.stateCells` emitted by `@Component`.
 //
-// What survives: the `Binding<T>` value type that `@State`'s peer-macro
+// This file holds the `Binding<T>` value type that `@State`'s peer-macro
 // expansion uses for the `$name` projection.
 
 /// Two-way binding shaped like SwiftUI's. Returned from a `@State` var's

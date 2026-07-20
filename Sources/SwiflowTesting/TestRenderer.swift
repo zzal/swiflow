@@ -29,7 +29,7 @@ final class TestRenderer {
     /// around each diff so `query()` during `body` reaches it.
     let queryClient: QueryClient
 
-    /// Live DOM-state side-tables (audit VI Wave-3), keyed by MountNode
+    /// Live DOM-state side-tables, keyed by MountNode
     /// handle. The browser's `element.value`/`checked` change on user input
     /// whether or not any render declares them (uncontrolled inputs), so the
     /// declared-properties bag alone under-reports what an event snapshot
@@ -51,7 +51,7 @@ final class TestRenderer {
             key: nil,
             factory: { anyComponent }
         )
-        // Batch mode (audit VI Wave-2 #4): ONE render per flush regardless of
+        // Batch mode: ONE render per flush regardless of
         // how many components marked dirty — RAFScheduler's per-frame
         // contract. The per-component mode double-diffed and double-fired
         // onChange whenever one interaction dirtied two components.
@@ -105,8 +105,7 @@ final class TestRenderer {
     }
 
     /// One flush batch → one render, running the SAME `planRerender` →
-    /// `scopedRerender`/full flow as `Renderer.flushDirty(_:)` (audit VI
-    /// Wave-3): the common single-dirty case takes the browser's scoped path
+    /// `scopedRerender`/full flow as `Renderer.flushDirty(_:)`: the common single-dirty case takes the browser's scoped path
     /// — the parent body is NOT re-evaluated, exactly like production since
     /// PR #90. The plan decision and both diff paths are the shared package
     /// core; only patch shipping (browser) vs discarding (here) differs.
@@ -150,7 +149,7 @@ final class TestRenderer {
     /// Tears down the mounted tree: fires `onDisappear` (parent-first), closes
     /// handler scopes, and notifies the query client of component unmounts —
     /// the SAME `teardownMountTree` routine SwiflowDOM.Renderer.teardown()
-    /// runs (audit VI Wave-2 #3), minus shipping the removal patches.
+    /// runs, minus shipping the removal patches.
     // destroy() cancels .task effects via each node's stored TaskSlot handle —
     // no task-scope ambient needed here.
     func unmount() {
@@ -196,7 +195,7 @@ final class TestRenderer {
     /// `value`/`checked` the way the browser snapshots them from the live DOM
     /// (js-driver/swiflow-driver.js:70-80). Reads the DOM-state side-tables
     /// first — they carry user input on uncontrolled elements that no render
-    /// ever declares (audit VI Wave-3) — falling back to the declared
+    /// ever declares — falling back to the declared
     /// properties bag. Returns nils for elements with neither, same as the
     /// driver's `"value" in target` / `"checked" in target` guards.
     private func targetSnapshot(of node: MountNode) -> (value: String?, checked: Bool?) {
@@ -210,10 +209,7 @@ final class TestRenderer {
         return (value, checked)
     }
 
-    /// Why an interaction could not dispatch (audit VI Wave-1: the five
-    /// interactions used to `guard … else { return }` — a typo'd selector
-    /// silently no-opped and the assertion three lines later failed with a
-    /// bare "expected non-nil"). Carried up to the harness, which records a
+    /// Why an interaction could not dispatch. Carried up to the harness, which records a
     /// test Issue naming the reason and the candidates.
     enum InteractionFailure: CustomStringConvertible {
         case noMatch(tag: String, text: String?, tagsPresent: [String])
@@ -253,8 +249,7 @@ final class TestRenderer {
         return dispatch(event: event, on: matches[index].0, payload: payload)
     }
 
-    /// Node-targeted dispatch — the live-TestNode action path (audit VI
-    /// Wave-2 #2). Fires on THE given element, never re-queried, and refuses
+    /// Node-targeted dispatch — the live-TestNode action path. Fires on THE given element, never re-queried, and refuses
     /// nodes a re-render has detached (their handler IDs may point at closed
     /// scopes — firing would be a ghost interaction no browser can perform).
     func dispatch(event: String, on node: MountNode,
@@ -268,7 +263,7 @@ final class TestRenderer {
         let info = payload(targetSnapshot(of: node))
         // The DOM writes BEFORE any listener runs: typing/toggling changes
         // element.value/checked whether or not anyone handles the event
-        // (audit VI Wave-3 — uncontrolled inputs).
+        // (uncontrolled inputs).
         if info.type == "input" || info.type == "change" {
             if let v = info.targetValue { domValues[node.handle] = v }
             if let c = info.targetChecked { domChecked[node.handle] = c }
@@ -286,7 +281,7 @@ final class TestRenderer {
         return nil
     }
 
-    /// Human-readable dump of the rendered tree (audit VI Wave-2 #5) — the
+    /// Human-readable dump of the rendered tree — the
     /// payload for `TestHarness.expect` failures and `TestHarness.debug()`.
     /// One line per node: elements as `<tag attrs on:[events]>`, text nodes
     /// quoted, component anchors as `▸ TypeName`. Fragments are invisible in

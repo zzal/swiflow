@@ -98,7 +98,7 @@ public final class MutationRuntime<M: Mutation> {
                     // transform. Skip this optimistic layer silently (per
                     // OptimisticEdit's .noValue contract: "skipped silently"); the
                     // mutation's perform() and the post-success invalidation/refetch
-                    // reconcile the cache. (Previously this trapped via swiflowDiagnostic.)
+                    // reconcile the cache.
                     break
                 case .typeMismatch(let expected, let actual):
                     // Never intentional: the edit targets the wrong query. Trap

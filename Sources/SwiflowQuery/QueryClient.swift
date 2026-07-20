@@ -83,7 +83,7 @@ public final class QueryClient {
         // `weak entry`: commitFetch re-checks IDENTITY, not just the generation.
         // Every fresh entry starts at generation 0, so an evicted-then-recycled
         // key would otherwise accept a zombie fetch's stale result as current
-        // (audit Wave-1 #5) — cancellation is cooperative and can't stop an
+        // — cancellation is cooperative and can't stop an
         // in-flight browser fetch.
         entry.inFlight = Task { [weak self, weak entry] in
             let result: Result<Any, any Error>

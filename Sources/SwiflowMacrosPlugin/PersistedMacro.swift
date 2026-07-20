@@ -69,8 +69,8 @@ public struct PersistedMacro: AccessorMacro, PeerMacro {
         // @State's exact didSet (drop superseded-task writes, mark dirty)
         // plus the save. The save is skipped while @Component's synthesized
         // hydration flag is set — restoring a stored value must not write
-        // it straight back. `try?` mirrors the pre-macro QuakesPage ritual;
-        // a quota-exceeded warn is audit Wave-3's separate guardrail.
+        // it straight back. `try?` swallows the save error; a quota-exceeded
+        // warn is a separate guardrail.
         let didSet: AccessorDeclSyntax = """
             didSet {
                 if SwiflowTaskRuntime.shouldDropWrite() {

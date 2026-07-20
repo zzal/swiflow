@@ -474,7 +474,7 @@ func update(
         // registrations into the owning scope until the component unmounts —
         // at animation-rate render frequencies that grew the scope by
         // hundreds of IDs per second and degraded every later eviction
-        // (found via GridBoard playback: 60 → 6 fps over minutes).
+        // (a measured 60 → 6 fps decay over minutes).
         if let oldKey = oldData.memoKey, let newKey = newData.memoKey, oldKey == newKey {
             evictDiscardedHandlers(of: next, handlers: handlers)
             return mounted
@@ -540,7 +540,7 @@ func update(
             return mount(next, into: &patches, handles: handles, handlers: handlers, scheduler: scheduler, path: path, environment: environment)
         }
         #if DEBUG
-        // Guardrail (audit V Wave-2 #6): the factory ran at FIRST MOUNT only,
+        // Guardrail: the factory ran at FIRST MOUNT only,
         // so init content froze — a changed contentKey digest under this
         // unchanged (typeID, key) identity means the reused instance is
         // showing stale first-mount data. `refresh:` present = the caller
