@@ -4673,12 +4673,11 @@ enum Geolocation {
 private final class ClosureRetainer {
     var closures: [JSClosure] = []
 
-    /// Releases every held closure from JavaScriptKit's static table and
-    /// drops the references — dropping the array alone leaves the entries
-    /// pinned forever. Called by whichever handler fires first (releasing
-    /// the currently-executing closure inside its own body is sanctioned).
+    /// Drops the held closures once the geolocation callback has fired, so
+    /// JavaScriptKit's WeakRefs GC can collect them. (No manual release() —
+    /// it's a deprecated no-op on the default build.) Called by whichever
+    /// handler fires first.
     func releaseAll() {
-        for closure in closures { closure.release() }
         closures = []
     }
 }
@@ -5621,15 +5620,12 @@ final class Shell {
 
     private func stopHashListener() {
         #if canImport(JavaScriptKit)
-        if let closure = hashListener {
-            if let window = JSObject.global.window.object {
-                _ = window.removeEventListener!("hashchange", closure)
-            }
-            // removeEventListener only detaches; release() is what unpins the
-            // closure from JavaScriptKit's static table (nil-ing the field
-            // does not).
-            closure.release()
+        if let window = JSObject.global.window.object, let closure = hashListener {
+            _ = window.removeEventListener!("hashchange", closure)
         }
+        // removeEventListener detaches the callback; dropping the field then
+        // lets JavaScriptKit's WeakRefs GC collect the closure. (No manual
+        // release() — it's a deprecated no-op on the default build.)
         hashListener = nil
         #endif
     }

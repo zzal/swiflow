@@ -225,15 +225,12 @@ final class Shell {
 
     private func stopHashListener() {
         #if canImport(JavaScriptKit)
-        if let closure = hashListener {
-            if let window = JSObject.global.window.object {
-                _ = window.removeEventListener!("hashchange", closure)
-            }
-            // removeEventListener only detaches; release() is what unpins the
-            // closure from JavaScriptKit's static table (nil-ing the field
-            // does not).
-            closure.release()
+        if let window = JSObject.global.window.object, let closure = hashListener {
+            _ = window.removeEventListener!("hashchange", closure)
         }
+        // removeEventListener detaches the callback; dropping the field then
+        // lets JavaScriptKit's WeakRefs GC collect the closure. (No manual
+        // release() — it's a deprecated no-op on the default build.)
         hashListener = nil
         #endif
     }
