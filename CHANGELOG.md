@@ -18,12 +18,26 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+---
+
+## [0.5.5] — 2026-07-20
+
+**Beta.** A maintenance release: one render-root leak fix plus internal
+robustness work (wasm32 integer-conversion safety and a `Sources/` layout
+tidy). No API changes.
+
+**Stability:** Stable for pre-1.0 usage. No breaking changes.
+
 ### Fixed
 
 - A render root that is unmounted (`Swiflow.unmount(into:)`) and never
   remounted no longer leaves its detached node pinned in the driver's
   `mountedRoots` map, and is now detached from the DOM. The HMR teardown
   clears the map alongside the node/listener maps it already cleared.
+- Numeric control values sitting exactly at the 32-bit integer boundary now
+  format as integers instead of falling through to a floating-point string.
+  Every internal `Double`→`Int` conversion in SwiflowUI now routes through a
+  single range-checked gate that cannot trap on the 32-bit wasm target.
 
 ---
 
