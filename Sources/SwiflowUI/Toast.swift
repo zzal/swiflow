@@ -46,6 +46,12 @@ public struct ToastItem {
     public internal(set) var count: Int = 1   // recurrences; 1 = shown once
 
     public init(_ message: String, variant: ToastVariant = .info, duration: Double = 4) {
+        // duration is seconds until auto-dismiss; zero or negative arms a
+        // timer that fires on the next tick — the toast flashes for one
+        // frame, which is never what the caller meant.
+        if duration <= 0 {
+            swiflowWarn("ToastItem: duration must be > 0 seconds (got \(duration)); the toast will dismiss immediately.")
+        }
         self.id = nextSwID("sw-toast")
         self.message = message
         self.variant = variant

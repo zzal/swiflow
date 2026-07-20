@@ -139,7 +139,7 @@ func fieldChromeLowering(
 /// (TextField/Select/…) already render this internally; don't wrap them in it
 /// (you'd nest two labels).
 ///
-///     LabeledField("API key", layout: .horizontal, suffix: text("optional")) {
+///     LabeledField("API key", layout: .horizontal, labelSuffix: text("optional")) {
 ///         element("input", attributes: [.attr("type", "password")])
 ///     }
 ///
@@ -153,8 +153,8 @@ func fieldChromeLowering(
 public func LabeledField(
     _ label: String,
     layout: FieldLayout = .vertical,
-    prefix: VNode? = nil,
-    suffix: VNode? = nil,
+    labelPrefix: VNode? = nil,
+    labelSuffix: VNode? = nil,
     error: String? = nil,
     size: ControlSize = .md,
     _ attributes: Attribute...,
@@ -163,7 +163,7 @@ public func LabeledField(
     ensureBaseStyles()
     installFieldStyles()
     let (callerClasses, callerRest) = splitClasses(attributes)
-    return labeledFieldChrome(label: label, layout: layout, prefix: prefix, suffix: suffix,
+    return labeledFieldChrome(label: label, layout: layout, prefix: labelPrefix, suffix: labelSuffix,
                               error: error, size: size,
                               extraClasses: callerClasses, rootAttrs: callerRest,
                               controls: control())

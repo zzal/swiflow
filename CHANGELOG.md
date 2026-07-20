@@ -46,6 +46,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Changed
 
+- **BREAKING:** `LabeledField`'s adornment parameters are now `labelPrefix:`/
+  `labelSuffix:`, matching every field control's spelling (they were `prefix:`/
+  `suffix:` — same slots, different names, one release old).
+- `ToastQueue(maxVisible:)` clamps non-positive caps to 1 with a DEBUG warning
+  (0 previously parked every toast in `pending`, rendering nothing, silently);
+  `ToastItem(duration:)` warns in DEBUG when the duration is ≤ 0.
 - `after()`/`TimerHandle` moved from `SwiflowDOM` into a new `SwiflowTiming`
   target. `SwiflowDOM` re-exports it, so existing `import SwiflowDOM` code
   compiles unchanged. On host builds the pair is now backed by `ManualTimers`,
