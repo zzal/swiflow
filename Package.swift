@@ -295,6 +295,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
+            name: "SwiflowTimingTests",
+            dependencies: ["SwiflowTiming"],
+            path: "Tests/SwiflowTimingTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
             name: "SwiflowMacrosTests",
             dependencies: [
                 "SwiflowMacrosPlugin",

@@ -18,6 +18,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Fixed
+
+- A render root that is unmounted (`Swiflow.unmount(into:)`) and never
+  remounted no longer leaves its detached node pinned in the driver's
+  `mountedRoots` map, and is now detached from the DOM. The HMR teardown
+  clears the map alongside the node/listener maps it already cleared.
+
 ---
 
 ## [0.5.4] — 2026-07-20

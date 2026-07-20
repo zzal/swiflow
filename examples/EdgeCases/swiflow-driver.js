@@ -185,7 +185,11 @@
       }
       case "destroyNode": {
         // Symmetric with removeHandler: detach every tracked listener for
-        // this handle from the DOM node AND drop the map entries.
+        // this handle from the DOM node AND drop the map entries. NOTE: we
+        // deliberately do NOT touch `mountedRoots` here — it holds the root
+        // node by ref precisely so a `replaceMount` can still detach the old
+        // root after a preceding `destroyNode` (the resync-batch ordering).
+        // A true unmount drops the entry through `unmount(selector)`.
         detachListeners(p.handle, nodes.get(p.handle));
         nodes.delete(p.handle);
         return;
@@ -475,6 +479,17 @@
       target.appendChild(nodes.get(rootHandle));
     },
 
+    /** Called by Swift's `Swiflow.unmount(into:)` after it has torn down the
+     *  tree (which emits the root's `destroyNode`). Detaches the root node
+     *  from the DOM and drops its `mountedRoots` entry, so an unmounted-and-
+     *  never-remounted selector doesn't pin its detached root. No-op for a
+     *  selector that was never mounted. */
+    unmount: function (selector) {
+      const node = mountedRoots.get(selector);
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      mountedRoots.delete(selector);
+    },
+
     /**
      * Resolve a Swiflow handle to the live DOM node.
      *
@@ -749,6 +764,7 @@
         // site).
         nodes.clear();
         listeners.clear();
+        mountedRoots.clear();
         if (mountSelector) {
           const t = document.querySelector(mountSelector);
           if (t) t.replaceChildren();

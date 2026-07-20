@@ -665,4 +665,36 @@ describe("driver event serialization and application order", () => {
     assert.equal(after.nodes, 1);
     assert.equal(after.listeners, 0, "the exit-animated node's listener entry is evicted");
   });
+
+  test("unmount(selector) detaches the root and drops its mountedRoots entry", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
+    swiflow.mount(1, "#app");
+    assert.equal(swiflow.__stats().mountedRoots, 1);
+    assert.equal(document.querySelector("#app").children.length, 1);
+    // Swift's teardown emits destroyNode (frees node/listener maps) and then
+    // calls unmount(selector) — which is what drops the selector→node entry
+    // and detaches the root from the DOM.
+    swiflow.applyPatches([{ op: "destroyNode", handle: 1 }]);
+    swiflow.unmount("#app");
+    assert.equal(swiflow.__stats().mountedRoots, 0);
+    assert.equal(document.querySelector("#app").children.length, 0);
+    swiflow.unmount("#app");   // idempotent
+    swiflow.unmount("#never"); // no-op for an unmounted selector
+  });
+
+  test("destroyNode alone leaves mountedRoots intact (replaceMount depends on it)", () => {
+    const { swiflow, document } = setupDriver();
+    swiflow.applyPatches([{ op: "createElement", handle: 1, tag: "div" }]);
+    swiflow.mount(1, "#app");
+    // The resync-batch ordering emits the old root's destroyNode BEFORE
+    // replaceMount, so the entry must survive destroyNode.
+    swiflow.applyPatches([
+      { op: "destroyNode", handle: 1 },
+      { op: "createElement", handle: 2, tag: "section" },
+      { op: "replaceMount", selector: "#app", newHandle: 2 },
+    ]);
+    assert.equal(swiflow.__stats().mountedRoots, 1);
+    assert.equal(document.querySelector("#app").firstElementChild.tagName, "SECTION");
+  });
 });
