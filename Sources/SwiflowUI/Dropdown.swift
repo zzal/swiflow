@@ -215,11 +215,13 @@ final class DropdownMenu {
     }
 
     /// The imperative half: apply the roving decision through the DOM.
-    /// `#if canImport(JavaScriptKit)`-guarded (a no-op on host), mirroring
-    /// Autocomplete's focus-by-id.
+    /// The JS crossing is keyed on `arch(wasm32)`, NOT canImport — canImport
+    /// is true on host, where merely touching `JSObject.global` aborts with
+    /// no message. A host keydown still computes the decision; only the DOM
+    /// focus move is wasm-only.
     private static func rove(_ e: EventInfo, current: String, order: [String], menuID: String) {
         guard let action = roveTarget(key: e.key, current: current, order: order) else { return }
-        #if canImport(JavaScriptKit)
+        #if arch(wasm32)
         guard let doc = JSObject.global.document.object else { return }
         switch action {
         case .closeMenu:

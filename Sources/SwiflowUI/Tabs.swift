@@ -200,12 +200,13 @@ final class TabsView {
 
     /// The imperative half: on a roving key, select the target tab (automatic
     /// activation — re-renders, moving `tabindex`/`hidden`), then move DOM focus onto
-    /// it. `#if canImport(JavaScriptKit)`-guarded (a no-op on host), mirroring
-    /// `DropdownMenu.rove`.
+    /// it. Selection stays outside the gate so host tests can drive the roving
+    /// semantics; the focus move is keyed on `arch(wasm32)`, NOT canImport —
+    /// canImport is true on host, where touching `JSObject.global` aborts.
     private func handleRove(_ e: EventInfo, current: Int) {
         guard let target = TabsView.tabRoveTarget(key: e.key, current: current, count: labels.count) else { return }
         selectIndex(target)
-        #if canImport(JavaScriptKit)
+        #if arch(wasm32)
         guard let doc = JSObject.global.document.object else { return }
         if let el = doc.getElementById?("\(idPrefix)-tab-\(target)").object { _ = el.focus?() }
         #endif
