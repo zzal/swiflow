@@ -140,7 +140,8 @@ struct AccentThemeTests {
     }
 
     @Test("Shipped warning default passes the status validator (raw 3:1 + strong 4.5/7)") func shippedWarningAccessible() {
-        // The base-sheet default is hand-authored light-dark(#b45309, #fbbf24) — guard it stays accessible.
+        // The base-sheet warning is now oklch; these are its sRGB-equivalent amber seeds —
+        // guard that the shipped warning family stays accessible on an sRGB display.
         #expect(Color.validateStatusFamily(name: "--sw-warning",
                                            lightHex: "#b45309", darkHex: "#fbbf24",
                                            rawBar: 3.0).isEmpty)

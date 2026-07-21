@@ -20,8 +20,9 @@ public enum SwiflowUI {
     ///   and `--sw-anim-play` pauses, so transitions and animations stop.
     /// - `prefers-reduced-transparency: reduce` — overlay scrim solidifies,
     ///   `--sw-backdrop` drops to `none`.
-    /// - `color-gamut: p3` — saturated colors upgrade to `display-p3` (gated on
-    ///   `@supports color()`; the sRGB values above are the fallback).
+    /// - `color-gamut: p3` — NO explicit layer: accent/status tokens are authored as
+    ///   absolute `oklch()`, which the browser renders in the display's own gamut (wider
+    ///   on P3, gamut-mapped to sRGB elsewhere), so no `@media`/`@supports` block is needed.
     ///
     /// Motion is two orthogonal tokens, never a `transition` shorthand: a
     /// shorthand would default `transition-property: all` and animate every
@@ -132,23 +133,27 @@ public enum SwiflowUI {
           --sw-radius-sm: 4px;
           --sw-radius: 6px;
 
-          /* surfaces & text */
-          --sw-bg: light-dark(#f6f7f9, #0d0d0d);        /* page/canvas — surfaces lift off this */
-          --sw-surface: light-dark(#ffffff, #1a1a1a);
-          --sw-surface-2: light-dark(#f3f4f6, #242424);
-          --sw-text: light-dark(#111111, #f5f5f5);
-          --sw-text-muted: light-dark(#5b616b, #9ca3af);
+          /* surfaces & text — authored in oklch (perceptual; the @property hex floor
+             above is the pre-oklch fallback). Neutrals carry a faint cool cast (tiny C). */
+          --sw-bg: light-dark(oklch(0.9759 0.0029 264.54), oklch(0.1591 0 0));        /* page/canvas — surfaces lift off this */
+          --sw-surface: light-dark(oklch(1 0 0), oklch(0.2178 0 0));
+          --sw-surface-2: light-dark(oklch(0.967 0.0029 264.54), oklch(0.2603 0 0));
+          --sw-text: light-dark(oklch(0.1776 0 0), oklch(0.9702 0 0));
+          --sw-text-muted: light-dark(oklch(0.4909 0.0177 260.71), oklch(0.7137 0.0192 261.32));
           /* Tooltip bubble: white-on-dark-gray in BOTH schemes (deliberately NOT
              light-dark — an inverted bubble is the tooltip idiom and stays readable
              over any backdrop; 8.4:1 on the gray). Tokens so themes can re-skin it. */
-          --sw-tooltip-bg: #374151;
-          --sw-tooltip-text: #ffffff;
+          --sw-tooltip-bg: oklch(0.3729 0.0306 259.73);
+          --sw-tooltip-text: oklch(1 0 0);
 
           /* Horizontal-field label column (LabeledField layout: .horizontal). */
           --sw-field-label-width: 10rem;
 
-          /* accent & semantic colors */
-          --sw-accent: light-dark(#3b82f6, #60a5fa);
+          /* accent & semantic colors — accent/status authored as absolute oklch(): the
+             browser renders each in the display's own gamut (wider on P3, gamut-mapped to
+             sRGB elsewhere), so no color-gamut media block is needed. The chroma is pushed
+             toward the P3 edge; the derived family below reads this via oklch(from …). */
+          --sw-accent: light-dark(oklch(0.6212 0.2051 254.13), oklch(0.7218 0.1539 249.3));
           /* hover/active derive from --sw-accent (darken in light, lighten in dark) so
              re-pointing --sw-accent cascades the whole accent family. Literal fallback
              first for pre-oklch(from) browsers. */
@@ -161,7 +166,7 @@ public enum SwiflowUI {
              Fallback is dark in BOTH arms so pre-Baseline browsers also pass. See Button. */
           --sw-accent-text: light-dark(#0b1220, #0b1220);
           --sw-accent-text: contrast-color(var(--sw-accent));
-          --sw-danger: light-dark(#dc2626, #f87171);
+          --sw-danger: light-dark(oklch(0.5795 0.234 26), oklch(0.7402 0.1748 22.79));
           /* danger hover/active/text mirror the accent family exactly, so
              re-pointing --sw-danger cascades the whole destructive palette
              (Button .danger). Literal fallbacks first, same convention. */
@@ -171,8 +176,8 @@ public enum SwiflowUI {
           --sw-danger-active: light-dark(oklch(from var(--sw-danger) calc(l - 0.16) c h), oklch(from var(--sw-danger) calc(l + 0.16) c h));
           --sw-danger-text: light-dark(#ffffff, #450a0a);
           --sw-danger-text: contrast-color(var(--sw-danger));
-          --sw-success: light-dark(#16a34a, #4ade80);
-          --sw-warning: light-dark(#b45309, #fbbf24);
+          --sw-success: light-dark(oklch(0.6136 0.1956 153.85), oklch(0.7958 0.1889 154.81));
+          --sw-warning: light-dark(oklch(0.5558 0.1631 49.72), oklch(0.8395 0.19 83.48));
           --sw-info: var(--sw-accent);
           /* "strong" = semantic-hue text readable on a 15% tint of that hue.
              Static fallback first (hand-tuned, kept for pre-Baseline browsers); the
@@ -191,7 +196,7 @@ public enum SwiflowUI {
           --sw-info-strong: light-dark(oklch(from var(--sw-info) 0.40 c h), oklch(from var(--sw-info) 0.80 c h));
 
           /* borders, focus ring & elevation */
-          --sw-border: light-dark(#e5e7eb, #333333);
+          --sw-border: light-dark(oklch(0.9276 0.0058 264.53), oklch(0.3211 0 0));
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 3px;
@@ -257,18 +262,9 @@ public enum SwiflowUI {
           }
         }
 
-        /* Wide gamut: richer saturated colors; the sRGB values above are the fallback.
-           Gated on @supports so a p3 display lacking color() keeps the sRGB values. */
-        @media (color-gamut: p3) {
-          @supports (color: color(display-p3 0 0 0)) {
-            :root {
-              --sw-accent: light-dark(color(display-p3 0.21 0.51 0.96), color(display-p3 0.4 0.66 0.98));
-              --sw-danger: light-dark(color(display-p3 0.82 0.18 0.18), color(display-p3 0.96 0.5 0.48));
-              --sw-success: light-dark(color(display-p3 0.15 0.63 0.32), color(display-p3 0.42 0.86 0.55));
-              --sw-warning: light-dark(color(display-p3 0.68 0.33 0.04), color(display-p3 0.98 0.75 0.14));
-            }
-          }
-        }
+        /* No color-gamut media block: the accent/status tokens above are absolute oklch(),
+           which the browser already renders in the display's own gamut (wider on P3,
+           gamut-mapped to sRGB elsewhere). One declaration, gamut-adaptive by construction. */
         }
         """)
     }

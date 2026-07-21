@@ -1,4 +1,5 @@
 import Foundation
+@testable import SwiflowColor
 
 /// Test-only helpers that read values back out of the emitted base stylesheet,
 /// so contrast assertions use the SAME numbers the CSS ships (no drift).
@@ -32,6 +33,20 @@ enum CSSValueParsing {
         return (g[1], g[2])
     }
 
+    /// First `<token>: light-dark(<c>, <c>)` where each `<c>` is an absolute `oklch(L C H)`
+    /// or `#rrggbb` — resolved to linear-sRGB via `Color.parseColor` (the same OKLCH-primary
+    /// input door the generator uses). Format-agnostic, so contrast tests read whatever the
+    /// sheet actually ships. Returns UNCLAMPED LinRGB — callers clamp per gamut (sRGB vs P3).
+    static func lightDarkColor(_ region: String, _ token: String) -> (light: LinRGB, dark: LinRGB)? {
+        let t = NSRegularExpression.escapedPattern(for: token)
+        let c = "(oklch\\([^)]*\\)|#[0-9a-fA-F]{6})"   // absolute oklch has no nested parens
+        let pattern = "\(t)\\s*:\\s*light-dark\\(\\s*\(c)\\s*,\\s*\(c)\\s*\\)"
+        guard let g = firstMatch(pattern, in: region),
+              let light = try? Color.parseColor(g[1]), let dark = try? Color.parseColor(g[2])
+        else { return nil }
+        return (light, dark)
+    }
+
     /// `<token>: light-dark(oklch(from … L1 c h), oklch(from … L2 c h))` → (L1, L2).
     static func oklchLightnesses(_ region: String, _ token: String) -> (light: Double, dark: Double)? {
         let t = NSRegularExpression.escapedPattern(for: token)
@@ -41,34 +56,6 @@ enum CSSValueParsing {
         let pattern = "\(t)\\s*:\\s*light-dark\\(\\s*\(oklch)\\s*,\\s*\(oklch)\\s*\\)"
         guard let g = firstMatch(pattern, in: region), let a = Double(g[1]), let b = Double(g[2]) else { return nil }
         return (a, b)
-    }
-
-    /// The body (including braces) of the `@media (color-gamut: p3)` block.
-    static func p3Region(_ css: String) -> String {
-        guard let start = css.range(of: "@media (color-gamut: p3)"),
-              let open = css.range(of: "{", range: start.upperBound..<css.endIndex)
-        else { return "" }
-        var depth = 0
-        var i = open.lowerBound
-        while i < css.endIndex {
-            if css[i] == "{" { depth += 1 }
-            else if css[i] == "}" { depth -= 1; if depth == 0 { return String(css[open.lowerBound...i]) } }
-            i = css.index(after: i)
-        }
-        return ""
-    }
-
-    /// First `<token>: light-dark(color(display-p3 r g b), color(display-p3 r g b))`
-    /// in `region` → the two gamma-encoded display-p3 triples.
-    static func lightDarkP3(_ region: String, _ token: String)
-        -> (light: (Double, Double, Double), dark: (Double, Double, Double))? {
-        let t = NSRegularExpression.escapedPattern(for: token)
-        let triple = "color\\(display-p3\\s+([0-9.]+)\\s+([0-9.]+)\\s+([0-9.]+)\\)"
-        let pattern = "\(t)\\s*:\\s*light-dark\\(\\s*\(triple)\\s*,\\s*\(triple)\\s*\\)"
-        guard let g = firstMatch(pattern, in: region),
-              let lr = Double(g[1]), let lg = Double(g[2]), let lb = Double(g[3]),
-              let dr = Double(g[4]), let dg = Double(g[5]), let db = Double(g[6]) else { return nil }
-        return ((lr, lg, lb), (dr, dg, db))
     }
 
     /// Capture groups of the first regex match (index 0 = whole match), or nil.
