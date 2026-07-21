@@ -105,8 +105,10 @@ test.describe("SwiflowUI theming responds to media features", () => {
         accent: resolve("--sw-accent"),
       };
     });
-    // warning is a real amber color present in the base sheet, distinct from success (green)
-    expect(t.warning).toMatch(/^rgb/);
+    // warning is a real amber color present in the base sheet, distinct from success (green).
+    // Base-sheet colors are authored in oklch() now, so getComputedStyle may serialize the
+    // resolved value as oklch()/color() rather than the legacy rgb() — accept any real color.
+    expect(t.warning).toMatch(/^(rgb|oklch|color)/);
     expect(t.warning).not.toBe(t.success);
     // info aliases the accent by default (--sw-info: var(--sw-accent))
     expect(t.info).toBe(t.accent);

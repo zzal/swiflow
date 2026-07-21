@@ -28,9 +28,11 @@ per-component code. The token contract lives in
 
 Two conventions worth knowing:
 
-- **`light-dark()` everywhere.** Color tokens are `light-dark(<light>, <dark>)`, and
-  `:root` sets `color-scheme: light dark`. That single mechanism gives you dark mode
-  (see below) *and* makes native form controls render their dark variant.
+- **`light-dark()` everywhere, authored in `oklch()`.** Color tokens are
+  `light-dark(<light>, <dark>)` — each arm an absolute `oklch(L C H)` — and `:root` sets
+  `color-scheme: light dark`. That single mechanism gives you dark mode (see below) *and*
+  makes native form controls render their dark variant. Because absolute `oklch()` renders
+  in the display's own gamut, saturated colors are richer on P3 with no extra `@media` block.
 - **"Strong" variants exist for tinted text.** A soft tint of `--sw-accent` (e.g. a
   Badge background) is too pale to carry the mid-tone `--sw-accent` as *text* in light
   mode (fails WCAG). Components that put a semantic color on a tint of itself use the
@@ -51,7 +53,7 @@ free by reading tokens:
 | `prefers-contrast: more` | pure text, heavier `--sw-border-width` / `--sw-focus-ring-width`, and `--sw-shadow` becomes a solid ring |
 | `prefers-reduced-motion: reduce` | `--sw-duration: 0s` and `--sw-anim-play: paused` — transitions/animations stop |
 | `prefers-reduced-transparency: reduce` | `--sw-overlay-bg` solidifies, `--sw-backdrop: none` |
-| `color-gamut: p3` | saturated colors upgrade to `display-p3` (gated on `@supports color()`; sRGB is the fallback) |
+| `color-gamut: p3` | *no `@media` layer needed* — accent/status tokens are absolute `oklch()`, which the browser already renders in the display's own gamut (wider on P3, gamut-mapped to sRGB elsewhere) |
 
 ## Re-skinning via tokens
 
@@ -76,18 +78,19 @@ no component code touched. This is the primary customization path:
 
 ### Generating a theme from brand colors
 
-`swiflow theme --primary "#7c3aed"` derives a contrast-validated `--sw-accent` family and prints
-a `:root` override (use `--out theme.css` to write a file, then link it after SwiflowUI's styles).
-Add optional seeds:
+`swiflow theme --primary "oklch(0.55 0.22 264)"` derives a contrast-validated `--sw-accent` family
+and prints a `:root` override (use `--out theme.css` to write a file, then link it after SwiflowUI's
+styles). Every color is **OKLCH-primary** — an `oklch(L C H)` string or hex (`#rgb`/`#rrggbb`). Add
+optional seeds:
 
 - `--neutrals` — also derive the accent-tinted neutral ramp (surfaces/text/border).
-- `--danger "#e11d48"` — set the brand danger/error color (validated as error text, ≥ 4.5:1).
-- `--success "#059669"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
-- `--warning "#d97706"` — set the brand warning color (amber; validated as a UI/border color, ≥ 3:1).
-- `--info "#0284c7"` — set the brand info color (defaults to the accent if unset; validated ≥ 3:1).
+- `--danger "oklch(0.58 0.22 27)"` — set the brand danger/error color (validated as error text, ≥ 4.5:1).
+- `--success "oklch(0.62 0.17 152)"` — set the brand success color (validated as a UI/border color, ≥ 3:1).
+- `--warning "oklch(0.68 0.16 65)"` — set the brand warning color (amber; validated as a UI/border color, ≥ 3:1).
+- `--info "oklch(0.6 0.13 233)"` — set the brand info color (defaults to the accent if unset; validated ≥ 3:1).
 
 ```text
-swiflow theme --primary "#7c3aed" --danger "#e11d48" --success "#059669" --warning "#d97706" --info "#0284c7" --neutrals --out theme.css
+swiflow theme --primary "oklch(0.55 0.22 264)" --danger "oklch(0.58 0.22 27)" --neutrals --out theme.css
 ```
 
 Each seed is WCAG-validated for the way that token is actually rendered; a color that can't meet
@@ -105,7 +108,16 @@ render at the **display-P3 gamut edge** on capable screens (richer color; identi
 fallback elsewhere). Lightness and hue are preserved, so contrast is unchanged. Neutrals stay
 hex-only (grays gain nothing from a wider gamut).
 
-Scope an override to a subtree by setting tokens on a container:
+Scope an override to a subtree with the `Theme` component. Define colors the OKLCH-primary
+way with a typed `Color` value (`.oklch(l:c:h:)`) — a raw hex/CSS string still works too:
+
+```swift
+Theme(.accent(.oklch(l: 0.55, c: 0.22, h: 264))) {   // or .accent("#7c3aed")
+    Button("Branded") { … }   // the whole accent family re-derives in this subtree
+}
+```
+
+Or set a token directly on any container — handy for wiring to an existing custom property:
 
 ```swift
 section(.style("--sw-accent", "var(--brand-teal)")) {
