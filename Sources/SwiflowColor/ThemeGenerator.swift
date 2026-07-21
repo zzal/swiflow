@@ -1,8 +1,9 @@
 // Sources/SwiflowColor/ThemeGenerator.swift
 
 /// Inputs for a generated theme (mirror the `swiflow theme` flags).
+/// Each color is `oklch(L C H)` or hex (`#rgb`/`#rrggbb`) — see `Color.parseColor`.
 public struct ThemeOptions: Equatable, Sendable {
-    public var primary: String                 // brand hex (required)
+    public var primary: String                 // brand color, oklch() or hex (required)
     public var danger: String?
     public var success: String?
     public var warning: String?

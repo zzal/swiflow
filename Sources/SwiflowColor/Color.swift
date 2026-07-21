@@ -297,6 +297,50 @@ extension Color {
         return "#" + full.lowercased()
     }
 
+    /// Parse an `oklch(L C H)` string OR a hex color into linear-sRGB. This is the
+    /// OKLCH-primary input door: OKLCH is the engine's native space, so an oklch() seed
+    /// skips the hex round-trip a hex seed takes. Accepted oklch forms — L as `0…1` or
+    /// `NN%`, C a number, H in degrees (bare or with a `deg` suffix), optional `/ alpha`
+    /// (theme tokens are opaque, so alpha is dropped). Hex forms: `#rgb` / `#rrggbb`.
+    /// Throws `ThemeError.invalidColor` (oklch) / `.invalidHex` (hex) on malformed input.
+    static func parseColor(_ raw: String) throws -> LinRGB {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard s.lowercased().hasPrefix("oklch(") else { return hex(try normalizeHex(s)) }
+        guard s.hasSuffix(")") else { throw ThemeError.invalidColor(raw) }
+        let inner = s.dropFirst("oklch(".count).dropLast()
+        // Drop any "/ alpha" tail, then split the three coordinates on whitespace/commas.
+        let coords = inner.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)[0]
+            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "," })
+        guard coords.count == 3 else { throw ThemeError.invalidColor(raw) }
+        func num(_ t: Substring) -> Double? { Double(String(t)) }
+        // L accepts a 0…1 number or an NN% percentage.
+        let lTok = coords[0]
+        let L: Double
+        if lTok.hasSuffix("%") {
+            guard let v = num(lTok.dropLast()) else { throw ThemeError.invalidColor(raw) }
+            L = v / 100
+        } else {
+            guard let v = num(lTok) else { throw ThemeError.invalidColor(raw) }
+            L = v
+        }
+        guard let C = num(coords[1]) else { throw ThemeError.invalidColor(raw) }
+        // H is degrees (OKLCH stores radians); accept a bare number or a `deg` suffix.
+        var hTok = coords[2]
+        if hTok.lowercased().hasSuffix("deg") { hTok = hTok.dropLast(3) }
+        guard let hDeg = num(hTok) else { throw ThemeError.invalidColor(raw) }
+        return okLabToLinRGB(okLCHToOKLab(OKLCH(L: L, C: C, H: hDeg * .pi / 180)))
+    }
+
+    /// Accept an `oklch()` OR hex color and return the canonical sRGB `#rrggbb`. The generator
+    /// threads hex seeds (the emitted fallback line + WCAG anchor are always sRGB hex), so an
+    /// oklch() seed is gamut-clamped to hex here and the P3-widened oklch line is re-derived
+    /// from it downstream exactly as for a hex seed. Drop-in replacement for `normalizeHex`.
+    static func normalizeColor(_ raw: String) throws -> String {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard s.lowercased().hasPrefix("oklch(") else { return try normalizeHex(s) }
+        return hexString(try parseColor(s))
+    }
+
     // The shipped contract these tokens must satisfy (mirrors Theme.swift):
     private static let surfaceLight = "#ffffff", surfaceDark = "#1a1a1a"
     private static let tintWeight = 0.15
@@ -444,7 +488,7 @@ extension Color {
                                       warningHex: String? = nil,
                                       infoHex: String? = nil,
                                       includeNeutrals: Bool = false) throws -> (css: String, failures: [PaletteFailure]) {
-        let light = try normalizeHex(primaryHex)
+        let light = try normalizeColor(primaryHex)
         let dark = darkAccent(from: light)
         var failures = validateAccentFamily(lightAccentHex: light, darkAccentHex: dark)
 
@@ -474,28 +518,28 @@ extension Color {
                     "  \(name): light-dark(\(widened[0]), \(widened[1]));"]
         }
         if let dangerHex {
-            let dl = try normalizeHex(dangerHex)
+            let dl = try normalizeColor(dangerHex)
             let dd = darkAccent(from: dl)
             failures += validateStatusFamily(name: "--sw-danger", lightHex: dl, darkHex: dd, rawBar: 4.5)
             statusLines += tokenLines("--sw-danger", dl, dd, rawBar: 4.5, textBar: nil)
             flagEcho += " --danger \(dl)"
         }
         if let successHex {
-            let sl = try normalizeHex(successHex)
+            let sl = try normalizeColor(successHex)
             let sd = darkAccent(from: sl)
             failures += validateStatusFamily(name: "--sw-success", lightHex: sl, darkHex: sd, rawBar: 3.0)
             statusLines += tokenLines("--sw-success", sl, sd, rawBar: 3.0, textBar: nil)
             flagEcho += " --success \(sl)"
         }
         if let warningHex {
-            let wl = try normalizeHex(warningHex)
+            let wl = try normalizeColor(warningHex)
             let wd = darkAccent(from: wl)
             failures += validateStatusFamily(name: "--sw-warning", lightHex: wl, darkHex: wd, rawBar: 3.0)
             statusLines += tokenLines("--sw-warning", wl, wd, rawBar: 3.0, textBar: nil)
             flagEcho += " --warning \(wl)"
         }
         if let infoHex {
-            let il = try normalizeHex(infoHex)
+            let il = try normalizeColor(infoHex)
             let id = darkAccent(from: il)
             failures += validateStatusFamily(name: "--sw-info", lightHex: il, darkHex: id, rawBar: 3.0)
             statusLines += tokenLines("--sw-info", il, id, rawBar: 3.0, textBar: nil)

@@ -1,9 +1,10 @@
 // Sources/SwiflowCLI/Commands/ThemeCommand.swift
 //
-// `swiflow theme --primary "#hex"` — derive a contrast-validated --sw-accent
-// override from a brand color and emit it (stdout, or --out file). The whole
-// accent family (hover/active/text/strong) derives from --sw-accent in
-// SwiflowUI's base stylesheet, so the override re-points one token.
+// `swiflow theme --primary "oklch(0.62 0.17 255)"` — derive a contrast-validated
+// --sw-accent override from a brand color and emit it (stdout, or --out file).
+// Colors are OKLCH-primary: `oklch(L C H)` or hex (#rgb/#rrggbb). The whole accent
+// family (hover/active/text/strong) derives from --sw-accent in SwiflowUI's base
+// stylesheet, so the override re-points one token.
 
 import ArgumentParser
 import Foundation
@@ -16,7 +17,7 @@ struct ThemeCommand: ParsableCommand {
     )
 
     @Option(name: .customLong("primary"),
-            help: "Brand color (light-mode accent), as #rgb or #rrggbb.")
+            help: "Brand color (light-mode accent), as oklch(L C H) or hex (#rgb/#rrggbb).")
     var primary: String
 
     @Option(name: .customLong("out"),
@@ -28,19 +29,19 @@ struct ThemeCommand: ParsableCommand {
     var neutrals = false
 
     @Option(name: .customLong("danger"),
-            help: "Brand danger/error color (light-mode), as #rgb or #rrggbb.")
+            help: "Brand danger/error color (light-mode), as oklch(L C H) or hex (#rgb/#rrggbb).")
     var danger: String?
 
     @Option(name: .customLong("success"),
-            help: "Brand success color (light-mode), as #rgb or #rrggbb.")
+            help: "Brand success color (light-mode), as oklch(L C H) or hex (#rgb/#rrggbb).")
     var success: String?
 
     @Option(name: .customLong("warning"),
-            help: "Brand warning color (light-mode), as #rgb or #rrggbb.")
+            help: "Brand warning color (light-mode), as oklch(L C H) or hex (#rgb/#rrggbb).")
     var warning: String?
 
     @Option(name: .customLong("info"),
-            help: "Brand info color (light-mode); defaults to the accent if unset.")
+            help: "Brand info color (light-mode), as oklch(L C H) or hex; defaults to the accent if unset.")
     var info: String?
 
     func run() throws {

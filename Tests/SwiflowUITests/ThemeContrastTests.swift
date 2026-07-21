@@ -3,6 +3,10 @@ import Foundation
 @testable import SwiflowColor
 @testable import SwiflowUI
 
+// This suite drives the SwiflowColor math enum (`Color.hex/mixOKLab/wcagContrast/…`).
+// SwiflowUI now also exports a public `Color` value type, so pin bare `Color` here.
+private typealias Color = SwiflowColor.Color
+
 @Suite("Theme contrast")
 @MainActor
 struct ThemeContrastTests {

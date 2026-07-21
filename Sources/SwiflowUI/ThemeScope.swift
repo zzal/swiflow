@@ -21,15 +21,33 @@ public struct ThemeToken: Equatable, Sendable {
     public static func danger(_ v: String)  -> ThemeToken { .set(.danger,  v) }
     public static func success(_ v: String) -> ThemeToken { .set(.success, v) }
 
+    // OKLCH-primary overloads: define branded colors with a typed `Color` value
+    // (e.g. `.accent(.oklch(l: 0.62, c: 0.17, h: 255))`). Raw-String literals still
+    // pick the String overloads above, so existing call sites are unchanged.
+    public static func accent(_ v: Color)  -> ThemeToken { .set(.accent,  v) }
+    public static func surface(_ v: Color) -> ThemeToken { .set(.surface, v) }
+    public static func text(_ v: Color)    -> ThemeToken { .set(.text,    v) }
+    public static func border(_ v: Color)  -> ThemeToken { .set(.border,  v) }
+    public static func danger(_ v: Color)  -> ThemeToken { .set(.danger,  v) }
+    public static func success(_ v: Color) -> ThemeToken { .set(.success, v) }
+
     /// Override any typed token — the vocabulary door beyond the branded
     /// shortcuts, without falling back to a stringly name.
     public static func set(_ token: Token, _ value: String) -> ThemeToken {
         .init(name: token.name, value: value)
     }
 
+    /// Typed-color twin of `set(_:_:)` — set any token to a `Color` value.
+    public static func set(_ token: Token, _ value: Color) -> ThemeToken {
+        .init(name: token.name, value: value.css)
+    }
+
     /// Escape hatch for app-custom properties (anything outside the `--sw-*`
     /// vocabulary — custom props your own CSS reads).
     public static func token(_ name: String, _ value: String) -> ThemeToken { .init(name: name, value: value) }
+
+    /// Typed-color twin of `token(_:_:)` for app-custom properties.
+    public static func token(_ name: String, _ value: Color) -> ThemeToken { .init(name: name, value: value.css) }
 }
 
 /// The declarations that re-derive the accent FAMILY (hover / active / strong /
