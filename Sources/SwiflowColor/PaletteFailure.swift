@@ -35,9 +35,12 @@ public struct PaletteFailure: Equatable, Sendable, CustomStringConvertible {
 /// returned in `ThemeResult.failures`. Only malformed input throws.
 public enum ThemeError: Error, CustomStringConvertible {
     case invalidHex(String)
+    /// A value that looked like `oklch(…)` but didn't parse as `oklch(L C H)`.
+    case invalidColor(String)
     public var description: String {
         switch self {
         case .invalidHex(let s): return "invalid theme color hex: \(s) (expected #rgb or #rrggbb)"
+        case .invalidColor(let s): return "invalid theme color: \(s) (expected oklch(L C H) or #rgb/#rrggbb)"
         }
     }
 }

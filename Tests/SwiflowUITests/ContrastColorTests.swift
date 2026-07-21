@@ -3,6 +3,9 @@ import Foundation
 @testable import SwiflowColor
 @testable import SwiflowUI
 
+// Drives the SwiflowColor math enum; pin bare `Color` past SwiflowUI's new `Color` value type.
+private typealias Color = SwiflowColor.Color
+
 @Suite("ContrastColor")
 struct ContrastColorTests {
     @Test("Hex parses to linear sRGB with correct WCAG luminance")

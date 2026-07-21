@@ -25,9 +25,22 @@ struct PublicAPITests {
         }
     }
 
-    @Test("Contrast metrics work from hex") func contrastMetrics() throws {
+    @Test("generate accepts an oklch() primary seed") func oklchSeed() throws {
+        let r = try ThemeGenerator.generate(.init(primary: "oklch(0.62 0.17 255)"))
+        #expect(r.css.contains("--sw-accent: light-dark(#"))
+    }
+
+    @Test("generate throws invalidColor on a malformed oklch()") func invalidOklch() {
+        #expect(throws: ThemeError.self) {
+            _ = try ThemeGenerator.generate(.init(primary: "oklch(nope)"))
+        }
+    }
+
+    @Test("Contrast metrics work from hex and oklch") func contrastMetrics() throws {
         #expect(abs(try Contrast.wcag("#000000", "#ffffff") - 21.0) < 0.1)
-        #expect(abs(try Contrast.apca(textHex: "#000000", bgHex: "#ffffff") - 106.04) < 0.1)
+        #expect(abs(try Contrast.apca(text: "#000000", bg: "#ffffff") - 106.04) < 0.1)
+        // achromatic-extreme oklch resolves to the same black/white → same 21:1
+        #expect(abs(try Contrast.wcag("oklch(0 0 0)", "oklch(1 0 0)") - 21.0) < 0.1)
         #expect(throws: ThemeError.self) { _ = try Contrast.wcag("zzz", "#fff") }
     }
 }

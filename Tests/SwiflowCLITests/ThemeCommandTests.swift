@@ -106,6 +106,22 @@ struct ThemeCommandTests {
         #expect(!css.contains("--sw-info"))
     }
 
+    @Test("--primary accepts an oklch() color and writes the override") func oklchPrimary() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        var cmd = try ThemeCommand.parse(["--primary", "oklch(0.62 0.17 255)", "--out", tmp.path])
+        try cmd.run()
+        let css = try String(contentsOf: tmp, encoding: .utf8)
+        #expect(css.contains("--sw-accent: light-dark(#"))          // oklch seed → hex net
+        #expect(css.contains("--sw-accent: light-dark(oklch("))     // + progressive oklch line
+    }
+
+    @Test("a malformed oklch --primary is a run() error") func badOklchThrows() throws {
+        var cmd = try ThemeCommand.parse(["--primary", "oklch(nope)"])
+        #expect(throws: (any Error).self) { try cmd.run() }
+    }
+
     @Test("generated file carries a progressive oklch accent line") func fileHasOklch() throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("sw-theme-\(UUID().uuidString).css")
