@@ -54,12 +54,27 @@ struct OKLCHInputTests {
         #expect(r.css.contains("--sw-accent: light-dark(oklch("))    // + progressive oklch line
     }
 
-    @Test("an oklch primary produces the same CSS as its normalized hex")
+    @Test("an oklch primary produces the same token BODY as its normalized hex")
     func generatorOklchMatchesHex() throws {
         let oklch = "oklch(0.62 0.17 255)"
         let hex = try Color.normalizeColor(oklch)
+        func body(_ css: String) -> Substring { css[css.range(of: ":root")!.lowerBound...] }
         let fromOklch = try Color.accentThemeCSS(primaryHex: oklch).css
         let fromHex = try Color.accentThemeCSS(primaryHex: hex).css
-        #expect(fromOklch == fromHex)   // oklch collapses to the canonical hex seed, then derives identically
+        // Same seed → byte-identical derived tokens; only the echoed header differs by design.
+        #expect(body(fromOklch) == body(fromHex))
+        #expect(fromOklch.contains("--primary \"oklch(0.62 0.17 255)\""))   // echoes what you typed
+        #expect(fromHex.contains("--primary \"\(hex)\""))
+    }
+
+    @Test("the header echoes each seed as the user typed it, quoted (oklch stays oklch)")
+    func headerEchoesRawSeeds() throws {
+        let css = try Color.accentThemeCSS(primaryHex: " oklch(0.62 0.17 255) ",   // stray spaces trimmed
+                                           dangerHex: "#e11d48").css
+        #expect(css.contains("--primary \"oklch(0.62 0.17 255)\""))
+        #expect(css.contains("--danger \"#e11d48\""))
+        // hex primary is quoted too (a bare #hex is a shell comment).
+        let hexCss = try Color.accentThemeCSS(primaryHex: "#3b82f6").css
+        #expect(hexCss.contains("--primary \"#3b82f6\""))
     }
 }
