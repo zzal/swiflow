@@ -23,7 +23,7 @@ Add it to a host tool/target:
 import SwiflowColor
 
 let result = try ThemeGenerator.generate(
-    .init(primary: "#7c3aed", danger: "#e11d48", includeNeutrals: true)
+    .init(primary: "oklch(0.55 0.22 264)", danger: "#e11d48", includeNeutrals: true)
 )
 
 if result.isValid {
@@ -33,9 +33,11 @@ if result.isValid {
 }
 ```
 
-`generate(_:)` throws `ThemeError.invalidHex` only for malformed hex. Contrast shortfalls are
-**returned** in `result.failures` (each carries the WCAG ratio + an advisory APCA Lc), never
-thrown — the caller decides whether to treat them as fatal (the `swiflow theme` CLI does).
+Colors are **OKLCH-primary**: each seed is an `oklch(L C H)` string *or* hex (`#rgb`/`#rrggbb`) —
+OKLCH is the engine's native space, so an `oklch()` seed skips the hex round-trip. `generate(_:)`
+throws `ThemeError.invalidColor` / `.invalidHex` only for malformed input; contrast shortfalls are
+**returned** in `result.failures` (each carries the WCAG ratio + an advisory APCA Lc), never thrown
+— the caller decides whether to treat them as fatal (the `swiflow theme` CLI does).
 
 `ThemeOptions` mirrors the CLI flags: `primary` (required), optional `danger`/`success`/
 `warning`/`info` status seeds, and `includeNeutrals`.
@@ -43,8 +45,9 @@ thrown — the caller decides whether to treat them as fatal (the `swiflow theme
 ## Contrast metrics
 
 ```swift
-let ratio = try Contrast.wcag("#1d4ed8", "#ffffff")              // WCAG 2.x ratio (1…21)
-let lc = try Contrast.apca(textHex: "#1d4ed8", bgHex: "#ffffff") // APCA Lc (advisory)
+let ratio = try Contrast.wcag("oklch(0.45 0.2 264)", "#ffffff")  // WCAG 2.x ratio (1…21)
+let lc = try Contrast.apca(text: "#1d4ed8", bg: "#ffffff")       // APCA Lc (advisory)
 ```
 
-Both validate hex and throw `ThemeError.invalidHex` on malformed input.
+Both accept `oklch()` or hex (an oklch seed is gamut-clamped to sRGB for the metric) and throw
+`ThemeError.invalidColor` / `.invalidHex` on malformed input.
