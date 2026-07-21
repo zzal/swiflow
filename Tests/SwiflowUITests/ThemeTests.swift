@@ -38,13 +38,13 @@ struct ThemeTests {
         }
     }
 
-    @Test("All four media-feature override layers are emitted") func mediaLayersEmitted() {
+    @Test("The three media-feature override layers are emitted (P3 needs none — oklch adapts)") func mediaLayersEmitted() {
         let css = sheet
         #expect(css.contains("@media (prefers-contrast: more)"))
         #expect(css.contains("@media (prefers-reduced-motion: reduce)"))
         #expect(css.contains("@media (prefers-reduced-transparency: reduce)"))
-        #expect(css.contains("@media (color-gamut: p3)"))
-        #expect(css.contains("@supports (color: color(display-p3 0 0 0))"))  // p3 syntax gate
+        // No @media (color-gamut: p3): accent/status are absolute oklch(), gamut-adaptive.
+        #expect(!css.contains("@media (color-gamut: p3)"))
     }
 
     @Test("Reduced-motion layer collapses duration and pauses animation") func reducedMotionRepoints() {
@@ -53,10 +53,10 @@ struct ThemeTests {
         #expect(css.contains("--sw-anim-play: paused"))
     }
 
-    @Test("Contrast layer thickens the border and color-gamut upgrades to display-p3") func contrastAndGamutRepoints() {
+    @Test("Contrast layer thickens the border; no display-p3 block remains") func contrastRepoints() {
         let css = sheet
         #expect(css.contains("--sw-border-width: 2px"))   // prefers-contrast: more
-        #expect(css.contains("color(display-p3"))         // color-gamut: p3
+        #expect(!css.contains("color(display-p3"))        // P3 block removed — oklch auto-adapts
     }
 
     @Test("Override layers are emitted after the base :root so they win the cascade") func overridesComeAfterBase() {
@@ -165,8 +165,8 @@ struct ThemeTests {
 
     @Test("warning/info status tokens are present across the right layers") func warningInfoTokens() {
         let css = sheet
-        // :root defaults — warning is a literal amber; info aliases the accent.
-        #expect(css.contains("--sw-warning: light-dark(#b45309, #fbbf24)"))
+        // :root defaults — warning is an oklch amber; info aliases the accent.
+        #expect(css.contains("--sw-warning: light-dark(oklch(0.5558 0.1631 49.72), oklch(0.8395 0.19 83.48))"))
         #expect(css.contains("--sw-info: var(--sw-accent)"))
         // -strong derivations exist for both.
         #expect(css.contains("--sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.40 c h)"))
@@ -174,9 +174,6 @@ struct ThemeTests {
         // more-contrast pushes both strong tokens to the 0.30/0.88 band.
         #expect(css.contains("--sw-warning-strong: light-dark(oklch(from var(--sw-warning) 0.30 c h)"))
         #expect(css.contains("--sw-info-strong: light-dark(oklch(from var(--sw-info) 0.30 c h)"))
-        // warning has its own P3 raw line; info does NOT (it inherits the accent's via var()).
-        #expect(css.contains("--sw-warning: light-dark(color(display-p3"))
-        #expect(!css.contains("--sw-info: light-dark(color(display-p3"))
         // wrapping kept braces balanced.
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }

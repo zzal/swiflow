@@ -71,11 +71,20 @@ struct CSSValueParsingTests {
         #expect(!base.contains("@media"))
     }
 
-    @Test("lightDarkHex reads the current accent/surface/accent-text literals")
+    @Test("lightDarkHex reads a hex token (the -text fallback stays hex)")
     func lightDarkHexReads() {
         let base = CSSValueParsing.baseRegion(sheet)
-        #expect(CSSValueParsing.lightDarkHex(base, "--sw-accent")!  == ("#3b82f6", "#60a5fa"))
-        #expect(CSSValueParsing.lightDarkHex(base, "--sw-surface")! == ("#ffffff", "#1a1a1a"))
+        #expect(CSSValueParsing.lightDarkHex(base, "--sw-accent-text")! == ("#0b1220", "#0b1220"))
+    }
+
+    @Test("lightDarkColor resolves the oklch primary tokens to linear sRGB")
+    func lightDarkColorReads() {
+        let base = CSSValueParsing.baseRegion(sheet)
+        // surface: light is white (oklch(1 0 0)); dark is a near-black gray.
+        let surface = CSSValueParsing.lightDarkColor(base, "--sw-surface")!
+        #expect(abs(surface.light.luminance - 1.0) < 0.02)
+        #expect(surface.dark.luminance < 0.05)
+        #expect(CSSValueParsing.lightDarkColor(base, "--sw-accent") != nil)   // oklch accent resolves
     }
 
     @Test("contrastMoreRegion isolates the prefers-contrast block")
