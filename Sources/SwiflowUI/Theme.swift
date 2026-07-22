@@ -3,6 +3,41 @@ import Swiflow
 
 /// Namespace for SwiflowUI's module-level theme surface.
 public enum SwiflowUI {
+    /// The base sheet's absolute-oklch token values, authored with SwiflowUI's own typed
+    /// `Color` — dogfooding the OKLCH definition API on our own hardest internal case, and a
+    /// single Swift source of truth for the palette. ONLY absolute-oklch arms live here: the
+    /// hex `@property` floors, the `light-dark()` wrappers, the `oklch(from …)` derivations,
+    /// and `contrast-color()` stay raw in `baseStyleSheet` (`Color` models absolute oklch only).
+    /// `.css` reproduces the exact strings the sheet shipped, so the emitted CSS is byte-identical
+    /// — the palette-pin test in `ThemeTests` is the guard.
+    private enum Palette {
+        // Accent & status (light arm, dark arm) — chroma pushed toward the P3 gamut edge.
+        static let accentLight  = Color.oklch(l: 0.6212, c: 0.2051, h: 254.13)
+        static let accentDark   = Color.oklch(l: 0.7218, c: 0.1539, h: 249.3)
+        static let dangerLight  = Color.oklch(l: 0.5795, c: 0.234,  h: 26)
+        static let dangerDark   = Color.oklch(l: 0.7402, c: 0.1748, h: 22.79)
+        static let successLight = Color.oklch(l: 0.6136, c: 0.1956, h: 153.85)
+        static let successDark  = Color.oklch(l: 0.7958, c: 0.1889, h: 154.81)
+        static let warningLight = Color.oklch(l: 0.5558, c: 0.1631, h: 49.72)
+        static let warningDark  = Color.oklch(l: 0.8395, c: 0.19,   h: 83.48)
+        // Neutral ramp (light arm, dark arm) — a faint cool cast keeps grays from reading flat.
+        static let bgLight        = Color.oklch(l: 0.9759, c: 0.0029, h: 264.54)
+        static let bgDark         = Color.oklch(l: 0.1591, c: 0,      h: 0)
+        static let surfaceLight   = Color.oklch(l: 1,      c: 0,      h: 0)
+        static let surfaceDark    = Color.oklch(l: 0.2178, c: 0,      h: 0)
+        static let surface2Light  = Color.oklch(l: 0.967,  c: 0.0029, h: 264.54)
+        static let surface2Dark   = Color.oklch(l: 0.2603, c: 0,      h: 0)
+        static let textLight      = Color.oklch(l: 0.1776, c: 0,      h: 0)
+        static let textDark       = Color.oklch(l: 0.9702, c: 0,      h: 0)
+        static let textMutedLight = Color.oklch(l: 0.4909, c: 0.0177, h: 260.71)
+        static let textMutedDark  = Color.oklch(l: 0.7137, c: 0.0192, h: 261.32)
+        static let borderLight    = Color.oklch(l: 0.9276, c: 0.0058, h: 264.53)
+        static let borderDark     = Color.oklch(l: 0.3211, c: 0,      h: 0)
+        // Tooltip bubble — same in both schemes (inverted-bubble idiom).
+        static let tooltipBg      = Color.oklch(l: 0.3729, c: 0.0306, h: 259.73)
+        static let tooltipText    = Color.oklch(l: 1,      c: 0,      h: 0)
+    }
+
     /// The design-token contract: the full `--sw-*` vocabulary at `:root`, plus
     /// the media-feature override layers that re-point those tokens.
     ///
@@ -135,16 +170,16 @@ public enum SwiflowUI {
 
           /* surfaces & text — authored in oklch (perceptual; the @property hex floor
              above is the pre-oklch fallback). Neutrals carry a faint cool cast (tiny C). */
-          --sw-bg: light-dark(oklch(0.9759 0.0029 264.54), oklch(0.1591 0 0));        /* page/canvas — surfaces lift off this */
-          --sw-surface: light-dark(oklch(1 0 0), oklch(0.2178 0 0));
-          --sw-surface-2: light-dark(oklch(0.967 0.0029 264.54), oklch(0.2603 0 0));
-          --sw-text: light-dark(oklch(0.1776 0 0), oklch(0.9702 0 0));
-          --sw-text-muted: light-dark(oklch(0.4909 0.0177 260.71), oklch(0.7137 0.0192 261.32));
+          --sw-bg: light-dark(\(Palette.bgLight.css), \(Palette.bgDark.css));        /* page/canvas — surfaces lift off this */
+          --sw-surface: light-dark(\(Palette.surfaceLight.css), \(Palette.surfaceDark.css));
+          --sw-surface-2: light-dark(\(Palette.surface2Light.css), \(Palette.surface2Dark.css));
+          --sw-text: light-dark(\(Palette.textLight.css), \(Palette.textDark.css));
+          --sw-text-muted: light-dark(\(Palette.textMutedLight.css), \(Palette.textMutedDark.css));
           /* Tooltip bubble: white-on-dark-gray in BOTH schemes (deliberately NOT
              light-dark — an inverted bubble is the tooltip idiom and stays readable
              over any backdrop; 8.4:1 on the gray). Tokens so themes can re-skin it. */
-          --sw-tooltip-bg: oklch(0.3729 0.0306 259.73);
-          --sw-tooltip-text: oklch(1 0 0);
+          --sw-tooltip-bg: \(Palette.tooltipBg.css);
+          --sw-tooltip-text: \(Palette.tooltipText.css);
 
           /* Horizontal-field label column (LabeledField layout: .horizontal). */
           --sw-field-label-width: 10rem;
@@ -153,7 +188,7 @@ public enum SwiflowUI {
              browser renders each in the display's own gamut (wider on P3, gamut-mapped to
              sRGB elsewhere), so no color-gamut media block is needed. The chroma is pushed
              toward the P3 edge; the derived family below reads this via oklch(from …). */
-          --sw-accent: light-dark(oklch(0.6212 0.2051 254.13), oklch(0.7218 0.1539 249.3));
+          --sw-accent: light-dark(\(Palette.accentLight.css), \(Palette.accentDark.css));
           /* hover/active derive from --sw-accent (darken in light, lighten in dark) so
              re-pointing --sw-accent cascades the whole accent family. Literal fallback
              first for pre-oklch(from) browsers. */
@@ -166,7 +201,7 @@ public enum SwiflowUI {
              Fallback is dark in BOTH arms so pre-Baseline browsers also pass. See Button. */
           --sw-accent-text: light-dark(#0b1220, #0b1220);
           --sw-accent-text: contrast-color(var(--sw-accent));
-          --sw-danger: light-dark(oklch(0.5795 0.234 26), oklch(0.7402 0.1748 22.79));
+          --sw-danger: light-dark(\(Palette.dangerLight.css), \(Palette.dangerDark.css));
           /* danger hover/active/text mirror the accent family exactly, so
              re-pointing --sw-danger cascades the whole destructive palette
              (Button .danger). Literal fallbacks first, same convention. */
@@ -176,8 +211,8 @@ public enum SwiflowUI {
           --sw-danger-active: light-dark(oklch(from var(--sw-danger) calc(l - 0.16) c h), oklch(from var(--sw-danger) calc(l + 0.16) c h));
           --sw-danger-text: light-dark(#ffffff, #450a0a);
           --sw-danger-text: contrast-color(var(--sw-danger));
-          --sw-success: light-dark(oklch(0.6136 0.1956 153.85), oklch(0.7958 0.1889 154.81));
-          --sw-warning: light-dark(oklch(0.5558 0.1631 49.72), oklch(0.8395 0.19 83.48));
+          --sw-success: light-dark(\(Palette.successLight.css), \(Palette.successDark.css));
+          --sw-warning: light-dark(\(Palette.warningLight.css), \(Palette.warningDark.css));
           --sw-info: var(--sw-accent);
           /* "strong" = semantic-hue text readable on a 15% tint of that hue.
              Static fallback first (hand-tuned, kept for pre-Baseline browsers); the
@@ -196,7 +231,7 @@ public enum SwiflowUI {
           --sw-info-strong: light-dark(oklch(from var(--sw-info) 0.40 c h), oklch(from var(--sw-info) 0.80 c h));
 
           /* borders, focus ring & elevation */
-          --sw-border: light-dark(oklch(0.9276 0.0058 264.53), oklch(0.3211 0 0));
+          --sw-border: light-dark(\(Palette.borderLight.css), \(Palette.borderDark.css));
           --sw-border-width: 1px;
           --sw-focus-ring: var(--sw-accent);
           --sw-focus-ring-width: 3px;
