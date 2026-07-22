@@ -513,10 +513,19 @@ extension Color {
                 (darkHex, surfaceDark, strongAA.1, strongAAA.1),
             ]
             let widened = arms.map { arm in
-                safeP3OKLCHString(fromHex: arm.seedHex) { candidate in
-                    familyPasses(seed: candidate, surface: hex(arm.surfaceHex),
+                let surface = hex(arm.surfaceHex)
+                return safeP3OKLCHString(fromHex: arm.seedHex) { candidate in
+                    // The oklch() line wins on every oklch-capable engine, so the widened color
+                    // must clear the whole family in BOTH renderings: unclamped on a P3 display,
+                    // and gamut-mapped (clamped seed, as the base sheet's sRGB arm is validated)
+                    // on an sRGB one. Both required — chroma-widening shifts WCAG luminance
+                    // differently per gamut, so P3-passing does not imply sRGB-passing.
+                    familyPasses(seed: candidate, surface: surface,
                                  lAA: arm.lAA, lAAA: arm.lAAA,
                                  rawBar: rawBar, textBar: textBar, gamut: .p3)
+                    && familyPasses(seed: clampGamut(candidate), surface: surface,
+                                    lAA: arm.lAA, lAAA: arm.lAAA,
+                                    rawBar: rawBar, textBar: textBar, gamut: .srgb)
                 }
             }
             return ["  \(name): light-dark(\(lightHex), \(darkHex));",
