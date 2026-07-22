@@ -177,4 +177,28 @@ struct ThemeTests {
         // wrapping kept braces balanced.
         #expect(css.filter { $0 == "{" }.count == css.filter { $0 == "}" }.count)
     }
+
+    @Test("the absolute-oklch palette emits byte-identically (dogfood pin)")
+    func palettePinnedExactly() {
+        // Primary accent/status + neutral ramp + tooltip are authored via SwiflowUI.Color
+        // (Theme.swift's Palette). Color.oklch(...).css must reproduce these EXACT strings —
+        // this pins the byte-identical contract the dogfood rests on (guards Color.fmt drift).
+        let css = sheet
+        for decl in [
+            "--sw-accent: light-dark(oklch(0.6212 0.2051 254.13), oklch(0.7218 0.1539 249.3));",
+            "--sw-danger: light-dark(oklch(0.5795 0.234 26), oklch(0.7402 0.1748 22.79));",
+            "--sw-success: light-dark(oklch(0.6136 0.1956 153.85), oklch(0.7958 0.1889 154.81));",
+            "--sw-warning: light-dark(oklch(0.5558 0.1631 49.72), oklch(0.8395 0.19 83.48));",
+            "--sw-bg: light-dark(oklch(0.9759 0.0029 264.54), oklch(0.1591 0 0));",
+            "--sw-surface: light-dark(oklch(1 0 0), oklch(0.2178 0 0));",
+            "--sw-surface-2: light-dark(oklch(0.967 0.0029 264.54), oklch(0.2603 0 0));",
+            "--sw-text: light-dark(oklch(0.1776 0 0), oklch(0.9702 0 0));",
+            "--sw-text-muted: light-dark(oklch(0.4909 0.0177 260.71), oklch(0.7137 0.0192 261.32));",
+            "--sw-border: light-dark(oklch(0.9276 0.0058 264.53), oklch(0.3211 0 0));",
+            "--sw-tooltip-bg: oklch(0.3729 0.0306 259.73);",
+            "--sw-tooltip-text: oklch(1 0 0);",
+        ] {
+            #expect(css.contains(decl), "palette declaration drifted: \(decl)")
+        }
+    }
 }
